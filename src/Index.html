@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MykeuanganGuech — Dashboard</title>
+  <?!= include('styles'); ?>
+  <?!= include('i18n'); ?>
+</head>
+
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans min-h-screen flex transition-colors duration-300 overflow-x-hidden">
+
+  <!-- Loading Overlay -->
+  <div id="appLoader" class="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+    <div class="text-center">
+      <div class="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-sm font-semibold text-slate-500">Memuat data...</p>
+    </div>
+  </div>
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside id="sidebar" class="w-72 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col z-40 fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:h-screen transition-all duration-300 transform -translate-x-full lg:translate-x-0">
+    <div class="p-6 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-brand dark:bg-white rounded-xl flex items-center justify-center transition-colors">
+          <i class="ph ph-wallet text-2xl text-white dark:text-brand"></i>
+        </div>
+        <h1 class="font-bold text-xl text-slate-800 dark:text-white tracking-tight">MyKeu<span class="text-brand dark:text-brand-light">Guech</span></h1>
+      </div>
+      <button class="lg:hidden text-slate-400 hover:text-slate-800 dark:hover:text-white text-2xl" onclick="toggleSidebar()"><i class="ph ph-x"></i></button>
+    </div>
+    
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-2">
+  <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-2 px-4 uppercase tracking-widest" data-i18n="nav.utama">Utama</p>
+  <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-squares-four text-xl"></i> <span data-i18n="nav.dashboard">Dashboard</span>
+  </button>
+  <button onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-file-pdf text-xl"></i> <span data-i18n="nav.laporan">Laporan &amp; Ekspor</span>
+  </button>
+  <button onclick="switchView('budgeting')" id="nav-budgeting" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-chart-pie-slice text-xl"></i> <span data-i18n="nav.budgeting">Budgeting</span>
+  </button>
+</nav>
+
+        <div class="p-4 shrink-0">
+      <!-- LANGUAGE TOGGLE -->
+      <div class="mb-4 px-2">
+        <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase" data-i18n="lang.title">Bahasa</p>
+        <div class="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <button data-lang-btn="id" onclick="setLang('id')" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-500 transition-all">
+            🇮🇩 ID
+          </button>
+          <button data-lang-btn="en" onclick="setLang('en')" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-500 transition-all">
+            🇬🇧 EN
+          </button>
+        </div>
+      </div>
+
+      <!-- TEMA WARNA -->
+      <div class="mb-4 px-2">
+        <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase" data-i18n="nav.tema">Tema Warna</p>
+        <div class="flex gap-2">
+          <button onclick="setTheme('')" class="w-6 h-6 rounded-full bg-slate-800 ring-2 ring-offset-1 ring-transparent focus:ring-slate-400"></button>
+          <button onclick="setTheme('theme-pink')" class="w-6 h-6 rounded-full bg-pink-600 ring-2 ring-offset-1 ring-transparent focus:ring-pink-400"></button>
+          <button onclick="setTheme('theme-violet')" class="w-6 h-6 rounded-full bg-violet-600 ring-2 ring-offset-1 ring-transparent focus:ring-violet-400"></button>
+          <button onclick="setTheme('theme-blue')" class="w-6 h-6 rounded-full bg-blue-600 ring-2 ring-offset-1 ring-transparent focus:ring-blue-400"></button>
+          <button onclick="setTheme('theme-emerald')" class="w-6 h-6 rounded-full bg-emerald-600 ring-2 ring-offset-1 ring-transparent focus:ring-emerald-400"></button>
+        </div>
+      </div>
+
+      <!-- USER INFO + RESET -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3 overflow-hidden">
+            <div class="w-8 h-8 rounded-full bg-brand-light dark:bg-slate-700 flex items-center justify-center text-brand dark:text-white shrink-0">
+              <i class="ph ph-user"></i>
+            </div>
+            <div class="min-w-0">
+              <p id="ui-username" class="text-sm font-bold text-slate-800 dark:text-white truncate">User</p>
+              <p id="ui-role" class="text-[10px] uppercase text-slate-500 dark:text-slate-400">User</p>
+            </div>
+          </div>
+        </div>
+        <button onclick="resetDemo()" class="w-full py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all flex justify-center items-center gap-2">
+          <i class="ph ph-arrow-counter-clockwise text-sm"></i> <span data-i18n="nav.reset">Reset Data Contoh</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-500">
+        <header class="bg-white dark:bg-slate-900 p-4 lg:px-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-30 shadow-sm transition-colors">
+      <div class="flex items-center gap-4">
+        <button onclick="toggleSidebar()" class="text-2xl text-slate-600 dark:text-slate-300 hover:text-brand transition-colors focus:outline-none">
+          <i class="ph ph-list"></i>
+        </button>
+        <h2 class="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2 lg:hidden">
+          <i class="ph ph-wallet text-brand"></i> MyKeuGuech
+        </h2>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="toggleHideBtn" onclick="toggleHideNominal()" title="Sembunyikan Nominal" class="text-slate-400 hover:text-brand dark:hover:text-white text-xl transition-colors">
+          <i id="eyeIcon" class="ph ph-eye"></i>
+        </button>
+        <button onclick="toggleDarkMode()" class="text-slate-400 hover:text-brand dark:hover:text-white text-xl transition-colors">
+          <i class="ph ph-moon dark:hidden"></i><i class="ph ph-sun hidden dark:block"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full relative">
+      <?!= include('dashboard'); ?>
+      <?!= include('utang'); ?>
+      <?!= include('form'); ?>
+      <?!= include('laporan'); ?>
+      <?!= include('budgeting'); ?>
+    </div>
+  </main>
+
+  <!-- Sidebar Overlay for Mobile -->
+  <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+
+  <?!= include('scripts'); ?>
+</body>
+</html>
+
+
+#styles.html
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        colors: {
+          brand: 'var(--color-brand)',
+          'brand-hover': 'var(--color-brand-hover)',
+          'brand-light': 'var(--color-brand-light)'
+        }
+      }
+    }
+  }
+</script>
+
+<!-- Libs -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/id.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root { --color-brand: #0f172a; --color-brand-hover: #1e293b; --color-brand-light: #f1f5f9; }
+  .theme-pink { --color-brand: #db2777; --color-brand-hover: #be185d; --color-brand-light: #fce7f3; }
+  .theme-violet { --color-brand: #7c3aed; --color-brand-hover: #6d28d9; --color-brand-light: #f3e8ff; }
+  .theme-blue { --color-brand: #2563eb; --color-brand-hover: #1d4ed8; --color-brand-light: #dbeafe; }
+  .theme-emerald { --color-brand: #059669; --color-brand-hover: #047857; --color-brand-light: #d1fae5; }
+
+  .dark .theme-pink, .dark .theme-violet, .dark .theme-blue, .dark .theme-emerald {
+    --color-brand-light: rgba(255,255,255,0.05);
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px;}
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+  .hide { display: none !important; }
+
+  .fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .active-nav { background: var(--color-brand-light); color: var(--color-brand); font-weight: 700; border-radius: 0.75rem; }
+
+  .dark-swal { background: #1e293b !important; color: #f8fafc !important; }
+  .dark-swal .swal2-title, .dark-swal .swal2-html-container { color: #f8fafc !important; }
+  .dark-swal .swal2-input { background: #0f172a !important; color: white !important; border-color: #334155 !important; }
+</style>

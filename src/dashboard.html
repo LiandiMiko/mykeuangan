@@ -1,0 +1,221 @@
+<!-- ================= DASHBOARD ================= -->
+<section id="view-dashboard" class="view-section fade-in">
+  <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight" id="dashTitle" data-i18n="dash.title">Ringkasan Finansial</h2>
+    <div class="flex items-center gap-2 w-full sm:w-auto">
+      <button onclick="settingPayrollDay()" data-i18n-title="payroll.title" title="Setting Tanggal Gajian"
+              class="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand hover:border-brand transition-colors shrink-0">
+        <i class="ph ph-gear text-lg"></i>
+      </button>
+      <div class="relative flex-1 sm:w-48">
+        <input type="text" id="dashMonthPicker"
+               data-i18n-placeholder="dash.month"
+               class="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-sm shadow-sm text-slate-700 dark:text-slate-200"
+               placeholder="Pilih Bulan">
+        <i class="ph ph-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="bg-gradient-to-br from-brand to-indigo-600 rounded-[2rem] p-6 sm:p-8 text-white shadow-lg mb-8 relative overflow-hidden transition-all">
+    <i class="ph ph-diamond text-9xl absolute -right-6 -bottom-6 opacity-10 rotate-12"></i>
+    <div class="relative z-10 flex flex-col gap-1">
+      <p class="text-white/80 text-sm font-semibold flex items-center gap-2">
+        <span data-i18n="dash.networth">TOTAL KEKAYAAN BERSIH (NET WORTH)</span>
+        <i class="ph ph-info cursor-pointer hover:text-white transition-colors" data-i18n-title="dash.networth_tip" title="Total Kekayaan = Saldo Aktif + Aset + Piutang - Utang"></i>
+      </p>
+      <h1 class="text-4xl sm:text-5xl font-black tracking-tight drop-shadow-sm" id="dash-total-aset">Rp 0</h1>
+    </div>
+    <div class="mt-8 flex flex-wrap gap-3 relative z-10">
+      <button onclick="openForm('Pemasukan')" class="px-5 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl font-bold text-sm flex items-center gap-2 transition-colors">
+        <i class="ph ph-plus-circle text-lg"></i> <span data-i18n="dash.btn_pemasukan">Pemasukan</span>
+      </button>
+      <button onclick="openForm('Pengeluaran')" class="px-5 py-2.5 bg-rose-500/80 hover:bg-rose-500 backdrop-blur-md rounded-xl font-bold text-sm flex items-center gap-2 transition-colors">
+        <i class="ph ph-minus-circle text-lg"></i> <span data-i18n="dash.btn_pengeluaran">Pengeluaran</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- CASHFLOW -->
+  <div class="flex items-center gap-2 mb-4">
+    <h3 class="text-lg font-bold text-slate-800 dark:text-white">
+      <i class="ph ph-arrows-left-right text-brand"></i> <span data-i18n="dash.arus_kas">Arus Kas &amp; Saldo</span>
+    </h3>
+    <span class="text-xs font-medium text-slate-500 dark:text-slate-400 chartMonthLabel"></span>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
+      <div class="w-12 h-12 rounded-2xl bg-brand/10 text-brand flex items-center justify-center shrink-0"><i class="ph ph-wallet text-2xl"></i></div>
+      <div class="min-w-0">
+        <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 truncate" data-i18n="dash.uang_aktif">Uang Aktif (Tunai/Bank)</p>
+        <h3 class="text-lg font-bold text-slate-800 dark:text-white truncate" id="dash-saldo-aktif">Rp 0</h3>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-emerald-200 dark:border-emerald-900/50 shadow-sm flex items-center gap-4 hover:border-emerald-300 transition-colors">
+      <div class="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0"><i class="ph ph-arrow-down-left text-2xl"></i></div>
+      <div class="min-w-0">
+        <p class="text-emerald-600 dark:text-emerald-500 text-xs font-semibold mb-1 truncate" data-i18n="dash.total_pemasukan">Total Pemasukan</p>
+        <h3 class="text-lg font-bold text-emerald-600 dark:text-emerald-500 truncate" id="dash-cash-in">+Rp 0</h3>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-rose-200 dark:border-rose-900/50 shadow-sm flex items-center gap-4 hover:border-rose-300 transition-colors">
+      <div class="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 flex items-center justify-center shrink-0"><i class="ph ph-arrow-up-right text-2xl"></i></div>
+      <div class="min-w-0">
+        <p class="text-rose-600 dark:text-rose-500 text-xs font-semibold mb-1 truncate" data-i18n="dash.total_pengeluaran">Total Pengeluaran</p>
+        <h3 class="text-lg font-bold text-rose-600 dark:text-rose-500 truncate" id="dash-cash-out">-Rp 0</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= KALENDER ================= -->
+  <div class="flex items-center justify-between gap-3 mb-4 mt-2 flex-wrap">
+    <div class="flex items-center gap-2">
+      <h3 class="text-lg font-bold text-slate-800 dark:text-white">
+        <i class="ph ph-calendar-check text-brand"></i> <span data-i18n="dash.kalender">Kalender</span>
+      </h3>
+      <span class="text-xs font-medium text-slate-500 dark:text-slate-400" id="kalenderMonthLabel">—</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <button onclick="kalenderPrev()" data-i18n-title="cal.prev" title="Bulan sebelumnya" class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand hover:border-brand transition-colors">
+        <i class="ph ph-caret-left text-lg"></i>
+      </button>
+      <button onclick="kalenderToday()" data-i18n-title="cal.today" title="Ke bulan ini" class="px-3 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand hover:border-brand transition-colors text-xs font-bold" data-i18n="dash.btn_today">
+        Hari Ini
+      </button>
+      <button onclick="kalenderNext()" data-i18n-title="cal.next" title="Bulan berikutnya" class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand hover:border-brand transition-colors">
+        <i class="ph ph-caret-right text-lg"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8 transition-colors">
+    <div class="p-4 sm:p-5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-3">
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1" data-i18n="dash.total_masuk">Total Masuk</p>
+        <p class="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-500 truncate" id="kalenderTotalIn">Rp 0</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1" data-i18n="dash.total_keluar">Total Keluar</p>
+        <p class="text-base sm:text-lg font-black text-rose-600 dark:text-rose-500 truncate" id="kalenderTotalOut">Rp 0</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1" data-i18n="dash.net">Net</p>
+        <p class="text-base sm:text-lg font-black text-slate-700 dark:text-white truncate" id="kalenderTotalNet">Rp 0</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.sen">Sen</div>
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.sel">Sel</div>
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.rab">Rab</div>
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.kam">Kam</div>
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.jum">Jum</div>
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.sab">Sab</div>
+      <div class="py-2 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider" data-i18n="cal.min">Min</div>
+    </div>
+
+    <div id="kalenderGrid" class="grid grid-cols-7"></div>
+  </div>
+
+  <!-- PORTOFOLIO -->
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4">
+    <div>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+        <i class="ph ph-piggy-bank text-blue-500"></i> <span data-i18n="dash.portofolio">Portofolio Tabungan &amp; Investasi</span>
+      </h3>
+      <p class="text-xs text-slate-500 mt-1" data-i18n="dash.portofolio_sub">Kelola saldo Reksa Dana, Crypto, Saham, dll secara manual.</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="refreshAssetPrices()" title="Refresh Harga Crypto" class="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
+        <i class="ph ph-arrows-clockwise"></i> Refresh
+      </button>
+      <button onclick="addManualAssetUI()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
+        <i class="ph ph-plus-bold"></i> <span data-i18n="dash.btn_add_aset">Tambah Aset</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+    <div class="p-5 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-800 gap-2">
+      <p class="font-bold text-slate-600 dark:text-slate-300 text-sm" data-i18n="dash.total_investasi">Total Nilai Investasi</p>
+      <p class="font-black text-xl text-blue-500" id="dash-total-investasi">Rp 0</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0" id="list-manual-assets"></div>
+  </div>
+
+    <!-- 🆕 CHART PORTOFOLIO -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+    <div class="p-5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <div>
+        <p class="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
+          <i class="ph ph-chart-line text-brand"></i> Portfolio Chart
+        </p>
+        <p class="text-[10px] text-slate-400 mt-0.5">Tren nilai portfolio 30 hari terakhir</p>
+      </div>
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">30 Hari</span>
+    </div>
+    <div class="p-5" style="height: 280px; position: relative;">
+      <canvas id="portfolioChart"></canvas>
+      <div id="portfolioChartPlaceholder" style="display:none; position:absolute; inset:0;" class="flex items-center justify-center">
+        <div class="text-center">
+          <i class="ph ph-chart-line text-4xl text-slate-300 dark:text-slate-600 mb-2"></i>
+          <p class="text-xs text-slate-400">Butuh minimal 2 hari data untuk menampilkan chart</p>
+          <p class="text-[10px] text-slate-400 mt-1">Snapshot otomatis setiap hari jam 23:00</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UTANG PIUTANG -->
+  <div class="flex justify-between items-center mb-4">
+    <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+      <i class="ph ph-hand-coins text-amber-500"></i> <span data-i18n="dash.utang_piutang">Utang &amp; Piutang</span>
+    </h3>
+    <button onclick="switchView('utang')" class="text-sm font-bold text-brand hover:underline">
+      <span data-i18n="dash.btn_detail">Kelola Detail</span> <i class="ph ph-arrow-right"></i>
+    </button>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+    <div class="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-3xl border border-rose-100 dark:border-rose-900/50 flex justify-between items-center group cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-colors" onclick="switchView('utang')">
+      <div>
+        <p class="text-rose-500 text-xs font-bold mb-1" data-i18n="dash.utang_saya">Total Utang Saya (Netto)</p>
+        <h4 class="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400" id="dash-hutang">Rp 0</h4>
+      </div>
+      <i class="ph ph-arrow-circle-up text-4xl text-rose-200 dark:text-rose-900/50 group-hover:scale-110 transition-transform"></i>
+    </div>
+    <div class="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-900/50 flex justify-between items-center group cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors" onclick="switchView('utang')">
+      <div>
+        <p class="text-emerald-500 text-xs font-bold mb-1" data-i18n="dash.piutang_saya">Total Mengutangi (Piutang)</p>
+        <h4 class="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400" id="dash-piutang">Rp 0</h4>
+      </div>
+      <i class="ph ph-arrow-circle-down text-4xl text-emerald-200 dark:text-emerald-900/50 group-hover:scale-110 transition-transform"></i>
+    </div>
+  </div>
+
+  <!-- HISTORI -->
+  <div class="flex items-center gap-2 mb-4">
+    <h3 class="text-lg font-bold text-slate-800 dark:text-white">
+      <i class="ph ph-list-bullets text-slate-500"></i> <span data-i18n="dash.histori">Histori Transaksi</span>
+    </h3>
+    <span class="text-xs font-medium text-slate-500 dark:text-slate-400 chartMonthLabel"></span>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+        <h3 class="font-bold text-emerald-600 flex items-center gap-2">
+          <i class="ph ph-arrow-down-left text-xl"></i> <span data-i18n="dash.pemasukan">Pemasukan</span>
+        </h3>
+      </div>
+      <div class="p-5 max-h-[350px] overflow-y-auto space-y-3" id="listViewIn"></div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+        <h3 class="font-bold text-rose-600 flex items-center gap-2">
+          <i class="ph ph-arrow-up-right text-xl"></i> <span data-i18n="dash.pengeluaran">Pengeluaran</span>
+        </h3>
+      </div>
+      <div class="p-5 max-h-[350px] overflow-y-auto space-y-3" id="listViewOut"></div>
+    </div>
+  </div>
+</section>

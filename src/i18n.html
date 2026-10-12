@@ -1,0 +1,419 @@
+<script>
+/* ============================================================
+   i18n DICTIONARY — Bahasa Indonesia & English
+   ============================================================ */
+const I18N = {
+  id: {
+    // ============ SIDEBAR ============
+    'nav.utama': 'Utama',
+    'nav.dashboard': 'Dashboard',
+    'nav.laporan': 'Laporan & Ekspor',
+    'nav.budgeting': 'Budgeting',
+    'nav.tema': 'Tema Warna',
+    'nav.reset': 'Reset Data Contoh',
+    'nav.user': 'User',
+    'nav.role': 'User',
+
+    // ============ DASHBOARD ============
+    'dash.title': 'Ringkasan Finansial',
+    'dash.subtitle': 'Dashboard Keuangan',
+    'dash.month': 'Pilih Bulan',
+    'dash.networth': 'TOTAL KEKAYAAN BERSIH (NET WORTH)',
+    'dash.networth_tip': 'Total Kekayaan = Saldo Aktif + Aset/Tabungan + Piutang - Utang',
+    'dash.btn_pemasukan': 'Pemasukan',
+    'dash.btn_pengeluaran': 'Pengeluaran',
+    'dash.arus_kas': 'Arus Kas & Saldo',
+    'dash.uang_aktif': 'Uang Aktif (Tunai/Bank)',
+    'dash.total_pemasukan': 'Total Pemasukan',
+    'dash.total_pengeluaran': 'Total Pengeluaran',
+    'dash.kalender': 'Kalender',
+    'dash.btn_today': 'Hari Ini',
+    'dash.total_masuk': 'Total Masuk',
+    'dash.total_keluar': 'Total Keluar',
+    'dash.net': 'Net',
+    'dash.portofolio': 'Portofolio Tabungan & Investasi',
+    'dash.portofolio_sub': 'Kelola saldo Reksa Dana, Crypto, Saham, dll secara manual.',
+    'dash.btn_add_aset': 'Tambah Aset',
+    'dash.total_investasi': 'Total Nilai Investasi',
+    'dash.utang_piutang': 'Utang & Piutang',
+    'dash.btn_detail': 'Kelola Detail',
+    'dash.utang_saya': 'Total Utang Saya (Netto)',
+    'dash.piutang_saya': 'Total Mengutangi (Piutang)',
+    'dash.histori': 'Histori Transaksi',
+    'dash.pemasukan': 'Pemasukan',
+    'dash.pengeluaran': 'Pengeluaran',
+    'dash.kosong': 'Kosong',
+
+    // ============ KALENDER ============
+    'cal.sen': 'Sen',
+    'cal.sel': 'Sel',
+    'cal.rab': 'Rab',
+    'cal.kam': 'Kam',
+    'cal.jum': 'Jum',
+    'cal.sab': 'Sab',
+    'cal.min': 'Min',
+    'cal.siklus': 'siklus',
+    'cal.prev': 'Bulan sebelumnya',
+    'cal.next': 'Bulan berikutnya',
+    'cal.today': 'Ke bulan ini',
+
+    // ============ BULAN ============
+    'month.jan': 'Januari',
+    'month.feb': 'Februari',
+    'month.mar': 'Maret',
+    'month.apr': 'April',
+    'month.mei': 'Mei',
+    'month.jun': 'Juni',
+    'month.jul': 'Juli',
+    'month.aug': 'Agustus',
+    'month.sep': 'September',
+    'month.oct': 'Oktober',
+    'month.nov': 'November',
+    'month.des': 'Desember',
+
+    // ============ FORM TRANSAKSI ============
+    'form.title_add': 'Tambah',
+    'form.title_edit': 'Edit Transaksi',
+    'form.tanggal': 'Tanggal',
+    'form.kategori': 'Kategori',
+    'form.nominal': 'Nominal Transaksi (Rp)',
+    'form.catatan': 'Catatan Opsional',
+    'form.btn_save': 'Enkripsi & Simpan',
+    'form.pemasukan': 'Pemasukan',
+    'form.pengeluaran': 'Pengeluaran',
+
+    // ============ LAPORAN ============
+    'lap.title': 'Semua Data',
+    'lap.export': 'Ekspor PDF',
+    'lap.col_tgl': 'Tanggal',
+    'lap.col_tipe': 'Tipe',
+    'lap.col_kat': 'Kategori',
+    'lap.col_catatan': 'Catatan',
+    'lap.col_nominal': 'Nominal',
+    'lap.col_aksi': 'Aksi',
+    'lap.empty': 'Tidak ada data di periode ini',
+
+    // ============ UTANG PIUTANG ============
+    'utang.title': 'Detail Utang & Piutang',
+    'utang.pinjol': 'Utang Pinjol / App',
+    'utang.personal': 'Utang Personal',
+    'utang.piutang': 'Piutang (Mengutangi)',
+    'utang.btn_pinjam': 'Pinjam',
+    'utang.btn_bayar': 'Bayar',
+    'utang.btn_beri': 'Beri',
+    'utang.btn_terima': 'Terima',
+    'utang.kosong': 'Klik + untuk menambah',
+
+    // ============ BUDGETING ============
+    'budget.title': 'Budgeting',
+    'budget.subtitle': 'Alokasi dana per kategori',
+    'budget.plan': 'Rencana',
+    'budget.actual': 'Aktual',
+    'budget.selisih': 'Selisih',
+    'budget.status': 'Status',
+    'budget.total': 'TOTAL',
+    'budget.aman': 'Aman',
+    'budget.warning': 'Mendekati',
+    'budget.over': 'Over',
+    'budget.kategori': 'Kategori',
+    'budget.jumlah': 'Jumlah Budget (Rp)',
+    'budget.btn_save': 'Simpan Budget',
+    'budget.btn_delete': 'Hapus',
+    'budget.btn_edit': 'Edit',
+    'budget.btn_copy': 'Copy dari Bulan Lalu',
+    'budget.empty': 'Belum ada budget. Tambahkan di atas.',
+    'budget.progress': 'Progres',
+    'budget.sisa': 'Sisa',
+    'budget.lebih': 'Lebih',
+
+    // ============ UMUM ============
+    'btn.simpan': 'Simpan',
+    'btn.batal': 'Batal',
+    'btn.hapus': 'Hapus',
+    'btn.edit': 'Edit',
+    'btn.tutup': 'Tutup',
+    'btn.ya': 'Ya',
+    'btn.tidak': 'Tidak',
+    'btn.ya_hapus': 'Ya, Hapus',
+    'btn.ya_reset': 'Ya, Reset',
+
+    // ============ ALERTS ============
+    'alert.saved': 'Tersimpan!',
+    'alert.deleted': 'Terhapus!',
+    'alert.failed': 'Gagal',
+    'alert.success': 'Berhasil!',
+    'alert.load_failed': 'Gagal memuat data',
+    'alert.confirm_delete': 'Hapus Data?',
+    'alert.confirm_delete_text': 'Data tidak bisa dikembalikan!',
+    'alert.confirm_reset': 'Reset Data?',
+    'alert.confirm_reset_text': 'Seluruh data akan diganti dengan data contoh. Lanjutkan?',
+    'alert.invalid_data': 'Data tidak valid',
+    'alert.invalid_data_text': 'Isi tanggal dan nominal dengan benar.',
+    'alert.reset_done': 'Berhasil direset',
+
+    // ============ SETTING PAYROLL ============
+    'payroll.title': '⚙️ Tanggal Gajian',
+    'payroll.desc': 'Siklus keuangan akan dimulai dari tanggal ini setiap bulan.',
+    'payroll.example': 'Contoh',
+    'payroll.range_hint': 'Isi 1 untuk bulan kalender biasa (1-30/31)',
+    'payroll.saved': 'Tersimpan!',
+    'payroll.active_cycle': 'Siklus aktif',
+    'payroll.tanggal': 'Tanggal gajian',
+
+    // ============ HEADER ============
+    'header.hide_nominal': 'Sembunyikan Nominal',
+    'header.show_nominal': 'Tampilkan Nominal',
+
+    // ============ LANGS ============
+    'lang.id': 'Indonesia',
+    'lang.en': 'English',
+    'lang.title': 'Bahasa'
+  },
+  en: {
+    // ============ SIDEBAR ============
+    'nav.utama': 'Main',
+    'nav.dashboard': 'Dashboard',
+    'nav.laporan': 'Reports & Export',
+    'nav.budgeting': 'Budgeting',
+    'nav.tema': 'Color Theme',
+    'nav.reset': 'Reset Demo Data',
+    'nav.user': 'User',
+    'nav.role': 'User',
+
+    // ============ DASHBOARD ============
+    'dash.title': 'Financial Summary',
+    'dash.subtitle': 'Financial Dashboard',
+    'dash.month': 'Select Month',
+    'dash.networth': 'TOTAL NET WORTH',
+    'dash.networth_tip': 'Net Worth = Cash + Assets + Receivables - Debts',
+    'dash.btn_pemasukan': 'Income',
+    'dash.btn_pengeluaran': 'Expense',
+    'dash.arus_kas': 'Cash Flow & Balance',
+    'dash.uang_aktif': 'Active Money (Cash/Bank)',
+    'dash.total_pemasukan': 'Total Income',
+    'dash.total_pengeluaran': 'Total Expense',
+    'dash.kalender': 'Calendar',
+    'dash.btn_today': 'Today',
+    'dash.total_masuk': 'Total In',
+    'dash.total_keluar': 'Total Out',
+    'dash.net': 'Net',
+    'dash.portofolio': 'Savings & Investment Portfolio',
+    'dash.portofolio_sub': 'Manually manage Mutual Funds, Crypto, Stocks, etc.',
+    'dash.btn_add_aset': 'Add Asset',
+    'dash.total_investasi': 'Total Investment Value',
+    'dash.utang_piutang': 'Debts & Receivables',
+    'dash.btn_detail': 'Manage Detail',
+    'dash.utang_saya': 'Total Debts (Net)',
+    'dash.piutang_saya': 'Total Receivables',
+    'dash.histori': 'Transaction History',
+    'dash.pemasukan': 'Income',
+    'dash.pengeluaran': 'Expense',
+    'dash.kosong': 'Empty',
+
+    // ============ KALENDER ============
+    'cal.sen': 'Mon',
+    'cal.sel': 'Tue',
+    'cal.rab': 'Wed',
+    'cal.kam': 'Thu',
+    'cal.jum': 'Fri',
+    'cal.sab': 'Sat',
+    'cal.min': 'Sun',
+    'cal.siklus': 'cycle',
+    'cal.prev': 'Previous month',
+    'cal.next': 'Next month',
+    'cal.today': 'Go to this month',
+
+    // ============ BULAN ============
+    'month.jan': 'January',
+    'month.feb': 'February',
+    'month.mar': 'March',
+    'month.apr': 'April',
+    'month.mei': 'May',
+    'month.jun': 'June',
+    'month.jul': 'July',
+    'month.aug': 'August',
+    'month.sep': 'September',
+    'month.oct': 'October',
+    'month.nov': 'November',
+    'month.des': 'December',
+
+    // ============ FORM TRANSAKSI ============
+    'form.title_add': 'Add',
+    'form.title_edit': 'Edit Transaction',
+    'form.tanggal': 'Date',
+    'form.kategori': 'Category',
+    'form.nominal': 'Amount (Rp)',
+    'form.catatan': 'Optional Note',
+    'form.btn_save': 'Encrypt & Save',
+    'form.pemasukan': 'Income',
+    'form.pengeluaran': 'Expense',
+
+    // ============ LAPORAN ============
+    'lap.title': 'All Data',
+    'lap.export': 'Export PDF',
+    'lap.col_tgl': 'Date',
+    'lap.col_tipe': 'Type',
+    'lap.col_kat': 'Category',
+    'lap.col_catatan': 'Note',
+    'lap.col_nominal': 'Amount',
+    'lap.col_aksi': 'Action',
+    'lap.empty': 'No data in this period',
+
+    // ============ UTANG PIUTANG ============
+    'utang.title': 'Debt & Receivable Details',
+    'utang.pinjol': 'Online Loan Debts',
+    'utang.personal': 'Personal Debts',
+    'utang.piutang': 'Receivables (Lending)',
+    'utang.btn_pinjam': 'Borrow',
+    'utang.btn_bayar': 'Pay',
+    'utang.btn_beri': 'Lend',
+    'utang.btn_terima': 'Receive',
+    'utang.kosong': 'Click + to add',
+
+    // ============ BUDGETING ============
+    'budget.title': 'Budgeting',
+    'budget.subtitle': 'Fund allocation per category',
+    'budget.plan': 'Plan',
+    'budget.actual': 'Actual',
+    'budget.selisih': 'Difference',
+    'budget.status': 'Status',
+    'budget.total': 'TOTAL',
+    'budget.aman': 'Safe',
+    'budget.warning': 'Warning',
+    'budget.over': 'Over',
+    'budget.kategori': 'Category',
+    'budget.jumlah': 'Budget Amount (Rp)',
+    'budget.btn_save': 'Save Budget',
+    'budget.btn_delete': 'Delete',
+    'budget.btn_edit': 'Edit',
+    'budget.btn_copy': 'Copy from Last Month',
+    'budget.empty': 'No budget yet. Add one above.',
+    'budget.progress': 'Progress',
+    'budget.sisa': 'Remaining',
+    'budget.lebih': 'Over',
+
+    // ============ UMUM ============
+    'btn.simpan': 'Save',
+    'btn.batal': 'Cancel',
+    'btn.hapus': 'Delete',
+    'btn.edit': 'Edit',
+    'btn.tutup': 'Close',
+    'btn.ya': 'Yes',
+    'btn.tidak': 'No',
+    'btn.ya_hapus': 'Yes, Delete',
+    'btn.ya_reset': 'Yes, Reset',
+
+    // ============ ALERTS ============
+    'alert.saved': 'Saved!',
+    'alert.deleted': 'Deleted!',
+    'alert.failed': 'Failed',
+    'alert.success': 'Success!',
+    'alert.load_failed': 'Failed to load data',
+    'alert.confirm_delete': 'Delete Data?',
+    'alert.confirm_delete_text': 'This action cannot be undone!',
+    'alert.confirm_reset': 'Reset Data?',
+    'alert.confirm_reset_text': 'All data will be replaced with demo data. Continue?',
+    'alert.invalid_data': 'Invalid data',
+    'alert.invalid_data_text': 'Fill date and amount correctly.',
+    'alert.reset_done': 'Reset successful',
+
+    // ============ SETTING PAYROLL ============
+    'payroll.title': '⚙️ Payday',
+    'payroll.desc': 'Financial cycle will start from this date each month.',
+    'payroll.example': 'Example',
+    'payroll.range_hint': 'Fill 1 for regular calendar month (1-30/31)',
+    'payroll.saved': 'Saved!',
+    'payroll.active_cycle': 'Active cycle',
+    'payroll.tanggal': 'Payday',
+
+    // ============ HEADER ============
+    'header.hide_nominal': 'Hide Amount',
+    'header.show_nominal': 'Show Amount',
+
+    // ============ LANGS ============
+    'lang.id': 'Indonesian',
+    'lang.en': 'English',
+    'lang.title': 'Language'
+  }
+};
+
+/* ============================================================
+   LANGUAGE STATE & HELPERS
+   ============================================================ */
+let currentLang = localStorage.getItem('lang') || 'id';
+
+function t(key) {
+  return (I18N[currentLang] && I18N[currentLang][key]) || key;
+}
+
+function setLang(lang) {
+  if (lang !== 'id' && lang !== 'en') return;
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+  applyTranslations();
+  if (typeof renderAll === 'function' && isDataReady) {
+    renderAll();
+  }
+  updateLangUI();
+}
+
+function updateLangUI() {
+  // Update active state di tombol lang
+  document.querySelectorAll('[data-lang-btn]').forEach(btn => {
+    const isActive = btn.getAttribute('data-lang-btn') === currentLang;
+    btn.classList.toggle('bg-brand', isActive);
+    btn.classList.toggle('text-white', isActive);
+    btn.classList.toggle('text-slate-500', !isActive);
+  });
+}
+
+function applyTranslations() {
+  // Text content
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = t(key);
+    if (val) el.textContent = val;
+  });
+
+  // Placeholder
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = t(key);
+    if (val) el.placeholder = val;
+  });
+
+  // Title attribute
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const val = t(key);
+    if (val) el.title = val;
+  });
+}
+
+/* ============================================================
+   INIT — Auto-apply saat halaman load
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    console.log('[i18n] Init, lang=' + currentLang);
+    applyTranslations();
+    updateLangUI();
+  }, 100);
+});
+
+/* ============================================================
+   LOCALIZED MONTH HELPERS
+   ============================================================ */
+function getMonthName(monthIndex) {
+  // monthIndex: 0-11
+  const keys = ['month.jan','month.feb','month.mar','month.apr','month.mei','month.jun',
+                'month.jul','month.aug','month.sep','month.oct','month.nov','month.des'];
+  return t(keys[monthIndex]);
+}
+
+function getMonthShort(monthIndex) {
+  // monthIndex: 0-11
+  const full = getMonthName(monthIndex);
+  return full.length > 3 ? full.substring(0, 3) : full;
+}
+</script>

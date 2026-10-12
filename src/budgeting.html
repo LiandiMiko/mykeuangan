@@ -1,0 +1,44 @@
+<!-- ================= BUDGETING ================= -->
+<section id="view-budgeting" class="view-section hide fade-in">
+  <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight" data-i18n="budget.title">Budgeting</h2>
+      <p class="text-xs text-slate-500 mt-1">
+        <span data-i18n="budget.subtitle">Alokasi dana per kategori</span>
+        <span class="text-brand font-bold" id="budgetMonthLabel">—</span>
+      </p>
+    </div>
+    <button id="budgetCopyBtn" onclick="copyBudgetFromLastMonth()" class="hidden md:inline-flex px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors items-center gap-2">
+      <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
+    </button>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 mb-6">
+    <h3 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+      <i class="ph ph-plus-circle text-brand"></i>
+      <span data-i18n="budget.btn_save">Tambah Budget</span>
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+      <div>
+        <label class="block text-[10px] font-bold mb-1.5 uppercase tracking-widest text-slate-500" data-i18n="budget.kategori">Kategori</label>
+        <select id="budgetKategori" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold mb-1.5 uppercase tracking-widest text-slate-500" data-i18n="budget.jumlah">Jumlah Budget (Rp)</label>
+        <input type="number" id="budgetJumlah" min="0" placeholder="0" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-bold text-slate-800 dark:text-white text-sm">
+      </div>
+      <button onclick="saveBudget()" class="px-6 py-3 bg-brand text-white rounded-2xl font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm flex items-center gap-2 justify-center">
+        <i class="ph ph-check-bold"></i> <span data-i18n="btn.simpan">Simpan</span>
+      </button>
+    </div>
+    <button onclick="copyBudgetFromLastMonth()" class="md:hidden mt-3 w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
+      <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
+    </button>
+  </div>
+
+  <div id="budgetSummary" class="bg-white dark:bg-slate-900 rounded-t-3xl border border-b-0 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"></div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-b-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+    <div id="budgetList"></div>
+  </div>
+</section>

@@ -1,0 +1,1894 @@
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+const DB = {
+  transactions: [],
+  categories: { pemasukan: [], pengeluaran: [] },
+  entities: { UtangApp: [], UtangPerson: [], Piutang: [] },
+  assets: [],
+  budgets: [],
+  snapshots: [],
+  currentPeriod: new Date().toISOString().slice(0, 7),
+  payrollDay: 28
+};
+
+let sessionUser = 'User';
+let sessionRole = 'User';
+let fpTanggal = null;
+let fpMonth = null;
+let isDataReady = false;
+
+let hideNominal = localStorage.getItem('hideNominal') === '1';
+
+const _origFormatRupiah = (a) => new Intl.NumberFormat('id-ID', {
+  style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+}).format(a || 0);
+
+const formatRupiah = (a) => {
+  if (hideNominal) return 'Rp ••••••';
+  return _origFormatRupiah(a);
+};
+
+function toggleHideNominal() {
+  hideNominal = !hideNominal;
+  localStorage.setItem('hideNominal', hideNominal ? '1' : '0');
+  updateEyeIcon();
+  if (typeof renderAll === 'function' && isDataReady) renderAll();
+}
+
+function updateEyeIcon() {
+  const icon = document.getElementById('eyeIcon');
+  if (icon) {
+    icon.className = hideNominal ? 'ph ph-eye-slash' : 'ph ph-eye';
+  }
+  const btn = document.getElementById('toggleHideBtn');
+  if (btn) {
+    btn.title = hideNominal ? t('header.show_nominal') : t('header.hide_nominal');
+  }
+}
+
+const getSwalClass = () => document.documentElement.classList.contains('dark') ? 'dark-swal' : '';
+
+/* ============================================================
+   PAYROLL CYCLE HELPERS
+   ============================================================ */
+function fmtYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+/**
+ * Get range tanggal untuk periode berdasarkan payroll day.
+ * @param {string} periodStr - format 'yyyy-MM'
+ * @param {number} payrollDay - tanggal gajian (1-28)
+ * @returns {{start: string, end: string}}
+ */
+function getPeriodRange(periodStr, payrollDay) {
+  payrollDay = Number(payrollDay) || 1;
+  const parts = periodStr.split('-');
+  const y = Number(parts[0]);
+  const m = Number(parts[1]); // 1-12
+
+  // Kalau tanggal gajian = 1, pakai bulan kalender biasa
+  if (payrollDay <= 1) {
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0); // hari terakhir bulan
+    return { start: fmtYMD(start), end: fmtYMD(end) };
+  }
+
+  // Siklus gaji:
+  // - start: tanggal payrollDay di bulan SEBELUM
+  // - end: tanggal (payrollDay - 1) di bulan SEKARANG
+  const start = new Date(y, m - 2, payrollDay);
+  const end = new Date(y, m - 1, payrollDay - 1);
+  return { start: fmtYMD(start), end: fmtYMD(end) };
+}
+
+/**
+ * Cek apakah tanggal masuk dalam periode.
+ */
+function isInPeriod(tanggal, periodStr) {
+  const tgl = String(tanggal).slice(0, 10);
+  const range = getPeriodRange(periodStr, DB.payrollDay);
+  return tgl >= range.start && tgl <= range.end;
+}
+
+/**
+ * Format label siklus untuk ditampilkan.
+ * Contoh: "28 Agu - 27 Sep 2026"
+ */
+function getPeriodLabel(periodStr, payrollDay) {
+  const range = getPeriodRange(periodStr, payrollDay);
+  const s = new Date(range.start + 'T00:00:00');
+  const e = new Date(range.end + 'T00:00:00');
+  return s.getDate() + ' ' + getMonthShort(s.getMonth()) + ' - ' +
+         e.getDate() + ' ' + getMonthShort(e.getMonth()) + ' ' + e.getFullYear();
+}
+
+/* ============================================================
+   SERVER BRIDGE
+   ============================================================ */
+function callServer(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      [fn](...args);
+  });
+}
+
+async function refreshFromServer(payload) {
+  if (payload) {
+    DB.transactions = payload.transactions || [];
+    DB.categories = payload.categories || { pemasukan: [], pengeluaran: [] };
+    DB.entities = payload.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
+    DB.assets = payload.assets || [];
+    DB.budgets = payload.budgets || [];
+    DB.snapshots = payload.snapshots || [];
+    DB.currentPeriod = payload.currentPeriod || DB.currentPeriod;
+    DB.payrollDay = payload.payrollDay || 1;
+  }
+  renderAll();
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', async () => {
+  if (localStorage.getItem('mode') === 'dark') {
+    document.documentElement.classList.add('dark');
+  }
+  setTheme(localStorage.getItem('theme') || '');
+
+  const uEl = document.getElementById('ui-username');
+  const rEl = document.getElementById('ui-role');
+  const dEl = document.getElementById('dashTitle');
+  if (uEl) uEl.innerText = sessionUser;
+  if (rEl) rEl.innerText = sessionRole;
+  if (dEl) dEl.innerText = 'Dashboard Keuangan ' + sessionUser;
+
+  try {
+    const data = await callServer('getInitialData');
+    DB.transactions = data.transactions || [];
+    DB.categories = data.categories || { pemasukan: [], pengeluaran: [] };
+    DB.entities = data.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
+    DB.assets = data.assets || [];
+    DB.budgets = data.budgets || [];
+    DB.currentPeriod = data.currentPeriod || DB.currentPeriod;
+    DB.payrollDay = data.payrollDay || 1;
+    DB.snapshots = data.snapshots || [];
+    console.log('[INIT] loaded', DB.transactions.length, 'transactions,', DB.snapshots.length, 'snapshots, period:', DB.currentPeriod);
+    
+    // 🆕 Auto-refresh harga crypto (kalau ada)
+    const hasCrypto = (DB.assets || []).some(a => String(a.type).toLowerCase() === 'crypto');
+    if (hasCrypto) {
+      console.log('[INIT] Auto-refresh crypto prices...');
+      try {
+        const updated = await callServer('api_refreshPrices');
+        DB.assets = updated.assets || DB.assets;
+        console.log('[INIT] ✅ Crypto prices updated');
+      } catch (err) {
+        console.warn('[INIT] ⚠️ Auto-refresh gagal:', err);
+      }
+    }
+    
+  } catch (e) {
+    console.error('[INIT] error:', e);
+    Swal.fire({
+      icon: 'error', title: 'Gagal memuat data',
+      text: String(e.message || e),
+      customClass: { popup: getSwalClass() }
+    });
+  }
+
+  isDataReady = true;
+
+  if (document.getElementById('tr_tanggal')) {
+    fpTanggal = flatpickr("#tr_tanggal", {
+      dateFormat: "Y-m-d",
+      altInput: true,
+      altFormat: "d F Y",
+      locale: "id",
+      disableMobile: true
+    });
+  }
+
+  if (document.getElementById('dashMonthPicker')) {
+    fpMonth = flatpickr("#dashMonthPicker", {
+      plugins: [new monthSelectPlugin({ shorthand: true, dateFormat: "Y-m", altFormat: "F Y" })],
+      altInput: true,
+      locale: "id",
+      disableMobile: true,
+      defaultDate: DB.currentPeriod,
+      onChange: async (d, s) => {
+        DB.currentPeriod = s;
+        renderAll();
+        try { await callServer('api_savePeriod', s); } catch (e) { console.warn(e); }
+      }
+    });
+  }
+
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = "'Inter', sans-serif";
+  }
+
+  // 🆕 Init eye icon
+  updateEyeIcon();
+
+  const loader = document.getElementById('appLoader');
+  if (loader) loader.classList.add('hide');
+
+  switchView('dashboard');
+  renderAll();
+});
+
+/* ============================================================
+   THEME & UI
+   ============================================================ */
+function setTheme(t) {
+  document.documentElement.className = '';
+  if (localStorage.getItem('mode') === 'dark') {
+    document.documentElement.classList.add('dark');
+  }
+  if (t) document.documentElement.classList.add(t);
+  localStorage.setItem('theme', t);
+}
+
+function toggleDarkMode() {
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('mode', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  renderAll();
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebarOverlay');
+  if (!sb || !ov) return;
+  if (window.innerWidth >= 1024) {
+    sb.classList.toggle('lg:-ml-72');
+    sb.classList.toggle('lg:translate-x-0');
+  } else {
+    if (sb.classList.contains('-translate-x-full')) {
+      sb.classList.remove('-translate-x-full');
+      ov.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+      ov.classList.add('opacity-100');
+    } else {
+      sb.classList.add('-translate-x-full');
+      ov.classList.remove('opacity-100');
+      ov.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => ov.classList.add('hidden'), 300);
+    }
+  }
+}
+
+function switchView(id) {
+  document.querySelectorAll('.view-section').forEach(el => el.classList.add('hide'));
+  const target = document.getElementById('view-' + id);
+  if (target) target.classList.remove('hide');
+
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.classList.remove('active-nav', 'bg-brand-light', 'text-brand', 'dark:bg-slate-800', 'dark:text-white');
+    btn.classList.add('text-slate-500', 'dark:text-slate-400');
+  });
+
+  const nav = document.getElementById('nav-' + (id.includes('utang') ? 'dashboard' : id));
+  if (nav) {
+    nav.classList.remove('text-slate-500', 'dark:text-slate-400');
+    nav.classList.add('active-nav', 'bg-brand-light', 'text-brand', 'dark:bg-slate-800', 'dark:text-white');
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  if (window.innerWidth < 1024) {
+    const sb = document.getElementById('sidebar');
+    if (sb && !sb.classList.contains('-translate-x-full')) toggleSidebar();
+  }
+}
+
+/* ============================================================
+   RENDER ALL
+   ============================================================ */
+function renderAll() {
+  if (!isDataReady) return;
+  try { renderDashboard(); } catch (e) { console.error('renderDashboard err:', e); }
+  try { renderLaporan(); } catch (e) { console.error('renderLaporan err:', e); }
+  try { renderDebtLists(); } catch (e) { console.error('renderDebtLists err:', e); }
+  try { renderKalender(); } catch (e) { console.error('renderKalender err:', e); }
+  try { renderBudgeting(); } catch (e) { console.error('renderBudgeting err:', e); }
+  try { renderPortfolioChart(); } catch (e) { console.error('renderPortfolioChart err:', e); }
+}
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function renderDashboard() {
+  const period = DB.currentPeriod;
+  console.log('[renderDashboard] period=' + period + ', payrollDay=' + DB.payrollDay);
+
+    // ========================================================
+  // SALDO KAS & NET WORTH (fix: pembayaran utang = kas keluar)
+  // ========================================================
+  let saldoKas = 0;
+  let utangTotal = 0;
+  let piutangTotal = 0;
+  let totalIncome = 0;
+  let totalExpense = 0;
+
+  DB.transactions.forEach(t => {
+    const k = t.kategori.toLowerCase();
+    const isUtang = k.indexOf('utang') >= 0;
+    const isPiutang = k.indexOf('piutang') >= 0;
+
+    if (isUtang) {
+      if (t.tipe === 'Pemasukan') {
+        // Pinjam → nambah utang (uang tidak masuk dompet)
+        utangTotal += t.nominal;
+      } else {
+        // Bayar → utang turun, kas turun (uang keluar dompet)
+        utangTotal -= t.nominal;
+        saldoKas -= t.nominal;
+      }
+    } else if (isPiutang) {
+      if (t.tipe === 'Pengeluaran') {
+        // Kasih pinjam → kas turun, piutang naik
+        piutangTotal += t.nominal;
+        saldoKas -= t.nominal;
+      } else {
+        // Orang balikin → kas naik, piutang turun
+        piutangTotal -= t.nominal;
+        saldoKas += t.nominal;
+      }
+    } else {
+      // Income / Expense biasa
+      if (t.tipe === 'Pemasukan') {
+        saldoKas += t.nominal;
+        totalIncome += t.nominal;
+      } else {
+        saldoKas -= t.nominal;
+        totalExpense += t.nominal;
+      }
+    }
+  });
+
+  const totalInvestasi = DB.assets.reduce((a, b) => a + Number(b.value || 0), 0);
+  const netWorth = saldoKas + totalInvestasi + piutangTotal - utangTotal;
+
+  // ========================================================
+  // 2. SIKLUS INI — filter dengan isInPeriod (payroll day)
+  // ========================================================
+  const txs = DB.transactions
+    .map((t, i) => ({ ...t, _idx: i }))
+    .filter(t => isInPeriod(t.tanggal, period))
+    .sort((a, b) => {
+      const dc = String(b.tanggal).localeCompare(String(a.tanggal));
+      if (dc !== 0) return dc;
+      return b._idx - a._idx;
+    });
+
+  console.log('[renderDashboard] tx siklus ini =', txs.length);
+
+  let monthIn = 0, monthOut = 0;
+  txs.forEach(t => {
+    if (t.kategori.startsWith('Utang') || t.kategori.startsWith('Piutang')) return;
+    if (t.tipe === 'Pemasukan') monthIn += t.nominal;
+    else monthOut += t.nominal;
+  });
+
+  // ========================================================
+  // 3. UPDATE UI
+  // ========================================================
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = val;
+  };
+
+  // Net worth TOTAL (semua waktu)
+  setText('dash-total-aset', formatRupiah(netWorth));
+  setText('dash-saldo-aktif', formatRupiah(saldoKas));
+
+  // Arus kas SIKLUS INI
+  setText('dash-cash-in', '+' + formatRupiah(monthIn));
+  setText('dash-cash-out', '-' + formatRupiah(monthOut));
+
+  // Utang/Piutang & Investasi (total)
+  setText('dash-hutang', formatRupiah(utangTotal));
+  setText('dash-piutang', formatRupiah(piutangTotal));
+  setText('dash-total-investasi', formatRupiah(totalInvestasi));
+
+  // Update label dengan siklus gaji
+  const periodLabel = getPeriodLabel(period, DB.payrollDay);
+  document.querySelectorAll('.chartMonthLabel').forEach(el => {
+    el.innerText = '(' + periodLabel + ')';
+  });
+
+  // ========================================================
+  // 4. LIST PEMASUKAN & PENGELUARAN (siklus ini)
+  // ========================================================
+  const rItem = (t, colClass, iconCol, iconBG) => `
+    <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 mb-2 hover:border-slate-300 dark:hover:border-slate-600 transition-colors group">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconCol} ${iconBG}">
+          <i class="ph ph-receipt text-lg"></i>
+        </div>
+        <div class="truncate">
+          <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${t.kategori}</p>
+          <p class="text-[10px] text-slate-500">${String(t.tanggal).substring(5)} • ${t.keterangan || '-'}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 shrink-0 ml-2">
+        <p class="${colClass} font-bold">${formatRupiah(t.nominal).replace(',00','')}</p>
+        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onclick="editTransaction('${t.id}')" class="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200">
+            <i class="ph ph-pencil"></i>
+          </button>
+          <button onclick="deleteTransaction('${t.id}')" class="w-6 h-6 rounded bg-rose-100 text-rose-600 flex items-center justify-center hover:bg-rose-200">
+            <i class="ph ph-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const listIn = document.getElementById('listViewIn');
+  const listOut = document.getElementById('listViewOut');
+
+  if (listIn) {
+    const inData = txs.filter(t => t.tipe === 'Pemasukan' && !t.kategori.startsWith('Utang') && !t.kategori.startsWith('Piutang'));
+    listIn.innerHTML = inData.map(t => rItem(t, 'text-emerald-500', 'text-emerald-500', 'bg-emerald-50 dark:bg-emerald-500/10')).join('') ||
+      '<p class="text-center text-xs text-slate-400 p-4">Kosong</p>';
+  }
+  if (listOut) {
+    const outData = txs.filter(t => t.tipe === 'Pengeluaran' && !t.kategori.startsWith('Utang') && !t.kategori.startsWith('Piutang'));
+    listOut.innerHTML = outData.map(t => rItem(t, 'text-rose-500', 'text-rose-500', 'bg-rose-50 dark:bg-rose-500/10')).join('') ||
+      '<p class="text-center text-xs text-slate-400 p-4">Kosong</p>';
+  }
+
+  renderAssets();
+}
+
+/* ============================================================
+   🆕 PORTFOLIO CHART
+   ============================================================ */
+let portfolioChartInstance = null;
+
+function renderPortfolioChart() {
+  const canvas = document.getElementById('portfolioChart');
+  if (!canvas) return;
+
+  const snapshots = DB.snapshots || [];
+
+  // Kalau kurang dari 2 data point, tampilkan placeholder
+  if (snapshots.length < 2) {
+    canvas.style.display = 'none';
+    const placeholder = document.getElementById('portfolioChartPlaceholder');
+    if (placeholder) placeholder.style.display = 'block';
+    return;
+  }
+
+  canvas.style.display = 'block';
+  const placeholder = document.getElementById('portfolioChartPlaceholder');
+  if (placeholder) placeholder.style.display = 'none';
+
+  // Destroy chart lama kalau ada
+  if (portfolioChartInstance) {
+    portfolioChartInstance.destroy();
+    portfolioChartInstance = null;
+  }
+
+  // Siapkan data
+  const labels = snapshots.map(s => {
+    const d = new Date(s.tanggal + 'T00:00:00');
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    return d.getDate() + ' ' + months[d.getMonth()];
+  });
+
+  const totalData = snapshots.map(s => s.total);
+  const cryptoData = snapshots.map(s => s.crypto);
+  const cashData = snapshots.map(s => s.cash);
+  const otherData = snapshots.map(s => s.other);
+
+  // Warna dari CSS variable
+  const style = getComputedStyle(document.documentElement);
+  const brandColor = style.getPropertyValue('--color-brand').trim() || '#7c3aed';
+  const isDark = document.documentElement.classList.contains('dark');
+  const gridColor = isDark ? 'rgba(148,163,184,0.15)' : 'rgba(148,163,184,0.2)';
+  const textColor = isDark ? '#cbd5e1' : '#475569';
+
+  const ctx = canvas.getContext('2d');
+
+  portfolioChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Total',
+          data: totalData,
+          borderColor: brandColor,
+          backgroundColor: brandColor + '20',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6
+        },
+        {
+          label: 'Crypto',
+          data: cryptoData,
+          borderColor: '#f59e0b',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          tension: 0.3,
+          pointRadius: 2
+        },
+        {
+          label: 'Cash',
+          data: cashData,
+          borderColor: '#10b981',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          tension: 0.3,
+          pointRadius: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: textColor,
+            font: { family: 'Inter', size: 11, weight: '600' },
+            padding: 15,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: isDark ? '#1e293b' : '#0f172a',
+          titleColor: '#fff',
+          bodyColor: '#cbd5e1',
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              const val = context.parsed.y || 0;
+              return context.dataset.label + ': ' + formatRupiah(val);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: gridColor, drawBorder: false },
+          ticks: {
+            color: textColor,
+            font: { family: 'Inter', size: 10 },
+            maxRotation: 0,
+            autoSkipPadding: 20
+          }
+        },
+        y: {
+          grid: { color: gridColor, drawBorder: false },
+          ticks: {
+            color: textColor,
+            font: { family: 'Inter', size: 10 },
+            callback: function(value) {
+              return formatShortIDR(value);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+/* ============================================================
+   KALENDER — State bulan independen
+   ============================================================ */
+let kalenderYear = null;
+let kalenderMonth = null;
+
+function initKalenderState() {
+  const now = new Date();
+  if (kalenderYear === null || kalenderMonth === null) {
+    kalenderYear = now.getFullYear();
+    kalenderMonth = now.getMonth() + 1;
+  }
+}
+
+function kalenderPrev() {
+  initKalenderState();
+  kalenderMonth--;
+  if (kalenderMonth < 1) { kalenderMonth = 12; kalenderYear--; }
+  renderKalender();
+}
+
+function kalenderNext() {
+  initKalenderState();
+  kalenderMonth++;
+  if (kalenderMonth > 12) { kalenderMonth = 1; kalenderYear++; }
+  renderKalender();
+}
+
+function kalenderToday() {
+  const now = new Date();
+  kalenderYear = now.getFullYear();
+  kalenderMonth = now.getMonth() + 1;
+  renderKalender();
+}
+
+/* ============================================================
+   RENDER KALENDER
+   ============================================================ */
+function renderKalender() {
+  const grid = document.getElementById('kalenderGrid');
+  if (!grid) {
+    console.warn('[Kalender] grid element tidak ditemukan');
+    return;
+  }
+
+  initKalenderState();
+
+  const year = kalenderYear;
+  const month = kalenderMonth;
+  const period = year + '-' + String(month).padStart(2, '0');
+
+  const txs = DB.transactions.filter(t => String(t.tanggal).startsWith(period));
+  console.log('[Kalender] Render:', period, '| tx:', txs.length);
+
+  const byDay = {};
+  txs.forEach(t => {
+    const day = Number(String(t.tanggal).slice(8, 10));
+    if (!byDay[day]) byDay[day] = { inAmt: 0, outAmt: 0, count: 0 };
+    if (t.tipe === 'Pemasukan') byDay[day].inAmt += Number(t.nominal) || 0;
+    else byDay[day].outAmt += Number(t.nominal) || 0;
+    byDay[day].count++;
+  });
+
+     const labelEl = document.getElementById('kalenderMonthLabel');
+  if (labelEl) {
+    const monthLabel = getMonthName(month - 1) + ' ' + year;
+
+    if (DB.payrollDay > 1) {
+      const periodStr = year + '-' + String(month).padStart(2, '0');
+      const range = getPeriodRange(periodStr, DB.payrollDay);
+      const s = new Date(range.start + 'T00:00:00');
+      const e = new Date(range.end + 'T00:00:00');
+      const cycleLabel = s.getDate() + ' ' + getMonthShort(s.getMonth()) + ' - ' +
+                         e.getDate() + ' ' + getMonthShort(e.getMonth());
+      labelEl.innerHTML = '(' + monthLabel + ' · <span class="text-brand font-bold">' + t('cal.siklus') + ': ' + cycleLabel + '</span>)';
+    } else {
+      labelEl.textContent = '(' + monthLabel + ')';
+    }
+  }
+  const firstDay = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let firstDayOfWeek = firstDay.getDay();
+  firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+  grid.innerHTML = '';
+
+  const emptyCellClass = 'min-h-[80px] sm:min-h-[90px] border-b border-r border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40';
+
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    const empty = document.createElement('div');
+    empty.className = emptyCellClass;
+    grid.appendChild(empty);
+  }
+
+  const today = new Date();
+  const isCurrentMonthView = today.getFullYear() === year && (today.getMonth() + 1) === month;
+  const todayDate = today.getDate();
+
+  let totalIn = 0, totalOut = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const data = byDay[d] || { inAmt: 0, outAmt: 0, count: 0 };
+    totalIn += data.inAmt;
+    totalOut += data.outAmt;
+    const net = data.inAmt - data.outAmt;
+    const hasData = data.count > 0;
+    const isToday = isCurrentMonthView && d === todayDate;
+
+    let bgClass = 'bg-white dark:bg-slate-900';
+    if (hasData) {
+      if (net > 0) bgClass = 'bg-emerald-50/70 dark:bg-emerald-500/10';
+      else if (net < 0) bgClass = 'bg-rose-50/70 dark:bg-rose-500/10';
+      else bgClass = 'bg-amber-50/70 dark:bg-amber-500/10';
+    }
+
+    const cell = document.createElement('div');
+    cell.className = 'min-h-[80px] sm:min-h-[90px] p-1.5 sm:p-2 border-b border-r border-slate-100 dark:border-slate-800/60 relative transition-colors ' + bgClass;
+    if (isToday) cell.classList.add('ring-2', 'ring-inset', 'ring-brand');
+    if (hasData) cell.title = data.count + ' transaksi · Net: ' + formatRupiah(net);
+
+    let html = '<div class="flex items-center justify-between mb-1">';
+    html += '<span class="text-[11px] sm:text-xs font-bold ' +
+      (isToday ? 'text-brand' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
+    if (hasData) {
+      html += '<span class="text-[8px] font-bold text-slate-400 dark:text-slate-500">' + data.count + 'x</span>';
+    }
+    html += '</div>';
+
+    if (hasData) {
+      if (data.inAmt > 0) {
+        html += '<p class="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">+' +
+          formatShortIDR(data.inAmt) + '</p>';
+      }
+      if (data.outAmt > 0) {
+        html += '<p class="text-[9px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-400 leading-tight truncate">−' +
+          formatShortIDR(data.outAmt) + '</p>';
+      }
+      if (data.inAmt > 0 && data.outAmt > 0) {
+        html += '<p class="text-[9px] sm:text-[10px] font-black mt-0.5 ' +
+          (net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + '">= ' +
+          (net >= 0 ? '+' : '−') + formatShortIDR(Math.abs(net)) + '</p>';
+      }
+    }
+
+    cell.innerHTML = html;
+    grid.appendChild(cell);
+  }
+
+  const totalCells = firstDayOfWeek + daysInMonth;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let i = 0; i < remaining; i++) {
+    const empty = document.createElement('div');
+    empty.className = emptyCellClass;
+    grid.appendChild(empty);
+  }
+
+  const elIn = document.getElementById('kalenderTotalIn');
+  const elOut = document.getElementById('kalenderTotalOut');
+  const elNet = document.getElementById('kalenderTotalNet');
+  const net = totalIn - totalOut;
+
+  if (elIn) elIn.textContent = formatRupiah(totalIn);
+  if (elOut) elOut.textContent = formatRupiah(totalOut);
+  if (elNet) {
+    elNet.textContent = formatRupiah(net);
+    elNet.className = 'text-base sm:text-lg font-black truncate ' +
+      (net > 0 ? 'text-emerald-600 dark:text-emerald-500' :
+       net < 0 ? 'text-rose-600 dark:text-rose-500' :
+       'text-slate-700 dark:text-white');
+  }
+}
+
+function formatShortIDR(n) {
+  if (hideNominal) return '•••';
+  n = Math.abs(Math.round(Number(n) || 0));
+  if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000000)    return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'jt';
+  if (n >= 1000)       return (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'rb';
+  return String(n);
+}
+
+/* ============================================================
+   ASSETS
+   ============================================================ */
+function renderAssets() {
+  const container = document.getElementById('list-manual-assets');
+  if (!container) return;
+
+  if (!DB.assets || DB.assets.length === 0) {
+    container.innerHTML = '<p class="p-6 text-center text-xs text-slate-400 col-span-full">Belum ada aset. Klik "Tambah Aset".</p>';
+    return;
+  }
+
+  container.innerHTML = DB.assets.map(a => {
+    const isCrypto = String(a.type).toLowerCase() === 'crypto';
+    const qty = Number(a.quantity || 0);
+    const value = Number(a.value || 0);
+    const buyPrice = Number(a.buyPrice || 0);
+    const buyTotal = qty * buyPrice;
+    const pnl = buyTotal > 0 ? (value - buyTotal) : 0;
+    const pnlPct = buyTotal > 0 ? (pnl / buyTotal * 100) : 0;
+
+    const iconName = isCrypto ? 'currency-btc' 
+                    : (String(a.type).toLowerCase() === 'cash' ? 'bank' : 'coins');
+    const iconColor = isCrypto ? 'text-amber-500' 
+                     : (String(a.type).toLowerCase() === 'cash' ? 'text-emerald-500' : 'text-blue-500');
+    const iconBG = isCrypto ? 'bg-amber-50 dark:bg-amber-500/10' 
+                  : (String(a.type).toLowerCase() === 'cash' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-blue-50 dark:bg-blue-500/10');
+
+    const meta = isCrypto
+      ? `<span class="text-[10px] text-slate-400">${qty} ${a.symbol} · ${a.symbol}</span>`
+      : `<span class="text-[10px] text-slate-400">${a.type}</span>`;
+
+    const pnlHtml = isCrypto && buyTotal > 0
+      ? `<div class="text-[10px] font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+           ${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00','')} (${pnlPct.toFixed(1)}%)
+         </div>`
+      : '';
+
+    return `
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl ${iconBG} ${iconColor} flex items-center justify-center">
+            <i class="ph ph-${iconName} text-lg"></i>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800 dark:text-white text-sm">${escapeHtmlJS(a.name)}</p>
+            ${meta}
+          </div>
+        </div>
+        <div class="flex items-center gap-3 text-right">
+          <div>
+            <p class="font-black ${iconColor}">${formatRupiah(value)}</p>
+            ${pnlHtml}
+          </div>
+          <button onclick="deleteAsset('${a.id}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 opacity-0 group-hover:opacity-100 transition-opacity">
+            <i class="ph ph-trash text-sm"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function addManualAssetUI() {
+  Swal.fire({
+    title: 'Tambah Aset',
+    html: `
+      <select id="asset-type" class="swal2-input" style="background:#f1f5f9;color:#0f172a;">
+        <option value="Crypto">🪙 Crypto</option>
+        <option value="Cash">💵 Cash / Tabungan</option>
+        <option value="Other">📦 Lainnya</option>
+      </select>
+      <input id="asset-name" class="swal2-input" placeholder="Nama aset (mis. Bitcoin)">
+      <input id="asset-symbol" class="swal2-input" placeholder="Symbol crypto (BTC, ONDO, TAO)" style="display:none;">
+      <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input" placeholder="Jumlah coin (mis. 0.05)" style="display:none;">
+      <input id="asset-buyprice" type="number" class="swal2-input" placeholder="Harga beli rata-rata (Rp) — opsional" style="display:none;">
+      <input id="asset-value" type="number" class="swal2-input" placeholder="Nilai (Rp)">
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Simpan',
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() },
+    didOpen: () => {
+      const typeSelect = document.getElementById('asset-type');
+      const symbolInput = document.getElementById('asset-symbol');
+      const qtyInput = document.getElementById('asset-quantity');
+      const buyInput = document.getElementById('asset-buyprice');
+      const valInput = document.getElementById('asset-value');
+
+      function toggleFields() {
+        const isCrypto = typeSelect.value === 'Crypto';
+        symbolInput.style.display = isCrypto ? 'block' : 'none';
+        qtyInput.style.display = isCrypto ? 'block' : 'none';
+        buyInput.style.display = isCrypto ? 'block' : 'none';
+        valInput.style.display = isCrypto ? 'none' : 'block';
+      }
+      typeSelect.addEventListener('change', toggleFields);
+      toggleFields();
+    },
+    preConfirm: () => {
+      const type = document.getElementById('asset-type').value;
+      const name = document.getElementById('asset-name').value.trim();
+
+      if (!name) {
+        Swal.showValidationMessage('Isi nama aset');
+        return false;
+      }
+
+      if (type === 'Crypto') {
+        const symbol = document.getElementById('asset-symbol').value.trim().toUpperCase();
+        const quantity = parseFloat(document.getElementById('asset-quantity').value);
+        const buyPrice = parseFloat(document.getElementById('asset-buyprice').value) || 0;
+
+        if (!symbol) {
+          Swal.showValidationMessage('Isi symbol crypto');
+          return false;
+        }
+        if (!quantity || quantity <= 0) {
+          Swal.showValidationMessage('Isi jumlah coin');
+          return false;
+        }
+
+        return { name, type, symbol, quantity, buyPrice, value: 0 };
+      } else {
+        const value = parseFloat(document.getElementById('asset-value').value);
+        if (!value || value <= 0) {
+          Swal.showValidationMessage('Isi nilai aset');
+          return false;
+        }
+        return { name, type, symbol: '', quantity: 0, buyPrice: 0, value };
+      }
+    }
+  }).then(async res => {
+    if (res.isConfirmed && res.value) {
+      try {
+        const data = await callServer('api_addAssetV2', res.value);
+        // Langsung refresh harga kalau crypto
+        if (res.value.type === 'Crypto') {
+          const data2 = await callServer('api_refreshPrices');
+          await refreshFromServer(data2);
+        } else {
+          await refreshFromServer(data);
+        }
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      }
+    }
+  });
+}
+
+/* 🆕 Refresh harga manual */
+async function refreshAssetPrices() {
+  Swal.fire({
+    title: 'Refresh harga crypto...',
+    allowOutsideClick: false,
+    didOpen: () => Swal.showLoading(),
+    customClass: { popup: getSwalClass() }
+  });
+
+  try {
+    const data = await callServer('api_refreshPrices');
+    await refreshFromServer(data);
+    Swal.fire({
+      icon: 'success',
+      title: 'Harga diupdate!',
+      timer: 1200,
+      showConfirmButton: false,
+      customClass: { popup: getSwalClass() }
+    });
+  } catch (e) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Gagal refresh',
+      text: String(e.message || e),
+      customClass: { popup: getSwalClass() }
+    });
+  }
+}
+
+function deleteAsset(id) {
+  Swal.fire({
+    title: 'Hapus aset?',
+    text: 'Data aset akan dihapus.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    customClass: { popup: getSwalClass() }
+  }).then(async r => {
+    if (r.isConfirmed) {
+      try {
+        const data = await callServer('api_deleteAsset', id);
+        await refreshFromServer(data);
+      } catch (e) { console.error(e); }
+    }
+  });
+}
+
+/* ============================================================
+   DEBT LISTS
+   ============================================================ */
+function renderDebtLists() {
+  const period = DB.currentPeriod;
+  const txs = DB.transactions
+    .map((t, i) => ({ ...t, _idx: i }))
+    .filter(t => isInPeriod(t.tanggal, period))
+    .sort((a, b) => {
+      const dateCompare = String(b.tanggal).localeCompare(String(a.tanggal));
+      if (dateCompare !== 0) return dateCompare;
+      return b._idx - a._idx;
+    });
+  // ... dst (sisanya sama)
+
+  const debtBal = { UtangApp: {}, UtangPerson: {}, Piutang: {} };
+  (DB.entities.UtangApp || []).forEach(e => debtBal.UtangApp[e] = 0);
+  (DB.entities.UtangPerson || []).forEach(e => debtBal.UtangPerson[e] = 0);
+  (DB.entities.Piutang || []).forEach(e => debtBal.Piutang[e] = 0);
+
+  txs.forEach(t => {
+    if (t.kategori.startsWith('UtangApp - ')) {
+      const n = t.kategori.replace('UtangApp - ', '');
+      if (debtBal.UtangApp[n] === undefined) debtBal.UtangApp[n] = 0;
+      if (t.tipe === 'Pemasukan') debtBal.UtangApp[n] += t.nominal;
+      else debtBal.UtangApp[n] -= t.nominal;
+    } else if (t.kategori.startsWith('UtangPerson - ')) {
+      const n = t.kategori.replace('UtangPerson - ', '');
+      if (debtBal.UtangPerson[n] === undefined) debtBal.UtangPerson[n] = 0;
+      if (t.tipe === 'Pemasukan') debtBal.UtangPerson[n] += t.nominal;
+      else debtBal.UtangPerson[n] -= t.nominal;
+    } else if (t.kategori.startsWith('Piutang - ')) {
+      const n = t.kategori.replace('Piutang - ', '');
+      if (debtBal.Piutang[n] === undefined) debtBal.Piutang[n] = 0;
+      if (t.tipe === 'Pengeluaran') debtBal.Piutang[n] += t.nominal;
+      else debtBal.Piutang[n] -= t.nominal;
+    }
+  });
+
+  const buildDebtCard = (group, name, bal, iconCol, btnAddTxt, btnPayTxt) => {
+    let iconName = 'user-circle';
+    if (group === 'UtangApp') iconName = 'device-mobile';
+    if (group === 'Piutang') iconName = 'hand-coins';
+
+    return `
+      <div class="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 relative group transition-colors">
+        <div class="flex justify-between items-start mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center bg-white dark:bg-slate-700 shadow-sm ${iconCol}">
+              <i class="ph ph-${iconName} text-lg"></i>
+            </div>
+            <p class="font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title="${name}">${name}</p>
+          </div>
+          <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onclick="manageDebtEntity('edit', '${group}', '${name}')" class="text-blue-500 hover:text-blue-600">
+              <i class="ph ph-pencil"></i>
+            </button>
+            <button onclick="manageDebtEntity('delete', '${group}', '${name}')" class="text-rose-500 hover:text-rose-600">
+              <i class="ph ph-trash"></i>
+            </button>
+          </div>
+        </div>
+        <p class="text-xl font-black mb-4 text-slate-800 dark:text-white">${formatRupiah(bal).replace(',00','')}</p>
+        <div class="flex gap-2">
+          <button onclick="transactDebt('add', '${group}', '${name}')" class="flex-1 py-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
+            ${btnAddTxt}
+          </button>
+          <button onclick="transactDebt('pay', '${group}', '${name}')" class="flex-1 py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-sm hover:bg-brand-hover transition-colors">
+            ${btnPayTxt}
+          </button>
+        </div>
+      </div>
+    `;
+  };
+
+  const uApp = document.getElementById('list-utang-app');
+  if (uApp) {
+    uApp.innerHTML = Object.keys(debtBal.UtangApp)
+      .map(n => buildDebtCard('UtangApp', n, debtBal.UtangApp[n], 'text-rose-500', 'Pinjam', 'Bayar'))
+      .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>';
+  }
+  const uPer = document.getElementById('list-utang-person');
+  if (uPer) {
+    uPer.innerHTML = Object.keys(debtBal.UtangPerson)
+      .map(n => buildDebtCard('UtangPerson', n, debtBal.UtangPerson[n], 'text-amber-500', 'Pinjam', 'Bayar'))
+      .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>';
+  }
+  const piut = document.getElementById('list-piutang');
+  if (piut) {
+    piut.innerHTML = Object.keys(debtBal.Piutang)
+      .map(n => buildDebtCard('Piutang', n, debtBal.Piutang[n], 'text-emerald-500', 'Beri', 'Terima'))
+      .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>';
+  }
+}
+
+/* ============================================================
+   DEBT ENTITY CRUD
+   ============================================================ */
+async function manageDebtEntity(action, group, oldName = '') {
+  if (action === 'delete') {
+    Swal.fire({
+      title: `Hapus ${oldName}?`,
+      text: 'Catatan transaksi lama tidak akan terhapus.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      customClass: { popup: getSwalClass() }
+    }).then(async r => {
+      if (r.isConfirmed) {
+        try {
+          const data = await callServer('api_deleteEntity', group, oldName);
+          await refreshFromServer(data);
+        } catch (e) { console.error(e); }
+      }
+    });
+    return;
+  }
+
+  const title = action === 'add' ? (group === 'UtangApp' ? 'Nama Aplikasi' : 'Nama Orang') : 'Edit Nama';
+  const { value: name } = await Swal.fire({
+    title: title,
+    input: 'text',
+    inputValue: action === 'edit' ? oldName : '',
+    showCancelButton: true,
+    customClass: { popup: getSwalClass() }
+  });
+
+  if (name && name !== oldName) {
+    try {
+      let data;
+      if (action === 'add') {
+        data = await callServer('api_addEntity', group, name);
+      } else {
+        data = await callServer('api_updateEntity', group, oldName, name);
+      }
+      await refreshFromServer(data);
+    } catch (e) { console.error(e); }
+  }
+}
+
+async function transactDebt(type, group, name) {
+  let isIncome = false;
+  let title = '';
+  if (group === 'UtangApp' || group === 'UtangPerson') {
+    isIncome = (type === 'add');
+    title = type === 'add' ? `Pinjam dari ${name}` : `Bayar utang ke ${name}`;
+  } else {
+    isIncome = (type === 'pay');
+    title = type === 'add' ? `Beri pinjaman ke ${name}` : `Terima bayaran dari ${name}`;
+  }
+
+  const { value: formVals } = await Swal.fire({
+    title: title,
+    html: `
+      <input id="swal-nom" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="number" placeholder="Nominal Rp">
+      <input id="swal-ket" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="text" placeholder="Catatan Opsional">
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => [
+      document.getElementById('swal-nom').value,
+      document.getElementById('swal-ket').value
+    ]
+  });
+
+  if (formVals && formVals[0]) {
+    const nominal = parseFloat(formVals[0]);
+    if (!nominal || nominal <= 0) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const payload = {
+      tanggal: today,
+      tipe: isIncome ? 'Pemasukan' : 'Pengeluaran',
+      kategori: `${group} - ${name}`,
+      nominal: nominal,
+      keterangan: formVals[1] || ''
+    };
+
+    try {
+      const data = await callServer('api_addTransaction', payload);
+      await refreshFromServer(data);
+      Swal.fire({ icon: 'success', title: 'Tercatat', timer: 1000, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (e) { console.error(e); }
+  }
+}
+
+/* ============================================================
+   TRANSACTION FORM
+   ============================================================ */
+function openForm(action) {
+  switchView('form-transaction');
+  document.getElementById('formTransaction').reset();
+  document.getElementById('tr_row').value = '';
+    const tipeKey = action === 'Pemasukan' ? 'form.pemasukan' : 'form.pengeluaran';
+  document.getElementById('formTitle').innerText = t('form.title_add') + ' ' + t(tipeKey);
+  document.getElementById('tr_action').value = 'Tambah';
+
+  const tipe = (action === 'Pemasukan' || action === 'Pinjaman') ? 'Pemasukan' : 'Pengeluaran';
+  document.getElementById('tr_tipe').value = tipe;
+
+  const btnClass = "w-full text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 " +
+    (tipe === 'Pemasukan' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600');
+  document.getElementById('btnSubmitTrans').className = btnClass;
+
+  let opts = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
+  if (action === 'Tabungan') opts = ['Tabungan Baru', 'Investasi'];
+  document.getElementById('tr_kategori').innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+
+  if (fpTanggal) fpTanggal.setDate('today');
+}
+
+async function promptAddCategory() {
+  const act = document.getElementById('tr_tipe').value;
+  const { value: name } = await Swal.fire({
+    title: 'Kategori Baru',
+    input: 'text',
+    showCancelButton: true,
+    customClass: { popup: getSwalClass() }
+  });
+  if (name) {
+    const tipeKey = act === 'Pemasukan' ? 'pemasukan' : 'pengeluaran';
+    try {
+      const data = await callServer('api_addCategory', tipeKey, name);
+      DB.categories = data.categories;
+      const select = document.getElementById('tr_kategori');
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+      select.value = name;
+    } catch (e) { console.error(e); }
+  }
+}
+
+async function submitTransaction(e) {
+  e.preventDefault();
+  const rowId = document.getElementById('tr_row').value;
+
+  let tanggal = document.getElementById('tr_tanggal').value;
+  if ((!tanggal || tanggal === '') && fpTanggal && fpTanggal.selectedDates && fpTanggal.selectedDates.length > 0) {
+    const d = fpTanggal.selectedDates[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    tanggal = `${y}-${m}-${day}`;
+  }
+
+  const p = {
+    tanggal: tanggal,
+    tipe: document.getElementById('tr_tipe').value,
+    kategori: document.getElementById('tr_kategori').value,
+    nominal: parseFloat(document.getElementById('tr_nominal').value),
+    keterangan: document.getElementById('tr_keterangan').value
+  };
+
+  if (!p.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(p.tanggal) || !p.nominal || p.nominal <= 0) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Data tidak valid',
+      text: 'Isi tanggal (format YYYY-MM-DD) dan nominal dengan benar.',
+      customClass: { popup: getSwalClass() }
+    });
+    return;
+  }
+
+  const txMonth = p.tanggal.slice(0, 7);
+  const needPeriodSwitch = txMonth !== DB.currentPeriod;
+
+  try {
+    let data;
+    if (rowId) {
+      data = await callServer('api_updateTransaction', rowId, p);
+    } else {
+      data = await callServer('api_addTransaction', p);
+    }
+
+    if (needPeriodSwitch) {
+      await callServer('api_savePeriod', txMonth);
+      data.currentPeriod = txMonth;
+      if (fpMonth) {
+        try { fpMonth.setDate(txMonth, false); } catch (err) {}
+      }
+    }
+
+    await refreshFromServer(data);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Tersimpan!',
+      html: `Transaksi <b>${p.tipe}</b> sebesar <b>${formatRupiah(p.nominal)}</b> berhasil dicatat.`,
+      timer: 1500,
+      showConfirmButton: false,
+      customClass: { popup: getSwalClass() }
+    });
+
+    switchView('dashboard');
+  } catch (err) {
+    console.error('[submitTransaction] error:', err);
+    Swal.fire({
+      icon: 'error',
+      title: 'Gagal menyimpan',
+      text: String(err && err.message ? err.message : err),
+      customClass: { popup: getSwalClass() }
+    });
+  }
+}
+
+function editTransaction(id) {
+  const t = DB.transactions.find(x => String(x.id) === String(id));
+  if (!t) return;
+  openForm(t.tipe);
+  document.getElementById('formTitle').innerText = t('form.title_edit');
+  document.getElementById('tr_action').value = 'Edit';
+  document.getElementById('tr_row').value = t.id;
+  document.getElementById('tr_kategori').value = t.kategori;
+  document.getElementById('tr_nominal').value = t.nominal;
+  document.getElementById('tr_keterangan').value = t.keterangan || '';
+  if (fpTanggal) {
+    try { fpTanggal.setDate(t.tanggal, true); } catch (e) {}
+  }
+  const inputTgl = document.getElementById('tr_tanggal');
+  if (inputTgl) inputTgl.value = t.tanggal;
+}
+
+function deleteTransaction(id) {
+  Swal.fire({
+    title: 'Hapus Data?',
+    text: 'Data tidak bisa dikembalikan!',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    confirmButtonText: 'Ya, Hapus',
+    customClass: { popup: getSwalClass() }
+  }).then(async r => {
+    if (r.isConfirmed) {
+      try {
+        const data = await callServer('api_deleteTransaction', id);
+        await refreshFromServer(data);
+      } catch (e) { console.error(e); }
+    }
+  });
+}
+
+/* ============================================================
+   LAPORAN
+   ============================================================ */
+function renderLaporan() {
+  const period = DB.currentPeriod;
+  const txs = DB.transactions
+    .map((t, i) => ({ ...t, _idx: i }))
+    .filter(t => isInPeriod(t.tanggal, period))
+    .sort((a, b) => {
+      const dc = String(b.tanggal).localeCompare(String(a.tanggal));
+      if (dc !== 0) return dc;
+      return b._idx - a._idx;
+    });
+  const tbody = document.getElementById('table-laporan');
+  if (!tbody) return;
+
+  if (txs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400">' + t('lap.empty') + '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = txs.map(r => {
+    const isM = r.tipe === 'Pemasukan';
+    const badgeColor = isM
+      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400'
+      : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400';
+    const textColor = isM ? 'text-emerald-500' : 'text-rose-500';
+    const symbol = isM ? '+' : '-';
+
+    return `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <td class="px-6 py-4">${r.tanggal}</td>
+        <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[10px] font-bold ${badgeColor}">${r.tipe}</span></td>
+        <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${r.kategori}</td>
+        <td class="px-6 py-4">${r.keterangan || '-'}</td>
+        <td class="px-6 py-4 text-right font-bold ${textColor}">${symbol} ${formatRupiah(r.nominal)}</td>
+        <td class="px-6 py-4 text-center">
+          <button onclick="editTransaction('${r.id}')" class="text-blue-500 hover:text-blue-700 mr-2"><i class="ph ph-pencil text-lg"></i></button>
+          <button onclick="deleteTransaction('${r.id}')" class="text-rose-500 hover:text-rose-700"><i class="ph ph-trash text-lg"></i></button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/* ============================================================
+   EXPORT PDF
+   ============================================================ */
+function exportPDF() {
+  const period = DB.currentPeriod;
+  const txs = DB.transactions.filter(t => String(t.tanggal).startsWith(period));
+
+  if (txs.length === 0) {
+    Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  let totalMasuk = 0, totalKeluar = 0;
+  txs.forEach(r => {
+    if (r.tipe === 'Pemasukan') totalMasuk += r.nominal;
+    else totalKeluar += r.nominal;
+  });
+  const selisih = totalMasuk - totalKeluar;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(15, 23, 42);
+  doc.text("MyKeuanganGuech", 14, 22);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Laporan Transaksi Finansial", 14, 28);
+
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Pengguna: ${sessionUser}`, pageWidth - 14, 22, { align: 'right' });
+  doc.text(`Periode: ${period || 'Semua Waktu'}`, pageWidth - 14, 28, { align: 'right' });
+  doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID')}`, pageWidth - 14, 34, { align: 'right' });
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.5);
+  doc.line(14, 40, pageWidth - 14, 40);
+
+  doc.setFillColor(236, 253, 245);
+  doc.roundedRect(14, 46, 56, 22, 3, 3, 'F');
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(5, 150, 105);
+  doc.text("TOTAL PEMASUKAN", 18, 54);
+  doc.setFontSize(12);
+  doc.text(formatRupiah(totalMasuk).replace(',00',''), 18, 62);
+
+  doc.setFillColor(255, 241, 242);
+  doc.roundedRect(74, 46, 56, 22, 3, 3, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(225, 29, 72);
+  doc.text("TOTAL PENGELUARAN", 78, 54);
+  doc.setFontSize(12);
+  doc.text(formatRupiah(totalKeluar).replace(',00',''), 78, 62);
+
+  const isSurplus = selisih >= 0;
+  doc.setFillColor(isSurplus ? 239 : 255, isSurplus ? 246 : 241, isSurplus ? 255 : 242);
+  doc.roundedRect(134, 46, 62, 22, 3, 3, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(isSurplus ? 37 : 225, isSurplus ? 99 : 29, isSurplus ? 235 : 72);
+  doc.text("SURPLUS / DEFISIT", 138, 54);
+  doc.setFontSize(12);
+  doc.text(`${isSurplus ? '+' : ''}${formatRupiah(selisih).replace(',00','')}`, 138, 62);
+
+  doc.autoTable({
+    startY: 76,
+    head: [['Tanggal', 'Tipe', 'Kategori', 'Catatan', 'Nominal']],
+    body: txs.map(r => [
+      r.tanggal, r.tipe, r.kategori, r.keterangan || '-',
+      formatRupiah(r.nominal).replace(',00','')
+    ]),
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', halign: 'center' },
+    styles: { fontSize: 9, cellPadding: 5, font: 'helvetica' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 25 },
+      1: { cellWidth: 25 },
+      2: { cellWidth: 35 },
+      4: { halign: 'right', fontStyle: 'bold', cellWidth: 35 }
+    },
+    didParseCell: function (data) {
+      if (data.section === 'body' && data.column.index === 4) {
+        const tipe = txs[data.row.index].tipe;
+        if (tipe === 'Pemasukan') data.cell.styles.textColor = [5, 150, 105];
+        else data.cell.styles.textColor = [225, 29, 72];
+      }
+    }
+  });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Halaman ${i} dari ${pageCount} | Dicetak oleh MyKeuanganGuech`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: 'center' }
+    );
+  }
+
+  doc.save(`Laporan_Keuangan_${sessionUser}_${period || 'All'}.pdf`);
+}
+
+/* ============================================================
+   BUDGETING — Semua Fungsi
+   ============================================================ */
+
+async function saveBudget() {
+  const kategori = document.getElementById('budgetKategori').value;
+  const jumlah = parseInt(document.getElementById('budgetJumlah').value, 10);
+  const bulan = DB.currentPeriod;
+
+  if (!kategori || !jumlah || jumlah <= 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: t('alert.invalid_data'),
+      text: 'Isi kategori dan jumlah dengan benar.',
+      customClass: { popup: getSwalClass() }
+    });
+    return;
+  }
+
+  try {
+    const data = await callServer('api_saveBudget', kategori, bulan, jumlah);
+    await refreshFromServer(data);
+    document.getElementById('budgetJumlah').value = '';
+    Swal.fire({
+      icon: 'success', title: t('alert.saved'),
+      timer: 1000, showConfirmButton: false,
+      customClass: { popup: getSwalClass() }
+    });
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: t('alert.failed'), text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
+async function deleteBudget(id, kategori) {
+  Swal.fire({
+    title: t('alert.confirm_delete'),
+    text: 'Budget "' + kategori + '" akan dihapus.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    confirmButtonText: t('btn.ya_hapus'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  }).then(async r => {
+    if (r.isConfirmed) {
+      try {
+        const data = await callServer('api_deleteBudget', id);
+        await refreshFromServer(data);
+      } catch (e) { console.error(e); }
+    }
+  });
+}
+
+async function copyBudgetFromLastMonth() {
+  const parts = DB.currentPeriod.split('-');
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const prevDate = new Date(y, m - 2, 1);
+  const prevBulan = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
+
+  const { isConfirmed } = await Swal.fire({
+    title: t('budget.btn_copy'),
+    html: '<p style="font-size:13px;color:#64748b;">Copy budget dari <b>' + getPeriodLabel(prevBulan, DB.payrollDay) + '</b> ke bulan ini?</p>',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  });
+
+  if (!isConfirmed) return;
+
+  try {
+    const data = await callServer('api_copyBudget', prevBulan, DB.currentPeriod);
+    await refreshFromServer(data);
+    Swal.fire({
+      icon: 'success', title: t('alert.success'),
+      timer: 1200, showConfirmButton: false,
+      customClass: { popup: getSwalClass() }
+    });
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: t('alert.failed'), text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
+async function editBudgetInline(id, kategori, currentJumlah) {
+  const { value: newJumlah } = await Swal.fire({
+    title: '✏️ ' + kategori,
+    input: 'number',
+    inputValue: currentJumlah,
+    inputAttributes: { min: 0, step: 1000 },
+    showCancelButton: true,
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  });
+
+  if (newJumlah === null || newJumlah === undefined) return;
+  const val = parseInt(newJumlah, 10);
+  if (isNaN(val) || val < 0) return;
+
+  try {
+    const data = await callServer('api_saveBudget', kategori, DB.currentPeriod, val);
+    await refreshFromServer(data);
+  } catch (e) { console.error(e); }
+}
+
+/* ============================================================
+   BUDGETING — Render (dengan expandable transaction list)
+   ============================================================ */
+
+// State: budget ID mana yang sedang di-expand
+let expandedBudgets = new Set();
+
+function toggleBudgetExpand(id) {
+  if (expandedBudgets.has(id)) {
+    expandedBudgets.delete(id);
+  } else {
+    expandedBudgets.add(id);
+  }
+  renderBudgeting();
+}
+
+function renderBudgeting() {
+  const container = document.getElementById('budgetList');
+  const summary = document.getElementById('budgetSummary');
+  const formKategori = document.getElementById('budgetKategori');
+  const monthLabel = document.getElementById('budgetMonthLabel');
+  const copyBtn = document.getElementById('budgetCopyBtn');
+
+  if (!container) return;
+
+  const period = DB.currentPeriod;
+  const periodLabel = getPeriodLabel(period, DB.payrollDay);
+
+  if (monthLabel) monthLabel.innerText = '(' + periodLabel + ')';
+
+  if (formKategori) {
+    const currentVal = formKategori.value;
+    const pengeluaran = DB.categories.pengeluaran || [];
+    formKategori.innerHTML = '<option value="">— ' + t('budget.kategori') + ' —</option>' +
+      pengeluaran.map(k => `<option value="${k}">${k}</option>`).join('');
+    if (currentVal) formKategori.value = currentVal;
+  }
+
+  if (copyBtn) copyBtn.style.display = 'inline-flex';
+
+  const budgets = (DB.budgets || []).filter(b =>
+    String(b.bulan).slice(0, 7) === period
+  );
+
+  const txs = DB.transactions.filter(t => isInPeriod(t.tanggal, period));
+  const actualByCat = {};
+  txs.forEach(t => {
+    if (t.tipe !== 'Pengeluaran') return;
+    if (t.kategori.startsWith('Utang') || t.kategori.startsWith('Piutang')) return;
+    actualByCat[t.kategori] = (actualByCat[t.kategori] || 0) + t.nominal;
+  });
+
+  if (budgets.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center">
+        <i class="ph ph-piggy-bank text-5xl text-slate-300 dark:text-slate-600 mb-3"></i>
+        <p class="text-sm text-slate-500">${t('budget.empty')}</p>
+      </div>
+    `;
+    if (summary) summary.innerHTML = '';
+    return;
+  }
+
+  budgets.sort((a, b) => String(a.kategori).localeCompare(String(b.kategori)));
+
+  let totalPlan = 0, totalActual = 0;
+  let html = '<div class="divide-y divide-slate-100 dark:divide-slate-800">';
+
+  budgets.forEach(b => {
+    const plan = Number(b.jumlah) || 0;
+    const actual = actualByCat[b.kategori] || 0;
+    const selisih = plan - actual;
+    const pct = plan > 0 ? (actual / plan * 100) : 0;
+    totalPlan += plan;
+    totalActual += actual;
+
+    let status = { text: t('budget.aman'), color: 'emerald', icon: 'check-circle' };
+    if (pct > 100) status = { text: t('budget.over'), color: 'rose', icon: 'warning-circle' };
+    else if (pct >= 80) status = { text: t('budget.warning'), color: 'amber', icon: 'warning' };
+
+    const selisihColor = selisih >= 0
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-rose-600 dark:text-rose-400';
+    const progressColor = pct > 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+
+    const isExpanded = expandedBudgets.has(b.id);
+
+    // Ambil transaksi kategori ini (siklus ini)
+    const catTxns = txs
+      .filter(t =>
+        t.tipe === 'Pengeluaran' &&
+        t.kategori === b.kategori
+      )
+      .sort((a, b) => {
+        const dc = String(b.tanggal).localeCompare(String(a.tanggal));
+        if (dc !== 0) return dc;
+        return 0;
+      });
+
+    // Bangun list transaksi (kalau expand)
+    let txnListHtml = '';
+    if (isExpanded) {
+      if (catTxns.length === 0) {
+        txnListHtml = `
+          <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-center">
+            <p class="text-[11px] text-slate-400 italic">Belum ada transaksi kategori ini di siklus ini</p>
+          </div>
+        `;
+      } else {
+        txnListHtml = `
+          <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              ${catTxns.length} Transaksi
+            </p>
+            ${catTxns.map(tx => `
+              <div class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                  <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      ${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}
+                    </p>
+                    <p class="text-[9px] text-slate-400">${String(tx.tanggal).substring(5)}</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <p class="text-[11px] font-black text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00','')}</p>
+                  <button onclick="event.stopPropagation(); editTransaction('${tx.id}')" class="w-5 h-5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100" title="Edit">
+                    <i class="ph ph-pencil text-[10px]"></i>
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    }
+
+    html += `
+      <div class="transition-colors ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/20' : ''}">
+        <div onclick="toggleBudgetExpand('${b.id}')" class="p-4 sm:p-5 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group cursor-pointer">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="w-10 h-10 rounded-xl bg-${status.color}-50 dark:bg-${status.color}-500/10 text-${status.color}-500 flex items-center justify-center shrink-0 relative">
+                <i class="ph ph-${status.icon} text-lg"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <p class="font-bold text-slate-800 dark:text-white text-sm truncate">${escapeHtmlJS(b.kategori)}</p>
+                  <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-400"></i>
+                </div>
+                <p class="text-[10px] text-${status.color}-600 dark:text-${status.color}-400 font-bold uppercase tracking-wider">
+                  ${status.text} · ${pct.toFixed(0)}% · ${catTxns.length} transaksi
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onclick="event.stopPropagation(); editBudgetInline('${b.id}', '${b.kategori}', ${plan})" class="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100">
+                <i class="ph ph-pencil text-sm"></i>
+              </button>
+              <button onclick="event.stopPropagation(); deleteBudget('${b.id}', '${b.kategori}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100">
+                <i class="ph ph-trash text-sm"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 mb-3 text-xs">
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.plan')}</p>
+              <p class="font-black text-slate-700 dark:text-white">${formatRupiah(plan).replace(',00','')}</p>
+            </div>
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.actual')}</p>
+              <p class="font-black text-slate-700 dark:text-white">${formatRupiah(actual).replace(',00','')}</p>
+            </div>
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.selisih')}</p>
+              <p class="font-black ${selisihColor}">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00','')}</p>
+            </div>
+          </div>
+
+          <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div class="${progressColor} h-full rounded-full transition-all" style="width: ${Math.min(pct, 100).toFixed(1)}%"></div>
+          </div>
+        </div>
+
+        ${isExpanded ? `<div class="px-4 sm:px-5 pb-4 sm:pb-5">${txnListHtml}</div>` : ''}
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  const totalSelisih = totalPlan - totalActual;
+  const totalColor = totalSelisih >= 0
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : 'text-rose-600 dark:text-rose-400';
+
+  if (summary) {
+    summary.innerHTML = `
+      <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50">
+        <div>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.plan')}</p>
+          <p class="text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(totalPlan).replace(',00','')}</p>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.actual')}</p>
+          <p class="text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(totalActual).replace(',00','')}</p>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.selisih')}</p>
+          <p class="text-lg font-black ${totalColor} truncate">${totalSelisih >= 0 ? '+' : ''}${formatRupiah(totalSelisih).replace(',00','')}</p>
+        </div>
+      </div>
+    `;
+  }
+}
+
+/* Helper escape HTML (kalau belum ada) */
+function escapeHtmlJS(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+/* ============================================================
+   RESET DEMO
+   ============================================================ */
+function resetDemo() {
+  Swal.fire({
+    title: t('alert.confirm_reset'),
+    text: t('alert.confirm_reset_text'),
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    confirmButtonText: t('btn.ya_reset'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  }).then(async r => {
+    if (r.isConfirmed) {
+      try {
+        const data = await callServer('api_resetDemo');
+        await refreshFromServer(data);
+        Swal.fire({
+          icon: 'success', title: t('alert.reset_done'),
+          timer: 1200, showConfirmButton: false,
+          customClass: { popup: getSwalClass() }
+        });
+      } catch (e) { console.error(e); }
+    }
+  });
+}
+
+/* ============================================================
+   SETTING PAYROLL DAY
+   ============================================================ */
+async function settingPayrollDay() {
+  const current = DB.payrollDay || 1;
+  const { value: day } = await Swal.fire({
+    title: t('payroll.title'),
+    html: `
+      <p style="font-size:13px;color:#64748b;margin-bottom:12px;">${t('payroll.desc')}</p>
+      <input id="swal-payroll" type="number" min="1" max="28" value="${current}"
+             class="swal2-input" placeholder="1-28"
+             style="text-align:center;font-size:20px;font-weight:bold;">
+      <p style="font-size:11px;color:#94a3b8;margin-top:12px;">${t('payroll.example')}: <b>28</b> → ${getPeriodLabel(DB.currentPeriod, 28)}</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${t('payroll.range_hint')}</p>
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const v = parseInt(document.getElementById('swal-payroll').value, 10);
+      if (!v || v < 1 || v > 28) {
+        Swal.showValidationMessage('1-28');
+        return false;
+      }
+      return v;
+    }
+  });
+
+  if (day) {
+    try {
+      await callServer('api_savePayrollDay', day);
+      DB.payrollDay = Number(day);
+      renderAll();
+
+      const cycleLabel = getPeriodLabel(DB.currentPeriod, day);
+
+      Swal.fire({
+        icon: 'success',
+        title: t('payroll.saved'),
+        html: `<p style="font-size:14px;">${t('payroll.tanggal')}: <b>${day}</b></p>
+               <p style="font-size:12px;color:#64748b;margin-top:8px;">
+                 ${t('payroll.active_cycle')}: <b>${cycleLabel}</b>
+               </p>`,
+        timer: 2500,
+        showConfirmButton: false,
+        customClass: { popup: getSwalClass() }
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error', title: t('alert.failed'),
+        text: String(e.message || e),
+        customClass: { popup: getSwalClass() }
+      });
+    }
+  }
+}
+</script>

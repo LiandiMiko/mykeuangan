@@ -1,0 +1,39 @@
+<!-- ================= UTANG / PIUTANG ================= -->
+<section id="view-utang" class="view-section hide fade-in">
+  <div class="flex items-center gap-3 mb-8">
+    <button onclick="switchView('dashboard')" class="w-10 h-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+      <i class="ph ph-arrow-left text-xl"></i>
+    </button>
+    <h3 class="text-2xl font-bold text-slate-800 dark:text-white" data-i18n="utang.title">Detail Utang &amp; Piutang</h3>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
+        <h3 class="font-bold text-rose-500 flex items-center gap-2">
+          <i class="ph ph-device-mobile text-xl"></i> <span data-i18n="utang.pinjol">Utang Pinjol / App</span>
+        </h3>
+        <button onclick="manageDebtEntity('add', 'UtangApp')" class="w-8 h-8 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-lg flex items-center justify-center hover:bg-rose-100 transition-colors" title="Tambah Entitas Pinjol"><i class="ph ph-plus-bold"></i></button>
+      </div>
+      <div id="list-utang-app" class="space-y-4 flex-1 overflow-y-auto"></div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
+        <h3 class="font-bold text-amber-500 flex items-center gap-2">
+          <i class="ph ph-users text-xl"></i> <span data-i18n="utang.personal">Utang Personal</span>
+        </h3>
+        <button onclick="manageDebtEntity('add', 'UtangPerson')" class="w-8 h-8 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-lg flex items-center justify-center hover:bg-amber-100 transition-colors" title="Tambah Teman/Keluarga"><i class="ph ph-plus-bold"></i></button>
+      </div>
+      <div id="list-utang-person" class="space-y-4 flex-1 overflow-y-auto"></div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
+        <h3 class="font-bold text-emerald-500 flex items-center gap-2">
+          <i class="ph ph-hand-coins text-xl"></i> <span data-i18n="utang.piutang">Piutang (Mengutangi)</span>
+        </h3>
+        <button onclick="manageDebtEntity('add', 'Piutang')" class="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-100 transition-colors" title="Tambah Peminjam"><i class="ph ph-plus-bold"></i></button>
+      </div>
+      <div id="list-piutang" class="space-y-4 flex-1 overflow-y-auto"></div>
+    </div>
+  </div>
+</section>
