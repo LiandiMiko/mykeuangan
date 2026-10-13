@@ -17,8 +17,12 @@ function read(name) {
   return fs.readFileSync(file, 'utf8');
 }
 
-const config = fs.readFileSync(path.join(WEB, 'config.js'), 'utf8');
-if (/GANTI-/.test(config)) console.warn('⚠️  web/config.js masih berisi placeholder GANTI-…');
+const cfgFile = path.join(WEB, 'config.js');
+if (!fs.existsSync(cfgFile)) {
+  throw new Error('web/config.js tidak ada. Salin web/config.example.js menjadi web/config.js lalu isi URL dan anon key Supabase.');
+}
+const config = fs.readFileSync(cfgFile, 'utf8');
+if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placeholder GANTI-… — isi URL dan anon key Supabase dulu.');
 const api = fs.readFileSync(path.join(WEB, 'supabase-api.js'), 'utf8');
 
 let html = read('Index');

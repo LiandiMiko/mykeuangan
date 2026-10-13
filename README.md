@@ -7,7 +7,7 @@ Struktur
 - `build.mjs` — gabungkan semuanya jadi `dist/index.html`
 
 Jalankan lokal
-1. Salin `styles.html` ke `src/`, isi `web/config.js`.
+1. Salin `styles.html` ke `src/`. Salin `web/config.example.js` menjadi `web/config.js` lalu isi (file ini tidak ada di zip supaya tidak tertimpa saat Anda memperbarui kode).
 2. `node build.mjs` lalu buka `dist/index.html` (atau `npx serve dist`).
 
 Deploy

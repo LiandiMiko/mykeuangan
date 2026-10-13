@@ -276,8 +276,14 @@
     },
 
     async api_refreshPrices() {
-      // Langkah 3: akan memanggil Edge Function "refresh-prices" (CoinGecko, key di secrets).
-      throw new Error('Refresh harga crypto belum aktif (Edge Function refresh-prices belum dibuat).');
+      // Edge Function (CoinGecko, key di secrets) — memakai JWT login Anda
+      const { data, error } = await sb.functions.invoke('telegram-bot', { body: { job: 'refresh_prices' } });
+      if (error) throw new Error('Refresh harga gagal: ' + (error.message || error));
+      if (data && data.error) throw new Error(data.error);
+      if (data && data.updated === 0 && data.missing && data.missing.length) {
+        throw new Error('Simbol belum didukung: ' + data.missing.join(', '));
+      }
+      return getInitialData();
     },
     async api_resetDemo() {
       // Versi lama menghapus semua transaksi lalu mengisi data demo — dimatikan agar data asli aman.

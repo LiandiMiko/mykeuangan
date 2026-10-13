@@ -4,8 +4,11 @@
 //
 // Tahap 3a: sapaan/menu, status, saldo, bulan, tambah, teks bebas (AI) + konfirmasi,
 //           kategori, hapus/undo.
-// Tahap 3b (belum): budget + alert, recurring, insight, batch, foto/voice/CSV.
-// Tahap 3c (belum): reminder harian, laporan mingguan, harga crypto.
+// Tahap 3b-1: budget + alert, recurring, insight AI, batch.
+// Tahap 3c: job otomatis (reminder harian, laporan mingguan, recurring, snapshot, harga crypto)
+//           lewat pg_cron → POST {job:'daily'|'weekly'|'recurring'|'snapshot'} + header x-cron-secret;
+//           website memanggil {job:'refresh_prices'} dengan JWT login.
+// Tahap 3b-2 (belum): foto struk, voice note, upload CSV.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
@@ -33,7 +36,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 function parseNominal(raw: string): number {
-  const m = raw.trim().toLowerCase().match(/^([\d.,]+)\s*(rb|ribu|k|jt|juta)?$/);
+  const m = raw.trim().toLowerCase().replace(/^rp\.?\s*/, '').match(/^([\d.,]+)\s*(rb|ribu|k|jt|juta)?$/);
   if (!m) return 0;
   const mult = m[2] ? (m[2] === 'jt' || m[2] === 'juta' ? 1e6 : 1e3) : 1;
   const n = m[2] ? Number(m[1].replace(',', '.')) : Number(m[1].replace(/[.,]/g, ''));
@@ -177,19 +180,19 @@ function streak(trx: Any[]): number {
 const streakEmoji = (s: number) => (s >= 30 ? '🏆' : s >= 14 ? '🔥🔥' : s >= 7 ? '🔥' : s >= 3 ? '⭐' : s >= 1 ? '✨' : '💤');
 
 /* ---------------- Status sementara (pending / undo) ---------------- */
-async function setTemp(chat: number, kind: 'pending' | 'undo', payload: unknown) {
+async function setTemp(chat: number, kind: 'pending' | 'undo' | 'lock', payload: unknown, seconds = 300) {
   const { error } = await sb.from('telegram_pending').upsert(
-    { chat_id: chat, kind, payload, expires_at: new Date(Date.now() + 5 * 60_000).toISOString() },
+    { chat_id: chat, kind, payload, expires_at: new Date(Date.now() + seconds * 1000).toISOString() },
     { onConflict: 'chat_id,kind' },
   );
   if (error) throw error;
 }
-async function getTemp(chat: number, kind: 'pending' | 'undo'): Promise<Any | null> {
+async function getTemp(chat: number, kind: 'pending' | 'undo' | 'lock'): Promise<Any | null> {
   const { data } = await sb.from('telegram_pending').select('payload')
     .eq('chat_id', chat).eq('kind', kind).gt('expires_at', new Date().toISOString()).maybeSingle();
   return data?.payload ?? null;
 }
-const delTemp = (chat: number, kind: 'pending' | 'undo') =>
+const delTemp = (chat: number, kind: 'pending' | 'undo' | 'lock') =>
   sb.from('telegram_pending').delete().eq('chat_id', chat).eq('kind', kind);
 
 /* ---------------- Simpan transaksi ---------------- */
@@ -370,6 +373,7 @@ async function handleTambah(c: Ctx, arg: string) {
   const p: Tx = { tanggal: today(), tipe, kategori: parts.slice(1, -1).join(' '), nominal, keterangan: 'Via Telegram' };
   await saveTx(c, p);
   await send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
+  if (p.tipe === 'Pengeluaran') await checkBudgetAlert(c, p.kategori);
 }
 
 async function handleFreeText(c: Ctx, text: string) {
@@ -437,8 +441,361 @@ async function handleUndo(c: Ctx) {
   await send(c.chat, savedMsg('↩️ <b>Berhasil di-undo!</b>', p), mainKb());
 }
 
-const NOT_YET = (c: Ctx) =>
-  send(c.chat, '🚧 Fitur ini sedang dipindahkan ke versi baru dan segera aktif.', mainKb());
+/* ---------------- Tahap 3b: helper bersama ---------------- */
+const GEMINI_INSIGHT_MODEL = Deno.env.get('GEMINI_MODEL_INSIGHT') ?? 'gemini-2.5-flash';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const isFlow = (k: string) => !isUtang(k) && !isPiutang(k);
+
+async function loadCore(uid: string) {
+  const [trx, st] = await Promise.all([
+    fetchAll('transactions', 'tanggal,tipe,kategori,nominal', uid, ['tanggal', 'id']),
+    getSettings(uid),
+  ]);
+  const pd = Number(st.payrollDay) || 1;
+  const period = st.currentPeriod || cycleFor(today(), pd);
+  return { trx, pd, period };
+}
+
+function actualFor(trx: Any[], kategori: string, period: string, pd: number): number {
+  return trx
+    .filter((t) => t.tipe === 'Pengeluaran' && t.kategori === kategori && isFlow(t.kategori) && inPeriod(String(t.tanggal), period, pd))
+    .reduce((a, t) => a + Number(t.nominal), 0);
+}
+
+async function getBudgets(uid: string, period: string): Promise<Any[]> {
+  const rows = await fetchAll('budgets', 'id,kategori,bulan,jumlah', uid, ['kategori']);
+  return rows.filter((b) => String(b.bulan).slice(0, 7) === period);
+}
+
+// Teks dari AI: escape semua, lalu pulihkan hanya tag yang diizinkan Telegram (b, i, code)
+const safeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/&lt;(\/?)(b|i|code)&gt;/g, '<$1$2>');
+
+/* ---------------- Budget ---------------- */
+async function handleBudget(c: Ctx, arg: string) {
+  const parts = arg.split(/\s+/).filter(Boolean);
+  const action = (parts[0] || '').toLowerCase();
+
+  if (!action || action === 'list' || action === 'lihat') return showBudgets(c);
+
+  if (['set', 'tambah', 'add'].includes(action)) {
+    if (parts.length < 3) {
+      return send(c.chat, '❌ Format: <code>/budget set [Kategori] [Jumlah]</code>\n\nContoh:\n<code>/budget set Makanan 1500000</code>', mainKb());
+    }
+    const jumlah = parseNominal(parts[parts.length - 1]);
+    if (jumlah <= 0) return send(c.chat, '❌ Jumlah tidak valid.', mainKb());
+    return setBudget(c, parts.slice(1, -1).join(' '), jumlah);
+  }
+  if (['hapus', 'delete', 'remove'].includes(action)) {
+    if (parts.length < 2) return send(c.chat, '❌ Format: <code>/budget hapus [Kategori]</code>', mainKb());
+    return deleteBudget(c, parts.slice(1).join(' '));
+  }
+  if (['cek', 'detail'].includes(action)) {
+    if (parts.length < 2) return send(c.chat, '❌ Format: <code>/budget cek [Kategori]</code>', mainKb());
+    return budgetDetail(c, parts.slice(1).join(' '));
+  }
+  if (action === 'copy') return copyBudget(c);
+
+  return send(c.chat,
+    '<b>📊 Command Budget</b>\n\n• <code>/budget</code> — lihat semua budget\n• <code>/budget set Makanan 1500000</code> — set budget\n' +
+    '• <code>/budget cek Makanan</code> — detail 1 kategori\n• <code>/budget hapus Makanan</code> — hapus\n• <code>/budget copy</code> — copy dari bulan lalu', mainKb());
+}
+
+async function showBudgets(c: Ctx) {
+  const { trx, pd, period } = await loadCore(c.uid);
+  const label = periodLabel(period, pd);
+  const budgets = await getBudgets(c.uid, period);
+  if (budgets.length === 0) {
+    return send(c.chat,
+      `📊 <b>Budget ${period}</b>\n📅 Siklus: ${label}\n\n📭 Belum ada budget bulan ini.\n\n➕ Tambah dengan:\n<code>/budget set Makanan 1500000</code>`, mainKb());
+  }
+  let s = `📊 <b>Budget ${period}</b>\n📅 ${label}\n━━━━━━━━━━━━━━━━\n\n`;
+  let totalPlan = 0, totalActual = 0;
+  for (const b of budgets) {
+    const plan = Number(b.jumlah) || 0;
+    const actual = actualFor(trx, b.kategori, period, pd);
+    const pct = plan > 0 ? (actual / plan) * 100 : 0;
+    const sisa = plan - actual;
+    totalPlan += plan; totalActual += actual;
+    const icon = pct > 100 ? '🔴' : pct >= 80 ? '🟡' : '🟢';
+    s += `${icon} <b>${esc(b.kategori)}</b>\n   ${rp(actual)} / ${rp(plan)} (${pct.toFixed(0)}%)\n`;
+    s += `   ${sisa >= 0 ? 'Sisa: +' : 'Over: -'}${rp(Math.abs(sisa))}\n\n`;
+  }
+  const totalPct = totalPlan > 0 ? (totalActual / totalPlan) * 100 : 0;
+  s += `━━━━━━━━━━━━━━━━\n📈 <b>Total:</b> ${totalPct.toFixed(0)}% terpakai\n📥 Actual: ${rp(totalActual)}\n🎯 Plan: ${rp(totalPlan)}`;
+  await send(c.chat, s, mainKb());
+}
+
+async function budgetDetail(c: Ctx, kategori: string) {
+  const { trx, pd, period } = await loadCore(c.uid);
+  const b = (await getBudgets(c.uid, period)).find((x) => x.kategori.toLowerCase() === kategori.toLowerCase());
+  if (!b) {
+    return send(c.chat, `❌ Budget <b>${esc(kategori)}</b> tidak ditemukan.\n\nTambah: <code>/budget set ${esc(kategori)} 1000000</code>`, mainKb());
+  }
+  const plan = Number(b.jumlah) || 0;
+  const actual = actualFor(trx, b.kategori, period, pd);
+  const pct = plan > 0 ? (actual / plan) * 100 : 0;
+  const sisa = plan - actual;
+  const n = trx.filter((t) => t.tipe === 'Pengeluaran' && t.kategori === b.kategori && inPeriod(String(t.tanggal), period, pd)).length;
+  const status = pct > 100 ? '🔴 Over' : pct >= 80 ? '🟡 Mendekati' : '🟢 Aman';
+  await send(c.chat,
+    `📊 <b>${esc(b.kategori)}</b>\n📅 ${periodLabel(period, pd)}\n━━━━━━━━━━━━━━━━\n\n` +
+    `🎯 Plan:    <b>${rp(plan)}</b>\n📥 Actual:  <b>${rp(actual)}</b>\n` +
+    `💵 ${sisa >= 0 ? 'Sisa: ' : 'Over: '}<b>${sisa >= 0 ? '+' : '-'}${rp(Math.abs(sisa))}</b>\n` +
+    `📈 Terpakai: <b>${pct.toFixed(0)}%</b>\n📝 ${n} transaksi\n\nStatus: ${status}`, mainKb());
+}
+
+async function setBudget(c: Ctx, kategori: string, jumlah: number) {
+  const { pd, period } = await loadCore(c.uid);
+  const cats = await getCategories(c.uid, 'pengeluaran');
+  const found = cats.find((k) => k.toLowerCase() === kategori.toLowerCase());
+  if (!found) {
+    return send(c.chat,
+      `❌ Kategori <b>${esc(kategori)}</b> tidak ada.\n\nKategori tersedia:\n${cats.map((k) => '• ' + esc(k)).join('\n')}\n\n` +
+      `Tambah: <code>/kategori tambah Pengeluaran ${esc(kategori)}</code>`, mainKb());
+  }
+  const { error } = await sb.from('budgets').upsert(
+    { user_id: c.uid, kategori: found, bulan: period, jumlah },
+    { onConflict: 'user_id,kategori,bulan' },
+  );
+  if (error) throw error;
+  await send(c.chat,
+    `✅ <b>Budget di-set!</b>\n\n📌 ${esc(found)}\n💵 ${rp(jumlah)}\n📅 ${periodLabel(period, pd)}\n\nCek dengan: <code>/budget</code>`, mainKb());
+}
+
+async function deleteBudget(c: Ctx, kategori: string) {
+  const { period } = await loadCore(c.uid);
+  const b = (await getBudgets(c.uid, period)).find((x) => x.kategori.toLowerCase() === kategori.toLowerCase());
+  if (!b) return send(c.chat, `❌ Budget <b>${esc(kategori)}</b> tidak ditemukan bulan ini.`, mainKb());
+  const { error } = await sb.from('budgets').delete().eq('id', b.id).eq('user_id', c.uid);
+  if (error) throw error;
+  await send(c.chat, `🗑️ Budget <b>${esc(b.kategori)}</b> dihapus.`, mainKb());
+}
+
+async function copyBudget(c: Ctx) {
+  const { pd, period } = await loadCore(c.uid);
+  const [y, m] = period.split('-').map(Number);
+  const prev = `${m === 1 ? y - 1 : y}-${pad(m === 1 ? 12 : m - 1)}`;
+  const source = await getBudgets(c.uid, prev);
+  if (source.length === 0) return send(c.chat, '❌ Tidak ada budget di bulan sebelumnya untuk di-copy.', mainKb());
+  const have = new Set((await getBudgets(c.uid, period)).map((b) => b.kategori));
+  const rows = source.filter((b) => !have.has(b.kategori))
+    .map((b) => ({ user_id: c.uid, kategori: b.kategori, bulan: period, jumlah: b.jumlah }));
+  if (rows.length) {
+    const { error } = await sb.from('budgets').insert(rows);
+    if (error) throw error;
+  }
+  await send(c.chat,
+    `✅ <b>Budget di-copy!</b>\n\n📋 Dari: ${periodLabel(prev, pd)}\n📌 Ke: ${periodLabel(period, pd)}\n\n${source.length} kategori di-copy.`, mainKb());
+}
+
+// Dipanggil setelah pengeluaran tersimpan: peringatan bila ≥80% / ≥100% budget
+async function checkBudgetAlert(c: Ctx, kategori: string) {
+  try {
+    if (!isFlow(kategori)) return;
+    const { trx, pd, period } = await loadCore(c.uid);
+    const b = (await getBudgets(c.uid, period)).find((x) => x.kategori.toLowerCase() === kategori.toLowerCase());
+    if (!b) return;
+    const plan = Number(b.jumlah) || 0;
+    const actual = actualFor(trx, b.kategori, period, pd);
+    const pct = plan > 0 ? (actual / plan) * 100 : 0;
+    if (pct < 80) return;
+    const sisa = plan - actual;
+    await send(c.chat,
+      `${pct >= 100 ? '🚨' : '⚠️'} <b>${pct >= 100 ? 'BUDGET OVER!' : 'BUDGET WARNING'}</b>\n\n` +
+      `📌 Kategori: <b>${esc(b.kategori)}</b>\n📊 Terpakai: <b>${pct.toFixed(0)}%</b>\n\n🎯 Plan:    ${rp(plan)}\n📥 Actual:  ${rp(actual)}\n` +
+      (sisa >= 0 ? `💵 Sisa:    ${rp(sisa)}` : `💸 Over:    ${rp(Math.abs(sisa))}`) + '\n\n' +
+      (pct >= 100 ? 'Coba review pengeluaran kategori ini ya 📝' : 'Hati-hati, jangan sampai over! 🎯'));
+  } catch (e) { console.error('budgetAlert', e); }
+}
+
+/* ---------------- Recurring ---------------- */
+async function handleRecurring(c: Ctx, arg: string) {
+  const parts = arg.split(/\s+/).filter(Boolean);
+  const action = (parts[0] || '').toLowerCase();
+
+  if (!action || action === 'list' || action === 'lihat') return showRecurring(c);
+
+  if (['add', 'tambah', 'set'].includes(action)) {
+    const usage =
+      '❌ <b>Format:</b>\n<code>/recurring add [Tipe] [Kategori] [Nominal] [Tanggal]</code>\n\n<b>Contoh:</b>\n' +
+      '<code>/recurring add Pengeluaran Tagihan 350000 5</code>\n<code>/recurring add Pemasukan Gaji 8500000 25</code>\n\n📌 Tanggal = 1-28';
+    if (parts.length < 5) return send(c.chat, usage, mainKb());
+    const tipe = (parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase()) as Tx['tipe'];
+    if (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') return send(c.chat, '❌ Tipe harus Pemasukan atau Pengeluaran');
+    const day = parseInt(parts[parts.length - 1], 10);
+    if (!day || day < 1 || day > 28) return send(c.chat, '❌ Tanggal harus 1-28');
+    const nominal = parseNominal(parts[parts.length - 2]);
+    if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid');
+    const kategori = parts.slice(2, -2).join(' ');
+    const { error } = await sb.from('recurring').insert({
+      user_id: c.uid, tipe, kategori, nominal, keterangan: 'Auto via Telegram', day_of_month: day, active: true,
+    });
+    if (error) throw error;
+    return send(c.chat,
+      `✅ <b>Recurring ditambahkan!</b>\n\n${tipe === 'Pemasukan' ? '📥' : '📤'} ${tipe}\n🏷️ ${esc(kategori)}\n💵 ${rp(nominal)}\n📅 Setiap tanggal <b>${day}</b>`, mainKb());
+  }
+
+  if (['hapus', 'delete', 'toggle', 'aktif'].includes(action)) {
+    const del = action === 'hapus' || action === 'delete';
+    if (parts.length < 2) return send(c.chat, `❌ Format: <code>/recurring ${del ? 'hapus' : 'toggle'} [id]</code>`);
+    const rows = await fetchAll('recurring', 'id,kategori,active', c.uid, ['id']);
+    const found = rows.find((r) => r.id.startsWith(parts[1].toLowerCase()));
+    if (!found) return send(c.chat, '❌ Recurring tidak ditemukan', mainKb());
+    if (del) {
+      const { error } = await sb.from('recurring').delete().eq('id', found.id).eq('user_id', c.uid);
+      if (error) throw error;
+      return send(c.chat, `🗑️ <b>${esc(found.kategori)}</b> dihapus.`, mainKb());
+    }
+    const { error } = await sb.from('recurring').update({ active: !found.active }).eq('id', found.id).eq('user_id', c.uid);
+    if (error) throw error;
+    return send(c.chat, `🔄 <b>${esc(found.kategori)}</b> sekarang <b>${found.active ? 'nonaktif ⚫' : 'aktif 🟢'}</b>`, mainKb());
+  }
+
+  return send(c.chat, '❓ Command tidak dikenal. Ketik /recurring untuk lihat.', mainKb());
+}
+
+async function showRecurring(c: Ctx) {
+  const list = await fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,active', c.uid, ['day_of_month', 'kategori']);
+  if (list.length === 0) {
+    return send(c.chat,
+      '🔄 <b>Recurring Transactions</b>\n\n📭 Belum ada recurring.\n\n➕ Tambah dengan:\n<code>/recurring add Pengeluaran Tagihan 350000 5</code>', mainKb());
+  }
+  let s = '🔄 <b>Recurring Transactions</b>\n━━━━━━━━━━━━━━━━\n\n';
+  for (const r of list) {
+    s += `${r.active ? '🟢' : '⚫'} <b>${esc(r.kategori)}</b>\n   ${r.tipe === 'Pemasukan' ? '📥' : '📤'} ${r.tipe}\n   💵 ${rp(Number(r.nominal))}\n   📅 Tiap tgl <b>${r.day_of_month}</b>\n`;
+    if (r.keterangan) s += `   📝 <i>${esc(r.keterangan)}</i>\n`;
+    s += `   🆔 <code>${r.id.slice(0, 8)}</code>\n\n`;
+  }
+  s += '━━━━━━━━━━━━━━━━\n• <code>/recurring toggle [id]</code>\n• <code>/recurring hapus [id]</code>';
+  await send(c.chat, s, mainKb());
+}
+
+/* ---------------- Insight AI ---------------- */
+async function askInsight(sum: { period: string; totalIn: number; totalOut: number; n: number; top: string }): Promise<string> {
+  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
+  const prompt = `Kamu adalah financial advisor Indonesia yang ramah dan sedikit santai. Analisis data keuangan bulanan user berikut.
+
+DATA BULAN ${sum.period}:
+- Pemasukan: ${rp(sum.totalIn)}
+- Pengeluaran: ${rp(sum.totalOut)}
+- Saldo bersih: ${rp(sum.totalIn - sum.totalOut)}
+- Jumlah transaksi: ${sum.n}
+- Breakdown pengeluaran:
+${sum.top || 'Belum ada'}
+
+FORMAT OUTPUT:
+- Bahasa Indonesia santai, profesional, personal
+- HTML Telegram: boleh <b>, <i>, <code>
+- Maksimal 200 kata
+- Struktur: 1) kalimat pembuka + emoji, 2) 2-3 observasi penting (bullet •), 3) 2-3 saran konkret (bullet •), 4) penutup motivasi
+- JANGAN pakai markdown (**, *, #). Bullet pakai •`;
+
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_INSIGHT_MODEL}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
+      }),
+    });
+    const j = await r.json();
+    if (j.error) {
+      const msg = String(j.error.message || '');
+      if (attempt < 3 && /high demand|overloaded/i.test(msg)) { await sleep(2 ** attempt * 1000); continue; }
+      throw new Error('Gemini: ' + msg);
+    }
+    const text: string = j.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) throw new Error('Gemini: respons kosong');
+    return text.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').replace(/^\*\s+/gm, '• ').trim();
+  }
+}
+
+async function handleInsight(c: Ctx) {
+  if (await getTemp(c.chat, 'lock')) {
+    return send(c.chat, '⏳ Sabar ya, insight sebelumnya masih diproses.\nTunggu ~30 detik lagi.', mainKb());
+  }
+  await setTemp(c.chat, 'lock', { at: Date.now() }, 30);
+  await send(c.chat, '🤖 <b>Menganalisis data keuangan...</b>\n\nMohon tunggu ~5 detik ⏳');
+
+  const { trx, pd, period } = await loadCore(c.uid);
+  const monthTx = trx.filter((t) => inPeriod(String(t.tanggal), period, pd));
+  if (monthTx.length === 0) return send(c.chat, '📭 Belum ada transaksi bulan ini untuk dianalisis.', mainKb());
+
+  let totalIn = 0, totalOut = 0;
+  const byCat: Record<string, number> = {};
+  for (const t of monthTx) {
+    if (!isFlow(t.kategori)) continue;
+    const n = Number(t.nominal);
+    if (t.tipe === 'Pemasukan') totalIn += n;
+    else { totalOut += n; byCat[t.kategori] = (byCat[t.kategori] || 0) + n; }
+  }
+  const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const sum = { period, totalIn, totalOut, n: monthTx.length, top: top.map(([k, v]) => `• ${k}: ${rp(v)}`).join('\n') };
+
+  let body: string;
+  try {
+    body = safeHtml(await askInsight(sum));
+  } catch (e) {
+    console.error('insight', e);
+    const sel = totalIn - totalOut;
+    body = (sel > 0 ? `🎉 <b>Surplus ${rp(sel)}!</b> Kerja bagus!` : sel < 0 ? `⚠️ <b>Defisit ${rp(-sel)}.</b> Coba hemat ya.` : '⚖️ Pas-pasan bulan ini. Seimbang!') +
+      `\n\n📊 <b>Ringkasan:</b>\n📥 Pemasukan: <b>${rp(totalIn)}</b>\n📤 Pengeluaran: <b>${rp(totalOut)}</b>\n📝 ${monthTx.length} transaksi` +
+      (top.length ? `\n\n🔝 <b>Pengeluaran Utama:</b>\n${top.map(([k, v]) => `• ${esc(k)}: ${rp(v)}`).join('\n')}` : '') +
+      '\n\n💡 Coba <code>/insight</code> lagi nanti untuk analisis lebih dalam.';
+  }
+  await send(c.chat, `💡 <b>Insight Bulan ${period}</b>\n\n${body}`, mainKb());
+}
+
+/* ---------------- Batch ---------------- */
+function parseBatchLine(line: string, defaultDate: string): { ok: true; data: Tx } | { ok: false; error: string } {
+  let tanggal = defaultDate, s = line;
+  const dm = s.match(/^\[(\d{4}-\d{2}-\d{2})\]\s*/);
+  if (dm) { tanggal = dm[1]; s = s.slice(dm[0].length); }
+  let sep = '|', best = 0;
+  for (const x of ['|', ';', '\t', ',']) {
+    const n = s.split(x).length - 1;
+    if (n > best) { best = n; sep = x; }
+  }
+  if (best === 0) return { ok: false, error: 'Tidak ada separator' };
+  const parts = s.split(sep).map((p) => p.trim()).filter((p) => p !== '');
+  if (parts.length < 3) return { ok: false, error: 'Minimal 3 kolom' };
+  const raw = parts[0].toLowerCase();
+  const tipe = raw.includes('pem') || raw === 'in' || raw === '+' ? 'Pemasukan'
+    : raw.includes('peng') || raw === 'out' || raw === '-' ? 'Pengeluaran' : null;
+  if (!tipe) return { ok: false, error: 'Tipe tidak dikenal' };
+  const kategori = parts[1];
+  const nominal = parseNominal(parts[2]);
+  if (nominal <= 0) return { ok: false, error: 'Nominal tidak valid' };
+  return { ok: true, data: { tanggal, tipe, kategori, nominal, keterangan: parts.slice(3).join(' ').trim() } };
+}
+
+async function handleBatch(c: Ctx, fullText: string) {
+  const lines = fullText.split('\n').map((l) => l.trim()).filter((l) => l && !l.toLowerCase().startsWith('/batch') && l.toLowerCase() !== 'batch');
+  if (lines.length === 0) {
+    return send(c.chat, '📦 <b>Format /batch</b>\n\n<code>/batch\nPemasukan | Gaji | 8000000\nPengeluaran | Makanan | 50000</code>', mainKb());
+  }
+  const rows: Tx[] = [], errors: string[] = [];
+  lines.forEach((line, i) => {
+    const r = parseBatchLine(line, today());
+    if (r.ok) rows.push(r.data); else errors.push(`Baris ${i + 1}: ${r.error}`);
+  });
+  if (rows.length === 0) return send(c.chat, '❌ Tidak ada baris valid.\n' + errors.join('\n'));
+
+  const { error } = await sb.from('transactions').insert(rows.map((p) => ({
+    user_id: c.uid, tanggal: p.tanggal, tipe: p.tipe, kategori: p.kategori,
+    nominal: p.nominal, keterangan: p.keterangan || 'Via Batch', source: 'telegram',
+  })));
+  if (error) throw error;
+  await syncPeriod(c.uid, rows.map((r) => r.tanggal).sort().at(-1)!);
+
+  const tIn = rows.filter((r) => r.tipe === 'Pemasukan').reduce((a, r) => a + r.nominal, 0);
+  const tOut = rows.filter((r) => r.tipe === 'Pengeluaran').reduce((a, r) => a + r.nominal, 0);
+  let reply = `✅ <b>${rows.length} transaksi tersimpan!</b>\n\n📥 Pemasukan:  <b>${rp(tIn)}</b>\n📤 Pengeluaran: <b>${rp(tOut)}</b>\n💵 Selisih:    <b>${rp(tIn - tOut)}</b>`;
+  if (errors.length) reply += `\n\n⚠️ ${errors.length} baris dilewati.`;
+  await send(c.chat, reply, mainKb());
+}
 
 /* ---------------- Callback (tombol inline) ---------------- */
 async function handleCallback(c: Ctx, cbq: Any) {
@@ -463,7 +820,9 @@ async function handleCallback(c: Ctx, cbq: Any) {
     const p: Tx = { tanggal: pending.tanggal, tipe: pending.tipe, kategori: pending.kategori, nominal: Number(pending.nominal), keterangan: pending.keterangan };
     await saveTx(c, p);
     await delTemp(c.chat, 'pending');
-    return send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
+    await send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
+    if (p.tipe === 'Pengeluaran') await checkBudgetAlert(c, p.kategori);
+    return;
   }
   if (data === 'confirm_back') return confirmPreview(c.chat, pending);
 
@@ -511,9 +870,10 @@ async function handleMessage(c: Ctx, msg: Any) {
     '🏷️ kelola kategori': () => handleKategori(c, ''),
     '📚 lihat kategori': () => handleKategori(c, ''),
     '↩️ undo terakhir': () => handleUndo(c),
-    '📈 budget': () => NOT_YET(c),
-    '🔄 recurring': () => NOT_YET(c),
-    '💡 insight ai': () => NOT_YET(c),
+    '📈 budget': () => handleBudget(c, ''),
+    '🔄 recurring': () => handleRecurring(c, ''),
+    '💡 insight ai': () => handleInsight(c),
+    '💡 insight': () => handleInsight(c),
     '📝 tambah transaksi': () => send(c.chat,
       '📝 <b>Tambah Transaksi</b>\n\nAda 3 cara:\n<b>1) Ketik bebas:</b> <i>makan siang 25rb</i>\n' +
       '<b>2) Command:</b> <code>/tambah Pemasukan Gaji 5jt</code>\n<b>3) Voice note:</b> rekam suara', tambahKb()),
@@ -539,20 +899,238 @@ async function handleMessage(c: Ctx, msg: Any) {
   if (cmd === '/menu' || cmd === 'menu') return send(c.chat, '🏠 <b>Menu Utama</b>', mainKb());
   if (/^\/?(kategori)(\s|$)/i.test(text)) return handleKategori(c, text.replace(/^\/?kategori\s*/i, '').trim());
   if (/^\/?(tambah)\s/i.test(text)) return handleTambah(c, text.replace(/^\/?tambah\s*/i, ''));
-  if (/^\/?(budget|recurring|insight|analisis|batch)(\s|$)/i.test(text)) return NOT_YET(c);
+  if (cmd === '/insight' || cmd === 'insight' || cmd === '/analisis') return handleInsight(c);
+  if (/^\/?budget(\s|$)/i.test(text)) return handleBudget(c, text.replace(/^\/?budget\s*/i, ''));
+  if (/^\/?recurring(\s|$)/i.test(text)) return handleRecurring(c, text.replace(/^\/?recurring\s*/i, ''));
+  if (/^\/?batch(\s|$)/i.test(text)) return handleBatch(c, text);
 
   if (!cmd.startsWith('/') && text.length >= 3) return handleFreeText(c, text);
 
   return send(c.chat, '🤖 Perintah tidak dikenal.\n\nKlik tombol di bawah atau ketik:\n<i>makan siang 25rb</i>', mainKb());
 }
 
+/* ---------------- Tahap 3c: job otomatis (cron) + refresh harga ---------------- */
+const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
+const CG_KEY = Deno.env.get('COINGECKO_API_KEY') ?? '';
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+const json = (obj: unknown, status = 200) =>
+  new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'content-type': 'application/json' } });
+
+const CRYPTO_MAP: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', ONDO: 'ondo-finance', TAO: 'bittensor', SOL: 'solana', ADA: 'cardano',
+  DOT: 'polkadot', MATIC: 'matic-network', USDT: 'tether', USDC: 'usd-coin', BNB: 'binancecoin', XRP: 'ripple',
+  DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink', PEPE: 'pepe', SHIB: 'shiba-inu', ARB: 'arbitrum', OP: 'optimism',
+};
+
+async function chatsOf(uid?: string): Promise<{ chat_id: number; user_id: string }[]> {
+  let q = sb.from('telegram_chats').select('chat_id,user_id');
+  if (uid) q = q.eq('user_id', uid);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Satu request CoinGecko untuk semua simbol (versi lama: 1 request + jeda 3 detik per simbol)
+async function fetchPricesIDR(symbols: string[]): Promise<Record<string, number>> {
+  const wanted = [...new Set(symbols.map((s) => s.toUpperCase()))].filter((s) => CRYPTO_MAP[s]);
+  if (wanted.length === 0) return {};
+  const ids = [...new Set([...wanted.map((s) => CRYPTO_MAP[s]), 'tether'])];
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd` +
+    (CG_KEY ? `&x_cg_demo_api_key=${encodeURIComponent(CG_KEY)}` : '');
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('CoinGecko HTTP ' + r.status);
+  const j = await r.json();
+  const usdIdr = Number(j.tether?.idr) || 16000;
+  const out: Record<string, number> = {};
+  for (const s of wanted) {
+    const d = j[CRYPTO_MAP[s]];
+    if (d?.idr) out[s] = Number(d.idr);
+    else if (d?.usd) out[s] = Math.round(Number(d.usd) * usdIdr);
+  }
+  return out;
+}
+
+async function savePortfolioSnapshot(uid: string) {
+  const assets = await fetchAll('assets', 'type,value', uid, ['id']);
+  let total = 0, crypto = 0, cash = 0, other = 0;
+  for (const a of assets) {
+    const v = Number(a.value) || 0;
+    total += v;
+    const t = String(a.type || 'Other').toLowerCase();
+    if (t === 'crypto') crypto += v; else if (t === 'cash') cash += v; else other += v;
+  }
+  const { error } = await sb.from('portfolio_snapshots').upsert(
+    { user_id: uid, tanggal: today(), total_value: total, crypto_value: crypto, cash_value: cash, other_value: other },
+    { onConflict: 'user_id,tanggal' },
+  );
+  if (error) throw error;
+  return total;
+}
+
+async function refreshPrices(uid: string) {
+  const assets = await fetchAll('assets', 'id,type,symbol,quantity', uid, ['id']);
+  const cryptos = assets.filter((a) => String(a.type).toLowerCase() === 'crypto' && a.symbol);
+  if (cryptos.length === 0) return { updated: 0, missing: [] as string[] };
+  const prices = await fetchPricesIDR(cryptos.map((a) => String(a.symbol)));
+  let updated = 0;
+  const missing = new Set<string>();
+  for (const a of cryptos) {
+    const sym = String(a.symbol).toUpperCase();
+    const price = prices[sym];
+    if (!price) { missing.add(sym); continue; }
+    const { error } = await sb.from('assets').update({ value: Math.round(Number(a.quantity || 0) * price) })
+      .eq('id', a.id).eq('user_id', uid);
+    if (error) throw error;
+    updated++;
+  }
+  if (updated > 0) await savePortfolioSnapshot(uid);
+  return { updated, missing: [...missing] };
+}
+
+// Transaksi berulang: jalan pada tanggal yang cocok (zona APP_TIMEZONE), maksimal sekali per hari
+async function runRecurring() {
+  const t = today();
+  const day = Number(t.slice(8, 10));
+  const { data, error } = await sb.from('recurring').select('*').eq('active', true).eq('day_of_month', day);
+  if (error) throw error;
+  const byUser = new Map<string, string[]>();
+  let created = 0;
+  for (const r of data ?? []) {
+    // "klaim" atomik: hanya satu eksekusi yang berhasil mengubah last_run hari ini
+    const claim = await sb.from('recurring').update({ last_run: t }).eq('id', r.id)
+      .or(`last_run.is.null,last_run.neq.${t}`).select('id');
+    if (claim.error) throw claim.error;
+    if (!claim.data || claim.data.length === 0) continue;
+    const ins = await sb.from('transactions').insert({
+      user_id: r.user_id, tanggal: t, tipe: r.tipe, kategori: r.kategori, nominal: r.nominal,
+      keterangan: (r.keterangan || '') + ' (recurring)', source: 'recurring',
+    });
+    if (ins.error) {
+      await sb.from('recurring').update({ last_run: r.last_run }).eq('id', r.id); // batalkan klaim
+      console.error('recurring insert', ins.error);
+      continue;
+    }
+    await syncPeriod(r.user_id, t);
+    created++;
+    byUser.set(r.user_id, [...(byUser.get(r.user_id) ?? []), `• ${esc(r.kategori)}: ${rp(Number(r.nominal))}`]);
+  }
+  for (const [uid, lines] of byUser) {
+    for (const ch of await chatsOf(uid)) {
+      await send(ch.chat_id, `🔄 <b>Recurring hari ini</b>\n\n${lines.length} transaksi auto-catat:\n\n${lines.join('\n')}`);
+    }
+  }
+  return { created };
+}
+
+async function dailyReminder() {
+  let sent = 0;
+  for (const ch of await chatsOf()) {
+    const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id']);
+    const todayTx = trx.filter((x) => String(x.tanggal).slice(0, 10) === today());
+    const st = streak(trx);
+    let msg: string;
+    if (todayTx.length === 0) {
+      msg = '⏰ <b>Pengingat Malam</b>\n\nBelum ada catatan transaksi hari ini nih.\n\n💡 Kirim cepat, contoh:\n' +
+        '<i>makan malam 30rb</i>\n<i>belanja 150rb</i>\n\n' +
+        `🔥 Streak kamu: <b>${st} hari</b> ${streakEmoji(st)}\nJangan sampai putus ya!`;
+    } else {
+      const total = todayTx.filter((x) => x.tipe === 'Pengeluaran' && isFlow(x.kategori))
+        .reduce((a, x) => a + Number(x.nominal), 0);
+      msg = `✅ <b>Rekap Hari Ini</b>\n\n📝 Transaksi: <b>${todayTx.length}</b>\n💵 Pengeluaran: <b>${rp(total)}</b>\n\n` +
+        `🔥 Streak: <b>${st} hari</b> ${streakEmoji(st)}\nMantap, terus konsisten!`;
+    }
+    await send(ch.chat_id, msg, mainKb());
+    sent++;
+  }
+  return { sent };
+}
+
+async function weeklyReport() {
+  const end = today();
+  const d = new Date(end + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 7);
+  const start = d.toISOString().slice(0, 10);
+  let sent = 0;
+  for (const ch of await chatsOf()) {
+    const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id']);
+    const weekTx = trx.filter((x) => { const t = String(x.tanggal).slice(0, 10); return t >= start && t <= end; });
+    if (weekTx.length === 0) continue;
+    let tIn = 0, tOut = 0;
+    const byCat: Record<string, number> = {};
+    for (const x of weekTx) {
+      if (!isFlow(x.kategori)) continue;
+      const n = Number(x.nominal);
+      if (x.tipe === 'Pemasukan') tIn += n; else { tOut += n; byCat[x.kategori] = (byCat[x.kategori] || 0) + n; }
+    }
+    const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const sel = tIn - tOut, st = streak(trx);
+    let msg = `📊 <b>Laporan Minggu Ini</b>\n📅 ${start.slice(5)} s/d ${end.slice(5)}\n\n━━━━━━━━━━━━━━━━\n` +
+      `📥 Pemasukan:  <b>${rp(tIn)}</b>\n📤 Pengeluaran: <b>${rp(tOut)}</b>\n💵 Selisih:    <b>${sel >= 0 ? '+' : ''}${rp(sel)}</b>\n━━━━━━━━━━━━━━━━\n\n`;
+    if (top.length) {
+      msg += '<b>🔝 Top Pengeluaran:</b>\n' +
+        top.map(([k, v], i) => `${['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]} ${esc(k)} — <b>${rp(v)}</b>`).join('\n') + '\n\n';
+    }
+    msg += `📝 Total transaksi: <b>${weekTx.length}</b>\n🔥 Streak: <b>${st} hari</b> ${streakEmoji(st)}\n\n` +
+      (sel >= 0 ? '🎉 Great! Kamu surplus minggu ini.' : '💡 Defisit minggu ini, coba hemat minggu depan ya.');
+    await send(ch.chat_id, msg, mainKb());
+    sent++;
+  }
+  return { sent };
+}
+
+// Snapshot harian: segarkan harga dulu (bila gagal, tetap simpan nilai terakhir), lalu simpan snapshot
+async function snapshotAll() {
+  const { data } = await sb.from('assets').select('user_id');
+  const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))];
+  let done = 0;
+  for (const uid of users) {
+    try { await refreshPrices(uid); } catch (e) { console.error('refreshPrices', e); }
+    try { await savePortfolioSnapshot(uid); done++; } catch (e) { console.error('snapshot', e); }
+  }
+  return { users: done };
+}
+
+async function handleJob(req: Request, job: string): Promise<Response> {
+  const cron = CRON_SECRET !== '' && req.headers.get('x-cron-secret') === CRON_SECRET;
+  let uid: string | null = null;
+  if (!cron) {
+    // Panggilan dari website: JWT login Supabase, hanya boleh refresh harga milik sendiri
+    const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+    const { data } = token ? await sb.auth.getUser(token) : { data: null };
+    uid = data?.user?.id ?? null;
+    if (!uid || job !== 'refresh_prices') return json({ error: 'forbidden' }, 403);
+  }
+  try {
+    switch (job) {
+      case 'refresh_prices': return json(await refreshPrices(uid!));
+      case 'daily': return json(await dailyReminder());
+      case 'weekly': return json(await weeklyReport());
+      case 'recurring': return json(await runRecurring());
+      case 'snapshot': return json(await snapshotAll());
+      default: return json({ error: 'unknown job' }, 400);
+    }
+  } catch (e) {
+    console.error('job', job, e);
+    return json({ error: String((e as Error).message || e) }, 500);
+  }
+}
+
 /* ---------------- Webhook ---------------- */
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return new Response('ok');
-  if (req.headers.get('x-telegram-bot-api-secret-token') !== SECRET) return new Response('forbidden', { status: 403 });
 
   let update: Any;
   try { update = await req.json(); } catch { return new Response('bad request', { status: 400 }); }
+
+  // Job otomatis (pg_cron) & refresh harga dari website — punya autentikasi sendiri
+  if (typeof update?.job === 'string') return handleJob(req, update.job);
+
+  if (req.headers.get('x-telegram-bot-api-secret-token') !== SECRET) return new Response('forbidden', { status: 403 });
 
   try {
     // Dedup: Telegram bisa mengirim ulang update yang sama
