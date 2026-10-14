@@ -9,6 +9,8 @@ const DB = {
   assets: [],
   budgets: [],
   snapshots: [],
+  wallets: [],
+  transfers: [],
   currentPeriod: new Date().toISOString().slice(0, 7),
   payrollDay: 28
 };
@@ -130,6 +132,8 @@ async function refreshFromServer(payload) {
     DB.snapshots = payload.snapshots || [];
     DB.currentPeriod = payload.currentPeriod || DB.currentPeriod;
     DB.payrollDay = payload.payrollDay || 1;
+    DB.wallets = payload.wallets || DB.wallets || [];
+    DB.transfers = payload.transfers || [];
   }
   renderAll();
 }
@@ -160,6 +164,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     DB.currentPeriod = data.currentPeriod || DB.currentPeriod;
     DB.payrollDay = data.payrollDay || 1;
     DB.snapshots = data.snapshots || [];
+    DB.wallets = data.wallets || [];
+    DB.transfers = data.transfers || [];
     console.log('[INIT] loaded', DB.transactions.length, 'transactions,', DB.snapshots.length, 'snapshots, period:', DB.currentPeriod);
     
     // 🆕 Auto-refresh harga crypto (kalau ada)
@@ -294,6 +300,7 @@ function switchView(id) {
 function renderAll() {
   if (!isDataReady) return;
   try { renderDashboard(); } catch (e) { console.error('renderDashboard err:', e); }
+  try { renderWallets(); } catch (e) { console.error('renderWallets err:', e); }
   try { renderLaporan(); } catch (e) { console.error('renderLaporan err:', e); }
   try { renderDebtLists(); } catch (e) { console.error('renderDebtLists err:', e); }
   try { renderKalender(); } catch (e) { console.error('renderKalender err:', e); }
@@ -317,9 +324,8 @@ function renderDashboard() {
   let totalExpense = 0;
 
   DB.transactions.forEach(t => {
-    const k = t.kategori.toLowerCase();
-    const isUtang = k.indexOf('utang') >= 0;
-    const isPiutang = k.indexOf('piutang') >= 0;
+    const isPiutang = String(t.kategori).startsWith('Piutang');
+    const isUtang = !isPiutang && String(t.kategori).startsWith('Utang');
 
     if (isUtang) {
       if (t.tipe === 'Pemasukan') {
@@ -351,6 +357,12 @@ function renderDashboard() {
       }
     }
   });
+
+  // Saldo kas = total semua dompet (BCA + Cash) bila dompet sudah ada
+  if (DB.wallets && DB.wallets.length) {
+    const wb = walletBalances();
+    saldoKas = Object.keys(wb).reduce((a, k) => a + wb[k], 0);
+  }
 
   const totalInvestasi = DB.assets.reduce((a, b) => a + Number(b.value || 0), 0);
   const netWorth = saldoKas + totalInvestasi + piutangTotal - utangTotal;
@@ -828,6 +840,9 @@ function renderAssets() {
             <p class="font-black ${iconColor}">${formatRupiah(value)}</p>
             ${pnlHtml}
           </div>
+          <button onclick="topUpAsset('${a.id}')" title="Tambah nilai aset" class="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all">
+            <i class="ph ph-plus-bold text-sm"></i>
+          </button>
           <button onclick="deleteAsset('${a.id}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 opacity-0 group-hover:opacity-100 transition-opacity">
             <i class="ph ph-trash text-sm"></i>
           </button>
@@ -976,16 +991,9 @@ function deleteAsset(id) {
    DEBT LISTS
    ============================================================ */
 function renderDebtLists() {
-  const period = DB.currentPeriod;
-  const txs = DB.transactions
-    .map((t, i) => ({ ...t, _idx: i }))
-    .filter(t => isInPeriod(t.tanggal, period))
-    .sort((a, b) => {
-      const dateCompare = String(b.tanggal).localeCompare(String(a.tanggal));
-      if (dateCompare !== 0) return dateCompare;
-      return b._idx - a._idx;
-    });
-  // ... dst (sisanya sama)
+  // Saldo utang/piutang dihitung dari SEMUA transaksi (bukan hanya siklus berjalan),
+  // supaya cocok dengan total utang di dashboard.
+  const txs = DB.transactions;
 
   const debtBal = { UtangApp: {}, UtangPerson: {}, Piutang: {} };
   (DB.entities.UtangApp || []).forEach(e => debtBal.UtangApp[e] = 0);
@@ -1112,6 +1120,235 @@ async function manageDebtEntity(action, group, oldName = '') {
   }
 }
 
+/* ============================================================
+   DOMPET (BCA / CASH), TRANSFER, TARIK TUNAI, TOP-UP ASET
+   ============================================================ */
+const isPiutangK = (k) => String(k).startsWith('Piutang');
+const isUtangK = (k) => !isPiutangK(k) && String(k).startsWith('Utang');
+
+function localToday() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Siklus gaji untuk sebuah tanggal (sama dengan getCycleForDate di server)
+function cycleOfDate(tanggal) {
+  const pd = Number(DB.payrollDay) || 1;
+  let [y, m, d] = String(tanggal).slice(0, 10).split('-').map(Number);
+  if (pd > 1 && d >= pd) { m += 1; if (m > 12) { m = 1; y += 1; } }
+  return y + '-' + String(m).padStart(2, '0');
+}
+
+// Efek transaksi ke dompet: pinjam utang tidak memasukkan uang ke dompet (aturan lama dipertahankan)
+function txCashEffect(t) {
+  const n = Number(t.nominal) || 0;
+  if (isPiutangK(t.kategori)) return t.tipe === 'Pengeluaran' ? -n : n;
+  if (isUtangK(t.kategori)) return t.tipe === 'Pemasukan' ? 0 : -n;
+  return t.tipe === 'Pemasukan' ? n : -n;
+}
+
+function walletBalances() {
+  const bal = {};
+  (DB.wallets || []).forEach(w => { bal[w.id] = Number(w.openingBalance) || 0; });
+  const def = DB.wallets && DB.wallets[0] ? DB.wallets[0].id : null;
+  DB.transactions.forEach(t => {
+    const id = (t.walletId && bal[t.walletId] !== undefined) ? t.walletId : def;
+    if (id) bal[id] += txCashEffect(t);
+  });
+  (DB.transfers || []).forEach(x => {
+    const n = Number(x.nominal) || 0, f = Number(x.fee) || 0;
+    if (x.fromWallet && bal[x.fromWallet] !== undefined) bal[x.fromWallet] -= (n + f);
+    if (x.toWallet && bal[x.toWallet] !== undefined) bal[x.toWallet] += n;
+  });
+  return bal;
+}
+
+const walletName = (id) => { const w = (DB.wallets || []).find(x => x.id === id); return w ? w.name : '-'; };
+const walletOptions = (selectedId) => (DB.wallets || [])
+  .map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)}</option>`).join('');
+function fillWalletSelect(id, selectedId) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = walletOptions(selectedId || (DB.wallets && DB.wallets[0] ? DB.wallets[0].id : ''));
+}
+
+function renderWallets() {
+  const panel = document.getElementById('wallet-panel');
+  if (!panel) return;
+  const wb = walletBalances();
+  panel.innerHTML = (DB.wallets || []).map(w => {
+    const isCash = w.kind === 'cash';
+    const bal = wb[w.id] || 0;
+    return `
+      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="w-12 h-12 rounded-2xl ${isCash ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center shrink-0">
+            <i class="ph ph-${isCash ? 'money' : 'bank'} text-2xl"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 truncate">${escapeHtmlJS(w.name)}</p>
+            <h3 class="text-lg font-bold ${bal < 0 ? 'text-rose-600' : 'text-slate-800 dark:text-white'} truncate">${formatRupiah(bal)}</h3>
+          </div>
+        </div>
+        <button onclick="editWallet('${w.id}')" title="Edit saldo"
+          class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-brand flex items-center justify-center shrink-0">
+          <i class="ph ph-pencil-simple text-lg"></i>
+        </button>
+      </div>`;
+  }).join('');
+
+  const box = document.getElementById('wallet-transfers');
+  if (!box) return;
+  const list = [...(DB.transfers || [])]
+    .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id)))
+    .slice(0, 5);
+  if (list.length === 0) { box.innerHTML = ''; return; }
+  const label = { tarik_tunai: 'Tarik Tunai', transfer: 'Transfer', investasi: 'Top-up Aset' };
+  box.innerHTML = `
+    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Riwayat transfer terakhir</p>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+      ${list.map(x => `
+        <div class="px-4 py-3 flex items-center justify-between gap-3 text-xs">
+          <div class="min-w-0">
+            <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
+            <p class="text-slate-400">${String(x.tanggal).slice(0, 10)}${x.fee ? ' · biaya ' + formatRupiah(x.fee) : ''}${x.keterangan ? ' · ' + escapeHtmlJS(x.keterangan) : ''}</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="font-black text-slate-700 dark:text-slate-200">${formatRupiah(x.nominal)}</span>
+            <button onclick="deleteTransfer('${x.id}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100">
+              <i class="ph ph-trash text-sm"></i>
+            </button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function editWallet(id) {
+  const w = (DB.wallets || []).find(x => x.id === id);
+  if (!w) return;
+  const bal = walletBalances()[id] || 0;
+  const res = await Swal.fire({
+    title: 'Edit ' + w.name,
+    html: `
+      <input id="wl-name" class="swal2-input" value="${escapeHtmlJS(w.name)}" placeholder="Nama dompet">
+      <input id="wl-bal" type="number" class="swal2-input" value="${Math.round(bal)}" placeholder="Saldo sekarang (Rp)">
+      <p style="font-size:12px;color:#64748b;margin-top:10px">Mengubah saldo akan menyesuaikan saldo awal dompet. Riwayat transaksi tidak berubah.</p>`,
+    showCancelButton: true,
+    confirmButtonText: 'Simpan',
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const b = parseFloat(document.getElementById('wl-bal').value);
+      if (!isFinite(b)) { Swal.showValidationMessage('Isi saldo dengan angka'); return false; }
+      return { name: document.getElementById('wl-name').value.trim(), balance: b };
+    }
+  });
+  if (!res.isConfirmed || !res.value) return;
+  const newOpening = (Number(w.openingBalance) || 0) + (res.value.balance - bal);
+  try {
+    const data = await callServer('api_updateWallet', id, { name: res.value.name, openingBalance: newOpening });
+    await refreshFromServer(data);
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
+async function openTransferModal(kind) {
+  const ws = DB.wallets || [];
+  if (ws.length < 2) {
+    Swal.fire({ icon: 'info', title: 'Butuh 2 dompet', text: 'Muat ulang halaman dulu.', customClass: { popup: getSwalClass() } });
+    return;
+  }
+  const bank = ws.find(w => w.kind === 'bank') || ws[0];
+  const cash = ws.find(w => w.kind === 'cash') || ws[1];
+  const res = await Swal.fire({
+    title: kind === 'tarik_tunai' ? 'Tarik Tunai' : 'Transfer Antar Dompet',
+    html: `
+      <label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Dari</label>
+      <select id="tf-from" class="swal2-input">${walletOptions(bank.id)}</select>
+      <label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Ke</label>
+      <select id="tf-to" class="swal2-input">${walletOptions(cash.id)}</select>
+      <input id="tf-nom" type="number" class="swal2-input" placeholder="Nominal (Rp)">
+      <input id="tf-fee" type="number" class="swal2-input" placeholder="Biaya admin (Rp) — opsional">
+      <input id="tf-ket" type="text" class="swal2-input" placeholder="Catatan — opsional">`,
+    showCancelButton: true,
+    confirmButtonText: 'Simpan',
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const from = document.getElementById('tf-from').value;
+      const to = document.getElementById('tf-to').value;
+      const nominal = parseFloat(document.getElementById('tf-nom').value);
+      if (from === to) { Swal.showValidationMessage('Dompet asal dan tujuan harus berbeda'); return false; }
+      if (!nominal || nominal <= 0) { Swal.showValidationMessage('Isi nominal'); return false; }
+      return {
+        fromWallet: from, toWallet: to, nominal,
+        fee: parseFloat(document.getElementById('tf-fee').value) || 0,
+        keterangan: document.getElementById('tf-ket').value.trim()
+      };
+    }
+  });
+  if (!res.isConfirmed || !res.value) return;
+  const f = ws.find(w => w.id === res.value.fromWallet), t2 = ws.find(w => w.id === res.value.toWallet);
+  const k = (f && t2 && f.kind === 'bank' && t2.kind === 'cash') ? 'tarik_tunai' : 'transfer';
+  try {
+    const data = await callServer('api_addTransfer', { ...res.value, kind: k, tanggal: localToday() });
+    await refreshFromServer(data);
+    Swal.fire({ icon: 'success', title: 'Tercatat', timer: 1000, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
+function deleteTransfer(id) {
+  Swal.fire({
+    title: 'Hapus transfer ini?', text: 'Saldo dompet akan kembali seperti sebelum transfer.', icon: 'warning',
+    showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus', customClass: { popup: getSwalClass() }
+  }).then(async r => {
+    if (!r.isConfirmed) return;
+    try { await refreshFromServer(await callServer('api_deleteTransfer', id)); }
+    catch (e) { Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } }); }
+  });
+}
+
+async function topUpAsset(id) {
+  const a = (DB.assets || []).find(x => String(x.id) === String(id));
+  if (!a) return;
+  const isCrypto = String(a.type).toLowerCase() === 'crypto';
+  const qty = Number(a.quantity || 0), val = Number(a.value || 0);
+  const implied = (qty > 0 && val > 0) ? val / qty : 0;
+  const res = await Swal.fire({
+    title: 'Tambah ' + a.name,
+    html: `
+      <input id="tu-amount" type="number" class="swal2-input" placeholder="Nominal ditambah (Rp), mis. 1000000">
+      ${isCrypto ? `
+        <input id="tu-qty" type="number" step="0.00000001" class="swal2-input" placeholder="Jumlah koin didapat — opsional">
+        <input id="tu-price" type="number" class="swal2-input" placeholder="Harga per koin saat beli — opsional">
+        <p style="font-size:12px;color:#64748b;margin:6px 4px">${implied
+          ? `Kosongkan keduanya untuk memakai harga terakhir (${formatRupiah(implied)} per ${escapeHtmlJS(a.symbol)}).`
+          : 'Harga terakhir belum ada: isi jumlah koin atau harga per koin.'}</p>` : ''}
+      <label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana</label>
+      <select id="tu-wallet" class="swal2-input"><option value="">Tidak dikurangi dari dompet</option>${walletOptions('')}</select>`,
+    showCancelButton: true,
+    confirmButtonText: 'Tambahkan',
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const amount = parseFloat(document.getElementById('tu-amount').value);
+      if (!amount || amount <= 0) { Swal.showValidationMessage('Isi nominal'); return false; }
+      const g = (i) => { const el = document.getElementById(i); return el ? (parseFloat(el.value) || 0) : 0; };
+      return { amount, quantity: g('tu-qty'), price: g('tu-price'), walletId: document.getElementById('tu-wallet').value, tanggal: localToday() };
+    }
+  });
+  if (!res.isConfirmed || !res.value) return;
+  try {
+    const data = await callServer('api_topUpAsset', id, res.value);
+    await refreshFromServer(data);
+    Swal.fire({ icon: 'success', title: 'Aset ditambah', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
 async function transactDebt(type, group, name) {
   let isIncome = false;
   let title = '';
@@ -1123,18 +1360,25 @@ async function transactDebt(type, group, name) {
     title = type === 'add' ? `Beri pinjaman ke ${name}` : `Terima bayaran dari ${name}`;
   }
 
+  const affectsCash = !((group === 'UtangApp' || group === 'UtangPerson') && type === 'add');
+  const walletSel = affectsCash && (DB.wallets || []).length
+    ? `<label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">${isIncome ? 'Masuk ke dompet' : 'Dibayar dari dompet'}</label><select id="swal-wallet" class="swal2-input">${walletOptions('')}</select>`
+    : '';
+
   const { value: formVals } = await Swal.fire({
     title: title,
     html: `
       <input id="swal-nom" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="number" placeholder="Nominal Rp">
       <input id="swal-ket" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="text" placeholder="Catatan Opsional">
+      ${walletSel}
     `,
     focusConfirm: false,
     showCancelButton: true,
     customClass: { popup: getSwalClass() },
     preConfirm: () => [
       document.getElementById('swal-nom').value,
-      document.getElementById('swal-ket').value
+      document.getElementById('swal-ket').value,
+      (document.getElementById('swal-wallet') || {}).value || ''
     ]
   });
 
@@ -1142,13 +1386,14 @@ async function transactDebt(type, group, name) {
     const nominal = parseFloat(formVals[0]);
     if (!nominal || nominal <= 0) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localToday();
     const payload = {
       tanggal: today,
       tipe: isIncome ? 'Pemasukan' : 'Pengeluaran',
       kategori: `${group} - ${name}`,
       nominal: nominal,
-      keterangan: formVals[1] || ''
+      keterangan: formVals[1] || '',
+      walletId: formVals[2] || ''
     };
 
     try {
@@ -1180,6 +1425,10 @@ function openForm(action) {
   let opts = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
   if (action === 'Tabungan') opts = ['Tabungan Baru', 'Investasi'];
   document.getElementById('tr_kategori').innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+
+  fillWalletSelect('tr_wallet');
+  const wl = document.getElementById('tr_wallet_label');
+  if (wl) wl.innerText = tipe === 'Pemasukan' ? 'Masuk ke dompet' : 'Dibayar dari dompet';
 
   if (fpTanggal) fpTanggal.setDate('today');
 }
@@ -1225,7 +1474,8 @@ async function submitTransaction(e) {
     tipe: document.getElementById('tr_tipe').value,
     kategori: document.getElementById('tr_kategori').value,
     nominal: parseFloat(document.getElementById('tr_nominal').value),
-    keterangan: document.getElementById('tr_keterangan').value
+    keterangan: document.getElementById('tr_keterangan').value,
+    walletId: (document.getElementById('tr_wallet') || {}).value || ''
   };
 
   if (!p.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(p.tanggal) || !p.nominal || p.nominal <= 0) {
@@ -1238,7 +1488,7 @@ async function submitTransaction(e) {
     return;
   }
 
-  const txMonth = p.tanggal.slice(0, 7);
+  const txMonth = cycleOfDate(p.tanggal);   // siklus gaji, bukan bulan kalender
   const needPeriodSwitch = txMonth !== DB.currentPeriod;
 
   try {
@@ -1281,20 +1531,21 @@ async function submitTransaction(e) {
 }
 
 function editTransaction(id) {
-  const t = DB.transactions.find(x => String(x.id) === String(id));
-  if (!t) return;
-  openForm(t.tipe);
+  const tx = DB.transactions.find(x => String(x.id) === String(id));
+  if (!tx) return;
+  openForm(tx.tipe);
   document.getElementById('formTitle').innerText = t('form.title_edit');
   document.getElementById('tr_action').value = 'Edit';
-  document.getElementById('tr_row').value = t.id;
-  document.getElementById('tr_kategori').value = t.kategori;
-  document.getElementById('tr_nominal').value = t.nominal;
-  document.getElementById('tr_keterangan').value = t.keterangan || '';
+  document.getElementById('tr_row').value = tx.id;
+  document.getElementById('tr_kategori').value = tx.kategori;
+  document.getElementById('tr_nominal').value = tx.nominal;
+  document.getElementById('tr_keterangan').value = tx.keterangan || '';
+  fillWalletSelect('tr_wallet', tx.walletId);
   if (fpTanggal) {
-    try { fpTanggal.setDate(t.tanggal, true); } catch (e) {}
+    try { fpTanggal.setDate(tx.tanggal, true); } catch (e) {}
   }
   const inputTgl = document.getElementById('tr_tanggal');
-  if (inputTgl) inputTgl.value = t.tanggal;
+  if (inputTgl) inputTgl.value = tx.tanggal;
 }
 
 function deleteTransaction(id) {
