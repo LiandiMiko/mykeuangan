@@ -6,6 +6,8 @@ import path from 'node:path';
 const SRC = 'src', WEB = 'web', OUT = 'dist';
 // Versi di-pin (hindari "latest"); naikkan manual setelah dites.
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+const SUPABASE_JS_FALLBACK = 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+const VENDOR = path.join('web', 'vendor', 'supabase.js');   // opsional: file lokal, tanpa bergantung CDN
 const alias = { scripts: 'script' };          // Index.html memanggil 'scripts', filenya script.html
 
 function read(name) {
@@ -28,7 +30,16 @@ const api = fs.readFileSync(path.join(WEB, 'supabase-api.js'), 'utf8');
 let html = read('Index');
 html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
   if (name === 'scripts') {
-    return `<script src="${SUPABASE_JS}"></script>\n${read(name)}\n` +
+    let lib;
+    if (fs.existsSync(VENDOR)) {
+      const code = fs.readFileSync(VENDOR, 'utf8');
+      if (/<\/script/i.test(code)) throw new Error('web/vendor/supabase.js berisi </script>, tidak bisa di-inline.');
+      lib = `<script>\n${code}\n</script>`;
+    } else {
+      lib = `<script src="${SUPABASE_JS}"></script>\n` +
+            `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}"><\\/script>')</script>`;
+    }
+    return `${lib}\n${read(name)}\n` +
            `<script>\n${config}\n</script>\n<script>\n${api}\n</script>`;
   }
   return read(name);
