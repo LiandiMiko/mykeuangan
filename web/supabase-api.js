@@ -109,8 +109,8 @@
   /* ---------------- getInitialData ---------------- */
   async function getInitialData() {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-    const [trx, cats, ents, assets, budgets, recurring, settings, snapRes] = await Promise.all([
-      fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan', ['tanggal', 'id']),
+    const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers] = await Promise.all([
+      fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id']),
       fetchAll('categories', 'tipe,name', ['tipe', 'name']),
       fetchAll('entities', 'grp,name', ['grp', 'name']),
       fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']),
@@ -119,15 +119,35 @@
       getSettings(),
       sb.from('portfolio_snapshots')
         .select('tanggal,total_value,crypto_value,cash_value,other_value')
-        .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true })
+        .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true }),
+      fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']),
+      fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id'])
     ]);
     fail(snapRes.error);
+
+    // Pertama kali dipakai: buat dompet standar BCA + Cash
+    let wallets = walletsRaw;
+    if (wallets.length === 0) {
+      const { error: wErr } = await sb.from('wallets').insert([
+        { name: 'BCA (m-banking)', kind: 'bank', sort: 1 },
+        { name: 'Cash', kind: 'cash', sort: 2 }
+      ]);
+      fail(wErr);
+      wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
+    }
 
     const payrollDay = Number(settings.payrollDay) || 1;
     return {
       transactions: trx.map((t) => ({
         id: t.id, tanggal: t.tanggal, tipe: t.tipe, kategori: t.kategori,
-        nominal: num(t.nominal), keterangan: t.keterangan || ''
+        nominal: num(t.nominal), keterangan: t.keterangan || '', walletId: t.wallet_id || ''
+      })),
+      wallets: wallets.map((w) => ({
+        id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort
+      })),
+      transfers: transfers.map((x) => ({
+        id: x.id, tanggal: x.tanggal, kind: x.kind, fromWallet: x.from_wallet || '', toWallet: x.to_wallet || '',
+        nominal: num(x.nominal), fee: num(x.fee), keterangan: x.keterangan || ''
       })),
       categories: {
         pemasukan: cats.filter((c) => c.tipe === 'pemasukan').map((c) => c.name),
@@ -158,13 +178,17 @@
   }
 
   /* ---------------- Handler per fungsi server lama ---------------- */
-  const trxRow = (d) => ({
-    tanggal: String(d.tanggal || '').slice(0, 10),
-    tipe: d.tipe,
-    kategori: d.kategori,
-    nominal: num(d.nominal),
-    keterangan: d.keterangan || ''
-  });
+  const trxRow = (d) => {
+    const row = {
+      tanggal: String(d.tanggal || '').slice(0, 10),
+      tipe: d.tipe,
+      kategori: d.kategori,
+      nominal: num(d.nominal),
+      keterangan: d.keterangan || ''
+    };
+    if (d.walletId) row.wallet_id = d.walletId;   // kosong → trigger database memakai dompet pertama (BCA)
+    return row;
+  };
 
   const handlers = {
     getInitialData,
@@ -273,6 +297,88 @@
     async api_savePeriod(period) {
       await setSetting('currentPeriod', period);
       return true;
+    },
+
+    /* ---------- Dompet, transfer, tarik tunai ---------- */
+    async api_updateWallet(id, d) {
+      const patch = {};
+      if (d.name && String(d.name).trim()) patch.name = String(d.name).trim();
+      if (d.openingBalance !== undefined && d.openingBalance !== null && isFinite(Number(d.openingBalance))) {
+        patch.opening_balance = Number(d.openingBalance);
+      }
+      const { error } = await sb.from('wallets').update(patch).eq('id', id);
+      fail(error);
+      return getInitialData();
+    },
+    async api_addTransfer(d) {
+      const nominal = num(d.nominal);
+      if (nominal <= 0) throw new Error('Nominal harus lebih dari 0');
+      if (d.kind !== 'investasi' && (!d.fromWallet || !d.toWallet || d.fromWallet === d.toWallet)) {
+        throw new Error('Pilih dompet asal dan tujuan yang berbeda');
+      }
+      const { error } = await sb.from('transfers').insert({
+        tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
+        kind: d.kind || 'transfer',
+        from_wallet: d.fromWallet || null,
+        to_wallet: d.toWallet || null,
+        nominal,
+        fee: Math.max(0, num(d.fee)),
+        keterangan: d.keterangan || ''
+      });
+      fail(error);
+      return getInitialData();
+    },
+    async api_deleteTransfer(id) {
+      const { error } = await sb.from('transfers').delete().eq('id', id);
+      fail(error);
+      return getInitialData();
+    },
+
+    /* ---------- Tambah nilai aset yang sudah ada (top-up) ---------- */
+    async api_topUpAsset(id, d) {
+      const { data: a, error } = await sb.from('assets').select('*').eq('id', id).single();
+      fail(error);
+      const amount = num(d.amount);                       // uang yang dikeluarkan (Rp)
+      if (amount <= 0) throw new Error('Nominal harus lebih dari 0');
+
+      const oldQty = num(a.quantity), oldBuy = num(a.buy_price), oldVal = num(a.value);
+      const patch = {};
+      if (String(a.type).toLowerCase() === 'crypto') {
+        let price = num(d.price);                         // harga per koin saat beli (opsional)
+        if (!price && oldQty > 0 && oldVal > 0) price = oldVal / oldQty;   // harga terakhir yang tersimpan
+        let addQty = num(d.quantity);                     // jumlah koin yang didapat (opsional)
+        if (!addQty) {
+          if (!price) throw new Error('Harga koin belum diketahui. Isi jumlah koin atau harga per koin.');
+          addQty = amount / price;
+        }
+        const newQty = oldQty + addQty;
+        patch.quantity = newQty;
+        patch.value = Math.round(oldVal + amount);        // dikoreksi otomatis saat harga di-refresh
+        // harga beli rata-rata tertimbang; bila harga beli lama tidak diketahui, tetap tidak diketahui
+        patch.buy_price = oldQty === 0 ? Math.round(amount / addQty)
+          : (oldBuy > 0 ? Math.round((oldQty * oldBuy + amount) / newQty) : 0);
+      } else {
+        patch.value = Math.round(oldVal + amount);
+      }
+
+      const up = await sb.from('assets').update(patch).eq('id', id);
+      fail(up.error);
+
+      if (d.walletId) {                                   // uang berasal dari dompet → saldo dompet berkurang
+        const tr = await sb.from('transfers').insert({
+          tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
+          kind: 'investasi',
+          from_wallet: d.walletId,
+          to_wallet: null,
+          nominal: amount,
+          keterangan: 'Top-up ' + a.name
+        });
+        if (tr.error) {                                   // batalkan perubahan aset agar tidak setengah jalan
+          await sb.from('assets').update({ quantity: a.quantity, buy_price: a.buy_price, value: a.value }).eq('id', id);
+          fail(tr.error);
+        }
+      }
+      return getInitialData();
     },
 
     async api_refreshPrices() {

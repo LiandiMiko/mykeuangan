@@ -26,7 +26,10 @@ const TG = `https://api.telegram.org/bot${TOKEN}`;
 // deno-lint-ignore no-explicit-any
 type Any = any;
 type Ctx = { chat: number; uid: string; name: string };
-type Tx = { tanggal: string; tipe: 'Pemasukan' | 'Pengeluaran'; kategori: string; nominal: number; keterangan?: string };
+type Tx = {
+  tanggal: string; tipe: 'Pemasukan' | 'Pengeluaran'; kategori: string; nominal: number; keterangan?: string;
+  wallet_id?: string | null; walletName?: string;
+};
 
 /* ---------------- Format & helper umum ---------------- */
 const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -200,13 +203,14 @@ async function saveTx(c: Ctx, p: Tx) {
   const { error } = await sb.from('transactions').insert({
     user_id: c.uid, tanggal: p.tanggal, tipe: p.tipe, kategori: p.kategori,
     nominal: p.nominal, keterangan: p.keterangan || 'Via Telegram', source: 'telegram',
+    wallet_id: p.wallet_id || null,   // kosong → trigger database memakai dompet pertama (BCA)
   });
   if (error) throw error;
   await syncPeriod(c.uid, p.tanggal);
 }
 
 const savedMsg = (title: string, p: Tx) =>
-  `${title}\n\n${p.tipe === 'Pemasukan' ? '🟢' : '🔴'} ${p.tipe}\n🏷️ ${esc(p.kategori)}\n💵 <b>${rp(p.nominal)}</b>\n📅 ${p.tanggal}`;
+  `${title}\n\n${p.tipe === 'Pemasukan' ? '🟢' : '🔴'} ${p.tipe}\n🏷️ ${esc(p.kategori)}\n💵 <b>${rp(p.nominal)}</b>\n📅 ${p.tanggal}` + (p.walletName ? `\n💳 ${esc(p.walletName)}` : '');
 
 /* ---------------- AI parser (Gemini) ---------------- */
 async function parseWithAI(c: Ctx, text: string): Promise<Tx & { keterangan: string }> {
@@ -273,25 +277,99 @@ OUTPUT:`;
 function confirmPreview(chat: number, p: Tx) {
   const text = `📝 <b>Saya pahami:</b>\n\n${p.tipe === 'Pemasukan' ? '🟢' : '🔴'} <b>${p.tipe}</b>\n` +
     `🏷️ Kategori: <b>${esc(p.kategori)}</b>\n💵 Nominal: <b>${rp(p.nominal)}</b>\n📅 Tanggal: <b>${p.tanggal}</b>` +
+    (p.walletName ? `\n💳 Dompet: <b>${esc(p.walletName)}</b>` : '') +
     (p.keterangan ? `\n📝 <i>${esc(p.keterangan)}</i>` : '') + '\n\n<b>Simpan transaksi ini?</b>';
   return send(chat, text, {
     inline_keyboard: [
       [{ text: '✅ Simpan', callback_data: 'confirm_save' }, { text: '❌ Batal', callback_data: 'confirm_cancel' }],
-      [{ text: '✏️ Ubah Kategori', callback_data: 'confirm_edit_cat' }],
+      [{ text: '✏️ Ubah Kategori', callback_data: 'confirm_edit_cat' }, ...(p.walletName ? [{ text: '🔁 Ganti Dompet', callback_data: 'confirm_wallet' }] : [])],
     ],
   });
 }
 
+/* ---------------- Dompet (BCA / Cash) ---------------- */
+type Wallet = { id: string; name: string; kind: string; opening_balance: number; sort: number };
+
+async function getWallets(uid: string): Promise<Wallet[]> {
+  const rows = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', uid, ['sort', 'name']);
+  return rows.map((r) => ({ ...r, opening_balance: Number(r.opening_balance) || 0 }));
+}
+const walletByKind = (ws: Wallet[], kind: 'bank' | 'cash'): Wallet | undefined => ws.find((w) => w.kind === kind) ?? ws[0];
+
+function detectWalletKind(text: string): 'bank' | 'cash' | null {
+  if (/\b(cash|tunai)\b/i.test(text)) return 'cash';
+  if (/\b(bca|m-?banking|debit|qris|transfer)\b/i.test(text)) return 'bank';
+  return null;
+}
+
+// Sama dengan walletBalances() di website: saldo awal + transaksi per dompet + transfer
+function walletBalancesBot(ws: Wallet[], trx: Any[], transfers: Any[]): Map<string, number> {
+  const bal = new Map<string, number>(ws.map((w) => [w.id, w.opening_balance]));
+  const def = ws[0]?.id;
+  for (const t of trx) {
+    const id = t.wallet_id && bal.has(t.wallet_id) ? t.wallet_id : def;
+    if (!id) continue;
+    const n = Number(t.nominal) || 0;
+    let eff: number;
+    if (isPiutang(t.kategori)) eff = t.tipe === 'Pengeluaran' ? -n : n;
+    else if (isUtang(t.kategori)) eff = t.tipe === 'Pemasukan' ? 0 : -n;
+    else eff = t.tipe === 'Pemasukan' ? n : -n;
+    bal.set(id, (bal.get(id) ?? 0) + eff);
+  }
+  for (const x of transfers) {
+    const n = Number(x.nominal) || 0, f = Number(x.fee) || 0;
+    if (x.from_wallet && bal.has(x.from_wallet)) bal.set(x.from_wallet, (bal.get(x.from_wallet) ?? 0) - n - f);
+    if (x.to_wallet && bal.has(x.to_wallet)) bal.set(x.to_wallet, (bal.get(x.to_wallet) ?? 0) + n);
+  }
+  return bal;
+}
+
+async function loadMoney(uid: string) {
+  const [trx, assets, st, ws, transfers] = await Promise.all([
+    fetchAll('transactions', 'tanggal,tipe,kategori,nominal,wallet_id', uid, ['tanggal', 'id']),
+    fetchAll('assets', 'value', uid, ['id']),
+    getSettings(uid),
+    getWallets(uid),
+    fetchAll('transfers', 'from_wallet,to_wallet,nominal,fee', uid, ['id']),
+  ]);
+  const b = balances(trx, assets);
+  let walletLines = '';
+  let bal = new Map<string, number>();
+  if (ws.length) {
+    bal = walletBalancesBot(ws, trx, transfers);
+    b.kas = [...bal.values()].reduce((a, v) => a + v, 0);
+    b.net = b.kas + b.investasi + b.piutang - b.utang;
+    walletLines = ws.map((w) => `   ◦ ${esc(w.name)}: <b>${rp(bal.get(w.id) ?? 0)}</b>`).join('\n') + '\n';
+  }
+  return { trx, assets, st, b, ws, bal, walletLines };
+}
+
+async function handleTarik(c: Ctx, arg: string) {
+  const parts = arg.replace(/^tunai\s*/i, '').split(/\s+/).filter(Boolean);
+  const nominal = parseNominal(parts[0] ?? '');
+  if (nominal <= 0) {
+    return send(c.chat, '❌ Format: <code>/tarik 500rb</code>\natau dengan biaya admin: <code>/tarik 500rb 6500</code>', mainKb());
+  }
+  const fee = parts[1] ? parseNominal(parts[1]) : 0;
+  const ws = await getWallets(c.uid);
+  const bank = ws.find((w) => w.kind === 'bank'), cash = ws.find((w) => w.kind === 'cash');
+  if (!bank || !cash) return send(c.chat, '❌ Dompet BCA dan Cash belum ada. Buka website sekali agar dibuat otomatis.', mainKb());
+  const { error } = await sb.from('transfers').insert({
+    user_id: c.uid, tanggal: today(), kind: 'tarik_tunai', from_wallet: bank.id, to_wallet: cash.id,
+    nominal, fee, keterangan: 'Via Telegram',
+  });
+  if (error) throw error;
+  const m = await loadMoney(c.uid);
+  await send(c.chat,
+    `🏧 <b>Tarik tunai tercatat!</b>\n\n${esc(bank.name)}: <b>-${rp(nominal + fee)}</b>${fee ? ` (termasuk biaya ${rp(fee)})` : ''}\n` +
+    `${esc(cash.name)}: <b>+${rp(nominal)}</b>\n\n💳 <b>Saldo sekarang</b>\n${m.walletLines}`, mainKb());
+}
+
 /* ---------------- Handler perintah ---------------- */
 async function handleStatus(c: Ctx) {
-  const [trx, assets, st] = await Promise.all([
-    fetchAll('transactions', 'tanggal,tipe,kategori,nominal', c.uid, ['tanggal', 'id']),
-    fetchAll('assets', 'value', c.uid, ['id']),
-    getSettings(c.uid),
-  ]);
+  const { trx, st, b, walletLines } = await loadMoney(c.uid);
   const pd = Number(st.payrollDay) || 1;
   const period = st.currentPeriod || cycleFor(today(), pd);
-  const b = balances(trx, assets);
   const isFlow = (t: Any) => !isUtang(t.kategori) && !isPiutang(t.kategori);
 
   const todayOutTx = trx.filter((t) => String(t.tanggal).slice(0, 10) === today() && t.tipe === 'Pengeluaran' && isFlow(t));
@@ -307,7 +385,7 @@ async function handleStatus(c: Ctx) {
 
   let s = `👋 Halo <b>${esc(c.name)}</b>!\n📅 ${tglStr}\n\n`;
   s += `━━━━━━━━━━━━━━━━\n💰 <b>KEKAYAAN BERSIH</b>\n━━━━━━━━━━━━━━━━\n<b>${rp(b.net)}</b>\n\n`;
-  s += `• Saldo Kas:   <b>${rp(b.kas)}</b>\n• Investasi:   <b>${rp(b.investasi)}</b>\n`;
+  s += `• Saldo Kas:   <b>${rp(b.kas)}</b>\n` + walletLines + `• Investasi:   <b>${rp(b.investasi)}</b>\n`;
   s += `• Piutang:     <b>${rp(b.piutang)}</b>\n• Utang:      <b>-${rp(b.utang)}</b>\n\n`;
   s += `━━━━━━━━━━━━━━━━\n📊 <b>${periodLabel(period, pd).toUpperCase()}</b>\n━━━━━━━━━━━━━━━━\n`;
   s += `📥 Pemasukan:   <b>${rp(mIn)}</b>\n📤 Pengeluaran: <b>${rp(mOut)}</b>\n`;
@@ -321,14 +399,9 @@ async function handleStatus(c: Ctx) {
 }
 
 async function handleSaldo(c: Ctx) {
-  const [trx, assets, st] = await Promise.all([
-    fetchAll('transactions', 'tanggal,tipe,kategori,nominal', c.uid, ['tanggal', 'id']),
-    fetchAll('assets', 'value', c.uid, ['id']),
-    getSettings(c.uid),
-  ]);
+  const { trx, st, b, walletLines } = await loadMoney(c.uid);
   const pd = Number(st.payrollDay) || 1;
   const period = st.currentPeriod || cycleFor(today(), pd);
-  const b = balances(trx, assets);
   let tIn = 0, tOut = 0;
   for (const t of trx) {
     if (!inPeriod(String(t.tanggal), period, pd) || isUtang(t.kategori) || isPiutang(t.kategori)) continue;
@@ -338,7 +411,7 @@ async function handleSaldo(c: Ctx) {
     `💰 <b>Saldo & Ringkasan</b>\nSiklus: <code>${periodLabel(period, pd)}</code>\n\n` +
     `📥 Pemasukan (siklus):   <b>${rp(tIn)}</b>\n📤 Pengeluaran (siklus): <b>${rp(tOut)}</b>\n` +
     `💵 Selisih:              <b>${rp(tIn - tOut)}</b>\n\n` +
-    `💼 <b>Saldo Kas (total):</b> <b>${rp(b.kas)}</b>\n📈 Investasi:             <b>${rp(b.investasi)}</b>\n\n` +
+    `💼 <b>Saldo Kas (total):</b> <b>${rp(b.kas)}</b>\n${walletLines}📈 Investasi:             <b>${rp(b.investasi)}</b>\n\n` +
     `🏦 <b>Net Worth:</b> <b>${rp(b.net)}</b>`, mainKb());
 }
 
@@ -368,9 +441,16 @@ async function handleTambah(c: Ctx, arg: string) {
   }
   const tipe = (parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase()) as Tx['tipe'];
   if (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') return send(c.chat, '❌ Tipe harus Pemasukan atau Pengeluaran.');
+  // kata terakhir boleh nama dompet: cash / tunai / bca
+  let walletKind: 'bank' | 'cash' = 'bank';
+  const lastTok = parts[parts.length - 1].toLowerCase();
+  if (lastTok === 'cash' || lastTok === 'tunai') { walletKind = 'cash'; parts.pop(); }
+  else if (lastTok === 'bca' || lastTok === 'bank') { parts.pop(); }
+  if (parts.length < 3) return send(c.chat, '❌ Format: <code>/tambah [Pemasukan|Pengeluaran] [Kategori] [Nominal] [cash|bca]</code>');
   const nominal = parseNominal(parts[parts.length - 1]);
   if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.');
-  const p: Tx = { tanggal: today(), tipe, kategori: parts.slice(1, -1).join(' '), nominal, keterangan: 'Via Telegram' };
+  const w = walletByKind(await getWallets(c.uid), walletKind);
+  const p: Tx = { tanggal: today(), tipe, kategori: parts.slice(1, -1).join(' '), nominal, keterangan: 'Via Telegram', wallet_id: w?.id ?? null, walletName: w?.name };
   await saveTx(c, p);
   await send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
   if (p.tipe === 'Pengeluaran') await checkBudgetAlert(c, p.kategori);
@@ -379,8 +459,10 @@ async function handleTambah(c: Ctx, arg: string) {
 async function handleFreeText(c: Ctx, text: string) {
   try {
     const p = await parseWithAI(c, text);
-    await setTemp(c.chat, 'pending', { ...p, originalText: text });
-    await confirmPreview(c.chat, p);
+    const w = walletByKind(await getWallets(c.uid), detectWalletKind(text) ?? 'bank');
+    const pend = { ...p, originalText: text, wallet_id: w?.id ?? null, walletName: w?.name ?? '' };
+    await setTemp(c.chat, 'pending', pend);
+    await confirmPreview(c.chat, pend);
   } catch (e) {
     console.error('freeText', e);
     await send(c.chat, '❌ Maaf, saya belum paham.\n\nContoh:\n<code>makan siang 25rb</code>', mainKb());
@@ -419,7 +501,7 @@ async function handleKategori(c: Ctx, arg: string) {
 async function handleHapus(c: Ctx) {
   // Hapus transaksi yang TERAKHIR DICATAT (bukan terbaru menurut tanggal).
   const { data, error } = await sb.from('transactions')
-    .select('id,tanggal,tipe,kategori,nominal,keterangan')
+    .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
     .eq('user_id', c.uid).order('created_at', { ascending: false }).limit(1);
   if (error) throw error;
   const last = data?.[0];
@@ -435,7 +517,7 @@ async function handleHapus(c: Ctx) {
 async function handleUndo(c: Ctx) {
   const t = await getTemp(c.chat, 'undo');
   if (!t) return send(c.chat, '⌛ Tidak ada yang bisa di-undo (kadaluarsa / belum ada).', mainKb());
-  const p: Tx = { tanggal: t.tanggal, tipe: t.tipe, kategori: t.kategori, nominal: Number(t.nominal), keterangan: t.keterangan || '' };
+  const p: Tx = { tanggal: t.tanggal, tipe: t.tipe, kategori: t.kategori, nominal: Number(t.nominal), keterangan: t.keterangan || '', wallet_id: t.wallet_id ?? null };
   await saveTx(c, p);
   await delTemp(c.chat, 'undo');
   await send(c.chat, savedMsg('↩️ <b>Berhasil di-undo!</b>', p), mainKb());
@@ -817,7 +899,7 @@ async function handleCallback(c: Ctx, cbq: Any) {
   if (!pending) return send(c.chat, '⌛ Sesi kadaluarsa. Silakan input ulang.');
 
   if (data === 'confirm_save') {
-    const p: Tx = { tanggal: pending.tanggal, tipe: pending.tipe, kategori: pending.kategori, nominal: Number(pending.nominal), keterangan: pending.keterangan };
+    const p: Tx = { tanggal: pending.tanggal, tipe: pending.tipe, kategori: pending.kategori, nominal: Number(pending.nominal), keterangan: pending.keterangan, wallet_id: pending.wallet_id ?? null, walletName: pending.walletName };
     await saveTx(c, p);
     await delTemp(c.chat, 'pending');
     await send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
@@ -825,6 +907,17 @@ async function handleCallback(c: Ctx, cbq: Any) {
     return;
   }
   if (data === 'confirm_back') return confirmPreview(c.chat, pending);
+
+  if (data === 'confirm_wallet') {
+    const ws = await getWallets(c.uid);
+    if (ws.length < 2) return confirmPreview(c.chat, pending);
+    const i = ws.findIndex((w) => w.id === pending.wallet_id);
+    const next = ws[(i + 1) % ws.length];
+    pending.wallet_id = next.id;
+    pending.walletName = next.name;
+    await setTemp(c.chat, 'pending', pending);
+    return confirmPreview(c.chat, pending);
+  }
 
   if (data === 'confirm_edit_cat') {
     const cats = await getCategories(c.uid, pending.tipe === 'Pemasukan' ? 'pemasukan' : 'pengeluaran');
@@ -877,7 +970,7 @@ async function handleMessage(c: Ctx, msg: Any) {
     '📝 tambah transaksi': () => send(c.chat,
       '📝 <b>Tambah Transaksi</b>\n\nAda 3 cara:\n<b>1) Ketik bebas:</b> <i>makan siang 25rb</i>\n' +
       '<b>2) Command:</b> <code>/tambah Pemasukan Gaji 5jt</code>\n<b>3) Voice note:</b> rekam suara', tambahKb()),
-    '❓ bantuan': () => send(c.chat, '<b>❓ Bantuan</b>\n\nKlik tombol di bawah 👇\n\nAtau ketik bebas: <i>kopi 25rb</i>', mainKb()),
+    '❓ bantuan': () => send(c.chat, '<b>❓ Bantuan</b>\n\nKlik tombol di bawah 👇\n\nKetik bebas: <i>kopi 25rb</i>\nDompet Cash: <i>kopi 25rb cash</i>\nTarik tunai: <code>/tarik 500rb</code>', mainKb()),
     '🔙 menu utama': () => send(c.chat, '🏠 <b>Menu Utama</b>\n\nPilih menu 👇', mainKb()),
     '🟢 pemasukan': () => send(c.chat, '🟢 <b>Tambah Pemasukan</b>\n\nContoh:\n<code>/tambah Pemasukan Gaji 5000000</code>\n\nAtau: <i>gaji bulan ini 8 juta</i>', tambahKb()),
     '🔴 pengeluaran': () => send(c.chat, '🔴 <b>Tambah Pengeluaran</b>\n\nContoh:\n<code>/tambah Pengeluaran Makanan 25000</code>\n\nAtau: <i>makan siang 25rb</i>', tambahKb()),
@@ -903,6 +996,8 @@ async function handleMessage(c: Ctx, msg: Any) {
   if (/^\/?budget(\s|$)/i.test(text)) return handleBudget(c, text.replace(/^\/?budget\s*/i, ''));
   if (/^\/?recurring(\s|$)/i.test(text)) return handleRecurring(c, text.replace(/^\/?recurring\s*/i, ''));
   if (/^\/?batch(\s|$)/i.test(text)) return handleBatch(c, text);
+
+  if (/^\/?tarik(\s|$)/i.test(text)) return handleTarik(c, text.replace(/^\/?tarik\s*/i, ''));
 
   if (!cmd.startsWith('/') && text.length >= 3) return handleFreeText(c, text);
 
