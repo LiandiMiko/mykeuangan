@@ -1,32 +1,52 @@
+
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Supabase api · JS
 /* supabase-api.js — pengganti google.script.run untuk MyKeuanganGuech.
  * Mengganti callServer() dari script.html: semua pemanggilan api_* lama
  * diterjemahkan ke Supabase dan mengembalikan payload getInitialData()
  * dengan bentuk yang sama seperti versi Apps Script. */
 (function () {
   'use strict';
-
+ 
   const cfg = window.APP_CONFIG || {};
   if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
     alert('web/config.js belum diisi (SUPABASE_URL & SUPABASE_ANON_KEY).');
     return;
   }
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-
+ 
   const fail = (error) => { if (error) throw new Error(error.message || String(error)); };
   const num = (v) => Number(v) || 0;
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-
+ 
   /* ---------------- Login ---------------- */
   let readyResolve;
   const ready = new Promise((r) => { readyResolve = r; });
-
+ 
   function finishLogin(session) {
     const email = (session && session.user && session.user.email) || '';
     try { sessionUser = email.split('@')[0] || 'User'; } catch (e) { /* global belum ada */ }
     readyResolve();
   }
-
+ 
   function showLogin() {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;' +
@@ -53,15 +73,15 @@
       finishLogin(data.session);
     });
   }
-
+ 
   async function boot() {
     const { data } = await sb.auth.getSession();
     if (data && data.session) finishLogin(data.session); else showLogin();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-
+ 
   window.logout = async function () { await sb.auth.signOut(); location.reload(); };
-
+ 
   /* ---------------- Helper data ---------------- */
   // PostgREST membatasi 1000 baris per request → ambil bertahap.
   async function fetchAll(table, columns, orderCols) {
@@ -76,19 +96,19 @@
     }
     return out;
   }
-
+ 
   async function getSettings() {
     const rows = await fetchAll('settings', 'key,value', ['key']);
     const o = {};
     rows.forEach((r) => { o[r.key] = r.value; });
     return o;
   }
-
+ 
   async function setSetting(key, value) {
     const { error } = await sb.from('settings').upsert({ key, value: String(value) }, { onConflict: 'user_id,key' });
     fail(error);
   }
-
+ 
   // Setara getCycleForDate() di Code.gs
   function cycleFor(tanggal, payrollDay) {
     payrollDay = Number(payrollDay) || 1;
@@ -98,14 +118,14 @@
     if (payrollDay > 1 && d >= payrollDay) { m += 1; if (m > 12) { m = 1; y += 1; } }
     return y + '-' + pad(m);
   }
-
+ 
   // Majukan "periode aktif" bila transaksi jatuh ke siklus yang lebih baru
   async function syncPeriod(tanggal) {
     const s = await getSettings();
     const cyc = cycleFor(tanggal, s.payrollDay);
     if (cyc && (!s.currentPeriod || cyc > s.currentPeriod)) await setSetting('currentPeriod', cyc);
   }
-
+ 
   /* ---------------- getInitialData ---------------- */
   async function getInitialData() {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
@@ -124,7 +144,7 @@
       fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id'])
     ]);
     fail(snapRes.error);
-
+ 
     // Pertama kali dipakai: buat dompet standar BCA + Cash
     let wallets = walletsRaw;
     if (wallets.length === 0) {
@@ -135,7 +155,7 @@
       fail(wErr);
       wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
     }
-
+ 
     const payrollDay = Number(settings.payrollDay) || 1;
     return {
       transactions: trx.map((t) => ({
@@ -176,7 +196,7 @@
       payrollDay
     };
   }
-
+ 
   /* ---------------- Handler per fungsi server lama ---------------- */
   const trxRow = (d) => {
     const row = {
@@ -189,10 +209,10 @@
     if (d.walletId) row.wallet_id = d.walletId;   // kosong → trigger database memakai dompet pertama (BCA)
     return row;
   };
-
+ 
   const handlers = {
     getInitialData,
-
+ 
     async api_addTransaction(d) {
       const row = trxRow(d);
       const { error } = await sb.from('transactions').insert({ ...row, source: 'web' });
@@ -212,14 +232,14 @@
       fail(error);
       return getInitialData();
     },
-
+ 
     async api_addCategory(tipe, name) {
       const { error } = await sb.from('categories')
         .upsert({ tipe, name }, { onConflict: 'user_id,tipe,name', ignoreDuplicates: true });
       fail(error);
       return getInitialData();
     },
-
+ 
     async api_addEntity(group, name) {
       const { error } = await sb.from('entities')
         .upsert({ grp: group, name }, { onConflict: 'user_id,grp,name', ignoreDuplicates: true });
@@ -241,7 +261,7 @@
       fail(error);
       return getInitialData();
     },
-
+ 
     async api_addAssetV2(d) {
       const { error } = await sb.from('assets').insert({
         name: String(d.name || ''),
@@ -259,7 +279,7 @@
       fail(error);
       return getInitialData();
     },
-
+ 
     async api_saveBudget(kategori, bulan, jumlah) {
       if (!kategori || !bulan) return getInitialData();
       const { error } = await sb.from('budgets').upsert(
@@ -289,7 +309,7 @@
       }
       return getInitialData();
     },
-
+ 
     async api_savePayrollDay(day) {
       await setSetting('payrollDay', Math.max(1, Math.min(28, Number(day) || 1)));
       return true;
@@ -298,7 +318,7 @@
       await setSetting('currentPeriod', period);
       return true;
     },
-
+ 
     /* ---------- Dompet, transfer, tarik tunai ---------- */
     async api_updateWallet(id, d) {
       const patch = {};
@@ -333,14 +353,14 @@
       fail(error);
       return getInitialData();
     },
-
+ 
     /* ---------- Tambah nilai aset yang sudah ada (top-up) ---------- */
     async api_topUpAsset(id, d) {
       const { data: a, error } = await sb.from('assets').select('*').eq('id', id).single();
       fail(error);
       const amount = num(d.amount);                       // uang yang dikeluarkan (Rp)
       if (amount <= 0) throw new Error('Nominal harus lebih dari 0');
-
+ 
       const oldQty = num(a.quantity), oldBuy = num(a.buy_price), oldVal = num(a.value);
       const patch = {};
       if (String(a.type).toLowerCase() === 'crypto') {
@@ -360,10 +380,10 @@
       } else {
         patch.value = Math.round(oldVal + amount);
       }
-
+ 
       const up = await sb.from('assets').update(patch).eq('id', id);
       fail(up.error);
-
+ 
       if (d.walletId) {                                   // uang berasal dari dompet → saldo dompet berkurang
         const tr = await sb.from('transfers').insert({
           tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
@@ -380,7 +400,7 @@
       }
       return getInitialData();
     },
-
+ 
     async api_refreshPrices() {
       // Edge Function (CoinGecko, key di secrets) — memakai JWT login Anda
       const { data, error } = await sb.functions.invoke('telegram-bot', { body: { job: 'refresh_prices' } });
@@ -396,7 +416,7 @@
       throw new Error('Reset demo dinonaktifkan pada versi Supabase.');
     }
   };
-
+ 
   // Menggantikan callServer() bawaan script.html (identifier global dicari saat dipanggil)
   window.callServer = async function (fn, ...args) {
     await ready;
@@ -405,3 +425,4 @@
     return h(...args);
   };
 })();
+ 
