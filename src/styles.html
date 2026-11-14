@@ -50,6 +50,27 @@
 
   .hide { display: none !important; }
 
+  :where(button:not(:disabled), a[href], summary, select:not(:disabled), label[for],
+         input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled),
+         [role="button"]:not([aria-disabled="true"]), [role="tab"]:not([aria-disabled="true"]),
+         [role="switch"]:not([aria-disabled="true"])) {
+    cursor: pointer;
+  }
+  :where(button:disabled, select:disabled, input[type="checkbox"]:disabled, input[type="radio"]:disabled,
+         [aria-disabled="true"]) {
+    cursor: not-allowed;
+  }
+  :where(button, a[href], summary, select, input[type="checkbox"], input[type="radio"],
+         [role="button"], [role="tab"], [role="switch"]):focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+  :where(button:not(:disabled), a[href], summary, select:not(:disabled),
+         [role="button"]:not([aria-disabled="true"]), [role="tab"]:not([aria-disabled="true"]),
+         [role="switch"]:not([aria-disabled="true"])):active {
+    transform: translateY(1px);
+  }
+
   .fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }

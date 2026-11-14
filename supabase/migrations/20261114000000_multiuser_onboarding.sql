@@ -99,7 +99,18 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- Backfill untuk akun yang sudah terdaftar sebelumnya
+with ordered_users as (
+  select
+    id,
+    email,
+    row_number() over (order by created_at, id) as user_order
+  from auth.users
+)
 insert into public.profiles (id, email, display_name, role)
-select id, coalesce(email, ''), split_part(coalesce(email, 'User'), '@', 1), 'admin'
-from auth.users
+select
+  id,
+  coalesce(email, ''),
+  split_part(coalesce(email, 'User'), '@', 1),
+  case when user_order = 1 then 'admin' else 'user' end
+from ordered_users
 on conflict (id) do nothing;

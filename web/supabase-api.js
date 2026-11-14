@@ -35,7 +35,9 @@
 
       // Ambil profil & role pengguna dari public.profiles
       if (user && user.id) {
-        const { data: prof } = await sb.from('profiles').select('display_name,role,status').eq('id', user.id).maybeSingle();
+        const { data: prof, error } = await sb.from('profiles').select('display_name,role,status').eq('id', user.id).maybeSingle();
+        fail(error);
+        if (!prof) throw new Error('Profil akun belum tersedia. Hubungi administrator untuk menyelesaikan penyiapan akun.');
         if (prof) {
           if (prof.status === 'suspended') {
             alert('Akun Anda dinonaktifkan oleh administrator.');
@@ -56,7 +58,10 @@
           }
         }
       }
-    } catch (e) { console.error('finishLogin', e); }
+    } catch (e) {
+      console.error('finishLogin', e);
+      alert('Tidak dapat memuat profil akun: ' + (e.message || String(e)));
+    }
     readyResolve();
   }
 
@@ -508,18 +513,21 @@
     /* ---------- Admin Panel & User Management ---------- */
     async api_getAdminData() {
       if (sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
-      const [profiles, trCount, chCount] = await Promise.all([
+      const { data: authData, error: authError } = await sb.auth.getUser();
+      fail(authError);
+      if (!authData.user) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
+      const [profiles, chCount] = await Promise.all([
         fetchAll('profiles', 'id,email,display_name,role,status,created_at', ['created_at']),
-        sb.from('transactions').select('id', { count: 'exact', head: true }),
         sb.from('telegram_chats').select('chat_id', { count: 'exact', head: true })
       ]);
+      fail(chCount.error);
       return {
         users: profiles,
+        currentUserId: authData.user.id,
         stats: {
           totalUsers: profiles.length,
           activeUsers: profiles.filter(p => p.status === 'active').length,
           suspendedUsers: profiles.filter(p => p.status === 'suspended').length,
-          totalTransactions: trCount.count || 0,
           totalTelegramChats: chCount.count || 0
         }
       };
@@ -528,13 +536,43 @@
       if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       const { error } = await sb.from('profiles').update({ status }).eq('id', userId);
       fail(error);
-      return handlers.api_getAdminData();
+      return true;
     },
     async api_setUserRole(userId, role) {
       if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
       fail(error);
-      return handlers.api_getAdminData();
+      return true;
+    },
+    async api_updateOwnPassword(password) {
+      if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+        throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
+      }
+      const { error } = await sb.auth.updateUser({ password });
+      fail(error);
+    },
+    async api_adminSetPassword(userId, password) {
+      if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+        throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
+      }
+      const { data, error } = await sb.functions.invoke('admin-password', {
+        body: { userId, password }
+      });
+      if (error) {
+        let message = error.message || 'Reset password gagal.';
+        const response = error.context;
+        if (response && typeof response.json === 'function') {
+          try {
+            const details = await response.json();
+            if (details && typeof details.error === 'string') message = details.error;
+          } catch (parseError) {
+            console.error('Gagal membaca detail error admin-password:', parseError);
+          }
+        }
+        throw new Error(message);
+      }
+      if (!data || data.success !== true) throw new Error(data && data.error || 'Reset password gagal.');
     },
 
     /* ---------- Telegram Pairing (Self-Service) ---------- */
@@ -545,10 +583,6 @@
       return otp;
     },
 
-    async api_resetDemo() {
-      // Versi lama menghapus semua transaksi lalu mengisi data demo — dimatikan agar data asli aman.
-      throw new Error('Reset demo dinonaktifkan pada versi Supabase.');
-    }
   };
 
   // Menggantikan callServer() bawaan script.html (identifier global dicari saat dipanggil)

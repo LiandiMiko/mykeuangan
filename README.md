@@ -72,11 +72,14 @@ mykeuangan/
 │
 ├── supabase/
 │   ├── functions/
+│   │   ├── admin-password/ # Admin-only password reset (JWT required)
+│   │   │   └── index.ts
 │   │   └── telegram-bot/   # Supabase Edge Function (Deno)
 │   │       └── index.ts
 │   └── migrations/
 │       ├── 20261114000000_multiuser_onboarding.sql  # profiles, trigger, RLS
-│       └── 20261114000001_telegram_pairings.sql     # telegram_pairings table
+│       ├── 20261114000001_telegram_pairings.sql     # telegram_pairings table
+│       └── 20261115000000_admin_panel_hardening.sql # Admin RLS, pairing, onboarding fixes
 │
 ├── scripts/
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
@@ -152,6 +155,14 @@ Migrasi ini akan membuat:
 
 Membuat tabel `telegram_pairings` untuk OTP pairing (expire 10 menit).
 
+#### Step 4 — Admin Panel Hardening
+```sql
+-- Jalankan isi file: supabase/migrations/20261115000000_admin_panel_hardening.sql
+```
+
+Migrasi ini membatasi perubahan profil hanya untuk admin, mengisi `user_id` pairing secara otomatis, dan memastikan hanya satu pendaftar pertama yang mendapat role admin.
+Jika migrasi onboarding sebelumnya sudah dijalankan, tinjau role di `profiles`: backfill lama dapat memberi role admin ke semua akun yang sudah ada. Migrasi hardening tidak menurunkan role otomatis agar admin yang memang ditunjuk tidak kehilangan akses.
+
 ### 3. Konfigurasi Supabase Auth
 
 Di **Supabase → Authentication → Settings**:
@@ -183,6 +194,9 @@ supabase secrets set GEMINI_API_KEY=<api_key_gemini>
 
 # Deploy edge function (--no-verify-jwt agar bot bisa akses tanpa auth header)
 supabase functions deploy telegram-bot --no-verify-jwt
+
+# Reset password pengguna harus tetap memakai verifikasi JWT bawaan
+supabase functions deploy admin-password
 ```
 
 Lalu daftarkan webhook bot ke Telegram:
@@ -201,12 +215,14 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<PROJECT_REF>.supabas
 ## 🔧 Admin Panel
 
 Admin Panel hanya muncul di sidebar untuk user dengan role `admin`.
+Deploy juga Edge Function `admin-password` dengan verifikasi JWT tetap aktif sebelum memakai reset password untuk akun pengguna lain.
 
 **Fitur Admin Panel:**
 - 📊 Metrics: total user, user aktif, user tersuspend
 - 👥 Tabel user: email, username, role, status, tanggal daftar
 - 🚫 Suspend / Aktifkan akun user
 - 🔑 Toggle role: `user` ↔ `admin`
+- 🔐 Atur ulang password pengguna lain; admin juga dapat mengganti password akunnya sendiri
 
 **Cara menjadi admin pertama:**
 - User **pertama** yang mendaftar ke aplikasi otomatis mendapat role `admin` via trigger database
@@ -312,6 +328,7 @@ Semua user input di-sanitize via `escapeHtmlJS()` dan `escapeAttrJS()` sebelum d
 - **Metrics cards**: Total user, user aktif, user tersuspend
 - **User table**: Kolom email, username, role, status, tanggal daftar, aksi
 - **Actions**: Suspend/Aktifkan akun, toggle role user ↔ admin
+- **Password**: Admin dapat mengganti password sendiri atau mengatur ulang password akun lain melalui Edge Function yang memverifikasi sesi dan role admin
 - **Visibility**: Nav "Admin" hanya muncul jika role = `admin`
 
 ### 🤖 Telegram Pairing OTP

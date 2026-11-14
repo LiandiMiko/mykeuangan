@@ -14,6 +14,7 @@ Prasyarat: Supabase CLI terpasang (`npm i -g supabase` atau `npx supabase`), sud
    supabase secrets set GEMINI_API_KEY=<key Gemini>
    (opsional) APP_TIMEZONE=Asia/Jakarta, GEMINI_MODEL_PARSER=gemini-3.5-flash-lite
 4. Deploy:           `supabase functions deploy telegram-bot --no-verify-jwt`
+   Reset password admin: `supabase functions deploy admin-password` (jangan gunakan `--no-verify-jwt`)
 5. Daftarkan webhook (ganti nilai; ini juga otomatis mematikan polling lama):
    curl "https://api.telegram.org/bot<TOKEN>/setWebhook" \
      -d "url=https://<PROJECT_REF>.supabase.co/functions/v1/telegram-bot" \

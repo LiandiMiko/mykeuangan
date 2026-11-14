@@ -2069,34 +2069,6 @@ function renderBudgeting() {
 
 
 /* ============================================================
-   RESET DEMO
-   ============================================================ */
-function resetDemo() {
-  Swal.fire({
-    title: t('alert.confirm_reset'),
-    text: t('alert.confirm_reset_text'),
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#e11d48',
-    confirmButtonText: t('btn.ya_reset'),
-    cancelButtonText: t('btn.batal'),
-    customClass: { popup: getSwalClass() }
-  }).then(async r => {
-    if (r.isConfirmed) {
-      try {
-        const data = await callServer('api_resetDemo');
-        await refreshFromServer(data);
-        Swal.fire({
-          icon: 'success', title: t('alert.reset_done'),
-          timer: 1200, showConfirmButton: false,
-          customClass: { popup: getSwalClass() }
-        });
-      } catch (e) { console.error(e); }
-    }
-  });
-}
-
-/* ============================================================
    SETTING PAYROLL DAY
    ============================================================ */
 async function settingPayrollDay() {
@@ -2159,9 +2131,14 @@ async function settingPayrollDay() {
    ADMIN PANEL & TELEGRAM PAIRING
    ============================================================ */
 async function loadAdminData() {
+  const tbody = document.getElementById('adm-user-table');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Memuat data pengguna...</td></tr>';
+  }
+
   try {
     const data = await callServer('api_getAdminData');
-    if (!data) return;
+    if (!data) throw new Error('Supabase tidak mengembalikan data panel admin.');
 
     const s = data.stats || {};
     setText('adm-total-users', s.totalUsers || 0);
@@ -2170,12 +2147,11 @@ async function loadAdminData() {
     setText('adm-total-chats', s.totalTelegramChats || 0);
     setText('adm-user-count', (data.users || []).length);
 
-    const tbody = document.getElementById('adm-user-table');
-    if (!tbody) return;
+    if (!tbody) return false;
 
     if (!data.users || data.users.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Belum ada data pengguna.</td></tr>';
-      return;
+      return true;
     }
 
     tbody.innerHTML = data.users.map(u => {
@@ -2198,6 +2174,13 @@ async function loadAdminData() {
       const safeId = escapeAttrJS(u.id);
       const safeNextStatus = escapeAttrJS(nextStatus);
       const safeNextRole = escapeAttrJS(nextRole);
+      const actions = u.id === data.currentUserId
+        ? '<span class="text-slate-400">Akun Anda</span>'
+        : `
+          <button type="button" onclick="toggleUserStatus('${safeId}', '${safeNextStatus}')" class="min-h-[44px] px-2 font-bold cursor-pointer ${statusBtnColor}">${statusBtnText}</button>
+          <button type="button" onclick="toggleUserRole('${safeId}', '${safeNextRole}')" class="min-h-[44px] px-2 font-bold text-blue-500 hover:text-blue-700 cursor-pointer">${roleBtnText}</button>
+          <button type="button" onclick="resetUserPassword('${safeId}', '${escapeAttrJS(u.email || '')}')" class="min-h-[44px] px-2 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>
+        `;
 
       return `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -2210,16 +2193,26 @@ async function loadAdminData() {
           <td class="px-6 py-4 text-slate-500">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
           <td class="px-6 py-4 text-center">
             <div class="flex items-center justify-center gap-3">
-              <button onclick="toggleUserStatus('${safeId}', '${safeNextStatus}')" class="font-bold ${statusBtnColor}">${statusBtnText}</button>
-              <span class="text-slate-300">|</span>
-              <button onclick="toggleUserRole('${safeId}', '${safeNextRole}')" class="font-bold text-blue-500 hover:text-blue-700">${roleBtnText}</button>
+              ${actions}
             </div>
           </td>
         </tr>
       `;
     }).join('');
+    return true;
   } catch (err) {
     console.error('loadAdminData error:', err);
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="px-6 py-8 text-center text-rose-600 dark:text-rose-400">
+            <p>Gagal memuat data pengguna: ${escapeHtmlJS(String(err.message || err))}</p>
+            <button type="button" onclick="loadAdminData()" class="mt-3 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
+          </td>
+        </tr>
+      `;
+    }
+    return false;
   }
 }
 
@@ -2236,7 +2229,10 @@ async function toggleUserStatus(uid, status) {
   if (confirm.isConfirmed) {
     try {
       await callServer('api_setUserStatus', uid, status);
-      await loadAdminData();
+      if (!await loadAdminData()) {
+        await Swal.fire({ icon: 'warning', title: 'Status tersimpan', text: 'Daftar pengguna gagal dimuat ulang. Tekan Segarkan Data untuk mencoba lagi.' });
+        return;
+      }
       Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Status pengguna telah diperbarui.', timer: 1500 });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e) });
@@ -2256,11 +2252,69 @@ async function toggleUserRole(uid, role) {
   if (confirm.isConfirmed) {
     try {
       await callServer('api_setUserRole', uid, role);
-      await loadAdminData();
+      if (!await loadAdminData()) {
+        await Swal.fire({ icon: 'warning', title: 'Role tersimpan', text: 'Daftar pengguna gagal dimuat ulang. Tekan Segarkan Data untuk mencoba lagi.' });
+        return;
+      }
       Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Role pengguna telah diperbarui.', timer: 1500 });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e) });
     }
+  }
+}
+
+async function promptNewPassword(title) {
+  const { value: password } = await Swal.fire({
+    title,
+    html: `
+      <label for="admin-new-password" class="block text-left text-sm font-semibold mb-1">Password baru</label>
+      <input id="admin-new-password" type="password" class="swal2-input" autocomplete="new-password" minlength="8">
+      <label for="admin-confirm-password" class="block text-left text-sm font-semibold mt-3 mb-1">Ulangi password</label>
+      <input id="admin-confirm-password" type="password" class="swal2-input" autocomplete="new-password" minlength="8">
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Simpan Password',
+    cancelButtonText: 'Batal',
+    focusConfirm: false,
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const newPassword = document.getElementById('admin-new-password').value;
+      const confirmPassword = document.getElementById('admin-confirm-password').value;
+      if (newPassword.length < 8 || newPassword.length > 128) {
+        Swal.showValidationMessage('Password harus terdiri dari 8 sampai 128 karakter.');
+        return false;
+      }
+      if (newPassword !== confirmPassword) {
+        Swal.showValidationMessage('Konfirmasi password tidak cocok.');
+        return false;
+      }
+      return newPassword;
+    }
+  });
+  return password;
+}
+
+async function changeOwnPassword() {
+  const password = await promptNewPassword('Ganti password akun Anda');
+  if (!password) return;
+
+  try {
+    await callServer('api_updateOwnPassword', password);
+    await Swal.fire({ icon: 'success', title: 'Password berhasil diperbarui.', customClass: { popup: getSwalClass() } });
+  } catch (err) {
+    await Swal.fire({ icon: 'error', title: 'Gagal mengganti password', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+  }
+}
+
+async function resetUserPassword(uid, email) {
+  const password = await promptNewPassword(`Atur password untuk ${escapeHtmlJS(email)}`);
+  if (!password) return;
+
+  try {
+    await callServer('api_adminSetPassword', uid, password);
+    await Swal.fire({ icon: 'success', title: 'Password pengguna berhasil diatur ulang.', customClass: { popup: getSwalClass() } });
+  } catch (err) {
+    await Swal.fire({ icon: 'error', title: 'Gagal mengatur password', text: err.message || String(err), customClass: { popup: getSwalClass() } });
   }
 }
 
