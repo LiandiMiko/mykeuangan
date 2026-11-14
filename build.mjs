@@ -48,4 +48,22 @@ if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?
 
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
+
+// Salin asset PWA (manifest, sw.js, icons) ke dist/
+if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
+  fs.copyFileSync(path.join(WEB, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
+}
+if (fs.existsSync(path.join(WEB, 'sw.js'))) {
+  fs.copyFileSync(path.join(WEB, 'sw.js'), path.join(OUT, 'sw.js'));
+}
+const iconsSrc = path.join(WEB, 'icons');
+const iconsDst = path.join(OUT, 'icons');
+if (fs.existsSync(iconsSrc)) {
+  fs.mkdirSync(iconsDst, { recursive: true });
+  for (const f of fs.readdirSync(iconsSrc)) {
+    fs.copyFileSync(path.join(iconsSrc, f), path.join(iconsDst, f));
+  }
+}
+
 console.log(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB)`);
+console.log(`✅ PWA assets synced to ${OUT}/`);
