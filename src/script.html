@@ -23,6 +23,19 @@ let isDataReady = false;
 
 let hideNominal = localStorage.getItem('hideNominal') === '1';
 
+/* Helper sanitasi HTML & Attribute JS */
+function escapeHtmlJS(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function escapeAttrJS(s) {
+  if (s == null) return '';
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
 const _origFormatRupiah = (a) => new Intl.NumberFormat('id-ID', {
   style: 'currency', currency: 'IDR', minimumFractionDigits: 0
 }).format(a || 0);
@@ -288,6 +301,8 @@ function switchView(id) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  if (id === 'admin') loadAdminData();
+
   if (window.innerWidth < 1024) {
     const sb = document.getElementById('sidebar');
     if (sb && !sb.classList.contains('-translate-x-full')) toggleSidebar();
@@ -425,17 +440,17 @@ function renderDashboard() {
           <i class="ph ph-receipt text-lg"></i>
         </div>
         <div class="truncate">
-          <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${t.kategori}</p>
-          <p class="text-[10px] text-slate-500">${String(t.tanggal).substring(5)} • ${t.keterangan || '-'}</p>
+          <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(t.kategori)}</p>
+          <p class="text-[10px] text-slate-500">${escapeHtmlJS(String(t.tanggal).substring(5))} • ${escapeHtmlJS(t.keterangan || '-')}</p>
         </div>
       </div>
       <div class="flex items-center gap-3 shrink-0 ml-2">
         <p class="${colClass} font-bold">${formatRupiah(t.nominal).replace(',00','')}</p>
         <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onclick="editTransaction('${t.id}')" class="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200">
+          <button onclick="editTransaction('${escapeAttrJS(t.id)}')" class="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200">
             <i class="ph ph-pencil"></i>
           </button>
-          <button onclick="deleteTransaction('${t.id}')" class="w-6 h-6 rounded bg-rose-100 text-rose-600 flex items-center justify-center hover:bg-rose-200">
+          <button onclick="deleteTransaction('${escapeAttrJS(t.id)}')" class="w-6 h-6 rounded bg-rose-100 text-rose-600 flex items-center justify-center hover:bg-rose-200">
             <i class="ph ph-trash"></i>
           </button>
         </div>
@@ -815,8 +830,8 @@ function renderAssets() {
                   : (String(a.type).toLowerCase() === 'cash' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-blue-50 dark:bg-blue-500/10');
 
     const meta = isCrypto
-      ? `<span class="text-[10px] text-slate-400">${qty} ${a.symbol} · ${a.symbol}</span>`
-      : `<span class="text-[10px] text-slate-400">${a.type}</span>`;
+      ? `<span class="text-[10px] text-slate-400">${qty} ${escapeHtmlJS(a.symbol)} · ${escapeHtmlJS(a.symbol)}</span>`
+      : `<span class="text-[10px] text-slate-400">${escapeHtmlJS(a.type)}</span>`;
 
     const pnlHtml = isCrypto && buyTotal > 0
       ? `<div class="text-[10px] font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
@@ -1023,6 +1038,9 @@ function renderDebtLists() {
     let iconName = 'user-circle';
     if (group === 'UtangApp') iconName = 'device-mobile';
     if (group === 'Piutang') iconName = 'hand-coins';
+    const safeName = escapeHtmlJS(name);
+    const jsSafeName = escapeAttrJS(name);
+    const jsSafeGroup = escapeAttrJS(group);
 
     return `
       <div class="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 relative group transition-colors">
@@ -1031,23 +1049,23 @@ function renderDebtLists() {
             <div class="w-8 h-8 rounded-full flex items-center justify-center bg-white dark:bg-slate-700 shadow-sm ${iconCol}">
               <i class="ph ph-${iconName} text-lg"></i>
             </div>
-            <p class="font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title="${name}">${name}</p>
+            <p class="font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title="${safeName}">${safeName}</p>
           </div>
           <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onclick="manageDebtEntity('edit', '${group}', '${name}')" class="text-blue-500 hover:text-blue-600">
+            <button onclick="manageDebtEntity('edit', '${jsSafeGroup}', '${jsSafeName}')" class="text-blue-500 hover:text-blue-600">
               <i class="ph ph-pencil"></i>
             </button>
-            <button onclick="manageDebtEntity('delete', '${group}', '${name}')" class="text-rose-500 hover:text-rose-600">
+            <button onclick="manageDebtEntity('delete', '${jsSafeGroup}', '${jsSafeName}')" class="text-rose-500 hover:text-rose-600">
               <i class="ph ph-trash"></i>
             </button>
           </div>
         </div>
         <p class="text-xl font-black mb-4 text-slate-800 dark:text-white">${formatRupiah(bal).replace(',00','')}</p>
         <div class="flex gap-2">
-          <button onclick="transactDebt('add', '${group}', '${name}')" class="flex-1 py-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
+          <button onclick="transactDebt('add', '${jsSafeGroup}', '${jsSafeName}')" class="flex-1 py-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
             ${btnAddTxt}
           </button>
-          <button onclick="transactDebt('pay', '${group}', '${name}')" class="flex-1 py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-sm hover:bg-brand-hover transition-colors">
+          <button onclick="transactDebt('pay', '${jsSafeGroup}', '${jsSafeName}')" class="flex-1 py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-sm hover:bg-brand-hover transition-colors">
             ${btnPayTxt}
           </button>
         </div>
@@ -1424,7 +1442,7 @@ function openForm(action) {
 
   let opts = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
   if (action === 'Tabungan') opts = ['Tabungan Baru', 'Investasi'];
-  document.getElementById('tr_kategori').innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+  document.getElementById('tr_kategori').innerHTML = opts.map(o => `<option value="${escapeHtmlJS(o)}">${escapeHtmlJS(o)}</option>`).join('');
 
   fillWalletSelect('tr_wallet');
   const wl = document.getElementById('tr_wallet_label');
@@ -1598,14 +1616,14 @@ function renderLaporan() {
 
     return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-        <td class="px-6 py-4">${r.tanggal}</td>
-        <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[10px] font-bold ${badgeColor}">${r.tipe}</span></td>
-        <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${r.kategori}</td>
-        <td class="px-6 py-4">${r.keterangan || '-'}</td>
+        <td class="px-6 py-4">${escapeHtmlJS(r.tanggal)}</td>
+        <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[10px] font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span></td>
+        <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${escapeHtmlJS(r.kategori)}</td>
+        <td class="px-6 py-4">${escapeHtmlJS(r.keterangan || '-')}</td>
         <td class="px-6 py-4 text-right font-bold ${textColor}">${symbol} ${formatRupiah(r.nominal)}</td>
         <td class="px-6 py-4 text-center">
-          <button onclick="editTransaction('${r.id}')" class="text-blue-500 hover:text-blue-700 mr-2"><i class="ph ph-pencil text-lg"></i></button>
-          <button onclick="deleteTransaction('${r.id}')" class="text-rose-500 hover:text-rose-700"><i class="ph ph-trash text-lg"></i></button>
+          <button onclick="editTransaction('${escapeAttrJS(r.id)}')" class="text-blue-500 hover:text-blue-700 mr-2"><i class="ph ph-pencil text-lg"></i></button>
+          <button onclick="deleteTransaction('${escapeAttrJS(r.id)}')" class="text-rose-500 hover:text-rose-700"><i class="ph ph-trash text-lg"></i></button>
         </td>
       </tr>
     `;
@@ -1864,7 +1882,7 @@ function renderBudgeting() {
     const currentVal = formKategori.value;
     const pengeluaran = DB.categories.pengeluaran || [];
     formKategori.innerHTML = '<option value="">— ' + t('budget.kategori') + ' —</option>' +
-      pengeluaran.map(k => `<option value="${k}">${k}</option>`).join('');
+      pengeluaran.map(k => `<option value="${escapeHtmlJS(k)}">${escapeHtmlJS(k)}</option>`).join('');
     if (currentVal) formKategori.value = currentVal;
   }
 
@@ -2049,12 +2067,6 @@ function renderBudgeting() {
   }
 }
 
-/* Helper escape HTML (kalau belum ada) */
-function escapeHtmlJS(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
 
 /* ============================================================
    RESET DEMO
@@ -2140,6 +2152,149 @@ async function settingPayrollDay() {
         customClass: { popup: getSwalClass() }
       });
     }
+  }
+}
+
+/* ============================================================
+   ADMIN PANEL & TELEGRAM PAIRING
+   ============================================================ */
+async function loadAdminData() {
+  try {
+    const data = await callServer('api_getAdminData');
+    if (!data) return;
+
+    const s = data.stats || {};
+    setText('adm-total-users', s.totalUsers || 0);
+    setText('adm-active-users', s.activeUsers || 0);
+    setText('adm-suspended-users', s.suspendedUsers || 0);
+    setText('adm-total-chats', s.totalTelegramChats || 0);
+    setText('adm-user-count', (data.users || []).length);
+
+    const tbody = document.getElementById('adm-user-table');
+    if (!tbody) return;
+
+    if (!data.users || data.users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Belum ada data pengguna.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.users.map(u => {
+      const isSuspended = u.status === 'suspended';
+      const statusBadge = isSuspended
+        ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
+        : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
+
+      const roleBadge = u.role === 'admin'
+        ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
+        : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
+
+      const nextStatus = isSuspended ? 'active' : 'suspended';
+      const statusBtnText = isSuspended ? 'Aktifkan' : 'Suspend';
+      const statusBtnColor = isSuspended ? 'text-emerald-600 hover:text-emerald-800' : 'text-rose-500 hover:text-rose-700';
+
+      const nextRole = u.role === 'admin' ? 'user' : 'admin';
+      const roleBtnText = u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin';
+
+      const safeId = escapeAttrJS(u.id);
+      const safeNextStatus = escapeAttrJS(nextStatus);
+      const safeNextRole = escapeAttrJS(nextRole);
+
+      return `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+          <td class="px-6 py-4">
+            <p class="font-bold text-slate-800 dark:text-white">${escapeHtmlJS(u.display_name || 'User')}</p>
+            <p class="text-[11px] text-slate-400">${escapeHtmlJS(u.email)}</p>
+          </td>
+          <td class="px-6 py-4">${roleBadge}</td>
+          <td class="px-6 py-4">${statusBadge}</td>
+          <td class="px-6 py-4 text-slate-500">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
+          <td class="px-6 py-4 text-center">
+            <div class="flex items-center justify-center gap-3">
+              <button onclick="toggleUserStatus('${safeId}', '${safeNextStatus}')" class="font-bold ${statusBtnColor}">${statusBtnText}</button>
+              <span class="text-slate-300">|</span>
+              <button onclick="toggleUserRole('${safeId}', '${safeNextRole}')" class="font-bold text-blue-500 hover:text-blue-700">${roleBtnText}</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('loadAdminData error:', err);
+  }
+}
+
+async function toggleUserStatus(uid, status) {
+  const actionText = status === 'suspended' ? 'menonaktifkan (suspend)' : 'mengaktifkan kembali';
+  const confirm = await Swal.fire({
+    title: 'Konfirmasi Status',
+    text: `Apakah Anda yakin ingin ${actionText} akun ini?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Ya, Lanjutkan',
+    cancelButtonText: 'Batal'
+  });
+  if (confirm.isConfirmed) {
+    try {
+      await callServer('api_setUserStatus', uid, status);
+      await loadAdminData();
+      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Status pengguna telah diperbarui.', timer: 1500 });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e) });
+    }
+  }
+}
+
+async function toggleUserRole(uid, role) {
+  const confirm = await Swal.fire({
+    title: 'Konfirmasi Peran',
+    text: `Ubah hak akses pengguna ini menjadi ${role.toUpperCase()}?`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Ubah Role',
+    cancelButtonText: 'Batal'
+  });
+  if (confirm.isConfirmed) {
+    try {
+      await callServer('api_setUserRole', uid, role);
+      await loadAdminData();
+      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Role pengguna telah diperbarui.', timer: 1500 });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e) });
+    }
+  }
+}
+
+async function openTelegramPairingModal() {
+  try {
+    Swal.fire({
+      title: 'Membuat Kode Pairing...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const otp = await callServer('api_generateTelegramOTP');
+
+    Swal.fire({
+      title: 'Hubungkan Bot Telegram',
+      html: `
+        <div class="text-left space-y-3 text-sm">
+          <p class="text-slate-600">Gunakan kode OTP 6-digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
+          <div class="p-4 bg-slate-100 rounded-2xl text-center">
+            <span class="text-3xl font-black tracking-widest text-brand">${otp}</span>
+            <p class="text-[11px] text-slate-400 mt-1">Berlaku selama 10 menit</p>
+          </div>
+          <div class="p-3 bg-blue-50 text-blue-700 rounded-xl text-xs space-y-1">
+            <p class="font-bold">Cara Menghubungkan:</p>
+            <p>1. Buka Bot Telegram MyKeuangan.</p>
+            <p>2. Kirim pesan: <code>/link ${otp}</code></p>
+          </div>
+        </div>
+      `,
+      confirmButtonText: 'Selesai',
+      showCloseButton: true
+    });
+  } catch (err) {
+    Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err) });
   }
 }
 </script>

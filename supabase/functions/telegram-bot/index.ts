@@ -15,7 +15,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 const TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
 const SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET')!;
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL_PARSER') ?? 'gemini-3.5-flash-lite';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL_PARSER') ?? 'gemini-2.5-flash';
 const TZ = Deno.env.get('APP_TIMEZONE') ?? 'Asia/Jakarta';
 
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -1201,7 +1201,19 @@ async function handleJob(req: Request, job: string): Promise<Response> {
   }
   try {
     switch (job) {
-      case 'refresh_prices': return json(await refreshPrices(uid!));
+      case 'refresh_prices': {
+        if (!uid) {
+          // Bila dipanggil cron tanpa JWT user spesifik, refresh semua user yang memiliki aset
+          const { data } = await sb.from('assets').select('user_id');
+          const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))];
+          let done = 0;
+          for (const u of users) {
+            try { await refreshPrices(u); done++; } catch (e) { console.error('refreshPrices', u, e); }
+          }
+          return json({ users: done });
+        }
+        return json(await refreshPrices(uid));
+      }
       case 'daily': return json(await dailyReminder());
       case 'weekly': return json(await weeklyReport());
       case 'recurring': return json(await runRecurring());
@@ -1243,10 +1255,36 @@ Deno.serve(async (req) => {
     if (!msg || !from) return new Response('ok');
     const chat: number = msg.chat.id;
 
+    // Cek perintah pairing mandiri (/link OTP atau /start PAIR_OTP)
+    const msgText = String(update.message?.text || '').trim();
+    const mPair = msgText.match(/^\/(?:start\s+PAIR_|link\s*)(\d{6})/i);
+    if (mPair) {
+      const otp = mPair[1];
+      const { data: pair } = await sb.from('telegram_pairings')
+        .select('user_id, expires_at')
+        .eq('otp', otp)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (!pair) {
+        await send(chat, '❌ Kode pairing salah atau sudah kedaluwarsa (10 menit). Silakan buat kode baru di menu "Hubungkan Telegram" pada web MyKeuangan.');
+        return new Response('ok');
+      }
+
+      await sb.from('telegram_chats').upsert(
+        { chat_id: chat, user_id: pair.user_id, name: from.first_name || 'User' },
+        { onConflict: 'chat_id' }
+      );
+      await sb.from('telegram_pairings').delete().eq('otp', otp);
+
+      await send(chat, `🎉 <b>Selamat!</b> Akun Telegram Anda berhasil terhubung dengan MyKeuangan.\n\nKetik transaksi apa saja untuk mulai mencatat (contoh: <code>kopi 25rb</code>).`, mainKb());
+      return new Response('ok');
+    }
+
     // Hanya chat yang terdaftar di telegram_chats yang dilayani
     const { data: reg } = await sb.from('telegram_chats').select('user_id').eq('chat_id', chat).maybeSingle();
     if (!reg) {
-      await send(chat, `🔒 Chat ini belum terdaftar.\n\nchat_id Anda: <code>${chat}</code>\nDaftarkan di Supabase (tabel telegram_chats).`);
+      await send(chat, `🔒 Chat ini belum terhubung dengan akun MyKeuangan.\n\nchat_id Anda: <code>${chat}</code>\n\n<b>Cara Menghubungkan:</b>\n1. Masuk ke aplikasi MyKeuangan di web\n2. Klik tombol <b>Hubungkan Telegram</b> di sidebar\n3. Kirim kode OTP ke sini:\n<code>/link [KODE]</code>`);
       return new Response('ok');
     }
 
