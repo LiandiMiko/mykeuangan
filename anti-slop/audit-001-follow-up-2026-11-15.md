@@ -11,6 +11,14 @@
 7. Trigger pendaftar pertama diserialisasi dan backfill migrasi onboarding membatasi admin pertama. Database yang sudah menjalankan backfill lama tetap perlu ditinjau manual; role tidak diturunkan otomatis.
 8. Pembatasan zoom dihapus agar pengguna dapat memperbesar halaman.
 
+## Perlindungan pendaftaran tambahan
+
+Form login, daftar, dan lupa password kini menolak submit ganda saat permintaan masih berjalan. Tombol berubah menjadi “Memproses...”, dinonaktifkan sampai permintaan selesai, dan navigasi mode dikunci selama proses tersebut. Kegagalan jaringan ditampilkan di form.
+
+## Perbaikan error panel admin
+
+Setelah uji di project Supabase, pemanggilan `setText()` dari panel admin gagal karena helper tersebut hanya berada di dalam `renderDashboard()`. Panel kini memakai helper `setAdminText()` lokal. Build ulang dan parse seluruh inline script berhasil.
+
 ## Perubahan password admin
 
 Admin dapat mengganti password sendiri melalui Supabase Auth. Admin juga dapat mengatur password akun lain melalui Edge Function `admin-password`, yang memvalidasi JWT, role admin aktif, target akun, dan panjang password. Service role hanya digunakan di server.
@@ -20,6 +28,7 @@ Admin dapat mengganti password sendiri melalui Supabase Auth. Admin juga dapat m
 - PASS: `node build.mjs`.
 - PASS: 7 inline script hasil build lolos parse JavaScript.
 - PASS: `node --check supabase/functions/admin-password/index.ts`.
+- PASS: `node --check web/supabase-api.js` setelah penguncian submit.
 - PASS: `git diff --check`.
 - PASS: pencarian source dan hasil build tidak menemukan kontrol atau handler reset demo lama.
 - BLOCKED: uji Edge Function dengan Deno karena Deno tidak tersedia di lingkungan ini.

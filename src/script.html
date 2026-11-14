@@ -2132,6 +2132,10 @@ async function settingPayrollDay() {
    ============================================================ */
 async function loadAdminData() {
   const tbody = document.getElementById('adm-user-table');
+  const setAdminText = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = String(value);
+  };
   if (tbody) {
     tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Memuat data pengguna...</td></tr>';
   }
@@ -2141,11 +2145,11 @@ async function loadAdminData() {
     if (!data) throw new Error('Supabase tidak mengembalikan data panel admin.');
 
     const s = data.stats || {};
-    setText('adm-total-users', s.totalUsers || 0);
-    setText('adm-active-users', s.activeUsers || 0);
-    setText('adm-suspended-users', s.suspendedUsers || 0);
-    setText('adm-total-chats', s.totalTelegramChats || 0);
-    setText('adm-user-count', (data.users || []).length);
+    setAdminText('adm-total-users', s.totalUsers || 0);
+    setAdminText('adm-active-users', s.activeUsers || 0);
+    setAdminText('adm-suspended-users', s.suspendedUsers || 0);
+    setAdminText('adm-total-chats', s.totalTelegramChats || 0);
+    setAdminText('adm-user-count', (data.users || []).length);
 
     if (!tbody) return false;
 

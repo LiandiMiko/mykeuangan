@@ -71,6 +71,7 @@
       'justify-content:center;background:#0f172a;font-family:system-ui,sans-serif';
     const field = 'padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none';
     let mode = 'login';
+    let isSubmitting = false;
 
     function renderForm() {
       let content = '';
@@ -126,46 +127,74 @@
       `;
 
       const regLink = el.querySelector('#mkRegisterLink');
-      if (regLink) regLink.onclick = (e) => { e.preventDefault(); mode = 'register'; renderForm(); };
+      if (regLink) regLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'register'; renderForm(); } };
       const logLink = el.querySelector('#mkLoginLink');
-      if (logLink) logLink.onclick = (e) => { e.preventDefault(); mode = 'login'; renderForm(); };
+      if (logLink) logLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'login'; renderForm(); } };
       const forLink = el.querySelector('#mkForgotLink');
-      if (forLink) forLink.onclick = (e) => { e.preventDefault(); mode = 'forgot'; renderForm(); };
+      if (forLink) forLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'forgot'; renderForm(); } };
 
       el.querySelector('#mkAuthForm').onsubmit = handleAuthSubmit;
     }
 
     async function handleAuthSubmit(e) {
       e.preventDefault();
+      if (isSubmitting) return;
+
+      isSubmitting = true;
       const errEl = el.querySelector('#mkErr');
+      const submitBtn = el.querySelector('#mkSubmitBtn');
+      const submitLabel = submitBtn.textContent;
+      const submitMode = mode;
       errEl.textContent = '';
       errEl.style.color = '#dc2626';
-      const email = el.querySelector('#mkEmail').value.trim();
+      submitBtn.disabled = true;
+      submitBtn.setAttribute('aria-busy', 'true');
+      submitBtn.style.cursor = 'not-allowed';
+      submitBtn.style.opacity = '0.7';
+      submitBtn.textContent = 'Memproses...';
 
-      if (mode === 'login') {
-        const pass = el.querySelector('#mkPass').value;
-        const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-        if (error) { errEl.textContent = 'Gagal masuk: ' + error.message; return; }
-        el.remove();
-        finishLogin(data.session);
-      } else if (mode === 'register') {
-        const pass = el.querySelector('#mkPass').value;
-        const passConfirm = el.querySelector('#mkPassConfirm').value;
-        if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
-        const { data, error } = await sb.auth.signUp({ email, password: pass });
-        if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
-        if (data.session) {
+      try {
+        const email = el.querySelector('#mkEmail').value.trim();
+
+        if (submitMode === 'login') {
+          const pass = el.querySelector('#mkPass').value;
+          const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+          if (error) { errEl.textContent = 'Gagal masuk: ' + error.message; return; }
           el.remove();
           finishLogin(data.session);
-        } else {
+        } else if (submitMode === 'register') {
+          const pass = el.querySelector('#mkPass').value;
+          const passConfirm = el.querySelector('#mkPassConfirm').value;
+          if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
+          const { data, error } = await sb.auth.signUp({ email, password: pass });
+          if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
+          if (data.session) {
+            el.remove();
+            finishLogin(data.session);
+          } else {
+            errEl.style.color = '#059669';
+            errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
+          }
+        } else if (submitMode === 'forgot') {
+          const { error } = await sb.auth.resetPasswordForEmail(email);
+          if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
           errEl.style.color = '#059669';
-          errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
+          errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
         }
-      } else if (mode === 'forgot') {
-        const { error } = await sb.auth.resetPasswordForEmail(email);
-        if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
-        errEl.style.color = '#059669';
-        errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
+      } catch (error) {
+        const action = submitMode === 'register' ? 'Pendaftaran gagal: ' :
+          (submitMode === 'forgot' ? 'Gagal kirim reset: ' : 'Gagal masuk: ');
+        errEl.textContent = action + (error.message || String(error));
+      } finally {
+        isSubmitting = false;
+        const currentSubmitBtn = el.querySelector('#mkSubmitBtn');
+        if (currentSubmitBtn) {
+          currentSubmitBtn.disabled = false;
+          currentSubmitBtn.removeAttribute('aria-busy');
+          currentSubmitBtn.style.cursor = 'pointer';
+          currentSubmitBtn.style.opacity = '';
+          currentSubmitBtn.textContent = submitLabel;
+        }
       }
     }
 
