@@ -25,9 +25,38 @@
   let readyResolve;
   const ready = new Promise((r) => { readyResolve = r; });
 
-  function finishLogin(session) {
-    const email = (session && session.user && session.user.email) || '';
-    try { sessionUser = email.split('@')[0] || 'User'; } catch (e) { /* global belum ada */ }
+  async function finishLogin(session) {
+    const user = session && session.user;
+    const email = (user && user.email) || '';
+    try {
+      sessionUser = email.split('@')[0] || 'User';
+      const uEl = document.getElementById('ui-username');
+      if (uEl) uEl.textContent = sessionUser;
+
+      // Ambil profil & role pengguna dari public.profiles
+      if (user && user.id) {
+        const { data: prof } = await sb.from('profiles').select('display_name,role,status').eq('id', user.id).maybeSingle();
+        if (prof) {
+          if (prof.status === 'suspended') {
+            alert('Akun Anda dinonaktifkan oleh administrator.');
+            await sb.auth.signOut();
+            location.reload();
+            return;
+          }
+          if (prof.display_name) {
+            sessionUser = prof.display_name;
+            if (uEl) uEl.textContent = sessionUser;
+          }
+          sessionRole = prof.role || 'user';
+          const rEl = document.getElementById('ui-role');
+          if (rEl) rEl.textContent = sessionRole.toUpperCase();
+          if (sessionRole === 'admin') {
+            const admNav = document.getElementById('nav-admin');
+            if (admNav) admNav.style.display = 'flex';
+          }
+        }
+      }
+    } catch (e) { console.error('finishLogin', e); }
     readyResolve();
   }
 
@@ -35,27 +64,108 @@
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;' +
       'justify-content:center;background:#0f172a;font-family:system-ui,sans-serif';
-    const field = 'padding:10px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px';
-    el.innerHTML =
-      '<form id="mkLogin" style="background:#fff;padding:28px;border-radius:16px;' +
-      'width:min(92vw,340px);display:grid;gap:12px">' +
-      '<h2 style="margin:0;font-size:20px;color:#0f172a">MyKeuanganGuech</h2>' +
-      '<input id="mkEmail" type="email" placeholder="Email" required autocomplete="username" style="' + field + '">' +
-      '<input id="mkPass" type="password" placeholder="Password" required autocomplete="current-password" style="' + field + '">' +
-      '<button type="submit" style="padding:10px;border:0;border-radius:10px;background:#0f172a;' +
-      'color:#fff;font-weight:600;font-size:15px;cursor:pointer">Masuk</button>' +
-      '<p id="mkErr" style="margin:0;color:#dc2626;font-size:13px;min-height:1em"></p></form>';
-    document.body.appendChild(el);
-    el.querySelector('#mkLogin').addEventListener('submit', async (e) => {
+    const field = 'padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none';
+    let mode = 'login';
+
+    function renderForm() {
+      let content = '';
+      if (mode === 'login') {
+        content = `
+          <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Masuk ke Akun</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:#64748b">Kelola finansial dan portofolio Anda</p>
+          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" style="${field}">
+          <input id="mkPass" type="password" placeholder="Kata Sandi" required autocomplete="current-password" style="${field}">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <a href="#" id="mkForgotLink" style="color:#2563eb;text-decoration:none">Lupa kata sandi?</a>
+          </div>
+          <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Masuk</button>
+          <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
+            Belum punya akun? <a href="#" id="mkRegisterLink" style="color:#2563eb;font-weight:700;text-decoration:none">Daftar sekarang</a>
+          </p>
+        `;
+      } else if (mode === 'register') {
+        content = `
+          <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Daftar Akun Baru</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:#64748b">Gratis dan instan untuk kelola keuangan</p>
+          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" style="${field}">
+          <input id="mkPass" type="password" placeholder="Kata Sandi (min. 6 karakter)" minlength="6" required autocomplete="new-password" style="${field}">
+          <input id="mkPassConfirm" type="password" placeholder="Ulangi Kata Sandi" minlength="6" required autocomplete="new-password" style="${field}">
+          <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Daftar Akun</button>
+          <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
+            Sudah punya akun? <a href="#" id="mkLoginLink" style="color:#2563eb;font-weight:700;text-decoration:none">Masuk di sini</a>
+          </p>
+        `;
+      } else if (mode === 'forgot') {
+        content = `
+          <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Reset Kata Sandi</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:#64748b">Masukkan email untuk menerima link reset</p>
+          <input id="mkEmail" type="email" placeholder="Alamat Email Anda" required autocomplete="username" style="${field}">
+          <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Kirim Link Reset</button>
+          <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
+            Kembali ke <a href="#" id="mkLoginLink" style="color:#2563eb;font-weight:700;text-decoration:none">Halaman Masuk</a>
+          </p>
+        `;
+      }
+
+      el.innerHTML = `
+        <div style="background:#fff;padding:32px 28px;border-radius:20px;width:min(92vw,360px);box-shadow:0 25px 50px -12px rgba(0,0,0,0.35)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <div style="width:36px;height:36px;border-radius:10px;background:#2563eb;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900">M</div>
+            <h1 style="margin:0;font-size:18px;color:#0f172a;font-weight:800">MyKeuangan<span style="color:#2563eb">Guech</span></h1>
+          </div>
+          <form id="mkAuthForm" style="display:grid;gap:10px">
+            ${content}
+            <p id="mkErr" style="margin:4px 0 0;color:#dc2626;font-size:12px;min-height:1em;text-align:center"></p>
+          </form>
+        </div>
+      `;
+
+      const regLink = el.querySelector('#mkRegisterLink');
+      if (regLink) regLink.onclick = (e) => { e.preventDefault(); mode = 'register'; renderForm(); };
+      const logLink = el.querySelector('#mkLoginLink');
+      if (logLink) logLink.onclick = (e) => { e.preventDefault(); mode = 'login'; renderForm(); };
+      const forLink = el.querySelector('#mkForgotLink');
+      if (forLink) forLink.onclick = (e) => { e.preventDefault(); mode = 'forgot'; renderForm(); };
+
+      el.querySelector('#mkAuthForm').onsubmit = handleAuthSubmit;
+    }
+
+    async function handleAuthSubmit(e) {
       e.preventDefault();
-      const { data, error } = await sb.auth.signInWithPassword({
-        email: el.querySelector('#mkEmail').value.trim(),
-        password: el.querySelector('#mkPass').value
-      });
-      if (error) { el.querySelector('#mkErr').textContent = 'Login gagal: ' + error.message; return; }
-      el.remove();
-      finishLogin(data.session);
-    });
+      const errEl = el.querySelector('#mkErr');
+      errEl.textContent = '';
+      errEl.style.color = '#dc2626';
+      const email = el.querySelector('#mkEmail').value.trim();
+
+      if (mode === 'login') {
+        const pass = el.querySelector('#mkPass').value;
+        const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+        if (error) { errEl.textContent = 'Gagal masuk: ' + error.message; return; }
+        el.remove();
+        finishLogin(data.session);
+      } else if (mode === 'register') {
+        const pass = el.querySelector('#mkPass').value;
+        const passConfirm = el.querySelector('#mkPassConfirm').value;
+        if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
+        const { data, error } = await sb.auth.signUp({ email, password: pass });
+        if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
+        if (data.session) {
+          el.remove();
+          finishLogin(data.session);
+        } else {
+          errEl.style.color = '#059669';
+          errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
+        }
+      } else if (mode === 'forgot') {
+        const { error } = await sb.auth.resetPasswordForEmail(email);
+        if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
+        errEl.style.color = '#059669';
+        errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
+      }
+    }
+
+    document.body.appendChild(el);
+    renderForm();
   }
 
   async function boot() {
@@ -395,6 +505,46 @@
       }
       return getInitialData();
     },
+    /* ---------- Admin Panel & User Management ---------- */
+    async api_getAdminData() {
+      if (sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
+      const [profiles, trCount, chCount] = await Promise.all([
+        fetchAll('profiles', 'id,email,display_name,role,status,created_at', ['created_at']),
+        sb.from('transactions').select('id', { count: 'exact', head: true }),
+        sb.from('telegram_chats').select('chat_id', { count: 'exact', head: true })
+      ]);
+      return {
+        users: profiles,
+        stats: {
+          totalUsers: profiles.length,
+          activeUsers: profiles.filter(p => p.status === 'active').length,
+          suspendedUsers: profiles.filter(p => p.status === 'suspended').length,
+          totalTransactions: trCount.count || 0,
+          totalTelegramChats: chCount.count || 0
+        }
+      };
+    },
+    async api_setUserStatus(userId, status) {
+      if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      const { error } = await sb.from('profiles').update({ status }).eq('id', userId);
+      fail(error);
+      return handlers.api_getAdminData();
+    },
+    async api_setUserRole(userId, role) {
+      if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
+      fail(error);
+      return handlers.api_getAdminData();
+    },
+
+    /* ---------- Telegram Pairing (Self-Service) ---------- */
+    async api_generateTelegramOTP() {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const { error } = await sb.from('telegram_pairings').insert({ otp });
+      fail(error);
+      return otp;
+    },
+
     async api_resetDemo() {
       // Versi lama menghapus semua transaksi lalu mengisi data demo — dimatikan agar data asli aman.
       throw new Error('Reset demo dinonaktifkan pada versi Supabase.');
