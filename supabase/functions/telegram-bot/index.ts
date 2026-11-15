@@ -100,6 +100,12 @@ async function fetchAll(table: string, cols: string, uid: string, order: string[
   return out;
 }
 
+async function isActiveUser(uid: string): Promise<boolean> {
+  const { data, error } = await sb.from('profiles').select('status').eq('id', uid).maybeSingle();
+  if (error) throw error;
+  return data?.status === 'active';
+}
+
 async function getSettings(uid: string): Promise<Record<string, string>> {
   const rows = await fetchAll('settings', 'key,value', uid, ['key']);
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -1257,17 +1263,32 @@ Deno.serve(async (req) => {
 
     // Cek perintah pairing mandiri (/link OTP atau /start PAIR_OTP)
     const msgText = String(update.message?.text || '').trim();
-    const mPair = msgText.match(/^\/(?:start\s+PAIR_|link\s*)(\d{6})/i);
+    const mPair = msgText.match(/^\/(?:start\s+PAIR_|link\s+)(\d{8})$/i);
     if (mPair) {
+      const { data: allowed, error: attemptError } = await sb.rpc('consume_telegram_pairing_attempt', {
+        p_chat_id: chat
+      });
+      if (attemptError) throw attemptError;
+      if (!allowed) {
+        await send(chat, 'Terlalu banyak percobaan kode. Tunggu 10 menit sebelum mencoba lagi.');
+        return new Response('ok');
+      }
+
       const otp = mPair[1];
-      const { data: pair } = await sb.from('telegram_pairings')
+      const { data: pair, error: pairError } = await sb.from('telegram_pairings')
         .select('user_id, expires_at')
         .eq('otp', otp)
         .gt('expires_at', new Date().toISOString())
         .maybeSingle();
+      if (pairError) throw pairError;
 
       if (!pair) {
-        await send(chat, '❌ Kode pairing salah atau sudah kedaluwarsa (10 menit). Silakan buat kode baru di menu "Hubungkan Telegram" pada web MyKeuangan.');
+        await send(chat, 'Kode pairing salah atau sudah kedaluwarsa (10 menit). Silakan buat kode baru di menu Hubungkan Telegram pada web MyKeuangan.');
+        return new Response('ok');
+      }
+
+      if (!await isActiveUser(pair.user_id)) {
+        await send(chat, 'Akun ini sedang dinonaktifkan. Hubungi administrator MyKeuangan.');
         return new Response('ok');
       }
 
@@ -1282,9 +1303,16 @@ Deno.serve(async (req) => {
     }
 
     // Hanya chat yang terdaftar di telegram_chats yang dilayani
-    const { data: reg } = await sb.from('telegram_chats').select('user_id').eq('chat_id', chat).maybeSingle();
+    const { data: reg, error: registrationError } = await sb.from('telegram_chats')
+      .select('user_id').eq('chat_id', chat).maybeSingle();
+    if (registrationError) throw registrationError;
     if (!reg) {
       await send(chat, `🔒 Chat ini belum terhubung dengan akun MyKeuangan.\n\nchat_id Anda: <code>${chat}</code>\n\n<b>Cara Menghubungkan:</b>\n1. Masuk ke aplikasi MyKeuangan di web\n2. Klik tombol <b>Hubungkan Telegram</b> di sidebar\n3. Kirim kode OTP ke sini:\n<code>/link [KODE]</code>`);
+      return new Response('ok');
+    }
+
+    if (!await isActiveUser(reg.user_id)) {
+      await send(chat, 'Akun ini sedang dinonaktifkan. Hubungi administrator MyKeuangan.');
       return new Response('ok');
     }
 

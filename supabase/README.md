@@ -4,10 +4,10 @@ Prasyarat: Supabase CLI terpasang (`npm i -g supabase` atau `npx supabase`), sud
 
 1. Di folder repo:   `supabase init`  (sekali; folder supabase/ sudah ada, pilih tidak menimpa file)
                      `supabase link --project-ref <PROJECT_REF>`
-2. Tabel tambahan:   `supabase db push`   (menjalankan SEMUA file di migrations/)
-                     — atau salin isi tiap file migrations/ ke SQL Editor lalu Run, berurutan
-                       (20261012000000_bot.sql lalu 20261013000000_bot_lock.sql).
-   Update dari 3a ke 3b-1: cukup jalankan 20261013000000_bot_lock.sql, lalu tempel ulang index.ts dan Deploy.
+2. Untuk project baru, jalankan `db/schema.sql` lalu `db/002_wallets.sql` di SQL Editor.
+   `supabase db push` hanya menjalankan file di `supabase/migrations/`; skema awal tersebut belum ada di direktori migrasi.
+   Jalankan migrasi yang belum diterapkan sesuai urutan nama timestamp, termasuk `20261115040200_application_hardening.sql`.
+   Untuk project yang sudah memiliki tabel dompet, jangan jalankan ulang `db/002_wallets.sql`.
 3. Secrets (bukan di kode!):
    supabase secrets set TELEGRAM_BOT_TOKEN=<token dari @BotFather>
    supabase secrets set TELEGRAM_WEBHOOK_SECRET=<string acak panjang, huruf/angka/_/- saja>

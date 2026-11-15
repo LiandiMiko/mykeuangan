@@ -34,11 +34,11 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
 
 | Kategori | Fitur |
 |---|---|
-| **Keuangan** | Transaksi, kategori, budget, laporan, utang/piutang |
+| **Keuangan** | Transaksi, kategori, budget bulanan, analisis rencana vs aktual dan tren 6 bulan, laporan, utang/piutang |
 | **Aset** | Portofolio saham & kripto dengan harga real-time |
 | **Multi-User** | Registrasi mandiri, login, lupa password via email |
 | **Admin Panel** | Kelola user, suspend/aktifkan akun, ubah role |
-| **PWA** | Install di HP/desktop, offline fallback, ikon maskable |
+| **PWA** | Bisa di-install di HP/desktop; shell dapat dibuka offline, data tetap memerlukan internet |
 | **Telegram** | Notifikasi & query saldo via bot, pairing via OTP mandiri |
 | **AI** | Analisis keuangan & prediksi dengan Gemini 2.5 Flash |
 | **Keamanan** | XSS sanitization, RLS Supabase, RBAC admin/user |
@@ -63,12 +63,14 @@ mykeuangan/
 ├── web/                    # Static web assets
 │   ├── config.js           # ⚠️ Supabase URL + Anon Key (lihat catatan keamanan)
 │   ├── supabase-api.js     # Auth, CRUD, Admin API wrapper
+│   ├── finance-analysis.js # Perhitungan siklus dan analisis budget
 │   ├── manifest.webmanifest # PWA manifest
 │   ├── sw.js               # Service Worker (Stale-While-Revalidate + Network-First)
 │   └── icons/              # PWA icons (192px, 512px, maskable)
 │
 ├── db/
-│   └── schema.sql          # Skema database awal (jalankan pertama kali)
+│   ├── schema.sql          # Skema database awal (jalankan pertama kali)
+│   └── 002_wallets.sql     # Tabel dompet dan transfer
 │
 ├── supabase/
 │   ├── functions/
@@ -79,7 +81,11 @@ mykeuangan/
 │   └── migrations/
 │       ├── 20261114000000_multiuser_onboarding.sql  # profiles, trigger, RLS
 │       ├── 20261114000001_telegram_pairings.sql     # telegram_pairings table
-│       └── 20261115000000_admin_panel_hardening.sql # Admin RLS, pairing, onboarding fixes
+│       ├── 20261115000000_admin_panel_hardening.sql # Admin RLS, pairing, onboarding fixes
+│       └── 20261115040200_application_hardening.sql # Active account and transactional safeguards
+│
+├── tests/
+│   └── finance-analysis.test.js # Unit tests for cycle and budget calculations
 │
 ├── scripts/
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
@@ -87,7 +93,7 @@ mykeuangan/
 ├── build.mjs               # Build script: src/* + web/*.js → dist/index.html
 └── .github/
     └── workflows/
-        └── static.yml      # GitHub Actions: auto-build & deploy ke Pages
+        └── deploy.yml      # GitHub Actions: test, build & deploy ke Pages
 ```
 
 ---
@@ -104,6 +110,9 @@ node scripts/generate_icons.mjs
 
 # Build — hasilkan dist/index.html
 node build.mjs
+
+# Uji perhitungan siklus dan analisis budget
+node --test
 
 # Buka di browser
 npx serve dist
@@ -136,7 +145,14 @@ Di **Supabase → SQL Editor**, jalankan file berikut **secara berurutan**:
 -- Jalankan isi file: db/schema.sql
 ```
 
-#### Step 2 — Multi-User Onboarding
+#### Step 2 — Dompet dan Transfer
+```sql
+-- Jalankan isi file: db/002_wallets.sql
+```
+
+Jalankan setelah skema dasar dan sebelum onboarding, karena trigger pendaftaran membuat dompet bawaan.
+
+#### Step 3 — Multi-User Onboarding
 ```sql
 -- Jalankan isi file: supabase/migrations/20261114000000_multiuser_onboarding.sql
 ```
@@ -148,20 +164,29 @@ Migrasi ini akan membuat:
 - **User pertama** yang mendaftar otomatis mendapat role `admin`
 - RLS policies untuk semua tabel
 
-#### Step 3 — Telegram Pairings
+#### Step 4 — Telegram Pairings
 ```sql
 -- Jalankan isi file: supabase/migrations/20261114000001_telegram_pairings.sql
 ```
 
 Membuat tabel `telegram_pairings` untuk OTP pairing (expire 10 menit).
 
-#### Step 4 — Admin Panel Hardening
+#### Step 5 — Admin Panel Hardening
 ```sql
 -- Jalankan isi file: supabase/migrations/20261115000000_admin_panel_hardening.sql
 ```
 
 Migrasi ini membatasi perubahan profil hanya untuk admin, mengisi `user_id` pairing secara otomatis, dan memastikan hanya satu pendaftar pertama yang mendapat role admin.
 Jika migrasi onboarding sebelumnya sudah dijalankan, tinjau role di `profiles`: backfill lama dapat memberi role admin ke semua akun yang sudah ada. Migrasi hardening tidak menurunkan role otomatis agar admin yang memang ditunjuk tidak kehilangan akses.
+
+#### Step 6 — Perlindungan akses, pairing, dan transaksi
+```sql
+-- Jalankan isi file: supabase/migrations/20261115040200_application_hardening.sql
+```
+
+Migrasi ini menolak akses data untuk akun suspended, membatasi percobaan pairing Telegram, dan menambahkan operasi finansial atomik. Constraint nominal transaksi berlaku untuk perubahan baru. Bersihkan data lama yang tidak valid sebelum memvalidasi constraint penuh.
+
+> Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi hardening terbaru satu kali.
 
 ### 3. Konfigurasi Supabase Auth
 
@@ -208,7 +233,7 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<PROJECT_REF>.supabas
 
 1. Push kode ke branch `main`
 2. GitHub → *Settings → Pages → Source*: pilih **GitHub Actions**
-3. Workflow `.github/workflows/static.yml` akan otomatis build & deploy saat push ke `main`
+3. Workflow `.github/workflows/deploy.yml` akan otomatis menjalankan tes, build & deploy saat push ke `main`
 
 ---
 
@@ -235,14 +260,14 @@ Deploy juga Edge Function `admin-password` dengan verifikasi JWT tetap aktif seb
 User bisa menghubungkan akun ke Telegram Bot secara mandiri:
 
 1. Di aplikasi web → klik **"Hubungkan Telegram"** di sidebar
-2. Sistem generate **OTP 6 digit** (berlaku 10 menit)
+2. Sistem generate **OTP 8 digit** (berlaku 10 menit). Kode baru menggantikan kode pairing sebelumnya.
 3. Buka Telegram, chat ke bot, kirim perintah:
    ```
-   /link 123456
+   /link 12345678
    ```
    atau jika baru pertama kali pakai bot:
    ```
-   /start PAIR_123456
+   /start PAIR_12345678
    ```
 4. Bot akan konfirmasi: *"✅ Akun kamu berhasil dihubungkan!"*
 
@@ -262,7 +287,7 @@ MyKeuangan mendukung **Progressive Web App**:
 - **Di Desktop (Chrome/Edge)**: Ikon install di address bar
 
 Fitur PWA:
-- ✅ Offline fallback (halaman statis tersedia tanpa internet)
+- ✅ Shell halaman tersedia dari cache offline; autentikasi dan data keuangan memerlukan internet
 - ✅ Ikon maskable (tampil bagus di semua launcher Android)
 - ✅ Standalone mode (tanpa browser bar)
 - ✅ Tema gelap (#0f172a) konsisten dengan UI
@@ -287,10 +312,10 @@ supabase secrets set CRON_SECRET=$(openssl rand -base64 32)
 ```
 
 ### RLS (Row Level Security)
-Semua tabel diproteksi RLS. User hanya bisa akses data miliknya. Admin dapat akses via fungsi `is_admin()` yang check role di tabel `profiles`.
+Semua tabel diproteksi RLS. User hanya bisa akses data miliknya. Admin aktif mendapat akses melalui fungsi `is_admin()` di tabel `profiles`. Akun suspended ditolak oleh kebijakan akses database.
 
 ### XSS Prevention
-Semua user input di-sanitize via `escapeHtmlJS()` dan `escapeAttrJS()` sebelum di-render ke DOM. Tidak ada `innerHTML` langsung dari data user.
+Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk dengan menginterpolasi data pengguna ke dalam kode inline.
 
 ---
 
@@ -320,7 +345,7 @@ Semua user input di-sanitize via `escapeHtmlJS()` dan `escapeAttrJS()` sebelum d
   - Kategori transaksi default (8 pengeluaran + 3 pemasukan)
   - Settings awal (mata uang IDR, bahasa ID)
 - **Profile & Role**: Tabel `profiles` menyimpan username, role (`user`/`admin`), status `suspended`
-- **Suspend check**: User yang di-suspend tidak bisa login (cek dilakukan saat `finishLogin()`)
+- **Suspend check**: User suspended ditolak oleh RLS, fungsi admin, dan Telegram Bot, termasuk untuk sesi yang masih aktif
 - **First-user admin**: User pertama otomatis jadi admin via trigger
 
 ### 🔧 Admin Panel
@@ -333,10 +358,12 @@ Semua user input di-sanitize via `escapeHtmlJS()` dan `escapeAttrJS()` sebelum d
 
 ### 🤖 Telegram Pairing OTP
 - **Self-service pairing**: User bisa hubungkan akun sendiri tanpa bantuan admin
-- **Flow OTP**: Web generate OTP 6 digit → user kirim `/link OTP` di bot → bot verifikasi & bind
+- **Flow OTP**: Web generate OTP 8 digit → user kirim `/link OTP` di bot → bot verifikasi & bind dengan pembatasan percobaan
 - **Expire 10 menit**: OTP kadaluarsa otomatis (kolom `expires_at` di `telegram_pairings`)
 - **Command `/start PAIR_OTP`**: Support deep link untuk user baru yang belum pernah pakai bot
 - **`supabase/migrations/20261114000001_telegram_pairings.sql`**: Tabel `telegram_pairings` dengan RLS
+- **`supabase/migrations/20261115040200_application_hardening.sql`**: Pembatasan akun aktif, percobaan pairing, dan operasi transaksi atomik
+- **`web/finance-analysis.js`**: Perhitungan tren budget dan siklus gajian yang diuji otomatis
 
 ### 🗄️ Database Migrations
 - **`20261114000000_multiuser_onboarding.sql`**: Profiles, RBAC, trigger, RLS lengkap untuk semua tabel

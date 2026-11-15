@@ -106,6 +106,15 @@ const I18N = {
     // ============ BUDGETING ============
     'budget.title': 'Budgeting',
     'budget.subtitle': 'Alokasi dana per kategori',
+    'budget.analysis_title': 'Analisis keuangan',
+    'budget.analysis_subtitle': 'Bandingkan rencana dan pengeluaran pada periode terpilih.',
+    'budget.by_category': 'Rencana dan aktual per kategori',
+    'budget.six_month_trend': 'Tren 6 bulan',
+    'budget.month': 'Bulan',
+    'budget.expense': 'Pengeluaran',
+    'budget.no_activity': 'Belum ada budget atau pengeluaran pada periode ini.',
+    'budget.previous_month': 'Bulan sebelumnya',
+    'budget.next_month': 'Bulan berikutnya',
     'budget.plan': 'Rencana',
     'budget.actual': 'Aktual',
     'budget.selisih': 'Selisih',
@@ -158,6 +167,11 @@ const I18N = {
     // ============ HEADER ============
     'header.hide_nominal': 'Sembunyikan Nominal',
     'header.show_nominal': 'Tampilkan Nominal',
+    'header.period': 'Pilih periode keuangan',
+    'header.payday': 'Atur tanggal gajian',
+    'header.open_menu': 'Buka menu',
+    'header.close_menu': 'Tutup menu',
+    'header.theme': 'Ganti tema terang atau gelap',
 
     // ============ LANGS ============
     'lang.id': 'Indonesia',
@@ -267,6 +281,15 @@ const I18N = {
     // ============ BUDGETING ============
     'budget.title': 'Budgeting',
     'budget.subtitle': 'Fund allocation per category',
+    'budget.analysis_title': 'Financial analysis',
+    'budget.analysis_subtitle': 'Compare planned budgets and spending for the selected period.',
+    'budget.by_category': 'Plan and actual by category',
+    'budget.six_month_trend': '6-month trend',
+    'budget.month': 'Month',
+    'budget.expense': 'Spending',
+    'budget.no_activity': 'No budget or spending recorded for this period.',
+    'budget.previous_month': 'Previous month',
+    'budget.next_month': 'Next month',
     'budget.plan': 'Plan',
     'budget.actual': 'Actual',
     'budget.selisih': 'Difference',
@@ -319,6 +342,11 @@ const I18N = {
     // ============ HEADER ============
     'header.hide_nominal': 'Hide Amount',
     'header.show_nominal': 'Show Amount',
+    'header.period': 'Select financial period',
+    'header.payday': 'Set payday',
+    'header.open_menu': 'Open menu',
+    'header.close_menu': 'Close menu',
+    'header.theme': 'Switch light or dark theme',
 
     // ============ LANGS ============
     'lang.id': 'Indonesian',
@@ -341,6 +369,7 @@ function setLang(lang) {
   currentLang = lang;
   localStorage.setItem('lang', lang);
   applyTranslations();
+  if (typeof updateEyeIcon === 'function') updateEyeIcon();
   if (typeof renderAll === 'function' && isDataReady) {
     renderAll();
   }
@@ -377,6 +406,12 @@ function applyTranslations() {
     const key = el.getAttribute('data-i18n-title');
     const val = t(key);
     if (val) el.title = val;
+  });
+
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    const key = el.getAttribute('data-i18n-aria-label');
+    const val = t(key);
+    if (val) el.setAttribute('aria-label', val);
   });
 }
 

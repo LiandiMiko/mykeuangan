@@ -26,6 +26,7 @@ if (!fs.existsSync(cfgFile)) {
 const config = fs.readFileSync(cfgFile, 'utf8');
 if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placeholder GANTI-… — isi URL dan anon key Supabase dulu.');
 const api = fs.readFileSync(path.join(WEB, 'supabase-api.js'), 'utf8');
+const financeAnalysis = fs.readFileSync(path.join(WEB, 'finance-analysis.js'), 'utf8');
 
 let html = read('Index');
 html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
@@ -39,7 +40,7 @@ html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
       lib = `<script src="${SUPABASE_JS}"></script>\n` +
             `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}"><\\/script>')</script>`;
     }
-    return `${lib}\n${read(name)}\n` +
+    return `${lib}\n<script>\n${financeAnalysis}\n</script>\n${read(name)}\n` +
            `<script>\n${config}\n</script>\n<script>\n${api}\n</script>`;
   }
   return read(name);

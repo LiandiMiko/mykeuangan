@@ -39,8 +39,8 @@
         fail(error);
         if (!prof) throw new Error('Profil akun belum tersedia. Hubungi administrator untuk menyelesaikan penyiapan akun.');
         if (prof) {
-          if (prof.status === 'suspended') {
-            alert('Akun Anda dinonaktifkan oleh administrator.');
+          if (prof.status !== 'active') {
+            alert('Akun Anda belum aktif. Hubungi administrator untuk bantuan.');
             await sb.auth.signOut();
             location.reload();
             return;
@@ -65,11 +65,49 @@
     readyResolve();
   }
 
+  let activeCheckPromise = null;
+  async function checkActiveSession() {
+    if (activeCheckPromise) return activeCheckPromise;
+    activeCheckPromise = (async () => {
+      const { data: authData, error: authError } = await sb.auth.getUser();
+      fail(authError);
+      if (!authData.user) return;
+
+      const { data: profile, error } = await sb.from('profiles')
+        .select('status').eq('id', authData.user.id).maybeSingle();
+      fail(error);
+      if (!profile || profile.status !== 'active') {
+        alert('Akun Anda tidak lagi aktif. Sesi akan ditutup.');
+        await sb.auth.signOut();
+        location.reload();
+      }
+    })();
+    try {
+      await activeCheckPromise;
+    } finally {
+      activeCheckPromise = null;
+    }
+  }
+
+  function refreshActiveSession() {
+    checkActiveSession().catch((error) => {
+      console.warn('Pengecekan status akun gagal:', error);
+    });
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshActiveSession();
+  });
+  window.setInterval(() => {
+    if (document.visibilityState === 'visible') refreshActiveSession();
+  }, 60000);
+
   function showLogin() {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;' +
       'justify-content:center;background:#0f172a;font-family:system-ui,sans-serif';
-    const field = 'padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none';
+    const field = 'padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px';
+    const fieldLabel = 'font-size:12px;font-weight:600;color:#334155';
     let mode = 'login';
     let isSubmitting = false;
 
@@ -79,8 +117,10 @@
         content = `
           <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Masuk ke Akun</h2>
           <p style="margin:0 0 12px;font-size:13px;color:#64748b">Kelola finansial dan portofolio Anda</p>
-          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" style="${field}">
-          <input id="mkPass" type="password" placeholder="Kata Sandi" required autocomplete="current-password" style="${field}">
+          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
+          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+          <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
+          <input id="mkPass" type="password" placeholder="Kata Sandi" required autocomplete="current-password" aria-describedby="mkErr" style="${field}">
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
             <a href="#" id="mkForgotLink" style="color:#2563eb;text-decoration:none">Lupa kata sandi?</a>
           </div>
@@ -93,9 +133,12 @@
         content = `
           <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Daftar Akun Baru</h2>
           <p style="margin:0 0 12px;font-size:13px;color:#64748b">Gratis dan instan untuk kelola keuangan</p>
-          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" style="${field}">
-          <input id="mkPass" type="password" placeholder="Kata Sandi (min. 6 karakter)" minlength="6" required autocomplete="new-password" style="${field}">
-          <input id="mkPassConfirm" type="password" placeholder="Ulangi Kata Sandi" minlength="6" required autocomplete="new-password" style="${field}">
+          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
+          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+          <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
+          <input id="mkPass" type="password" placeholder="Kata Sandi (min. 6 karakter)" minlength="6" required autocomplete="new-password" aria-describedby="mkErr" style="${field}">
+          <label for="mkPassConfirm" style="${fieldLabel}">Ulangi Kata Sandi</label>
+          <input id="mkPassConfirm" type="password" placeholder="Ulangi Kata Sandi" minlength="6" required autocomplete="new-password" aria-describedby="mkErr" style="${field}">
           <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Daftar Akun</button>
           <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
             Sudah punya akun? <a href="#" id="mkLoginLink" style="color:#2563eb;font-weight:700;text-decoration:none">Masuk di sini</a>
@@ -105,7 +148,8 @@
         content = `
           <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Reset Kata Sandi</h2>
           <p style="margin:0 0 12px;font-size:13px;color:#64748b">Masukkan email untuk menerima link reset</p>
-          <input id="mkEmail" type="email" placeholder="Alamat Email Anda" required autocomplete="username" style="${field}">
+          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
+          <input id="mkEmail" type="email" placeholder="Alamat Email Anda" required autocomplete="username" aria-describedby="mkErr" style="${field}">
           <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Kirim Link Reset</button>
           <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
             Kembali ke <a href="#" id="mkLoginLink" style="color:#2563eb;font-weight:700;text-decoration:none">Halaman Masuk</a>
@@ -121,7 +165,7 @@
           </div>
           <form id="mkAuthForm" style="display:grid;gap:10px">
             ${content}
-            <p id="mkErr" style="margin:4px 0 0;color:#dc2626;font-size:12px;min-height:1em;text-align:center"></p>
+            <p id="mkErr" role="status" aria-live="polite" style="margin:4px 0 0;color:#dc2626;font-size:12px;min-height:1em;text-align:center"></p>
           </form>
         </div>
       `;
@@ -255,10 +299,13 @@
   }
 
   /* ---------------- getInitialData ---------------- */
-  async function getInitialData() {
+  async function getInitialData(options) {
+    const includeTransactions = !options || options.includeTransactions !== false;
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
     const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers] = await Promise.all([
-      fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id']),
+      includeTransactions
+        ? fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id'])
+        : Promise.resolve([]),
       fetchAll('categories', 'tipe,name', ['tipe', 'name']),
       fetchAll('entities', 'grp,name', ['grp', 'name']),
       fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']),
@@ -286,10 +333,12 @@
 
     const payrollDay = Number(settings.payrollDay) || 1;
     return {
-      transactions: trx.map((t) => ({
-        id: t.id, tanggal: t.tanggal, tipe: t.tipe, kategori: t.kategori,
-        nominal: num(t.nominal), keterangan: t.keterangan || '', walletId: t.wallet_id || ''
-      })),
+      ...(includeTransactions ? {
+        transactions: trx.map((t) => ({
+          id: t.id, tanggal: t.tanggal, tipe: t.tipe, kategori: t.kategori,
+          nominal: num(t.nominal), keterangan: t.keterangan || '', walletId: t.wallet_id || ''
+        }))
+      } : {}),
       wallets: wallets.map((w) => ({
         id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort
       })),
@@ -327,67 +376,107 @@
 
   /* ---------------- Handler per fungsi server lama ---------------- */
   const trxRow = (d) => {
+    if (!d || typeof d !== 'object') throw new Error('Data transaksi tidak valid.');
+    const date = String(d.tanggal || '').slice(0, 10);
+    const dateValue = new Date(date + 'T00:00:00');
+    const amount = Number(d.nominal);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(dateValue.getTime()) || ymd(dateValue) !== date) {
+      throw new Error('Tanggal transaksi tidak valid.');
+    }
+    if (d.tipe !== 'Pemasukan' && d.tipe !== 'Pengeluaran') {
+      throw new Error('Tipe transaksi tidak valid.');
+    }
+    if (typeof d.kategori !== 'string' || !d.kategori.trim()) {
+      throw new Error('Kategori transaksi wajib diisi.');
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Nominal transaksi harus lebih dari 0.');
+    }
     const row = {
-      tanggal: String(d.tanggal || '').slice(0, 10),
+      tanggal: date,
       tipe: d.tipe,
-      kategori: d.kategori,
-      nominal: num(d.nominal),
+      kategori: d.kategori.trim(),
+      nominal: amount,
       keterangan: d.keterangan || ''
     };
     if (d.walletId) row.wallet_id = d.walletId;   // kosong → trigger database memakai dompet pertama (BCA)
     return row;
   };
+  const trxFromRow = (row) => ({
+    id: row.id,
+    tanggal: row.tanggal,
+    tipe: row.tipe,
+    kategori: row.kategori,
+    nominal: num(row.nominal),
+    keterangan: row.keterangan || '',
+    walletId: row.wallet_id || ''
+  });
+  const partialData = () => getInitialData({ includeTransactions: false });
 
   const handlers = {
     getInitialData,
 
     async api_addTransaction(d) {
       const row = trxRow(d);
-      const { error } = await sb.from('transactions').insert({ ...row, source: 'web' });
+      const { data, error } = await sb.from('transactions')
+        .insert({ ...row, source: 'web' })
+        .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
+        .single();
       fail(error);
       await syncPeriod(row.tanggal);
-      return getInitialData();
+      return { ...(await partialData()), transaction: trxFromRow(data) };
     },
     async api_updateTransaction(id, d) {
       const row = trxRow(d);
-      const { error } = await sb.from('transactions').update(row).eq('id', id);
+      const { data, error } = await sb.from('transactions')
+        .update(row).eq('id', id)
+        .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
+        .maybeSingle();
       fail(error);
+      if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
       await syncPeriod(row.tanggal);
-      return getInitialData();
+      return { ...(await partialData()), transaction: trxFromRow(data) };
     },
     async api_deleteTransaction(id) {
-      const { error } = await sb.from('transactions').delete().eq('id', id);
+      const { data, error } = await sb.from('transactions').delete().eq('id', id).select('id').maybeSingle();
       fail(error);
-      return getInitialData();
+      if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
+      return { ...(await partialData()), deletedTransactionId: data.id };
     },
 
     async api_addCategory(tipe, name) {
       const { error } = await sb.from('categories')
         .upsert({ tipe, name }, { onConflict: 'user_id,tipe,name', ignoreDuplicates: true });
       fail(error);
-      return getInitialData();
+      return partialData();
     },
 
     async api_addEntity(group, name) {
       const { error } = await sb.from('entities')
         .upsert({ grp: group, name }, { onConflict: 'user_id,grp,name', ignoreDuplicates: true });
       fail(error);
-      return getInitialData();
+      return partialData();
     },
     async api_updateEntity(group, oldName, newName) {
-      const r1 = await sb.from('entities').update({ name: newName }).eq('grp', group).eq('name', oldName);
-      fail(r1.error);
-      // ikut ganti nama kategori utang/piutang di transaksi lama
-      const r2 = await sb.from('transactions')
-        .update({ kategori: group + ' - ' + newName })
-        .eq('kategori', group + ' - ' + oldName);
-      fail(r2.error);
-      return getInitialData();
+      if (typeof newName !== 'string' || !newName.trim()) throw new Error('Nama entitas wajib diisi.');
+      const { error } = await sb.rpc('rename_entity_with_transactions', {
+        p_group: group,
+        p_old_name: oldName,
+        p_new_name: newName.trim()
+      });
+      fail(error);
+      return {
+        ...(await partialData()),
+        renamedTransactionCategory: {
+          from: group + ' - ' + oldName,
+          to: group + ' - ' + newName.trim()
+        }
+      };
     },
     async api_deleteEntity(group, name) {
       const { error } = await sb.from('entities').delete().eq('grp', group).eq('name', name);
       fail(error);
-      return getInitialData();
+      return partialData();
     },
 
     async api_addAssetV2(d) {
@@ -400,32 +489,40 @@
         value: num(d.value)
       });
       fail(error);
-      return getInitialData();
+      return partialData();
     },
     async api_deleteAsset(id) {
       const { error } = await sb.from('assets').delete().eq('id', id);
       fail(error);
-      return getInitialData();
+      return partialData();
     },
 
     async api_saveBudget(kategori, bulan, jumlah) {
-      if (!kategori || !bulan) return getInitialData();
+      const amount = Number(jumlah);
+      if (typeof kategori !== 'string' || !kategori.trim() ||
+          typeof bulan !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(bulan) ||
+          !Number.isFinite(amount) || amount < 0) {
+        throw new Error('Kategori, periode, atau nominal budget tidak valid.');
+      }
       const { error } = await sb.from('budgets').upsert(
-        { kategori, bulan: String(bulan).slice(0, 7), jumlah: Math.max(0, num(jumlah)) },
+        { kategori: kategori.trim(), bulan, jumlah: amount },
         { onConflict: 'user_id,kategori,bulan' }
       );
       fail(error);
-      return getInitialData();
+      return partialData();
     },
     async api_deleteBudget(id) {
       const { error } = await sb.from('budgets').delete().eq('id', id);
       fail(error);
-      return getInitialData();
+      return partialData();
     },
     async api_copyBudget(fromBulan, toBulan) {
       const fB = String(fromBulan || '').slice(0, 7);
       const tB = String(toBulan || '').slice(0, 7);
-      if (!fB || !tB || fB === tB) return getInitialData();
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(fB) ||
+          !/^\d{4}-(0[1-9]|1[0-2])$/.test(tB) || fB === tB) {
+        throw new Error('Periode budget tidak valid.');
+      }
       const all = await fetchAll('budgets', 'kategori,bulan,jumlah', ['kategori']);
       const have = new Set(all.filter((b) => b.bulan === tB).map((b) => b.kategori));
       const rows = all
@@ -435,7 +532,7 @@
         const { error } = await sb.from('budgets').insert(rows);
         fail(error);
       }
-      return getInitialData();
+      return partialData();
     },
 
     async api_savePayrollDay(day) {
@@ -456,7 +553,7 @@
       }
       const { error } = await sb.from('wallets').update(patch).eq('id', id);
       fail(error);
-      return getInitialData();
+      return partialData();
     },
     async api_addTransfer(d) {
       const nominal = num(d.nominal);
@@ -474,59 +571,35 @@
         keterangan: d.keterangan || ''
       });
       fail(error);
-      return getInitialData();
+      return partialData();
     },
     async api_deleteTransfer(id) {
       const { error } = await sb.from('transfers').delete().eq('id', id);
       fail(error);
-      return getInitialData();
+      return partialData();
     },
 
     /* ---------- Tambah nilai aset yang sudah ada (top-up) ---------- */
     async api_topUpAsset(id, d) {
-      const { data: a, error } = await sb.from('assets').select('*').eq('id', id).single();
+      const amount = Number(d.amount);
+      const price = d.price === '' || d.price == null ? null : Number(d.price);
+      const quantity = d.quantity === '' || d.quantity == null ? null : Number(d.quantity);
+      const date = String(d.tanggal || ymd(new Date())).slice(0, 10);
+      if (!Number.isFinite(amount) || amount <= 0 ||
+          (price !== null && (!Number.isFinite(price) || price < 0)) ||
+          (quantity !== null && (!Number.isFinite(quantity) || quantity < 0))) {
+        throw new Error('Nominal, harga, atau jumlah aset tidak valid.');
+      }
+      const { error } = await sb.rpc('top_up_asset', {
+        p_asset_id: id,
+        p_amount: amount,
+        p_price: price,
+        p_quantity: quantity,
+        p_wallet_id: d.walletId || null,
+        p_date: date
+      });
       fail(error);
-      const amount = num(d.amount);                       // uang yang dikeluarkan (Rp)
-      if (amount <= 0) throw new Error('Nominal harus lebih dari 0');
-
-      const oldQty = num(a.quantity), oldBuy = num(a.buy_price), oldVal = num(a.value);
-      const patch = {};
-      if (String(a.type).toLowerCase() === 'crypto') {
-        let price = num(d.price);                         // harga per koin saat beli (opsional)
-        if (!price && oldQty > 0 && oldVal > 0) price = oldVal / oldQty;   // harga terakhir yang tersimpan
-        let addQty = num(d.quantity);                     // jumlah koin yang didapat (opsional)
-        if (!addQty) {
-          if (!price) throw new Error('Harga koin belum diketahui. Isi jumlah koin atau harga per koin.');
-          addQty = amount / price;
-        }
-        const newQty = oldQty + addQty;
-        patch.quantity = newQty;
-        patch.value = Math.round(oldVal + amount);        // dikoreksi otomatis saat harga di-refresh
-        // harga beli rata-rata tertimbang; bila harga beli lama tidak diketahui, tetap tidak diketahui
-        patch.buy_price = oldQty === 0 ? Math.round(amount / addQty)
-          : (oldBuy > 0 ? Math.round((oldQty * oldBuy + amount) / newQty) : 0);
-      } else {
-        patch.value = Math.round(oldVal + amount);
-      }
-
-      const up = await sb.from('assets').update(patch).eq('id', id);
-      fail(up.error);
-
-      if (d.walletId) {                                   // uang berasal dari dompet → saldo dompet berkurang
-        const tr = await sb.from('transfers').insert({
-          tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
-          kind: 'investasi',
-          from_wallet: d.walletId,
-          to_wallet: null,
-          nominal: amount,
-          keterangan: 'Top-up ' + a.name
-        });
-        if (tr.error) {                                   // batalkan perubahan aset agar tidak setengah jalan
-          await sb.from('assets').update({ quantity: a.quantity, buy_price: a.buy_price, value: a.value }).eq('id', id);
-          fail(tr.error);
-        }
-      }
-      return getInitialData();
+      return partialData();
     },
 
     async api_refreshPrices() {
@@ -537,7 +610,7 @@
       if (data && data.updated === 0 && data.missing && data.missing.length) {
         throw new Error('Simbol belum didukung: ' + data.missing.join(', '));
       }
-      return getInitialData();
+      return partialData();
     },
     /* ---------- Admin Panel & User Management ---------- */
     async api_getAdminData() {
@@ -606,8 +679,18 @@
 
     /* ---------- Telegram Pairing (Self-Service) ---------- */
     async api_generateTelegramOTP() {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const { error } = await sb.from('telegram_pairings').insert({ otp });
+      if (!window.crypto || !window.crypto.getRandomValues) {
+        throw new Error('Browser ini tidak mendukung pembuatan kode pairing yang aman.');
+      }
+      const sample = new Uint32Array(1);
+      const ceiling = Math.floor(0x100000000 / 100000000) * 100000000;
+      let value;
+      do {
+        window.crypto.getRandomValues(sample);
+        value = sample[0];
+      } while (value >= ceiling);
+      const otp = String(value % 100000000).padStart(8, '0');
+      const { error } = await sb.rpc('replace_telegram_pairing', { p_otp: otp });
       fail(error);
       return otp;
     },

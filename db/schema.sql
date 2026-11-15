@@ -45,7 +45,7 @@ create table public.transactions (
   tanggal    date not null,
   tipe       text not null check (tipe in ('Pemasukan', 'Pengeluaran')),
   kategori   text not null,
-  nominal    numeric(20, 2) not null default 0,
+  nominal    numeric(20, 2) not null default 0 check (nominal > 0),
   keterangan text not null default '',
   source     text not null default 'web',            -- web | telegram | recurring | import
   created_at timestamptz not null default now()

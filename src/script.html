@@ -60,21 +60,26 @@ function updateEyeIcon() {
   const btn = document.getElementById('toggleHideBtn');
   if (btn) {
     btn.title = hideNominal ? t('header.show_nominal') : t('header.hide_nominal');
+    btn.setAttribute('aria-label', btn.title);
+    btn.setAttribute('aria-pressed', String(hideNominal));
   }
 }
 
 const getSwalClass = () => document.documentElement.classList.contains('dark') ? 'dark-swal' : '';
 
+function showActionError(error) {
+  console.error(error);
+  Swal.fire({
+    icon: 'error',
+    title: t('alert.failed'),
+    text: String(error && error.message || error),
+    customClass: { popup: getSwalClass() }
+  });
+}
+
 /* ============================================================
    PAYROLL CYCLE HELPERS
    ============================================================ */
-function fmtYMD(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return y + '-' + m + '-' + day;
-}
-
 /**
  * Get range tanggal untuk periode berdasarkan payroll day.
  * @param {string} periodStr - format 'yyyy-MM'
@@ -82,33 +87,34 @@ function fmtYMD(d) {
  * @returns {{start: string, end: string}}
  */
 function getPeriodRange(periodStr, payrollDay) {
-  payrollDay = Number(payrollDay) || 1;
-  const parts = periodStr.split('-');
-  const y = Number(parts[0]);
-  const m = Number(parts[1]); // 1-12
-
-  // Kalau tanggal gajian = 1, pakai bulan kalender biasa
-  if (payrollDay <= 1) {
-    const start = new Date(y, m - 1, 1);
-    const end = new Date(y, m, 0); // hari terakhir bulan
-    return { start: fmtYMD(start), end: fmtYMD(end) };
-  }
-
-  // Siklus gaji:
-  // - start: tanggal payrollDay di bulan SEBELUM
-  // - end: tanggal (payrollDay - 1) di bulan SEKARANG
-  const start = new Date(y, m - 2, payrollDay);
-  const end = new Date(y, m - 1, payrollDay - 1);
-  return { start: fmtYMD(start), end: fmtYMD(end) };
+  return FinanceAnalysis.getPeriodRange(periodStr, payrollDay);
 }
 
 /**
  * Cek apakah tanggal masuk dalam periode.
  */
 function isInPeriod(tanggal, periodStr) {
-  const tgl = String(tanggal).slice(0, 10);
-  const range = getPeriodRange(periodStr, DB.payrollDay);
-  return tgl >= range.start && tgl <= range.end;
+  return FinanceAnalysis.isInPeriod(tanggal, periodStr, DB.payrollDay);
+}
+
+async function saveCurrentPeriod(period) {
+  const previousPeriod = DB.currentPeriod;
+  DB.currentPeriod = period;
+  renderAll();
+  try {
+    await callServer('api_savePeriod', period);
+  } catch (error) {
+    DB.currentPeriod = previousPeriod;
+    if (fpMonth) fpMonth.setDate(previousPeriod, false);
+    renderAll();
+    showActionError(error);
+  }
+}
+
+function shiftCurrentPeriod(offset) {
+  const period = FinanceAnalysis.shiftPeriod(DB.currentPeriod, offset);
+  if (fpMonth) fpMonth.setDate(period, false);
+  saveCurrentPeriod(period);
 }
 
 /**
@@ -137,16 +143,32 @@ function callServer(fn, ...args) {
 
 async function refreshFromServer(payload) {
   if (payload) {
-    DB.transactions = payload.transactions || [];
-    DB.categories = payload.categories || { pemasukan: [], pengeluaran: [] };
-    DB.entities = payload.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
-    DB.assets = payload.assets || [];
-    DB.budgets = payload.budgets || [];
-    DB.snapshots = payload.snapshots || [];
-    DB.currentPeriod = payload.currentPeriod || DB.currentPeriod;
-    DB.payrollDay = payload.payrollDay || 1;
-    DB.wallets = payload.wallets || DB.wallets || [];
-    DB.transfers = payload.transfers || [];
+    const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+    if (has('transactions')) DB.transactions = payload.transactions || [];
+    if (payload.transaction) {
+      const index = DB.transactions.findIndex((item) => item.id === payload.transaction.id);
+      if (index === -1) DB.transactions.push(payload.transaction);
+      else DB.transactions[index] = payload.transaction;
+    }
+    if (payload.deletedTransactionId) {
+      DB.transactions = DB.transactions.filter((item) => item.id !== payload.deletedTransactionId);
+    }
+    if (payload.renamedTransactionCategory) {
+      DB.transactions.forEach((item) => {
+        if (item.kategori === payload.renamedTransactionCategory.from) {
+          item.kategori = payload.renamedTransactionCategory.to;
+        }
+      });
+    }
+    if (has('categories')) DB.categories = payload.categories || { pemasukan: [], pengeluaran: [] };
+    if (has('entities')) DB.entities = payload.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
+    if (has('assets')) DB.assets = payload.assets || [];
+    if (has('budgets')) DB.budgets = payload.budgets || [];
+    if (has('snapshots')) DB.snapshots = payload.snapshots || [];
+    if (payload.currentPeriod) DB.currentPeriod = payload.currentPeriod;
+    if (payload.payrollDay) DB.payrollDay = payload.payrollDay;
+    if (has('wallets')) DB.wallets = payload.wallets || [];
+    if (has('transfers')) DB.transfers = payload.transfers || [];
   }
   renderAll();
 }
@@ -223,9 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       disableMobile: true,
       defaultDate: DB.currentPeriod,
       onChange: async (d, s) => {
-        DB.currentPeriod = s;
-        renderAll();
-        try { await callServer('api_savePeriod', s); } catch (e) { console.warn(e); }
+        if (s) await saveCurrentPeriod(s);
       }
     });
   }
@@ -997,7 +1017,7 @@ function deleteAsset(id) {
       try {
         const data = await callServer('api_deleteAsset', id);
         await refreshFromServer(data);
-      } catch (e) { console.error(e); }
+      } catch (e) { showActionError(e); }
     }
   });
 }
@@ -1039,8 +1059,8 @@ function renderDebtLists() {
     if (group === 'UtangApp') iconName = 'device-mobile';
     if (group === 'Piutang') iconName = 'hand-coins';
     const safeName = escapeHtmlJS(name);
-    const jsSafeName = escapeAttrJS(name);
-    const jsSafeGroup = escapeAttrJS(group);
+    const safeGroup = escapeHtmlJS(group);
+    const safeActionName = escapeHtmlJS(name);
 
     return `
       <div class="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 relative group transition-colors">
@@ -1051,21 +1071,21 @@ function renderDebtLists() {
             </div>
             <p class="font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title="${safeName}">${safeName}</p>
           </div>
-          <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onclick="manageDebtEntity('edit', '${jsSafeGroup}', '${jsSafeName}')" class="text-blue-500 hover:text-blue-600">
-              <i class="ph ph-pencil"></i>
+          <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+            <button type="button" data-debt-action="edit" data-debt-group="${safeGroup}" data-debt-name="${safeActionName}" aria-label="Edit ${safeName}" class="w-10 h-10 text-blue-500 hover:text-blue-600">
+              <i class="ph ph-pencil" aria-hidden="true"></i>
             </button>
-            <button onclick="manageDebtEntity('delete', '${jsSafeGroup}', '${jsSafeName}')" class="text-rose-500 hover:text-rose-600">
-              <i class="ph ph-trash"></i>
+            <button type="button" data-debt-action="delete" data-debt-group="${safeGroup}" data-debt-name="${safeActionName}" aria-label="Hapus ${safeName}" class="w-10 h-10 text-rose-500 hover:text-rose-600">
+              <i class="ph ph-trash" aria-hidden="true"></i>
             </button>
           </div>
         </div>
         <p class="text-xl font-black mb-4 text-slate-800 dark:text-white">${formatRupiah(bal).replace(',00','')}</p>
         <div class="flex gap-2">
-          <button onclick="transactDebt('add', '${jsSafeGroup}', '${jsSafeName}')" class="flex-1 py-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
+          <button type="button" data-debt-action="add" data-debt-group="${safeGroup}" data-debt-name="${safeActionName}" class="flex-1 min-h-[44px] py-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
             ${btnAddTxt}
           </button>
-          <button onclick="transactDebt('pay', '${jsSafeGroup}', '${jsSafeName}')" class="flex-1 py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-sm hover:bg-brand-hover transition-colors">
+          <button type="button" data-debt-action="pay" data-debt-group="${safeGroup}" data-debt-name="${safeActionName}" class="flex-1 min-h-[44px] py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-sm hover:bg-brand-hover transition-colors">
             ${btnPayTxt}
           </button>
         </div>
@@ -1078,19 +1098,35 @@ function renderDebtLists() {
     uApp.innerHTML = Object.keys(debtBal.UtangApp)
       .map(n => buildDebtCard('UtangApp', n, debtBal.UtangApp[n], 'text-rose-500', 'Pinjam', 'Bayar'))
       .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>';
+    bindDebtCardActions(uApp);
   }
   const uPer = document.getElementById('list-utang-person');
   if (uPer) {
     uPer.innerHTML = Object.keys(debtBal.UtangPerson)
       .map(n => buildDebtCard('UtangPerson', n, debtBal.UtangPerson[n], 'text-amber-500', 'Pinjam', 'Bayar'))
       .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>';
+    bindDebtCardActions(uPer);
   }
   const piut = document.getElementById('list-piutang');
   if (piut) {
     piut.innerHTML = Object.keys(debtBal.Piutang)
       .map(n => buildDebtCard('Piutang', n, debtBal.Piutang[n], 'text-emerald-500', 'Beri', 'Terima'))
       .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>';
+    bindDebtCardActions(piut);
   }
+}
+
+function bindDebtCardActions(container) {
+  container.querySelectorAll('[data-debt-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const { debtAction, debtGroup, debtName } = button.dataset;
+      if (debtAction === 'edit' || debtAction === 'delete') {
+        manageDebtEntity(debtAction, debtGroup, debtName);
+      } else if (debtAction === 'add' || debtAction === 'pay') {
+        transactDebt(debtAction, debtGroup, debtName);
+      }
+    });
+  });
 }
 
 /* ============================================================
@@ -1110,7 +1146,7 @@ async function manageDebtEntity(action, group, oldName = '') {
         try {
           const data = await callServer('api_deleteEntity', group, oldName);
           await refreshFromServer(data);
-        } catch (e) { console.error(e); }
+        } catch (e) { showActionError(e); }
       }
     });
     return;
@@ -1134,7 +1170,7 @@ async function manageDebtEntity(action, group, oldName = '') {
         data = await callServer('api_updateEntity', group, oldName, name);
       }
       await refreshFromServer(data);
-    } catch (e) { console.error(e); }
+    } catch (e) { showActionError(e); }
   }
 }
 
@@ -1418,7 +1454,7 @@ async function transactDebt(type, group, name) {
       const data = await callServer('api_addTransaction', payload);
       await refreshFromServer(data);
       Swal.fire({ icon: 'success', title: 'Tercatat', timer: 1000, showConfirmButton: false, customClass: { popup: getSwalClass() } });
-    } catch (e) { console.error(e); }
+    } catch (e) { showActionError(e); }
   }
 }
 
@@ -1470,7 +1506,7 @@ async function promptAddCategory() {
       opt.textContent = name;
       select.appendChild(opt);
       select.value = name;
-    } catch (e) { console.error(e); }
+    } catch (e) { showActionError(e); }
   }
 }
 
@@ -1580,7 +1616,7 @@ function deleteTransaction(id) {
       try {
         const data = await callServer('api_deleteTransaction', id);
         await refreshFromServer(data);
-      } catch (e) { console.error(e); }
+      } catch (e) { showActionError(e); }
     }
   });
 }
@@ -1789,7 +1825,7 @@ async function deleteBudget(id, kategori) {
       try {
         const data = await callServer('api_deleteBudget', id);
         await refreshFromServer(data);
-      } catch (e) { console.error(e); }
+      } catch (e) { showActionError(e); }
     }
   });
 }
@@ -1845,7 +1881,7 @@ async function editBudgetInline(id, kategori, currentJumlah) {
   try {
     const data = await callServer('api_saveBudget', kategori, DB.currentPeriod, val);
     await refreshFromServer(data);
-  } catch (e) { console.error(e); }
+  } catch (e) { showActionError(e); }
 }
 
 /* ============================================================
@@ -1864,12 +1900,92 @@ function toggleBudgetExpand(id) {
   renderBudgeting();
 }
 
+function renderBudgetAnalysis(period) {
+  const analysis = FinanceAnalysis.summarizePeriod(
+    DB.budgets, DB.transactions, period, DB.payrollDay
+  );
+  const summary = document.getElementById('budgetSummary');
+  const categories = document.getElementById('budgetAnalysisCategories');
+  const trendContainer = document.getElementById('budgetTrend');
+  const differenceClass = (amount) => amount >= 0
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : 'text-rose-600 dark:text-rose-400';
+
+  if (summary) {
+    summary.innerHTML = `
+      <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50">
+        <div>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.plan')}</p>
+          <p class="text-sm sm:text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(analysis.budgetTotal).replace(',00','')}</p>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.actual')}</p>
+          <p class="text-sm sm:text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(analysis.actualTotal).replace(',00','')}</p>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.selisih')}</p>
+          <p class="text-sm sm:text-lg font-black ${differenceClass(analysis.remaining)} truncate">${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00','')}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  if (categories) {
+    categories.innerHTML = analysis.rows.length ? `
+      <table class="w-full text-left text-xs">
+        <thead class="text-slate-500 bg-slate-50 dark:bg-slate-800/50">
+          <tr>
+            <th scope="col" class="p-3 font-semibold">${t('budget.kategori')}</th>
+            <th scope="col" class="p-3 font-semibold text-right">${t('budget.plan')}</th>
+            <th scope="col" class="p-3 font-semibold text-right">${t('budget.actual')}</th>
+            <th scope="col" class="p-3 font-semibold text-right">${t('budget.selisih')}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          ${analysis.rows.map((row) => `
+            <tr>
+              <th scope="row" class="p-3 font-medium text-slate-700 dark:text-slate-200">${escapeHtmlJS(row.category)}</th>
+              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(row.plan).replace(',00','')}</td>
+              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(row.actual).replace(',00','')}</td>
+              <td class="p-3 text-right whitespace-nowrap font-semibold ${differenceClass(row.remaining)}">${row.remaining >= 0 ? '+' : ''}${formatRupiah(row.remaining).replace(',00','')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : `<p class="p-5 text-sm text-slate-500">${t('budget.no_activity')}</p>`;
+  }
+
+  if (trendContainer) {
+    const trend = FinanceAnalysis.monthlyTrend(DB.budgets, DB.transactions, period, DB.payrollDay, 6);
+    trendContainer.innerHTML = `
+      <table class="w-full text-left text-xs">
+        <thead class="text-slate-500 bg-slate-50 dark:bg-slate-800/50">
+          <tr>
+            <th scope="col" class="p-3 font-semibold">${t('budget.month')}</th>
+            <th scope="col" class="p-3 font-semibold text-right">${t('budget.plan')}</th>
+            <th scope="col" class="p-3 font-semibold text-right">${t('budget.expense')}</th>
+            <th scope="col" class="p-3 font-semibold text-right">${t('budget.selisih')}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          ${trend.map((month) => `
+            <tr class="${month.period === period ? 'bg-brand/5 font-semibold' : ''}">
+              <th scope="row" class="p-3 whitespace-nowrap text-slate-700 dark:text-slate-200">${escapeHtmlJS(getMonthName(Number(month.period.slice(5, 7)) - 1))} ${month.period.slice(0, 4)}</th>
+              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(month.budgetTotal).replace(',00','')}</td>
+              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(month.actualTotal).replace(',00','')}</td>
+              <td class="p-3 text-right whitespace-nowrap ${differenceClass(month.remaining)}">${month.remaining >= 0 ? '+' : ''}${formatRupiah(month.remaining).replace(',00','')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+}
+
 function renderBudgeting() {
   const container = document.getElementById('budgetList');
-  const summary = document.getElementById('budgetSummary');
   const formKategori = document.getElementById('budgetKategori');
   const monthLabel = document.getElementById('budgetMonthLabel');
-  const copyBtn = document.getElementById('budgetCopyBtn');
 
   if (!container) return;
 
@@ -1877,6 +1993,7 @@ function renderBudgeting() {
   const periodLabel = getPeriodLabel(period, DB.payrollDay);
 
   if (monthLabel) monthLabel.innerText = '(' + periodLabel + ')';
+  renderBudgetAnalysis(period);
 
   if (formKategori) {
     const currentVal = formKategori.value;
@@ -1885,8 +2002,6 @@ function renderBudgeting() {
       pengeluaran.map(k => `<option value="${escapeHtmlJS(k)}">${escapeHtmlJS(k)}</option>`).join('');
     if (currentVal) formKategori.value = currentVal;
   }
-
-  if (copyBtn) copyBtn.style.display = 'inline-flex';
 
   const budgets = (DB.budgets || []).filter(b =>
     String(b.bulan).slice(0, 7) === period
@@ -1907,13 +2022,11 @@ function renderBudgeting() {
         <p class="text-sm text-slate-500">${t('budget.empty')}</p>
       </div>
     `;
-    if (summary) summary.innerHTML = '';
     return;
   }
 
   budgets.sort((a, b) => String(a.kategori).localeCompare(String(b.kategori)));
 
-  let totalPlan = 0, totalActual = 0;
   let html = '<div class="divide-y divide-slate-100 dark:divide-slate-800">';
 
   budgets.forEach(b => {
@@ -1921,9 +2034,6 @@ function renderBudgeting() {
     const actual = actualByCat[b.kategori] || 0;
     const selisih = plan - actual;
     const pct = plan > 0 ? (actual / plan * 100) : 0;
-    totalPlan += plan;
-    totalActual += actual;
-
     let status = { text: t('budget.aman'), color: 'emerald', icon: 'check-circle' };
     if (pct > 100) status = { text: t('budget.over'), color: 'rose', icon: 'warning-circle' };
     else if (pct >= 80) status = { text: t('budget.warning'), color: 'amber', icon: 'warning' };
@@ -1975,8 +2085,8 @@ function renderBudgeting() {
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
                   <p class="text-[11px] font-black text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00','')}</p>
-                  <button onclick="event.stopPropagation(); editTransaction('${tx.id}')" class="w-5 h-5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100" title="Edit">
-                    <i class="ph ph-pencil text-[10px]"></i>
+                  <button type="button" data-budget-transaction="${escapeHtmlJS(tx.id)}" class="w-8 h-8 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100" aria-label="Edit transaksi" title="Edit">
+                    <i class="ph ph-pencil text-[10px]" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -1988,28 +2098,28 @@ function renderBudgeting() {
 
     html += `
       <div class="transition-colors ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/20' : ''}">
-        <div onclick="toggleBudgetExpand('${b.id}')" class="p-4 sm:p-5 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group cursor-pointer">
+        <div class="p-4 sm:p-5 transition-colors group">
           <div class="flex items-start justify-between gap-3 mb-3">
-            <div class="flex items-center gap-3 min-w-0 flex-1">
-              <div class="w-10 h-10 rounded-xl bg-${status.color}-50 dark:bg-${status.color}-500/10 text-${status.color}-500 flex items-center justify-center shrink-0 relative">
-                <i class="ph ph-${status.icon} text-lg"></i>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5">
-                  <p class="font-bold text-slate-800 dark:text-white text-sm truncate">${escapeHtmlJS(b.kategori)}</p>
-                  <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-400"></i>
-                </div>
-                <p class="text-[10px] text-${status.color}-600 dark:text-${status.color}-400 font-bold uppercase tracking-wider">
+            <button type="button" data-budget-expand="${escapeHtmlJS(b.id)}" aria-expanded="${isExpanded}" class="flex items-center gap-3 min-w-0 flex-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800/30">
+              <span class="w-10 h-10 rounded-xl bg-${status.color}-50 dark:bg-${status.color}-500/10 text-${status.color}-500 flex items-center justify-center shrink-0 relative">
+                <i class="ph ph-${status.icon} text-lg" aria-hidden="true"></i>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-1.5">
+                  <span class="font-bold text-slate-800 dark:text-white text-sm truncate">${escapeHtmlJS(b.kategori)}</span>
+                  <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-400" aria-hidden="true"></i>
+                </span>
+                <span class="block text-[10px] text-${status.color}-600 dark:text-${status.color}-400 font-bold uppercase tracking-wider">
                   ${status.text} · ${pct.toFixed(0)}% · ${catTxns.length} transaksi
-                </p>
-              </div>
-            </div>
-            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onclick="event.stopPropagation(); editBudgetInline('${b.id}', '${b.kategori}', ${plan})" class="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100">
-                <i class="ph ph-pencil text-sm"></i>
+                </span>
+              </span>
+            </button>
+            <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+              <button type="button" data-budget-action="edit" data-budget-id="${escapeHtmlJS(b.id)}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100" aria-label="Edit budget ${escapeHtmlJS(b.kategori)}" title="Edit">
+                <i class="ph ph-pencil text-sm" aria-hidden="true"></i>
               </button>
-              <button onclick="event.stopPropagation(); deleteBudget('${b.id}', '${b.kategori}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100">
-                <i class="ph ph-trash text-sm"></i>
+              <button type="button" data-budget-action="delete" data-budget-id="${escapeHtmlJS(b.id)}" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100" aria-label="Hapus budget ${escapeHtmlJS(b.kategori)}" title="Hapus">
+                <i class="ph ph-trash text-sm" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -2029,7 +2139,7 @@ function renderBudgeting() {
             </div>
           </div>
 
-          <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden" role="progressbar" aria-label="Progres budget ${escapeHtmlJS(b.kategori)}" aria-valuenow="${Math.min(pct, 100).toFixed(0)}" aria-valuemin="0" aria-valuemax="100">
             <div class="${progressColor} h-full rounded-full transition-all" style="width: ${Math.min(pct, 100).toFixed(1)}%"></div>
           </div>
         </div>
@@ -2041,30 +2151,24 @@ function renderBudgeting() {
 
   html += '</div>';
   container.innerHTML = html;
-
-  const totalSelisih = totalPlan - totalActual;
-  const totalColor = totalSelisih >= 0
-    ? 'text-emerald-600 dark:text-emerald-400'
-    : 'text-rose-600 dark:text-rose-400';
-
-  if (summary) {
-    summary.innerHTML = `
-      <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50">
-        <div>
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.plan')}</p>
-          <p class="text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(totalPlan).replace(',00','')}</p>
-        </div>
-        <div>
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.actual')}</p>
-          <p class="text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(totalActual).replace(',00','')}</p>
-        </div>
-        <div>
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${t('budget.selisih')}</p>
-          <p class="text-lg font-black ${totalColor} truncate">${totalSelisih >= 0 ? '+' : ''}${formatRupiah(totalSelisih).replace(',00','')}</p>
-        </div>
-      </div>
-    `;
-  }
+  const budgetsById = new Map(budgets.map((budget) => [budget.id, budget]));
+  container.querySelectorAll('[data-budget-expand]').forEach((button) => {
+    button.addEventListener('click', () => toggleBudgetExpand(button.dataset.budgetExpand));
+  });
+  container.querySelectorAll('[data-budget-transaction]').forEach((button) => {
+    button.addEventListener('click', () => editTransaction(button.dataset.budgetTransaction));
+  });
+  container.querySelectorAll('[data-budget-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const budget = budgetsById.get(button.dataset.budgetId);
+      if (!budget) return;
+      if (button.dataset.budgetAction === 'edit') {
+        editBudgetInline(budget.id, budget.kategori, Number(budget.jumlah) || 0);
+      } else if (button.dataset.budgetAction === 'delete') {
+        deleteBudget(budget.id, budget.kategori);
+      }
+    });
+  });
 }
 
 
@@ -2175,15 +2279,13 @@ async function loadAdminData() {
       const nextRole = u.role === 'admin' ? 'user' : 'admin';
       const roleBtnText = u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin';
 
-      const safeId = escapeAttrJS(u.id);
-      const safeNextStatus = escapeAttrJS(nextStatus);
-      const safeNextRole = escapeAttrJS(nextRole);
+      const safeId = escapeHtmlJS(u.id);
       const actions = u.id === data.currentUserId
         ? '<span class="text-slate-400">Akun Anda</span>'
         : `
-          <button type="button" onclick="toggleUserStatus('${safeId}', '${safeNextStatus}')" class="min-h-[44px] px-2 font-bold cursor-pointer ${statusBtnColor}">${statusBtnText}</button>
-          <button type="button" onclick="toggleUserRole('${safeId}', '${safeNextRole}')" class="min-h-[44px] px-2 font-bold text-blue-500 hover:text-blue-700 cursor-pointer">${roleBtnText}</button>
-          <button type="button" onclick="resetUserPassword('${safeId}', '${escapeAttrJS(u.email || '')}')" class="min-h-[44px] px-2 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>
+          <button type="button" data-admin-action="status" data-user-id="${safeId}" data-value="${nextStatus}" class="min-h-[44px] px-2 font-bold cursor-pointer ${statusBtnColor}">${statusBtnText}</button>
+          <button type="button" data-admin-action="role" data-user-id="${safeId}" data-value="${nextRole}" class="min-h-[44px] px-2 font-bold text-blue-500 hover:text-blue-700 cursor-pointer">${roleBtnText}</button>
+          <button type="button" data-admin-action="password" data-user-id="${safeId}" class="min-h-[44px] px-2 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>
         `;
 
       return `
@@ -2203,6 +2305,20 @@ async function loadAdminData() {
         </tr>
       `;
     }).join('');
+    const usersById = new Map(data.users.map((user) => [user.id, user]));
+    tbody.querySelectorAll('[data-admin-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const user = usersById.get(button.dataset.userId);
+        if (!user) return;
+        if (button.dataset.adminAction === 'status') {
+          toggleUserStatus(user.id, button.dataset.value);
+        } else if (button.dataset.adminAction === 'role') {
+          toggleUserRole(user.id, button.dataset.value);
+        } else if (button.dataset.adminAction === 'password') {
+          resetUserPassword(user.id, user.email || '');
+        }
+      });
+    });
     return true;
   } catch (err) {
     console.error('loadAdminData error:', err);
@@ -2336,7 +2452,7 @@ async function openTelegramPairingModal() {
       title: 'Hubungkan Bot Telegram',
       html: `
         <div class="text-left space-y-3 text-sm">
-          <p class="text-slate-600">Gunakan kode OTP 6-digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
+          <p class="text-slate-600">Gunakan kode OTP 8 digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
           <div class="p-4 bg-slate-100 rounded-2xl text-center">
             <span class="text-3xl font-black tracking-widest text-brand">${otp}</span>
             <p class="text-[11px] text-slate-400 mt-1">Berlaku selama 10 menit</p>
