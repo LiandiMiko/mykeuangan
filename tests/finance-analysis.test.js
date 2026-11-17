@@ -4,6 +4,8 @@ const {
   getPeriodRange,
   isInPeriod,
   monthlyTrend,
+  periodInsights,
+  goalProgress,
   shiftPeriod,
   summarizePeriod
 } = require('../web/finance-analysis.js');
@@ -60,4 +62,31 @@ test('monthly trend compares each payroll cycle with its own budget month', () =
   assert.equal(trend[1].period, '2026-01');
   assert.equal(trend[1].budgetTotal, 5000);
   assert.equal(trend[1].actualTotal, 3000);
+});
+
+test('period insights compare spending and identify actual budget overruns', () => {
+  const insights = periodInsights(
+    [
+      { bulan: '2026-02', kategori: 'Makan', jumlah: 100 },
+      { bulan: '2026-02', kategori: 'Transport', jumlah: 50 }
+    ],
+    [
+      { tanggal: '2026-01-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 100 },
+      { tanggal: '2026-02-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 150 },
+      { tanggal: '2026-02-06', tipe: 'Pengeluaran', kategori: 'Transport', nominal: 75 }
+    ],
+    '2026-02',
+    1
+  );
+
+  assert.equal(insights.spendingChange, 125);
+  assert.equal(insights.spendingChangePercent, 125);
+  assert.equal(insights.highestSpending.category, 'Makan');
+  assert.deepEqual(insights.overBudget.map((row) => row.category), ['Makan', 'Transport']);
+});
+
+test('goal progress is bounded and ignores invalid targets', () => {
+  assert.equal(goalProgress(125, 100), 100);
+  assert.equal(goalProgress(-5, 100), 0);
+  assert.equal(goalProgress(50, 0), 0);
 });

@@ -105,7 +105,39 @@
     });
   }
 
-  const api = { getPeriodRange, isInPeriod, shiftPeriod, summarizePeriod, monthlyTrend };
+  function periodInsights(budgets, transactions, period, payrollDay) {
+    const current = summarizePeriod(budgets, transactions, period, payrollDay);
+    const previousPeriod = shiftPeriod(period, -1);
+    const previous = summarizePeriod(budgets, transactions, previousPeriod, payrollDay);
+    const highestSpending = current.rows
+      .filter((row) => row.actual > 0)
+      .sort((left, right) => right.actual - left.actual || left.category.localeCompare(right.category))[0] || null;
+
+    return {
+      period: current,
+      previousPeriod: previous,
+      spendingChange: current.actualTotal - previous.actualTotal,
+      spendingChangePercent: previous.actualTotal > 0
+        ? (current.actualTotal - previous.actualTotal) / previous.actualTotal * 100
+        : null,
+      highestSpending,
+      overBudget: current.rows
+        .filter((row) => row.plan > 0 && row.actual > row.plan)
+        .sort((left, right) => (right.actual - right.plan) - (left.actual - left.plan))
+    };
+  }
+
+  function goalProgress(currentAmount, targetAmount) {
+    const current = Math.max(0, Number(currentAmount) || 0);
+    const target = Number(targetAmount);
+    if (!Number.isFinite(target) || target <= 0) return 0;
+    return Math.min(100, current / target * 100);
+  }
+
+  const api = {
+    getPeriodRange, isInPeriod, shiftPeriod, summarizePeriod, monthlyTrend,
+    periodInsights, goalProgress
+  };
   root.FinanceAnalysis = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

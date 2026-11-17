@@ -34,7 +34,8 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
 
 | Kategori | Fitur |
 |---|---|
-| **Keuangan** | Transaksi, kategori, budget bulanan, analisis rencana vs aktual dan tren 6 bulan, laporan, utang/piutang |
+| **Keuangan** | Transaksi, pencarian/filter/paginasi laporan, impor CSV dengan pratinjau dan deteksi duplikasi, kategori, budget bulanan, insight dan tren 6 bulan, utang/piutang |
+| **Target** | Target tabungan dengan nominal terkumpul, tenggat opsional, dan progres |
 | **Aset** | Portofolio saham & kripto dengan harga real-time |
 | **Multi-User** | Registrasi mandiri, login, lupa password via email |
 | **Admin Panel** | Kelola user, suspend/aktifkan akun, ubah role |
@@ -64,6 +65,7 @@ mykeuangan/
 │   ├── config.js           # ⚠️ Supabase URL + Anon Key (lihat catatan keamanan)
 │   ├── supabase-api.js     # Auth, CRUD, Admin API wrapper
 │   ├── finance-analysis.js # Perhitungan siklus dan analisis budget
+│   ├── transaction-import.js # Parser dan validasi impor CSV
 │   ├── manifest.webmanifest # PWA manifest
 │   ├── sw.js               # Service Worker (Stale-While-Revalidate + Network-First)
 │   └── icons/              # PWA icons (192px, 512px, maskable)
@@ -82,10 +84,12 @@ mykeuangan/
 │       ├── 20261114000000_multiuser_onboarding.sql  # profiles, trigger, RLS
 │       ├── 20261114000001_telegram_pairings.sql     # telegram_pairings table
 │       ├── 20261115000000_admin_panel_hardening.sql # Admin RLS, pairing, onboarding fixes
-│       └── 20261115040200_application_hardening.sql # Active account and transactional safeguards
+│       ├── 20261115040200_application_hardening.sql # Active account and transactional safeguards
+│       └── 20261116000000_financial_goals_and_transaction_search.sql
 │
 ├── tests/
-│   └── finance-analysis.test.js # Unit tests for cycle and budget calculations
+│   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
+│   └── transaction-import.test.js # Parsing dan validasi impor CSV
 │
 ├── scripts/
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
@@ -186,7 +190,18 @@ Jika migrasi onboarding sebelumnya sudah dijalankan, tinjau role di `profiles`: 
 
 Migrasi ini menolak akses data untuk akun suspended, membatasi percobaan pairing Telegram, dan menambahkan operasi finansial atomik. Constraint nominal transaksi berlaku untuk perubahan baru. Bersihkan data lama yang tidak valid sebelum memvalidasi constraint penuh.
 
-> Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi hardening terbaru satu kali.
+#### Step 7 — Target keuangan dan pencarian laporan
+```sql
+-- Jalankan isi file: supabase/migrations/20261116000000_financial_goals_and_transaction_search.sql
+```
+
+Migrasi ini membuat tabel target keuangan dengan RLS akun aktif dan fungsi pencarian transaksi berhalaman yang dibatasi rentang tanggal. Jalankan satu kali setelah migrasi sebelumnya; fitur target dan laporan baru memerlukannya.
+
+> Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi baru setelah migrasi hardening.
+
+### Impor transaksi CSV
+
+Unduh template dari **Laporan & Ekspor**. Header yang digunakan adalah `tanggal,tipe,kategori,nominal,keterangan,dompet`; kolom `dompet` dan `keterangan` boleh dikosongkan. Tanggal memakai `YYYY-MM-DD`, tipe `Pemasukan` atau `Pengeluaran`, dan nominal berupa angka tanpa pemisah ribuan. Impor menerima maksimal 500 baris transaksi per file, menampilkan pratinjau, menolak baris yang tidak valid, dan melewati transaksi duplikat yang cocok.
 
 ### 3. Konfigurasi Supabase Auth
 

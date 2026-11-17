@@ -11,6 +11,7 @@ const DB = {
   snapshots: [],
   wallets: [],
   transfers: [],
+  goals: [],
   currentPeriod: new Date().toISOString().slice(0, 7),
   payrollDay: 28
 };
@@ -20,6 +21,15 @@ let sessionRole = 'User';
 let fpTanggal = null;
 let fpMonth = null;
 let isDataReady = false;
+let laporanState = {
+  page: 0,
+  pageSize: 20,
+  total: 0,
+  period: '',
+  requestId: 0,
+  dirty: true,
+  rows: []
+};
 
 let hideNominal = localStorage.getItem('hideNominal') === '1';
 
@@ -144,11 +154,22 @@ function callServer(fn, ...args) {
 async function refreshFromServer(payload) {
   if (payload) {
     const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+    if (has('transactions') || payload.transaction || payload.addedTransactions ||
+        payload.deletedTransactionId || payload.renamedTransactionCategory) {
+      laporanState.dirty = true;
+    }
     if (has('transactions')) DB.transactions = payload.transactions || [];
     if (payload.transaction) {
       const index = DB.transactions.findIndex((item) => item.id === payload.transaction.id);
       if (index === -1) DB.transactions.push(payload.transaction);
       else DB.transactions[index] = payload.transaction;
+    }
+    if (payload.addedTransactions) {
+      payload.addedTransactions.forEach((transaction) => {
+        const index = DB.transactions.findIndex((item) => item.id === transaction.id);
+        if (index === -1) DB.transactions.push(transaction);
+        else DB.transactions[index] = transaction;
+      });
     }
     if (payload.deletedTransactionId) {
       DB.transactions = DB.transactions.filter((item) => item.id !== payload.deletedTransactionId);
@@ -169,6 +190,13 @@ async function refreshFromServer(payload) {
     if (payload.payrollDay) DB.payrollDay = payload.payrollDay;
     if (has('wallets')) DB.wallets = payload.wallets || [];
     if (has('transfers')) DB.transfers = payload.transfers || [];
+    if (has('goals')) DB.goals = payload.goals || [];
+    if (payload.goal) {
+      const index = DB.goals.findIndex((item) => item.id === payload.goal.id);
+      if (index === -1) DB.goals.push(payload.goal);
+      else DB.goals[index] = payload.goal;
+    }
+    if (payload.deletedGoalId) DB.goals = DB.goals.filter((goal) => goal.id !== payload.deletedGoalId);
   }
   renderAll();
 }
@@ -201,6 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     DB.snapshots = data.snapshots || [];
     DB.wallets = data.wallets || [];
     DB.transfers = data.transfers || [];
+    DB.goals = data.goals || [];
     console.log('[INIT] loaded', DB.transactions.length, 'transactions,', DB.snapshots.length, 'snapshots, period:', DB.currentPeriod);
     
     // 🆕 Auto-refresh harga crypto (kalau ada)
@@ -256,6 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 🆕 Init eye icon
   updateEyeIcon();
+  bindReportControls();
 
   const loader = document.getElementById('appLoader');
   if (loader) loader.classList.add('hide');
@@ -493,6 +523,127 @@ function renderDashboard() {
   }
 
   renderAssets();
+  renderFinancialGoals();
+}
+
+function renderFinancialGoals() {
+  const container = document.getElementById('financialGoals');
+  if (!container) return;
+  const goals = DB.goals || [];
+  if (!goals.length) {
+    container.innerHTML = `<p class="md:col-span-2 p-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-sm text-slate-500">${t('goal.empty')}</p>`;
+  } else {
+    container.innerHTML = goals.map((goal) => {
+      const progress = FinanceAnalysis.goalProgress(goal.currentAmount, goal.targetAmount);
+      const name = escapeHtmlJS(goal.name);
+      const id = escapeAttrJS(goal.id);
+      return `
+        <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h4 class="font-bold text-slate-800 dark:text-white break-words">${name}</h4>
+              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('goal.target'))}: ${formatRupiah(goal.targetAmount).replace(',00','')}</p>
+            </div>
+            <div class="flex shrink-0 gap-1">
+              <button type="button" data-goal-action="edit" data-goal-id="${id}" aria-label="${escapeHtmlJS(t('goal.edit'))}: ${name}" class="w-11 h-11 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10">
+                <i class="ph ph-pencil" aria-hidden="true"></i>
+              </button>
+              <button type="button" data-goal-action="delete" data-goal-id="${id}" aria-label="${escapeHtmlJS(t('goal.delete'))}: ${name}" class="w-11 h-11 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
+                <i class="ph ph-trash" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mt-4 flex items-center justify-between gap-2 text-xs">
+            <span class="font-semibold text-slate-700 dark:text-slate-200">${formatRupiah(goal.currentAmount).replace(',00','')}</span>
+            <span class="font-bold text-brand">${progress.toFixed(0)}%</span>
+          </div>
+          <div class="mt-2 h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" role="progressbar" aria-label="${escapeHtmlJS(t('goal.progress'))}: ${name}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.toFixed(0)}">
+            <div class="h-full rounded-full bg-brand transition-[width]" style="width:${progress}%"></div>
+          </div>
+          <div class="mt-3 flex items-center justify-between gap-3">
+            <p class="text-xs text-slate-500 dark:text-slate-400">${goal.targetDate ? `${escapeHtmlJS(t('goal.date'))}: ${escapeHtmlJS(goal.targetDate)}` : ''}</p>
+            <button type="button" data-goal-action="progress" data-goal-id="${id}" class="min-h-[44px] px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">${t('goal.update_progress')}</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  if (container.dataset.bound !== 'true') {
+    container.dataset.bound = 'true';
+    container.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-goal-action]');
+      if (!button) return;
+      const id = button.dataset.goalId;
+      if (button.dataset.goalAction === 'delete') deleteGoal(id);
+      else if (button.dataset.goalAction === 'progress') openGoalForm(id, true);
+      else openGoalForm(id, false);
+    });
+  }
+}
+
+async function openGoalForm(id, progressOnly) {
+  const goal = (DB.goals || []).find((item) => item.id === id);
+  if (id && !goal) return;
+  const current = goal || { name: '', targetAmount: '', currentAmount: 0, targetDate: '' };
+  const html = progressOnly
+    ? `<label for="goalCurrent" class="block text-left text-sm font-semibold mb-1">${t('goal.current')}</label>
+       <input id="goalCurrent" type="number" min="0" step="0.01" value="${escapeHtmlJS(current.currentAmount)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.current'))}">`
+    : `<label for="goalName" class="block text-left text-sm font-semibold mb-1">${t('goal.name')}</label>
+       <input id="goalName" maxlength="80" value="${escapeHtmlJS(current.name)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.name'))}">
+       <label for="goalTarget" class="block text-left text-sm font-semibold mb-1">${t('goal.target')}</label>
+       <input id="goalTarget" type="number" min="0.01" step="0.01" value="${escapeHtmlJS(current.targetAmount)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.target'))}">
+       <label for="goalCurrent" class="block text-left text-sm font-semibold mb-1">${t('goal.current')}</label>
+       <input id="goalCurrent" type="number" min="0" step="0.01" value="${escapeHtmlJS(current.currentAmount)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.current'))}">
+       <label for="goalDate" class="block text-left text-sm font-semibold mb-1">${t('goal.date')}</label>
+       <input id="goalDate" type="date" value="${escapeHtmlJS(current.targetDate)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.date'))}">`;
+  const result = await Swal.fire({
+    title: progressOnly ? t('goal.update_progress') : goal ? t('goal.edit') : t('goal.add'),
+    html,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const name = progressOnly ? current.name : document.getElementById('goalName').value.trim();
+      const targetAmount = progressOnly ? Number(current.targetAmount) : Number(document.getElementById('goalTarget').value);
+      const currentAmount = Number(document.getElementById('goalCurrent').value);
+      const targetDate = progressOnly ? current.targetDate : document.getElementById('goalDate').value;
+      if (!name || !Number.isFinite(targetAmount) || targetAmount <= 0 ||
+          !Number.isFinite(currentAmount) || currentAmount < 0) {
+        Swal.showValidationMessage(t('goal.form_invalid'));
+        return false;
+      }
+      return { id: current.id, name, targetAmount, currentAmount, targetDate };
+    }
+  });
+  if (!result.isConfirmed) return;
+  try {
+    const response = await callServer('api_saveGoal', result.value);
+    await refreshFromServer(response);
+    await Swal.fire({ icon: 'success', title: t('goal.saved'), customClass: { popup: getSwalClass() } });
+  } catch (error) {
+    showActionError(error);
+  }
+}
+
+async function deleteGoal(id) {
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: t('goal.confirm_delete'),
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    confirmButtonText: t('btn.hapus'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  });
+  if (!result.isConfirmed) return;
+  try {
+    await refreshFromServer(await callServer('api_deleteGoal', id));
+  } catch (error) {
+    showActionError(error);
+  }
 }
 
 /* ============================================================
@@ -1625,24 +1776,154 @@ function deleteTransaction(id) {
    LAPORAN
    ============================================================ */
 function renderLaporan() {
-  const period = DB.currentPeriod;
-  const txs = DB.transactions
-    .map((t, i) => ({ ...t, _idx: i }))
-    .filter(t => isInPeriod(t.tanggal, period))
-    .sort((a, b) => {
-      const dc = String(b.tanggal).localeCompare(String(a.tanggal));
-      if (dc !== 0) return dc;
-      return b._idx - a._idx;
+  const start = document.getElementById('lapStart');
+  const end = document.getElementById('lapEnd');
+  if (laporanState.period !== DB.currentPeriod) {
+    const range = getPeriodRange(DB.currentPeriod, DB.payrollDay);
+    if (start) start.value = range.start;
+    if (end) end.value = range.end;
+    laporanState.period = DB.currentPeriod;
+    laporanState.dirty = true;
+    laporanState.page = 0;
+  }
+  renderReportCategories();
+  loadReportPage();
+}
+
+function renderReportCategories() {
+  const select = document.getElementById('lapCategory');
+  if (!select) return;
+  const current = select.value;
+  const categories = Array.from(new Set([
+    ...(DB.categories.pemasukan || []),
+    ...(DB.categories.pengeluaran || []),
+    ...DB.transactions.map((transaction) => transaction.kategori)
+  ].filter(Boolean))).sort((left, right) => left.localeCompare(right));
+  select.innerHTML = `<option value="">${escapeHtmlJS(t('lap.all_categories'))}</option>` +
+    categories.map((category) =>
+      `<option value="${escapeHtmlJS(category)}">${escapeHtmlJS(category)}</option>`
+    ).join('');
+  if (categories.includes(current)) select.value = current;
+}
+
+function bindReportControls() {
+  const search = document.getElementById('lapSearch');
+  if (!search || search.dataset.bound === 'true') return;
+  search.dataset.bound = 'true';
+  const filterIds = ['lapStart', 'lapEnd', 'lapType', 'lapCategory'];
+  const reload = () => {
+    laporanState.page = 0;
+    laporanState.dirty = true;
+    loadReportPage();
+  };
+  search.addEventListener('input', () => {
+    window.clearTimeout(laporanState.searchTimer);
+    laporanState.searchTimer = window.setTimeout(reload, 250);
+  });
+  filterIds.forEach((id) => {
+    const control = document.getElementById(id);
+    if (control) control.addEventListener('change', reload);
+  });
+  const previous = document.getElementById('lapPrev');
+  const next = document.getElementById('lapNext');
+  if (previous) previous.addEventListener('click', () => {
+    if (laporanState.page > 0) {
+      laporanState.page -= 1;
+      laporanState.dirty = true;
+      loadReportPage();
+    }
+  });
+  if (next) next.addEventListener('click', () => {
+    if ((laporanState.page + 1) * laporanState.pageSize < laporanState.total) {
+      laporanState.page += 1;
+      laporanState.dirty = true;
+      loadReportPage();
+    }
+  });
+
+  const importButton = document.getElementById('lapImportBtn');
+  const input = document.getElementById('lapCsvInput');
+  if (importButton && input) {
+    importButton.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      if (file) await importTransactionsCsv(file);
+      input.value = '';
     });
+  }
+}
+
+function retryReportLoad() {
+  laporanState.dirty = true;
+  loadReportPage();
+}
+
+async function loadReportPage() {
   const tbody = document.getElementById('table-laporan');
   if (!tbody) return;
+  const start = document.getElementById('lapStart');
+  const end = document.getElementById('lapEnd');
+  const search = document.getElementById('lapSearch');
+  const type = document.getElementById('lapType');
+  const category = document.getElementById('lapCategory');
+  const status = document.getElementById('lapStatus');
+  const pageStatus = document.getElementById('lapPageStatus');
+  const previous = document.getElementById('lapPrev');
+  const next = document.getElementById('lapNext');
+  const filters = {
+    start: start ? start.value : '',
+    end: end ? end.value : '',
+    search: search ? search.value.trim() : '',
+    type: type ? type.value : '',
+    category: category ? category.value : '',
+    offset: laporanState.page * laporanState.pageSize,
+    limit: laporanState.pageSize
+  };
+  const key = JSON.stringify(filters);
+  if (!laporanState.dirty && laporanState.queryKey === key) return;
+  const requestId = ++laporanState.requestId;
+  laporanState.queryKey = key;
+  laporanState.dirty = false;
+  if (status) status.textContent = t('lap.loading');
+  if (pageStatus) pageStatus.textContent = '';
+  if (previous) previous.disabled = true;
+  if (next) next.disabled = true;
+  tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-500">${escapeHtmlJS(t('lap.loading'))}</td></tr>`;
 
-  if (txs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400">' + t('lap.empty') + '</td></tr>';
+  try {
+    const result = await callServer('api_searchTransactions', filters);
+    if (requestId !== laporanState.requestId) return;
+    laporanState.rows = result.transactions || [];
+    laporanState.total = Number(result.totalCount) || 0;
+    if (status) status.textContent = '';
+    renderReportRows(laporanState.rows);
+    const first = laporanState.total ? filters.offset + 1 : 0;
+    const last = Math.min(filters.offset + laporanState.rows.length, laporanState.total);
+    if (pageStatus) {
+      pageStatus.textContent = `${t('lap.page_range')} ${first}–${last} ${t('lap.of')} ${laporanState.total}`;
+    }
+    if (previous) previous.disabled = laporanState.page === 0;
+    if (next) next.disabled = (laporanState.page + 1) * laporanState.pageSize >= laporanState.total;
+  } catch (error) {
+    if (requestId !== laporanState.requestId) return;
+    laporanState.dirty = true;
+    if (status) status.textContent = String(error.message || error);
+    tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-12 text-center">
+      <p class="text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>
+      <button type="button" onclick="retryReportLoad()" class="min-h-[44px] px-4 rounded-xl bg-brand text-white font-semibold">${escapeHtmlJS(t('lap.retry'))}</button>
+    </td></tr>`;
+  }
+}
+
+function renderReportRows(txs) {
+  const tbody = document.getElementById('table-laporan');
+  if (!tbody) return;
+  if (!txs.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.no_results'))}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = txs.map(r => {
+  tbody.innerHTML = txs.map((r) => {
     const isM = r.tipe === 'Pemasukan';
     const badgeColor = isM
       ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400'
@@ -1658,20 +1939,96 @@ function renderLaporan() {
         <td class="px-6 py-4">${escapeHtmlJS(r.keterangan || '-')}</td>
         <td class="px-6 py-4 text-right font-bold ${textColor}">${symbol} ${formatRupiah(r.nominal)}</td>
         <td class="px-6 py-4 text-center">
-          <button onclick="editTransaction('${escapeAttrJS(r.id)}')" class="text-blue-500 hover:text-blue-700 mr-2"><i class="ph ph-pencil text-lg"></i></button>
-          <button onclick="deleteTransaction('${escapeAttrJS(r.id)}')" class="text-rose-500 hover:text-rose-700"><i class="ph ph-trash text-lg"></i></button>
+          <button type="button" onclick="editTransaction('${escapeAttrJS(r.id)}')" aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-11 h-11 text-blue-500 hover:text-blue-700"><i class="ph ph-pencil text-lg" aria-hidden="true"></i></button>
+          <button type="button" onclick="deleteTransaction('${escapeAttrJS(r.id)}')" aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-11 h-11 text-rose-500 hover:text-rose-700"><i class="ph ph-trash text-lg" aria-hidden="true"></i></button>
         </td>
       </tr>
     `;
   }).join('');
 }
 
+function downloadTransactionTemplate() {
+  const blob = new Blob(['tanggal,tipe,kategori,nominal,keterangan,dompet\r\n'], {
+    type: 'text/csv;charset=utf-8'
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'template-transaksi-mykeuangan.csv';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importTransactionsCsv(file) {
+  if (file.size > 2 * 1024 * 1024) {
+    showActionError(new Error(t('lap.import_limit')));
+    return;
+  }
+  try {
+    const text = await file.text();
+    const parsedRows = TransactionImport.parseRows(text);
+    if (parsedRows.length > 501) throw new Error(t('lap.import_limit'));
+    const result = TransactionImport.parseTransactionCsv(text, DB.transactions, DB.wallets);
+    const preview = result.rows.slice(0, 5).map((item) => {
+      const rowText = `${item.transaction.tanggal} · ${item.transaction.kategori} · ${Number.isFinite(item.transaction.nominal) ? formatRupiah(item.transaction.nominal) : '-'}`;
+      const issue = item.errors.length ? item.errors.join(' ') :
+        (item.duplicate ? t('lap.import_duplicates') : '');
+      return `<li class="py-1"><strong>${t('lap.csv_line')} ${item.line}:</strong> ${escapeHtmlJS(rowText)}${issue ? ` <span class="text-rose-600 dark:text-rose-400">${escapeHtmlJS(issue)}</span>` : ''}</li>`;
+    }).join('');
+    const invalidRows = result.rows
+      .filter((item) => item.errors.length)
+      .map((item) => `<li class="py-1"><strong>${t('lap.csv_line')} ${item.line}:</strong> ${escapeHtmlJS(item.errors.join(' '))}</li>`)
+      .join('');
+    const html = `
+      <div class="text-left text-sm space-y-2">
+        <p>${escapeHtmlJS(t('lap.import_valid'))}: <strong>${result.valid.length}</strong></p>
+        <p>${escapeHtmlJS(t('lap.import_duplicates'))}: <strong>${result.duplicateCount}</strong></p>
+        <p>${escapeHtmlJS(t('lap.import_invalid'))}: <strong>${result.invalidCount}</strong></p>
+        <ul class="max-h-32 overflow-y-auto text-xs text-slate-600 dark:text-slate-300">${preview}</ul>
+        ${invalidRows ? `<div><h4 class="font-semibold">${escapeHtmlJS(t('lap.import_invalid'))}</h4><ul class="max-h-40 overflow-y-auto text-xs text-rose-600 dark:text-rose-400">${invalidRows}</ul></div>` : ''}
+      </div>
+    `;
+    const confirmation = await Swal.fire({
+      icon: result.valid.length ? 'info' : 'warning',
+      title: t('lap.import_preview'),
+      html,
+      showCancelButton: true,
+      showConfirmButton: result.valid.length > 0,
+      confirmButtonText: `${t('lap.import_confirm')} (${result.valid.length})`,
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() }
+    });
+    if (!confirmation.isConfirmed || !result.valid.length) return;
+    const response = await callServer('api_importTransactions', result.valid);
+    await refreshFromServer(response);
+    await Swal.fire({
+      icon: 'success',
+      title: t('lap.import_done'),
+      text: `${response.addedCount} · ${t('lap.import_duplicates')}: ${response.skippedCount}`,
+      customClass: { popup: getSwalClass() }
+    });
+  } catch (error) {
+    showActionError(error);
+  }
+}
+
 /* ============================================================
    EXPORT PDF
    ============================================================ */
 function exportPDF() {
-  const period = DB.currentPeriod;
-  const txs = DB.transactions.filter(t => String(t.tanggal).startsWith(period));
+  const start = (document.getElementById('lapStart') || {}).value || getPeriodRange(DB.currentPeriod, DB.payrollDay).start;
+  const end = (document.getElementById('lapEnd') || {}).value || getPeriodRange(DB.currentPeriod, DB.payrollDay).end;
+  const search = ((document.getElementById('lapSearch') || {}).value || '').trim().toLocaleLowerCase();
+  const type = (document.getElementById('lapType') || {}).value || '';
+  const category = (document.getElementById('lapCategory') || {}).value || '';
+  const period = `${start}_${end}`;
+  const txs = DB.transactions.filter((transaction) =>
+    transaction.tanggal >= start &&
+    transaction.tanggal <= end &&
+    (!type || transaction.tipe === type) &&
+    (!category || transaction.kategori === category) &&
+    (!search || `${transaction.kategori} ${transaction.keterangan || ''}`.toLocaleLowerCase().includes(search))
+  );
 
   if (txs.length === 0) {
     Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
@@ -1901,15 +2258,53 @@ function toggleBudgetExpand(id) {
 }
 
 function renderBudgetAnalysis(period) {
-  const analysis = FinanceAnalysis.summarizePeriod(
+  const insights = FinanceAnalysis.periodInsights(
     DB.budgets, DB.transactions, period, DB.payrollDay
   );
+  const analysis = insights.period;
   const summary = document.getElementById('budgetSummary');
+  const insightContainer = document.getElementById('budgetInsights');
   const categories = document.getElementById('budgetAnalysisCategories');
   const trendContainer = document.getElementById('budgetTrend');
   const differenceClass = (amount) => amount >= 0
     ? 'text-emerald-600 dark:text-emerald-400'
     : 'text-rose-600 dark:text-rose-400';
+
+  if (insightContainer) {
+    let comparisonText = t('budget.previous_no_data');
+    let comparisonTone = 'text-slate-600 dark:text-slate-300';
+    if (insights.spendingChangePercent !== null) {
+      const direction = insights.spendingChange > 0
+        ? 'up'
+        : insights.spendingChange < 0 ? 'down' : 'same';
+      comparisonText = `${t('budget.spending_' + direction)} · ${Math.abs(insights.spendingChangePercent).toFixed(0)}%`;
+      comparisonTone = insights.spendingChange > 0
+        ? 'text-rose-600 dark:text-rose-400'
+        : 'text-emerald-600 dark:text-emerald-400';
+    }
+    const overBudgetRows = insights.overBudget.slice(0, 3);
+    insightContainer.innerHTML = `
+      <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${t('budget.insight_title')}</h4>
+        <p class="mt-2 text-sm font-semibold ${comparisonTone}">${escapeHtmlJS(comparisonText)}</p>
+        ${insights.spendingChangePercent !== null
+          ? `<p class="mt-1 text-xs text-slate-500">${formatRupiah(Math.abs(insights.spendingChange)).replace(',00','')} · ${t('budget.previous_period')} ${getPeriodLabel(insights.previousPeriod.period, DB.payrollDay)}</p>`
+          : ''}
+      </article>
+      <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${t('budget.highest_category')}</h4>
+        ${insights.highestSpending
+          ? `<p class="mt-2 text-sm font-semibold text-slate-800 dark:text-white">${escapeHtmlJS(insights.highestSpending.category)}</p><p class="mt-1 text-xs text-slate-500">${formatRupiah(insights.highestSpending.actual).replace(',00','')}</p>`
+          : `<p class="mt-2 text-sm text-slate-500">${t('budget.no_activity')}</p>`}
+      </article>
+      <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${t('budget.over_budget')}</h4>
+        ${overBudgetRows.length
+          ? `<ul class="mt-2 space-y-1">${overBudgetRows.map((row) => `<li class="flex justify-between gap-2 text-xs"><span class="truncate text-slate-700 dark:text-slate-200">${escapeHtmlJS(row.category)}</span><strong class="shrink-0 text-rose-600 dark:text-rose-400">+${formatRupiah(row.actual - row.plan).replace(',00','')}</strong></li>`).join('')}</ul>`
+          : `<p class="mt-2 text-sm text-slate-600 dark:text-slate-300">${t('budget.no_over_budget')}</p>`}
+      </article>
+    `;
+  }
 
   if (summary) {
     summary.innerHTML = `

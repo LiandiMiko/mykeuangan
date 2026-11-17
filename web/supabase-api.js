@@ -302,7 +302,7 @@
   async function getInitialData(options) {
     const includeTransactions = !options || options.includeTransactions !== false;
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-    const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers] = await Promise.all([
+    const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers, goalRows] = await Promise.all([
       includeTransactions
         ? fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id'])
         : Promise.resolve([]),
@@ -316,7 +316,8 @@
         .select('tanggal,total_value,crypto_value,cash_value,other_value')
         .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true }),
       fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']),
-      fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id'])
+      fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id']),
+      fetchAll('financial_goals', 'id,name,target_amount,current_amount,target_date,created_at', ['created_at', 'id'])
     ]);
     fail(snapRes.error);
 
@@ -360,6 +361,13 @@
         quantity: num(a.quantity), buyPrice: num(a.buy_price), value: num(a.value)
       })),
       budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah) })),
+      goals: goalRows.map((goal) => ({
+        id: goal.id,
+        name: goal.name,
+        targetAmount: num(goal.target_amount),
+        currentAmount: num(goal.current_amount),
+        targetDate: goal.target_date || ''
+      })),
       snapshots: snapRes.data.map((s) => ({
         tanggal: s.tanggal, total: num(s.total_value), crypto: num(s.crypto_value),
         cash: num(s.cash_value), other: num(s.other_value)
@@ -412,9 +420,86 @@
     walletId: row.wallet_id || ''
   });
   const partialData = () => getInitialData({ includeTransactions: false });
+  const goalFromRow = (goal) => ({
+    id: goal.id,
+    name: goal.name,
+    targetAmount: num(goal.target_amount),
+    currentAmount: num(goal.current_amount),
+    targetDate: goal.target_date || ''
+  });
+  const transactionFingerprint = (transaction, defaultWalletId) => [
+    transaction.tanggal,
+    transaction.tipe,
+    String(transaction.kategori || '').trim().toLocaleLowerCase(),
+    Number(transaction.nominal),
+    String(transaction.keterangan || '').trim(),
+    transaction.walletId || defaultWalletId || ''
+  ].join('\u001f');
+  const fetchTransactionsOnDates = async (dates) => {
+    const out = [];
+    for (let index = 0; index < dates.length; index += 50) {
+      const dateChunk = dates.slice(index, index + 50);
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from('transactions')
+          .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
+          .in('tanggal', dateChunk)
+          .order('tanggal', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, from + 999);
+        fail(error);
+        out.push(...data);
+        if (data.length < 1000) break;
+      }
+    }
+    return out;
+  };
 
   const handlers = {
     getInitialData,
+
+    async api_searchTransactions(filters) {
+      const value = filters && typeof filters === 'object' ? filters : {};
+      const start = String(value.start || '');
+      const end = String(value.end || '');
+      const validDate = (date) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+        const parsed = new Date(date + 'T00:00:00Z');
+        return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+      };
+      if (!validDate(start) || !validDate(end) || start > end) {
+        throw new Error('Rentang tanggal laporan tidak valid.');
+      }
+      const type = String(value.type || '');
+      if (type && type !== 'Pemasukan' && type !== 'Pengeluaran') {
+        throw new Error('Tipe transaksi laporan tidak valid.');
+      }
+      const category = String(value.category || '');
+      const search = String(value.search || '').trim().slice(0, 100);
+      const offset = Math.max(0, Math.min(1000000, Math.trunc(Number(value.offset) || 0)));
+      const limit = Math.max(1, Math.min(100, Math.trunc(Number(value.limit) || 20)));
+      const { data, error } = await sb.rpc('search_user_transactions', {
+        p_start: start,
+        p_end: end,
+        p_type: type || null,
+        p_category: category || null,
+        p_search: search,
+        p_offset: offset,
+        p_limit: limit
+      });
+      fail(error);
+      return {
+        transactions: (data || []).map((row) => ({
+          id: row.id,
+          tanggal: row.tanggal,
+          tipe: row.tipe,
+          kategori: row.kategori,
+          nominal: num(row.nominal),
+          keterangan: row.keterangan || '',
+          walletId: row.wallet_id || ''
+        })),
+        totalCount: data && data.length ? Number(data[0].total_count) || 0 : 0
+      };
+    },
 
     async api_addTransaction(d) {
       const row = trxRow(d);
@@ -442,6 +527,98 @@
       fail(error);
       if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
       return { ...(await partialData()), deletedTransactionId: data.id };
+    },
+    async api_importTransactions(items) {
+      if (!Array.isArray(items) || items.length === 0 || items.length > 500) {
+        throw new Error('Impor harus berisi 1 sampai 500 transaksi.');
+      }
+      const rows = items.map((item) => trxRow(item));
+      const dates = Array.from(new Set(rows.map((row) => row.tanggal))).sort();
+      const [existing, defaultWallet] = await Promise.all([
+        fetchTransactionsOnDates(dates),
+        sb.from('wallets').select('id').order('sort', { ascending: true })
+          .order('name', { ascending: true }).limit(1).maybeSingle()
+      ]);
+      fail(defaultWallet.error);
+      const defaultWalletId = defaultWallet.data ? defaultWallet.data.id : '';
+      const existingKeys = new Set(existing.map((row) => transactionFingerprint({
+        ...row,
+        walletId: row.wallet_id || ''
+      }, defaultWalletId)));
+      const batchKeys = new Set();
+      const insertRows = [];
+      rows.forEach((row) => {
+        const transaction = {
+          ...row,
+          walletId: row.wallet_id || ''
+        };
+        const key = transactionFingerprint(transaction, defaultWalletId);
+        if (!existingKeys.has(key) && !batchKeys.has(key)) {
+          insertRows.push({ ...row, source: 'import' });
+          batchKeys.add(key);
+        }
+      });
+
+      let addedTransactions = [];
+      if (insertRows.length) {
+        const { data, error } = await sb.from('transactions').insert(insertRows)
+          .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id');
+        fail(error);
+        addedTransactions = data.map(trxFromRow);
+        await syncPeriod(dates[dates.length - 1]);
+      }
+      return {
+        ...(await partialData()),
+        addedTransactions,
+        addedCount: addedTransactions.length,
+        skippedCount: items.length - addedTransactions.length
+      };
+    },
+
+    async api_saveGoal(goal) {
+      if (!goal || typeof goal !== 'object') throw new Error('Data target keuangan tidak valid.');
+      const name = typeof goal.name === 'string' ? goal.name.trim() : '';
+      const targetAmount = Number(goal.targetAmount);
+      const currentAmount = Number(goal.currentAmount);
+      const targetDate = String(goal.targetDate || '');
+      if (!name || name.length > 80) throw new Error('Nama target harus berisi 1 sampai 80 karakter.');
+      if (!Number.isFinite(targetAmount) || targetAmount <= 0 || targetAmount > 999999999999.99) {
+        throw new Error('Nominal target harus lebih dari 0 dan tidak melebihi Rp 999.999.999.999,99.');
+      }
+      if (!Number.isFinite(currentAmount) || currentAmount < 0 || currentAmount > 999999999999.99) {
+        throw new Error('Progres target tidak valid.');
+      }
+      if (targetDate) {
+        const parsed = new Date(targetDate + 'T00:00:00Z');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) ||
+            !Number.isFinite(parsed.getTime()) ||
+            parsed.toISOString().slice(0, 10) !== targetDate) {
+          throw new Error('Tanggal target tidak valid.');
+        }
+      }
+      const row = {
+        name,
+        target_amount: targetAmount,
+        current_amount: currentAmount,
+        target_date: targetDate || null
+      };
+      let query = goal.id
+        ? sb.from('financial_goals').update(row).eq('id', goal.id)
+        : sb.from('financial_goals').insert(row);
+      const { data, error } = await query
+        .select('id,name,target_amount,current_amount,target_date,created_at')
+        .maybeSingle();
+      fail(error);
+      if (!data) throw new Error('Target tidak ditemukan atau tidak dapat diakses.');
+      return { ...(await partialData()), goal: goalFromRow(data) };
+    },
+
+    async api_deleteGoal(id) {
+      const { data, error } = await sb.from('financial_goals')
+        .delete().eq('id', id).select('id').maybeSingle();
+      fail(error);
+      if (!data) throw new Error('Target tidak ditemukan atau tidak dapat diakses.');
+      return { ...(await partialData()), deletedGoalId: data.id };
     },
 
     async api_addCategory(tipe, name) {

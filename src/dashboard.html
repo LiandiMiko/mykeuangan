@@ -67,6 +67,22 @@
     <div id="wallet-transfers" class="mt-4"></div>
   </div>
 
+  <section class="mb-8" aria-labelledby="financialGoalsTitle">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+      <div>
+        <h3 id="financialGoalsTitle" class="text-lg font-bold text-slate-800 dark:text-white">
+          <i class="ph ph-flag-checkered text-brand" aria-hidden="true"></i>
+          <span data-i18n="goal.title">Target Keuangan</span>
+        </h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="goal.subtitle">Pantau progres tabungan menuju target.</p>
+      </div>
+      <button type="button" onclick="openGoalForm()" class="min-h-[44px] px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-hover flex items-center justify-center gap-2">
+        <i class="ph ph-plus" aria-hidden="true"></i><span data-i18n="goal.add">Tambah target</span>
+      </button>
+    </div>
+    <div id="financialGoals" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+  </section>
+
   <!-- ================= KALENDER ================= -->
   <div class="flex items-center justify-between gap-3 mb-4 mt-2 flex-wrap">
     <div class="flex items-center gap-2">
