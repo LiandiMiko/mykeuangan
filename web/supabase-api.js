@@ -657,6 +657,38 @@
     },
 
     async api_addAssetV2(d) {
+      if (!d || typeof d !== 'object') throw new Error('Data aset tidak valid.');
+      if (d.walletId) {
+        const name = String(d.name || '').trim();
+        const type = String(d.type || 'Other');
+        const quantity = num(d.quantity);
+        const buyPrice = num(d.buyPrice);
+        const amount = type === 'Crypto' ? quantity * buyPrice : num(d.value);
+        const date = String(d.tanggal || ymd(new Date())).slice(0, 10);
+        if (!name || !Number.isFinite(amount) || amount <= 0) {
+          throw new Error('Nama aset dan nominal pembelian harus valid.');
+        }
+        if (type === 'Crypto' && (quantity <= 0 || buyPrice <= 0)) {
+          throw new Error('Isi jumlah aset dan harga beli untuk mencatat sumber dana.');
+        }
+        const { data: transactions, error } = await sb.rpc('create_asset_with_expense', {
+          p_name: name,
+          p_type: type,
+          p_symbol: String(d.symbol || '').toUpperCase(),
+          p_quantity: quantity,
+          p_buy_price: buyPrice,
+          p_amount: amount,
+          p_wallet_id: d.walletId,
+          p_date: date
+        });
+        fail(error);
+        if (!transactions || !transactions.length) {
+          throw new Error('Pembelian aset tidak mengembalikan catatan transaksi.');
+        }
+        await syncPeriod(date);
+        return { ...(await partialData()), transaction: trxFromRow(transactions[0]) };
+      }
+
       const { error } = await sb.from('assets').insert({
         name: String(d.name || ''),
         type: String(d.type || 'Other'),
@@ -722,6 +754,30 @@
     },
 
     /* ---------- Dompet, transfer, tarik tunai ---------- */
+    async api_addWallet(d) {
+      if (!d || typeof d !== 'object') throw new Error('Data dompet tidak valid.');
+      const name = String(d.name || '').trim();
+      const kind = String(d.kind || '');
+      const openingBalance = Number(d.openingBalance);
+      if (!name || name.length > 80) throw new Error('Nama dompet wajib diisi maksimal 80 karakter.');
+      if (!['bank', 'cash', 'ewallet'].includes(kind)) throw new Error('Jenis dompet tidak valid.');
+      if (!Number.isFinite(openingBalance) || openingBalance < 0) {
+        throw new Error('Saldo awal harus berupa angka nol atau lebih.');
+      }
+
+      const { data: lastWallet, error: sortError } = await sb.from('wallets')
+        .select('sort').order('sort', { ascending: false }).limit(1).maybeSingle();
+      fail(sortError);
+      const sort = (lastWallet && Number(lastWallet.sort) || 0) + 1;
+      const { error } = await sb.from('wallets').insert({
+        name,
+        kind,
+        opening_balance: openingBalance,
+        sort
+      });
+      fail(error);
+      return partialData();
+    },
     async api_updateWallet(id, d) {
       const patch = {};
       if (d.name && String(d.name).trim()) patch.name = String(d.name).trim();

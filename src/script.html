@@ -1052,6 +1052,12 @@ function addManualAssetUI() {
       <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input" placeholder="Jumlah coin (mis. 0.05)" style="display:none;">
       <input id="asset-buyprice" type="number" class="swal2-input" placeholder="Harga beli rata-rata (Rp) — opsional" style="display:none;">
       <input id="asset-value" type="number" class="swal2-input" placeholder="Nilai (Rp)">
+      <label for="asset-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana (opsional)</label>
+      <select id="asset-wallet" class="swal2-input">
+        <option value="">Catat sebagai aset manual</option>
+        ${walletOptions('')}
+      </select>
+      <p style="font-size:12px;color:#64748b;margin:6px 4px">Jika dompet dipilih, pembelian masuk ke pengeluaran kategori Investasi.</p>
     `,
     focusConfirm: false,
     showCancelButton: true,
@@ -1088,6 +1094,7 @@ function addManualAssetUI() {
         const symbol = document.getElementById('asset-symbol').value.trim().toUpperCase();
         const quantity = parseFloat(document.getElementById('asset-quantity').value);
         const buyPrice = parseFloat(document.getElementById('asset-buyprice').value) || 0;
+        const walletId = document.getElementById('asset-wallet').value;
 
         if (!symbol) {
           Swal.showValidationMessage('Isi symbol crypto');
@@ -1097,27 +1104,43 @@ function addManualAssetUI() {
           Swal.showValidationMessage('Isi jumlah coin');
           return false;
         }
+        if (buyPrice < 0 || (walletId && buyPrice <= 0)) {
+          Swal.showValidationMessage('Isi harga beli di atas nol untuk mencatat sumber dana');
+          return false;
+        }
 
-        return { name, type, symbol, quantity, buyPrice, value: 0 };
+        return { name, type, symbol, quantity, buyPrice, value: 0, walletId, tanggal: localToday() };
       } else {
         const value = parseFloat(document.getElementById('asset-value').value);
         if (!value || value <= 0) {
           Swal.showValidationMessage('Isi nilai aset');
           return false;
         }
-        return { name, type, symbol: '', quantity: 0, buyPrice: 0, value };
+        return {
+          name, type, symbol: '', quantity: 0, buyPrice: 0, value,
+          walletId: document.getElementById('asset-wallet').value,
+          tanggal: localToday()
+        };
       }
     }
   }).then(async res => {
     if (res.isConfirmed && res.value) {
       try {
         const data = await callServer('api_addAssetV2', res.value);
+        await refreshFromServer(data);
         // Langsung refresh harga kalau crypto
         if (res.value.type === 'Crypto') {
-          const data2 = await callServer('api_refreshPrices');
-          await refreshFromServer(data2);
-        } else {
-          await refreshFromServer(data);
+          try {
+            const data2 = await callServer('api_refreshPrices');
+            await refreshFromServer(data2);
+          } catch (e) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Aset tersimpan',
+              text: 'Pembelian tercatat, tetapi harga crypto belum diperbarui: ' + String(e.message || e),
+              customClass: { popup: getSwalClass() }
+            });
+          }
         }
       } catch (e) {
         Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
@@ -1369,8 +1392,9 @@ function walletBalances() {
 }
 
 const walletName = (id) => { const w = (DB.wallets || []).find(x => x.id === id); return w ? w.name : '-'; };
+const walletKindLabel = (kind) => kind === 'cash' ? 'Tunai' : kind === 'ewallet' ? 'E-wallet' : 'Bank';
 const walletOptions = (selectedId) => (DB.wallets || [])
-  .map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)}</option>`).join('');
+  .map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)} (${walletKindLabel(w.kind)})</option>`).join('');
 function fillWalletSelect(id, selectedId) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = walletOptions(selectedId || (DB.wallets && DB.wallets[0] ? DB.wallets[0].id : ''));
@@ -1382,21 +1406,23 @@ function renderWallets() {
   const wb = walletBalances();
   panel.innerHTML = (DB.wallets || []).map(w => {
     const isCash = w.kind === 'cash';
+    const isEwallet = w.kind === 'ewallet';
     const bal = wb[w.id] || 0;
     return `
       <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
-          <div class="w-12 h-12 rounded-2xl ${isCash ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center shrink-0">
-            <i class="ph ph-${isCash ? 'money' : 'bank'} text-2xl"></i>
+          <div class="w-12 h-12 rounded-2xl ${isCash ? 'bg-emerald-100 text-emerald-600' : isEwallet ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-600'} flex items-center justify-center shrink-0">
+            <i class="ph ph-${isCash ? 'money' : isEwallet ? 'device-mobile' : 'bank'} text-2xl" aria-hidden="true"></i>
           </div>
           <div class="min-w-0">
-            <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 truncate">${escapeHtmlJS(w.name)}</p>
+            <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold truncate">${escapeHtmlJS(w.name)}</p>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mb-1">${walletKindLabel(w.kind)}</p>
             <h3 class="text-lg font-bold ${bal < 0 ? 'text-rose-600' : 'text-slate-800 dark:text-white'} truncate">${formatRupiah(bal)}</h3>
           </div>
         </div>
-        <button onclick="editWallet('${w.id}')" title="Edit saldo"
-          class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-brand flex items-center justify-center shrink-0">
-          <i class="ph ph-pencil-simple text-lg"></i>
+        <button type="button" onclick="editWallet('${w.id}')" aria-label="Edit dompet ${escapeAttrJS(w.name)}" title="Edit saldo"
+          class="min-h-11 min-w-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-brand flex items-center justify-center shrink-0">
+          <i class="ph ph-pencil-simple text-lg" aria-hidden="true"></i>
         </button>
       </div>`;
   }).join('');
@@ -1425,6 +1451,48 @@ function renderWallets() {
           </div>
         </div>`).join('')}
     </div>`;
+}
+
+async function addWallet() {
+  const res = await Swal.fire({
+    title: 'Tambah Dompet',
+    html: `
+      <label for="wl-new-name" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Nama dompet</label>
+      <input id="wl-new-name" class="swal2-input" maxlength="80" placeholder="Contoh: SeaBank">
+      <label for="wl-new-kind" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jenis</label>
+      <select id="wl-new-kind" class="swal2-input">
+        <option value="bank">Bank</option>
+        <option value="ewallet">E-wallet</option>
+        <option value="cash">Tunai</option>
+      </select>
+      <label for="wl-new-balance" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Saldo awal (Rp)</label>
+      <input id="wl-new-balance" type="number" min="0" step="1" class="swal2-input" value="0">`,
+    showCancelButton: true,
+    confirmButtonText: 'Simpan',
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const name = document.getElementById('wl-new-name').value.trim();
+      const openingBalance = Number(document.getElementById('wl-new-balance').value);
+      if (!name) { Swal.showValidationMessage('Isi nama dompet'); return false; }
+      if (!Number.isFinite(openingBalance) || openingBalance < 0) {
+        Swal.showValidationMessage('Saldo awal harus berupa angka nol atau lebih');
+        return false;
+      }
+      return {
+        name,
+        kind: document.getElementById('wl-new-kind').value,
+        openingBalance
+      };
+    }
+  });
+  if (!res.isConfirmed || !res.value) return;
+  try {
+    await refreshFromServer(await callServer('api_addWallet', res.value));
+    Swal.fire({ icon: 'success', title: 'Dompet ditambahkan', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
 }
 
 async function editWallet(id) {
@@ -1460,18 +1528,22 @@ async function editWallet(id) {
 async function openTransferModal(kind) {
   const ws = DB.wallets || [];
   if (ws.length < 2) {
-    Swal.fire({ icon: 'info', title: 'Butuh 2 dompet', text: 'Muat ulang halaman dulu.', customClass: { popup: getSwalClass() } });
+    Swal.fire({ icon: 'info', title: 'Butuh 2 dompet', text: 'Tambahkan dompet lain terlebih dahulu.', customClass: { popup: getSwalClass() } });
     return;
   }
-  const bank = ws.find(w => w.kind === 'bank') || ws[0];
-  const cash = ws.find(w => w.kind === 'cash') || ws[1];
+  const fromWallet = kind === 'tarik_tunai'
+    ? (ws.find(w => w.kind === 'bank') || ws[0])
+    : ws[0];
+  const toWallet = kind === 'tarik_tunai'
+    ? (ws.find(w => w.kind === 'cash' && w.id !== fromWallet.id) || ws.find(w => w.id !== fromWallet.id))
+    : ws.find(w => w.id !== fromWallet.id);
   const res = await Swal.fire({
-    title: kind === 'tarik_tunai' ? 'Tarik Tunai' : 'Transfer Antar Dompet',
+    title: kind === 'tarik_tunai' ? 'Tarik Tunai / Transfer Antar Dompet' : 'Transfer Antar Dompet',
     html: `
       <label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Dari</label>
-      <select id="tf-from" class="swal2-input">${walletOptions(bank.id)}</select>
+      <select id="tf-from" class="swal2-input">${walletOptions(fromWallet.id)}</select>
       <label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Ke</label>
-      <select id="tf-to" class="swal2-input">${walletOptions(cash.id)}</select>
+      <select id="tf-to" class="swal2-input">${walletOptions(toWallet.id)}</select>
       <input id="tf-nom" type="number" class="swal2-input" placeholder="Nominal (Rp)">
       <input id="tf-fee" type="number" class="swal2-input" placeholder="Biaya admin (Rp) — opsional">
       <input id="tf-ket" type="text" class="swal2-input" placeholder="Catatan — opsional">`,

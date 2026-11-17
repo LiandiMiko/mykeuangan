@@ -85,7 +85,8 @@ mykeuangan/
 │       ├── 20261114000001_telegram_pairings.sql     # telegram_pairings table
 │       ├── 20261115000000_admin_panel_hardening.sql # Admin RLS, pairing, onboarding fixes
 │       ├── 20261115040200_application_hardening.sql # Active account and transactional safeguards
-│       └── 20261116000000_financial_goals_and_transaction_search.sql
+│       ├── 20261116000000_financial_goals_and_transaction_search.sql
+│       └── 20261117000000_wallets_asset_purchases.sql
 │
 ├── tests/
 │   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
@@ -196,6 +197,13 @@ Migrasi ini menolak akses data untuk akun suspended, membatasi percobaan pairing
 ```
 
 Migrasi ini membuat tabel target keuangan dengan RLS akun aktif dan fungsi pencarian transaksi berhalaman yang dibatasi rentang tanggal. Jalankan satu kali setelah migrasi sebelumnya; fitur target dan laporan baru memerlukannya.
+
+#### Step 8 — Dompet e-wallet dan pembelian aset
+```sql
+-- Jalankan isi file: supabase/migrations/20261117000000_wallets_asset_purchases.sql
+```
+
+Migrasi ini mengizinkan jenis dompet e-wallet dan menambahkan fungsi atomik untuk menyimpan pembelian aset bersama transaksi pengeluaran kategori Investasi. Jalankan satu kali setelah migrasi sebelumnya. Pembelian dari dompet mengurangi saldo dompet dan menambah nilai aset.
 
 > Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi baru setelah migrasi hardening.
 
@@ -338,6 +346,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 17 November 2026: Dompet dan pembelian aset
+- Tambah dompet dengan jenis bank, e-wallet, atau tunai beserta saldo awal, lalu transfer saldo antar dompet.
+- Pembelian aset dapat memakai dompet sumber. Aset dan transaksi pengeluaran kategori Investasi tersimpan bersama dalam satu operasi.
+- Tombol tambah kategori diberi warna hijau dan tanda plus. Header mobile ditata ulang agar kontrol utama tidak bertumpuk.
+- Migrasi `20261117000000_wallets_asset_purchases.sql` menambahkan jenis dompet e-wallet dan pencatatan pembelian aset.
 
 ### 17 November 2026: Laporan dan fitur keuangan
 - Laporan kini memiliki filter tanggal, tipe, kategori, pencarian, dan paginasi. Ekspor PDF memakai hasil filter.

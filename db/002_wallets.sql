@@ -8,7 +8,7 @@ create table public.wallets (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name            text not null,
-  kind            text not null default 'bank' check (kind in ('bank', 'cash')),
+  kind            text not null default 'bank' check (kind in ('bank', 'cash', 'ewallet')),
   opening_balance numeric(20, 2) not null default 0,   -- saldo awal (diubah saat Anda mengedit saldo)
   sort            int not null default 0,
   unique (user_id, name)

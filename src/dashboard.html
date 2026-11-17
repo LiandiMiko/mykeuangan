@@ -35,7 +35,7 @@
     <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
       <div class="w-12 h-12 rounded-2xl bg-brand/10 text-brand flex items-center justify-center shrink-0"><i class="ph ph-wallet text-2xl"></i></div>
       <div class="min-w-0">
-        <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 truncate" data-i18n="dash.uang_aktif">Uang Aktif (Tunai/Bank)</p>
+        <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold mb-1 truncate" data-i18n="dash.uang_aktif">Uang Aktif (Semua Dompet)</p>
         <h3 class="text-lg font-bold text-slate-800 dark:text-white truncate" id="dash-saldo-aktif">Rp 0</h3>
       </div>
     </div>
@@ -55,13 +55,18 @@
     </div>
   </div>
 
-  <!-- ================= DOMPET (BCA / CASH) ================= -->
+  <!-- ================= DOMPET ================= -->
   <div class="mb-8">
-    <div class="flex items-center justify-between gap-3 mb-3">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
       <h3 class="text-lg font-bold text-slate-800 dark:text-white"><i class="ph ph-wallet text-brand"></i> Dompet</h3>
-      <button onclick="openTransferModal('tarik_tunai')" class="px-4 py-2 bg-brand text-white rounded-xl text-xs font-bold shadow-sm hover:opacity-90 flex items-center gap-1.5">
-        <i class="ph ph-arrows-left-right"></i> Tarik Tunai / Transfer
-      </button>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="addWallet()" class="min-h-11 px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 active:bg-emerald-900 flex items-center justify-center gap-1.5">
+          <i class="ph ph-plus-bold" aria-hidden="true"></i> Tambah Dompet
+        </button>
+        <button type="button" onclick="openTransferModal('transfer')" class="min-h-11 px-4 py-2 bg-brand text-white rounded-xl text-xs font-bold hover:opacity-90 flex items-center justify-center gap-1.5">
+          <i class="ph ph-arrows-left-right" aria-hidden="true"></i> Tarik Tunai / Transfer
+        </button>
+      </div>
     </div>
     <div id="wallet-panel" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
     <div id="wallet-transfers" class="mt-4"></div>

@@ -21,8 +21,8 @@
           <label class="block text-xs font-bold mb-2 uppercase tracking-widest text-slate-500" data-i18n="form.kategori">Kategori</label>
           <div class="flex gap-2">
             <select id="tr_kategori" required class="flex-1 px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white appearance-none"></select>
-            <button type="button" onclick="promptAddCategory()" class="px-5 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl transition-colors">
-              <i class="ph ph-plus-bold"></i>
+            <button type="button" onclick="promptAddCategory()" aria-label="Tambah kategori" title="Tambah kategori" data-i18n-aria-label="form.add_category" data-i18n-title="form.add_category" class="min-w-[48px] px-4 py-4 bg-emerald-700 text-white hover:bg-emerald-800 active:bg-emerald-900 rounded-2xl transition-colors">
+              <i class="ph ph-plus-bold" aria-hidden="true"></i>
             </button>
           </div>
         </div>
