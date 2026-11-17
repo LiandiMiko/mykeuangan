@@ -82,17 +82,42 @@
   </div>
 
   <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5 sm:p-6" aria-labelledby="adm-release-title">
-    <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
+    <header>
       <h3 id="adm-release-title" class="text-base font-bold text-slate-800 dark:text-white">Riwayat Pembaruan</h3>
-      <time datetime="2026-11-17" class="text-xs text-slate-500 dark:text-slate-400">17 November 2026</time>
-    </div>
-    <h4 class="mt-4 text-sm font-bold text-slate-700 dark:text-slate-200">Laporan, impor, target, dan insight keuangan</h4>
-    <ul class="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-      <li>Laporan mendukung filter tanggal, tipe, kategori, pencarian, dan paginasi. Ekspor PDF mengikuti filter yang dipilih.</li>
-      <li>Impor CSV menampilkan pratinjau dan validasi, serta melewati transaksi duplikat.</li>
-      <li>Target keuangan mencatat nominal terkumpul, nominal tujuan, dan tenggat opsional.</li>
-      <li>Insight budgeting membandingkan pengeluaran dengan periode sebelumnya dan menyorot kategori terbesar atau yang melewati anggaran.</li>
-      <li>Panel admin kini memiliki riwayat rilis aplikasi.</li>
-    </ul>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Perubahan fitur yang sudah dirilis.</p>
+    </header>
+    <article class="mt-5 grid gap-4 border-t border-slate-100 dark:border-slate-800 pt-5 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-6">
+      <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
+        <time datetime="2026-11-17" class="block text-brand">
+          <span class="block text-3xl font-black leading-none text-brand dark:text-white">17</span>
+          <span class="mt-2 block text-sm font-semibold text-slate-500 dark:text-slate-400">November 2026</span>
+        </time>
+      </div>
+      <div class="min-w-0">
+        <h4 class="text-base font-bold text-slate-800 dark:text-white">Laporan, impor, target, dan insight keuangan</h4>
+        <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Laporan</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Filter tanggal, tipe, kategori, dan pencarian. Hasil berhalaman, dan ekspor PDF mengikuti filter.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Impor CSV</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Pratinjau dan validasi sebelum impor, maksimal 500 transaksi, lalu duplikat dilewati.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Target keuangan</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Catat nominal terkumpul, nominal tujuan, dan tenggat opsional.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Budgeting</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Bandingkan pengeluaran dengan periode sebelumnya, lalu lihat kategori terbesar dan yang melewati anggaran.</dd>
+          </div>
+          <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Panel admin</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Riwayat rilis aplikasi kini tersedia di panel admin.</dd>
+          </div>
+        </dl>
+      </div>
+    </article>
   </section>
 </div>
