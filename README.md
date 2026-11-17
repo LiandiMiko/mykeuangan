@@ -263,6 +263,9 @@ Deploy juga Edge Function `admin-password` dengan verifikasi JWT tetap aktif seb
 - 🚫 Suspend / Aktifkan akun user
 - 🔑 Toggle role: `user` ↔ `admin`
 - 🔐 Atur ulang password pengguna lain; admin juga dapat mengganti password akunnya sendiri
+- Riwayat pembaruan fitur yang dirilis
+
+Catatan rilis dikelola di kode aplikasi dan README. Perbarui keduanya bersama setiap rilis; aplikasi tidak menulis ke GitHub saat runtime.
 
 **Cara menjadi admin pertama:**
 - User **pertama** yang mendaftar ke aplikasi otomatis mendapat role `admin` via trigger database
@@ -336,6 +339,14 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 17 November 2026: Laporan dan fitur keuangan
+- Laporan kini memiliki filter tanggal, tipe, kategori, pencarian, dan paginasi. Ekspor PDF memakai hasil filter.
+- Impor CSV menyediakan pratinjau, validasi baris, deteksi duplikasi, dan batas 500 transaksi per file.
+- Target keuangan menyimpan nominal terkumpul, nominal tujuan, dan tenggat opsional.
+- Insight budgeting membandingkan pengeluaran dengan periode sebelumnya, serta menampilkan kategori terbesar dan yang melewati anggaran.
+- Panel admin menampilkan catatan rilis yang sama dengan pembaruan di README.
+- Migrasi `20261116000000_financial_goals_and_transaction_search.sql` menyiapkan tabel target keuangan dan pencarian transaksi berhalaman.
+
 ### 🔒 Security Hardening
 - **Fix XSS**: Semua template literal yang render data user kini menggunakan `escapeHtmlJS()` / `escapeAttrJS()` — mencakup kartu utang, daftar transaksi, laporan, dropdown kategori & budget
 - **Fix `.gitignore`**: Tambah `.env`, `.env.*`, `*.local` agar file environment tidak ter-commit
@@ -391,11 +402,9 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 Lihat [PWA_MULTIUSER_ROADMAP.md](./PWA_MULTIUSER_ROADMAP.md) untuk rencana pengembangan lengkap.
 
 Prioritas berikutnya:
-- [ ] GitHub Actions workflow untuk auto-deploy ke Pages
-- [ ] Export laporan ke PDF
 - [ ] Notifikasi push via FCM (Web Push API)
 - [ ] Multi-currency support
-- [ ] Import transaksi dari CSV/Excel
+- [ ] Import transaksi dari Excel
 
 ---
 
