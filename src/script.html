@@ -359,6 +359,9 @@ function switchView(id) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  if (id === 'perencanaan') {
+    try { renderPortfolioChart(); } catch (e) { console.error('renderPortfolioChart err:', e); }
+  }
   if (id === 'admin') loadAdminData();
 
   if (window.innerWidth < 1024) {

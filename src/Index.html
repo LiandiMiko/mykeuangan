@@ -44,6 +44,9 @@
   <button onclick="switchView('budgeting')" id="nav-budgeting" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-chart-pie-slice text-xl"></i> <span data-i18n="nav.budgeting">Budgeting</span>
   </button>
+  <button onclick="switchView('perencanaan')" id="nav-perencanaan" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-trend-up text-xl" aria-hidden="true"></i> <span data-i18n="nav.perencanaan">Aset, Target &amp; AI</span>
+  </button>
   <button onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-shield-check text-xl text-brand" aria-hidden="true"></i> <span data-i18n="nav.admin">Panel Admin</span>
   </button>
@@ -140,6 +143,7 @@
       <?!= include('form'); ?>
       <?!= include('laporan'); ?>
       <?!= include('budgeting'); ?>
+      <?!= include('perencanaan'); ?>
       <?!= include('admin'); ?>
     </div>
   </main>

@@ -58,6 +58,7 @@ mykeuangan/
 │   ├── form.html           # View: tambah transaksi
 │   ├── laporan.html        # View: laporan keuangan
 │   ├── budgeting.html      # View: anggaran
+│   ├── perencanaan.html    # View: aset, target tabungan, transaksi rutin, histori & analisis AI
 │   ├── utang.html          # View: utang/piutang
 │   └── i18n.html           # Terjemahan (ID/EN)
 │
@@ -369,6 +370,7 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 - **Transaksi Rutin (Recurring) Web UI**: Tambah, edit, jeda/aktifkan, dan hapus jadwal bulanan langsung di Dashboard.
 - **Pencairan Aset & Alokasi Target**: Tombol cairkan/jual aset ke dompet (`liquidate_asset`), tombol alokasi tabungan target dari dompet (`contribute_to_goal`), serta kelola rename/hapus kategori dan edit jenis/hapus dompet.
 - **Laporan & Kalender Interaktif**: Tambah filter dompet pada laporan, ekspor CSV terfilter, dan klik tanggal pada kalender untuk melihat/menambah transaksi di tanggal tersebut.
+- **Tata Letak Dashboard Ringkas & Halaman Aset/Target/AI**: Dashboard dirapikan agar fokus pada Arus Kas & Saldo, Dompet, Kalender, dan Utang/Piutang, sementara Portofolio Aset, Target Keuangan, Transaksi Rutin, Histori Transaksi, dan Analisis AI Gemini dipindahkan ke halaman navigasi tersendiri (`Aset, Target & AI` di `src/perencanaan.html`).
 - **Admin Panel & UX Mobile**: Statistik global platform, pencarian & filter daftar pengguna, proteksi DB self-lockout admin, dark mode pada form login & seluruh modal, tombol salin perintah `/link` Telegram, tombol aksi selalu tampil di layar sentuh, serta target klik ≥40–44px dengan `aria-label`.
 - **Security & Performance Hardening**: Service Worker (`web/sw.js`) tidak lagi mencache endpoint `supabase.co` atau `googleapis.com`, Cache Storage dibersihkan saat logout, verifikasi secret constant-time SHA-256 pada `telegram-bot`, pin versi library CDN di `src/styles.html`, seragamkan password minimal 8 karakter, dan mutasi API hanya mengambil tabel yang berubah.
 - Migrasi `supabase/migrations/20261118000000_comprehensive_upgrade.sql`.

@@ -55,31 +55,6 @@
     </div>
   </div>
 
-  <!-- ================= AI CASHFLOW ANALYZER (ON-DEMAND) ================= -->
-  <section id="ai-cashflow-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiCardTitle">
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-      <div class="min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <h3 id="aiCardTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <i class="ph ph-sparkle text-brand" aria-hidden="true"></i>
-            <span data-i18n="ai.title">Analisis Arus Keuangan AI (Gemini)</span>
-          </h3>
-          <span id="aiKeyStatus" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" data-i18n="ai.key_missing">API Key belum diatur</span>
-        </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.subtitle">AI hanya berjalan ketika Anda menekan tombol analisis untuk menjaga privasi dan kuota API Anda.</p>
-      </div>
-      <div class="flex flex-wrap items-center gap-2 shrink-0">
-        <button type="button" onclick="configureGeminiApiKey()" class="min-h-11 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 transition-colors">
-          <i class="ph ph-key" aria-hidden="true"></i> <span data-i18n="ai.btn_key">Atur API Key Gemini</span>
-        </button>
-        <button type="button" id="btnRunAiAnalysis" onclick="runAiCashflowAnalysis()" class="min-h-11 px-5 py-2 bg-brand text-white hover:bg-brand-hover rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-60">
-          <i class="ph ph-magic-wand text-base" aria-hidden="true"></i> <span data-i18n="ai.btn_analyze">Analisis Arus Keuangan</span>
-        </button>
-      </div>
-    </div>
-    <div id="aiAnalysisResult" class="hide mt-5 pt-5 border-t border-slate-100 dark:border-slate-800" aria-live="polite"></div>
-  </section>
-
   <!-- ================= DOMPET ================= -->
   <div class="mb-8">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
@@ -96,39 +71,6 @@
     <div id="wallet-panel" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
     <div id="wallet-transfers" class="mt-4"></div>
   </div>
-
-  <section class="mb-8" aria-labelledby="financialGoalsTitle">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-      <div>
-        <h3 id="financialGoalsTitle" class="text-lg font-bold text-slate-800 dark:text-white">
-          <i class="ph ph-flag-checkered text-brand" aria-hidden="true"></i>
-          <span data-i18n="goal.title">Target Keuangan</span>
-        </h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="goal.subtitle">Pantau progres tabungan menuju target.</p>
-      </div>
-      <button type="button" onclick="openGoalForm()" class="min-h-[44px] px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-hover flex items-center justify-center gap-2">
-        <i class="ph ph-plus" aria-hidden="true"></i><span data-i18n="goal.add">Tambah target</span>
-      </button>
-    </div>
-    <div id="financialGoals" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-  </section>
-
-  <!-- ================= TRANSAKSI RUTIN (RECURRING) ================= -->
-  <section id="recurringSection" class="mb-8" aria-labelledby="recurringTitle">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-      <div>
-        <h3 id="recurringTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <i class="ph ph-arrows-clockwise text-brand" aria-hidden="true"></i>
-          <span data-i18n="rec.title">Tagihan &amp; Transaksi Rutin</span>
-        </h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="rec.subtitle">Jadwal pemasukan atau pengeluaran otomatis setiap bulan.</p>
-      </div>
-      <button type="button" onclick="openRecurringForm()" class="min-h-[44px] px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-hover flex items-center justify-center gap-2">
-        <i class="ph ph-plus" aria-hidden="true"></i><span data-i18n="rec.add">Tambah Jadwal Rutin</span>
-      </button>
-    </div>
-    <div id="recurringList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-  </section>
 
   <!-- ================= KALENDER ================= -->
   <div class="flex items-center justify-between gap-3 mb-4 mt-2 flex-wrap">
@@ -180,55 +122,6 @@
     <div id="kalenderGrid" class="grid grid-cols-7"></div>
   </div>
 
-  <!-- PORTOFOLIO -->
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4">
-    <div>
-      <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-        <i class="ph ph-piggy-bank text-blue-500"></i> <span data-i18n="dash.portofolio">Portofolio Tabungan &amp; Investasi</span>
-      </h3>
-      <p class="text-xs text-slate-500 mt-1" data-i18n="dash.portofolio_sub">Kelola saldo Reksa Dana, Crypto, Saham, dll secara manual.</p>
-    </div>
-    <div class="flex gap-2">
-      <button type="button" onclick="refreshAssetPrices()" title="Refresh Harga Crypto" class="min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
-        <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Refresh
-      </button>
-      <button type="button" onclick="addManualAssetUI()" class="min-h-11 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
-        <i class="ph ph-plus-bold" aria-hidden="true"></i> <span data-i18n="dash.btn_add_aset">Tambah Aset</span>
-      </button>
-    </div>
-  </div>
-
-  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
-    <div class="p-5 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-800 gap-2">
-      <p class="font-bold text-slate-600 dark:text-slate-300 text-sm" data-i18n="dash.total_investasi">Total Nilai Investasi</p>
-      <p class="font-black text-xl text-blue-500" id="dash-total-investasi">Rp 0</p>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0" id="list-manual-assets"></div>
-  </div>
-
-    <!-- 🆕 CHART PORTOFOLIO -->
-  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
-    <div class="p-5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-      <div>
-        <p class="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
-          <i class="ph ph-chart-line text-brand"></i> Portfolio Chart
-        </p>
-        <p class="text-[10px] text-slate-400 mt-0.5">Tren nilai portfolio 30 hari terakhir</p>
-      </div>
-      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">30 Hari</span>
-    </div>
-    <div class="p-5" style="height: 280px; position: relative;">
-      <canvas id="portfolioChart"></canvas>
-      <div id="portfolioChartPlaceholder" style="display:none; position:absolute; inset:0;" class="flex items-center justify-center">
-        <div class="text-center">
-          <i class="ph ph-chart-line text-4xl text-slate-300 dark:text-slate-600 mb-2"></i>
-          <p class="text-xs text-slate-400">Butuh minimal 2 hari data untuk menampilkan chart</p>
-          <p class="text-[10px] text-slate-400 mt-1">Snapshot otomatis setiap hari jam 23:00</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- UTANG PIUTANG -->
   <div class="flex justify-between items-center mb-4">
     <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -252,32 +145,6 @@
         <h4 class="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400" id="dash-piutang">Rp 0</h4>
       </div>
       <i class="ph ph-arrow-circle-down text-4xl text-emerald-200 dark:text-emerald-900/50 group-hover:scale-110 transition-transform"></i>
-    </div>
-  </div>
-
-  <!-- HISTORI -->
-  <div class="flex items-center gap-2 mb-4">
-    <h3 class="text-lg font-bold text-slate-800 dark:text-white">
-      <i class="ph ph-list-bullets text-slate-500"></i> <span data-i18n="dash.histori">Histori Transaksi</span>
-    </h3>
-    <span class="text-xs font-medium text-slate-500 dark:text-slate-400 chartMonthLabel"></span>
-  </div>
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-        <h3 class="font-bold text-emerald-600 flex items-center gap-2">
-          <i class="ph ph-arrow-down-left text-xl"></i> <span data-i18n="dash.pemasukan">Pemasukan</span>
-        </h3>
-      </div>
-      <div class="p-5 max-h-[350px] overflow-y-auto space-y-3" id="listViewIn"></div>
-    </div>
-    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-        <h3 class="font-bold text-rose-600 flex items-center gap-2">
-          <i class="ph ph-arrow-up-right text-xl"></i> <span data-i18n="dash.pengeluaran">Pengeluaran</span>
-        </h3>
-      </div>
-      <div class="p-5 max-h-[350px] overflow-y-auto space-y-3" id="listViewOut"></div>
     </div>
   </div>
 </section>
