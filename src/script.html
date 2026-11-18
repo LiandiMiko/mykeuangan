@@ -306,17 +306,40 @@ document.addEventListener('DOMContentLoaded', async () => {
    THEME & UI
    ============================================================ */
 function setTheme(t) {
+  const theme = t || '';
   document.documentElement.className = '';
   if (localStorage.getItem('mode') === 'dark') {
     document.documentElement.classList.add('dark');
   }
-  if (t) document.documentElement.classList.add(t);
-  localStorage.setItem('theme', t);
+  if (theme) document.documentElement.classList.add(theme);
+  localStorage.setItem('theme', theme);
+
+  document.querySelectorAll('[data-theme-btn]').forEach(btn => {
+    const isActive = (btn.getAttribute('data-theme-btn') || '') === theme;
+    btn.classList.toggle('active-theme', isActive);
+  });
+
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    const isDark = document.documentElement.classList.contains('dark');
+    const brandHex = getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#4f46e5';
+    metaTheme.setAttribute('content', isDark ? '#0f172a' : brandHex);
+  }
+
+  if (typeof isDataReady !== 'undefined' && isDataReady) {
+    try { renderPortfolioChart(); } catch (_) {}
+  }
 }
 
 function toggleDarkMode() {
   document.documentElement.classList.toggle('dark');
-  localStorage.setItem('mode', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('mode', isDark ? 'dark' : 'light');
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    const brandHex = getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#4f46e5';
+    metaTheme.setAttribute('content', isDark ? '#0f172a' : brandHex);
+  }
   renderAll();
 }
 
@@ -354,13 +377,15 @@ function switchView(id) {
   const nav = document.getElementById('nav-' + (id.includes('utang') ? 'dashboard' : id));
   if (nav) {
     nav.classList.remove('text-slate-500', 'dark:text-slate-400');
-    nav.classList.add('active-nav', 'bg-brand-light', 'text-brand', 'dark:bg-slate-800', 'dark:text-white');
+    nav.classList.add('active-nav');
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  if (id === 'perencanaan') {
-    try { renderPortfolioChart(); } catch (e) { console.error('renderPortfolioChart err:', e); }
+  if (id === 'aset') {
+    setTimeout(() => {
+      try { renderPortfolioChart(); } catch (e) { console.error('renderPortfolioChart err:', e); }
+    }, 60);
   }
   if (id === 'admin') loadAdminData();
 
@@ -568,7 +593,7 @@ function renderFinancialGoals() {
           </div>
           <div class="mt-4 flex items-center justify-between gap-2 text-xs">
             <span class="font-semibold text-slate-700 dark:text-slate-200">${formatRupiah(goal.currentAmount).replace(',00','')}</span>
-            <span class="font-bold text-brand">${progress.toFixed(0)}%</span>
+            <span class="font-bold text-brand dark:text-brand-ink">${progress.toFixed(0)}%</span>
           </div>
           <div class="mt-2 h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" role="progressbar" aria-label="${escapeHtmlJS(t('goal.progress'))}: ${name}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.toFixed(0)}">
             <div class="h-full rounded-full bg-brand transition-[width]" style="width:${progress}%"></div>
@@ -902,7 +927,7 @@ function renderKalender() {
       const e = new Date(range.end + 'T00:00:00');
       const cycleLabel = s.getDate() + ' ' + getMonthShort(s.getMonth()) + ' - ' +
                          e.getDate() + ' ' + getMonthShort(e.getMonth());
-      labelEl.innerHTML = '(' + monthLabel + ' · <span class="text-brand font-bold">' + t('cal.siklus') + ': ' + cycleLabel + '</span>)';
+      labelEl.innerHTML = '(' + monthLabel + ' · <span class="text-brand dark:text-brand-ink font-bold">' + t('cal.siklus') + ': ' + cycleLabel + '</span>)';
     } else {
       labelEl.textContent = '(' + monthLabel + ')';
     }
@@ -954,7 +979,7 @@ function renderKalender() {
 
     let html = '<div class="flex items-center justify-between mb-1">';
     html += '<span class="text-[11px] sm:text-xs font-bold ' +
-      (isToday ? 'text-brand' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
+      (isToday ? 'text-brand dark:text-brand-ink' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
     if (hasData) {
       html += '<span class="text-[8px] font-bold text-slate-400 dark:text-slate-500">' + data.count + 'x</span>';
     }
@@ -1085,9 +1110,9 @@ function renderAssets() {
     const iconName = isCrypto ? 'currency-btc' 
                     : (String(a.type).toLowerCase() === 'cash' ? 'bank' : 'coins');
     const iconColor = isCrypto ? 'text-amber-500' 
-                     : (String(a.type).toLowerCase() === 'cash' ? 'text-emerald-500' : 'text-blue-500');
+                     : (String(a.type).toLowerCase() === 'cash' ? 'text-emerald-500' : 'text-brand dark:text-brand-ink');
     const iconBG = isCrypto ? 'bg-amber-50 dark:bg-amber-500/10' 
-                  : (String(a.type).toLowerCase() === 'cash' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-blue-50 dark:bg-blue-500/10');
+                  : (String(a.type).toLowerCase() === 'cash' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand/10');
 
     const meta = isCrypto
       ? `<span class="text-[10px] text-slate-400">${qty} ${escapeHtmlJS(a.symbol)} · ${escapeHtmlJS(a.symbol)}</span>`
@@ -1503,9 +1528,9 @@ function renderWallets() {
     const isEwallet = w.kind === 'ewallet';
     const bal = wb[w.id] || 0;
     return `
-      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-4">
         <div class="flex items-center gap-4 min-w-0">
-          <div class="w-12 h-12 rounded-2xl ${isCash ? 'bg-emerald-100 text-emerald-600' : isEwallet ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-600'} flex items-center justify-center shrink-0">
+          <div class="w-12 h-12 rounded-2xl ${isCash ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : isEwallet ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400' : 'bg-brand/10 text-brand dark:text-brand-ink'} flex items-center justify-center shrink-0">
             <i class="ph ph-${isCash ? 'money' : isEwallet ? 'device-mobile' : 'bank'} text-2xl" aria-hidden="true"></i>
           </div>
           <div class="min-w-0">
@@ -1515,7 +1540,7 @@ function renderWallets() {
           </div>
         </div>
         <button type="button" onclick="editWallet('${w.id}')" aria-label="Edit dompet ${escapeAttrJS(w.name)}" title="Edit saldo"
-          class="min-h-11 min-w-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-brand flex items-center justify-center shrink-0">
+          class="min-h-11 min-w-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
           <i class="ph ph-pencil-simple text-lg" aria-hidden="true"></i>
         </button>
       </div>`;
@@ -1525,26 +1550,25 @@ function renderWallets() {
   if (!box) return;
   const list = [...(DB.transfers || [])]
     .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || String(b.id).localeCompare(String(a.id)))
-    .slice(0, 5);
-  if (list.length === 0) { box.innerHTML = ''; return; }
+    .slice(0, 10);
+  if (list.length === 0) {
+    box.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">${escapeHtmlJS(t('wallet.empty_transfers'))}</div>`;
+    return;
+  }
   const label = { tarik_tunai: 'Tarik Tunai', transfer: 'Transfer', investasi: 'Top-up Aset' };
-  box.innerHTML = `
-    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Riwayat transfer terakhir</p>
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
-      ${list.map(x => `
-        <div class="px-4 py-3 flex items-center justify-between gap-3 text-xs">
-          <div class="min-w-0">
-            <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
-            <p class="text-slate-400">${String(x.tanggal).slice(0, 10)}${x.fee ? ' · biaya ' + formatRupiah(x.fee) : ''}${x.keterangan ? ' · ' + escapeHtmlJS(x.keterangan) : ''}</p>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <span class="font-black text-slate-700 dark:text-slate-200">${formatRupiah(x.nominal)}</span>
-            <button type="button" onclick="deleteTransfer('${escapeAttrJS(x.id)}')" aria-label="Hapus transfer" title="Hapus transfer" class="min-w-10 min-h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100">
-              <i class="ph ph-trash text-sm" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>`).join('')}
-    </div>`;
+  box.innerHTML = list.map(x => `
+    <div class="px-5 py-3.5 flex items-center justify-between gap-3 text-xs hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+      <div class="min-w-0">
+        <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
+        <p class="text-slate-400 mt-0.5">${String(x.tanggal).slice(0, 10)}${x.fee ? ' · biaya ' + formatRupiah(x.fee) : ''}${x.keterangan ? ' · ' + escapeHtmlJS(x.keterangan) : ''}</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="font-black text-slate-700 dark:text-slate-200">${formatRupiah(x.nominal)}</span>
+        <button type="button" onclick="deleteTransfer('${escapeAttrJS(x.id)}')" aria-label="Hapus transfer" title="Hapus transfer" class="min-w-10 min-h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors">
+          <i class="ph ph-trash text-sm" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>`).join('');
 }
 
 async function addWallet() {

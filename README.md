@@ -54,11 +54,13 @@ mykeuangan/
 │   ├── Index.html          # App shell: layout, nav, modals
 │   ├── script.html         # Semua logika JS (1 file besar)
 │   ├── admin.html          # Admin panel UI (di-include ke Index)
-│   ├── dashboard.html      # View: dashboard utama
+│   ├── dashboard.html      # View: ringkasan utama (Arus Kas, Dompet, Utang/Piutang, Kalender)
+│   ├── aset.html           # View: Tabungan & Investasi (aset, grafik 30 hari & riwayat transfer)
+│   ├── histori.html        # View: histori transaksi pemasukan & pengeluaran per siklus
+│   ├── ai.html             # View: analisis arus keuangan AI Gemini (on-demand)
 │   ├── form.html           # View: tambah transaksi
 │   ├── laporan.html        # View: laporan keuangan
-│   ├── budgeting.html      # View: anggaran
-│   ├── perencanaan.html    # View: aset, target tabungan, transaksi rutin, histori & analisis AI
+│   ├── budgeting.html      # View: anggaran kategori, target keuangan & transaksi rutin
 │   ├── utang.html          # View: utang/piutang
 │   └── i18n.html           # Terjemahan (ID/EN)
 │
@@ -357,7 +359,7 @@ Semua tabel diproteksi RLS. User hanya bisa akses data miliknya. Admin aktif men
 Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk dengan menginterpolasi data pengguna ke dalam kode inline.
 
 ### 🤖 Analisis Arus Keuangan AI (On-Demand Gemini)
-- Di Dashboard terdapat panel **Analisis Arus Keuangan AI (Gemini)**.
+- Di menu **Analisis AI** (`src/ai.html`) terdapat panel **Analisis Arus Keuangan AI (Gemini)**.
 - Pengguna memasukkan **Gemini API Key** sendiri melalui tombol **Atur API Key Gemini** (key disimpan lokal di browser `localStorage` dan dikirim melalui header `x-goog-api-key`).
 - **On-Demand**: AI **hanya** mengirim ringkasan payload arus kas ke Gemini 2.5 Flash saat pengguna menekan tombol **Analisis Arus Keuangan** — tidak pernah berjalan otomatis di latar belakang.
 
@@ -365,12 +367,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
-### 18 November 2026: Comprehensive Upgrade & On-Demand Gemini AI
-- **AI Cashflow Analyzer (On-Demand)**: Kartu analisis arus kas di Dashboard memakai Google Gemini 2.5 Flash (`buildAiCashflowPayload`, `buildGeminiCashflowPrompt`, `parseGeminiCashflowResponse` di `web/finance-analysis.js`) dengan input API key di browser dan eksekusi hanya saat tombol ditekan.
-- **Transaksi Rutin (Recurring) Web UI**: Tambah, edit, jeda/aktifkan, dan hapus jadwal bulanan langsung di Dashboard.
-- **Pencairan Aset & Alokasi Target**: Tombol cairkan/jual aset ke dompet (`liquidate_asset`), tombol alokasi tabungan target dari dompet (`contribute_to_goal`), serta kelola rename/hapus kategori dan edit jenis/hapus dompet.
-- **Laporan & Kalender Interaktif**: Tambah filter dompet pada laporan, ekspor CSV terfilter, dan klik tanggal pada kalender untuk melihat/menambah transaksi di tanggal tersebut.
-- **Tata Letak Dashboard Ringkas & Halaman Aset/Target/AI**: Dashboard dirapikan agar fokus pada Arus Kas & Saldo, Dompet, Kalender, dan Utang/Piutang, sementara Portofolio Aset, Target Keuangan, Transaksi Rutin, Histori Transaksi, dan Analisis AI Gemini dipindahkan ke halaman navigasi tersendiri (`Aset, Target & AI` di `src/perencanaan.html`).
+### 18 November 2026: Comprehensive Upgrade, Tata Letak Modular & On-Demand Gemini AI
+- **AI Cashflow Analyzer (On-Demand)**: Halaman khusus analisis arus kas (`src/ai.html`) memakai Google Gemini 2.5 Flash (`buildAiCashflowPayload`, `buildGeminiCashflowPrompt`, `parseGeminiCashflowResponse` di `web/finance-analysis.js`) dengan input API key di browser dan eksekusi hanya saat tombol ditekan.
+- **Budgeting, Target Keuangan & Transaksi Rutin**: Halaman `Budgeting` (`src/budgeting.html`) kini menggabungkan anggaran kategori & tren 6 bulan bersama *Target Keuangan* (alokasi tabungan dari dompet via `contribute_to_goal`) dan *Tagihan & Transaksi Rutin* bulanan (tambah, edit, jeda/aktifkan, hapus).
+- **Tabungan & Investasi (Savings & Investment)**: Halaman khusus `Tabungan & Investasi` (`src/aset.html`) mengelola portofolio aset (beli maupun cairkan/jual ke dompet via `liquidate_asset`), grafik pertumbuhan 30 hari, serta *Riwayat Transfer Terakhir* dompet.
+- **Laporan, Histori & Kalender Interaktif**: Halaman khusus `Histori Transaksi` (`src/histori.html`), filter dompet pada laporan, ekspor CSV terfilter, dan klik tanggal pada kalender untuk melihat/menambah transaksi di tanggal tersebut.
+- **Tata Letak Dashboard & Sistem Tema Menyeluruh**: Dashboard (`src/dashboard.html`) difokuskan pada urutan *Arus Kas & Saldo* → *Dompet* → *Utang & Piutang* → *Kalender*. Sistem tema warna (`Indigo`, `Pink`, `Violet`, `Blue`, `Emerald`) di `src/styles.html` & `src/script.html` kini mengubah banner Hero, navigasi aktif, tombol utama, fokus ring, dan grafik portofolio secara menyeluruh di mode terang maupun gelap, disertai pembaruan logo dan detail UI.
 - **Admin Panel & UX Mobile**: Statistik global platform, pencarian & filter daftar pengguna, proteksi DB self-lockout admin, dark mode pada form login & seluruh modal, tombol salin perintah `/link` Telegram, tombol aksi selalu tampil di layar sentuh, serta target klik ≥40–44px dengan `aria-label`.
 - **Security & Performance Hardening**: Service Worker (`web/sw.js`) tidak lagi mencache endpoint `supabase.co` atau `googleapis.com`, Cache Storage dibersihkan saat logout, verifikasi secret constant-time SHA-256 pada `telegram-bot`, pin versi library CDN di `src/styles.html`, seragamkan password minimal 8 karakter, dan mutasi API hanya mengambil tabel yang berubah.
 - Migrasi `supabase/migrations/20261118000000_comprehensive_upgrade.sql`.

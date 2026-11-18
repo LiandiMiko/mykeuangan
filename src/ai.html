@@ -1,0 +1,37 @@
+<!-- ================= ANALISIS AI ================= -->
+<section id="view-ai" class="view-section hide fade-in" aria-labelledby="aiPageTitle">
+  <div class="mb-6 flex items-start gap-3">
+    <div class="w-11 h-11 rounded-2xl brand-gradient text-white flex items-center justify-center shrink-0 mt-0.5 brand-border-glow">
+      <i class="ph ph-sparkle text-2xl" aria-hidden="true"></i>
+    </div>
+    <div>
+      <h2 id="aiPageTitle" class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight" data-i18n="ai.page_title">Analisis Arus Keuangan AI</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.page_subtitle">Evaluasi kesehatan arus kas, rasio tabungan, dan rekomendasi finansial berbasis Gemini AI sesuai permintaan.</p>
+    </div>
+  </div>
+
+  <!-- AI CASHFLOW ANALYZER (ON-DEMAND) -->
+  <section id="ai-cashflow-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiCardTitle">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h3 id="aiCardTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="ph ph-sparkle text-brand dark:text-brand-ink" aria-hidden="true"></i>
+            <span data-i18n="ai.title">Analisis Arus Keuangan AI (Gemini)</span>
+          </h3>
+          <span id="aiKeyStatus" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" data-i18n="ai.key_missing">API Key belum diatur</span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.subtitle">AI hanya berjalan ketika Anda menekan tombol analisis untuk menjaga privasi dan kuota API Anda.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 shrink-0">
+        <button type="button" onclick="configureGeminiApiKey()" class="min-h-11 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 transition-colors">
+          <i class="ph ph-key" aria-hidden="true"></i> <span data-i18n="ai.btn_key">Atur API Key Gemini</span>
+        </button>
+        <button type="button" id="btnRunAiAnalysis" onclick="runAiCashflowAnalysis()" class="min-h-11 px-5 py-2 brand-gradient text-white hover:opacity-95 rounded-xl text-xs font-bold flex items-center justify-center gap-2 brand-border-glow transition-all disabled:opacity-60">
+          <i class="ph ph-magic-wand text-base" aria-hidden="true"></i> <span data-i18n="ai.btn_analyze">Analisis Arus Keuangan</span>
+        </button>
+      </div>
+    </div>
+    <div id="aiAnalysisResult" class="hide mt-5 pt-5 border-t border-slate-100 dark:border-slate-800" aria-live="polite"></div>
+  </section>
+</section>

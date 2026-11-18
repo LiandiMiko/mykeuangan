@@ -1,0 +1,44 @@
+<!-- ================= HISTORI TRANSAKSI SIKLUS ================= -->
+<section id="view-histori" class="view-section hide fade-in" aria-labelledby="historiTitle">
+  <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div class="flex items-start gap-3">
+      <div class="w-11 h-11 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
+        <i class="ph ph-list-bullets text-2xl" aria-hidden="true"></i>
+      </div>
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 id="historiTitle" class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight" data-i18n="histori.title">Histori Transaksi Siklus</h2>
+          <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold chartMonthLabel"></span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="histori.subtitle">Daftar seluruh pemasukan dan pengeluaran pada periode siklus gajian yang dipilih.</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" onclick="openForm('Pemasukan')" class="min-h-11 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
+        <i class="ph ph-plus-circle text-base" aria-hidden="true"></i> <span data-i18n="dash.btn_pemasukan">Pemasukan</span>
+      </button>
+      <button type="button" onclick="openForm('Pengeluaran')" class="min-h-11 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
+        <i class="ph ph-minus-circle text-base" aria-hidden="true"></i> <span data-i18n="dash.btn_pengeluaran">Pengeluaran</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/70 dark:bg-slate-800/40">
+        <h3 class="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+          <i class="ph ph-arrow-down-left text-xl" aria-hidden="true"></i> <span data-i18n="dash.pemasukan">Pemasukan</span>
+        </h3>
+      </div>
+      <div class="p-5 max-h-[540px] overflow-y-auto space-y-2.5" id="listViewIn"></div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/70 dark:bg-slate-800/40">
+        <h3 class="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+          <i class="ph ph-arrow-up-right text-xl" aria-hidden="true"></i> <span data-i18n="dash.pengeluaran">Pengeluaran</span>
+        </h3>
+      </div>
+      <div class="p-5 max-h-[540px] overflow-y-auto space-y-2.5" id="listViewOut"></div>
+    </div>
+  </div>
+</section>

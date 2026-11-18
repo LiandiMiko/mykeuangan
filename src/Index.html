@@ -25,30 +25,40 @@
   <aside id="sidebar" class="w-72 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col z-40 fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:h-screen transition-all duration-300 transform -translate-x-full lg:translate-x-0">
     <div class="p-6 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-brand dark:bg-white rounded-xl flex items-center justify-center transition-colors">
-          <i class="ph ph-wallet text-2xl text-white dark:text-brand"></i>
+        <div class="w-11 h-11 brand-gradient brand-border-glow rounded-2xl flex items-center justify-center shrink-0 transition-all">
+          <i class="ph-fill ph-wallet text-2xl text-white" aria-hidden="true"></i>
         </div>
-        <h1 class="font-bold text-xl text-slate-800 dark:text-white tracking-tight">MyKeu<span class="text-brand dark:text-brand-light">Guech</span></h1>
+        <div class="min-w-0">
+          <h1 class="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight leading-none">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></h1>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">Personal Finance</p>
+        </div>
       </div>
       <button class="lg:hidden text-slate-400 hover:text-slate-800 dark:hover:text-white text-2xl" onclick="toggleSidebar()" aria-label="Tutup menu" data-i18n-aria-label="header.close_menu"><i class="ph ph-x" aria-hidden="true"></i></button>
     </div>
     
-<nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-2">
-  <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-2 px-4 uppercase tracking-widest" data-i18n="nav.utama">Utama</p>
-  <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-    <i class="ph ph-squares-four text-xl"></i> <span data-i18n="nav.dashboard">Dashboard</span>
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-1">
+  <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-2 px-4 uppercase tracking-widest" data-i18n="nav.utama">Menu Utama</p>
+  <button type="button" onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-squares-four text-xl" aria-hidden="true"></i> <span data-i18n="nav.dashboard">Dashboard</span>
   </button>
-  <button onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-    <i class="ph ph-file-pdf text-xl"></i> <span data-i18n="nav.laporan">Laporan &amp; Ekspor</span>
+  <button type="button" onclick="switchView('aset')" id="nav-aset" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-piggy-bank text-xl" aria-hidden="true"></i> <span data-i18n="nav.aset">Tabungan &amp; Investasi</span>
   </button>
-  <button onclick="switchView('budgeting')" id="nav-budgeting" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-    <i class="ph ph-chart-pie-slice text-xl"></i> <span data-i18n="nav.budgeting">Budgeting</span>
+  <button type="button" onclick="switchView('histori')" id="nav-histori" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-list-bullets text-xl" aria-hidden="true"></i> <span data-i18n="nav.histori">Histori Transaksi</span>
   </button>
-  <button onclick="switchView('perencanaan')" id="nav-perencanaan" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-    <i class="ph ph-trend-up text-xl" aria-hidden="true"></i> <span data-i18n="nav.perencanaan">Aset, Target &amp; AI</span>
+  <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
+  <button type="button" onclick="switchView('budgeting')" id="nav-budgeting" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-chart-pie-slice text-xl" aria-hidden="true"></i> <span data-i18n="nav.budgeting">Budgeting</span>
   </button>
-  <button onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-    <i class="ph ph-shield-check text-xl text-brand" aria-hidden="true"></i> <span data-i18n="nav.admin">Panel Admin</span>
+  <button type="button" onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-file-pdf text-xl" aria-hidden="true"></i> <span data-i18n="nav.laporan">Laporan &amp; Ekspor</span>
+  </button>
+  <button type="button" onclick="switchView('ai')" id="nav-ai" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-sparkle text-xl" aria-hidden="true"></i> <span data-i18n="nav.ai">Analisis AI</span>
+  </button>
+  <button type="button" onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <i class="ph ph-shield-check text-xl text-brand dark:text-brand-ink" aria-hidden="true"></i> <span data-i18n="nav.admin">Panel Admin</span>
   </button>
 </nav>
 
@@ -69,12 +79,12 @@
       <!-- TEMA WARNA -->
       <div class="mb-4 px-2">
         <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase" data-i18n="nav.tema">Tema Warna</p>
-        <div class="flex gap-2">
-          <button type="button" onclick="setTheme('')" aria-label="Tema warna Default" title="Default" class="w-8 h-8 rounded-full bg-slate-800 ring-2 ring-offset-1 ring-transparent focus:ring-slate-400"></button>
-          <button type="button" onclick="setTheme('theme-pink')" aria-label="Tema warna Pink" title="Pink" class="w-8 h-8 rounded-full bg-pink-600 ring-2 ring-offset-1 ring-transparent focus:ring-pink-400"></button>
-          <button type="button" onclick="setTheme('theme-violet')" aria-label="Tema warna Violet" title="Violet" class="w-8 h-8 rounded-full bg-violet-600 ring-2 ring-offset-1 ring-transparent focus:ring-violet-400"></button>
-          <button type="button" onclick="setTheme('theme-blue')" aria-label="Tema warna Biru" title="Biru" class="w-8 h-8 rounded-full bg-blue-600 ring-2 ring-offset-1 ring-transparent focus:ring-blue-400"></button>
-          <button type="button" onclick="setTheme('theme-emerald')" aria-label="Tema warna Emerald" title="Emerald" class="w-8 h-8 rounded-full bg-emerald-600 ring-2 ring-offset-1 ring-transparent focus:ring-emerald-400"></button>
+        <div class="flex gap-2.5 items-center">
+          <button type="button" data-theme-btn="" onclick="setTheme('')" aria-label="Tema warna Default (Indigo)" title="Indigo (Default)" class="w-7 h-7 rounded-full bg-indigo-600 focus:outline-none"></button>
+          <button type="button" data-theme-btn="theme-pink" onclick="setTheme('theme-pink')" aria-label="Tema warna Pink" title="Pink" class="w-7 h-7 rounded-full bg-pink-600 focus:outline-none"></button>
+          <button type="button" data-theme-btn="theme-violet" onclick="setTheme('theme-violet')" aria-label="Tema warna Violet" title="Violet" class="w-7 h-7 rounded-full bg-violet-600 focus:outline-none"></button>
+          <button type="button" data-theme-btn="theme-blue" onclick="setTheme('theme-blue')" aria-label="Tema warna Biru" title="Biru" class="w-7 h-7 rounded-full bg-blue-600 focus:outline-none"></button>
+          <button type="button" data-theme-btn="theme-emerald" onclick="setTheme('theme-emerald')" aria-label="Tema warna Emerald" title="Emerald" class="w-7 h-7 rounded-full bg-emerald-600 focus:outline-none"></button>
         </div>
       </div>
 
@@ -89,8 +99,8 @@
       <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3 overflow-hidden">
-            <div class="w-8 h-8 rounded-full bg-brand-light dark:bg-slate-700 flex items-center justify-center text-brand dark:text-white shrink-0">
-              <i class="ph ph-user" aria-hidden="true"></i>
+            <div class="w-9 h-9 rounded-xl bg-brand/15 flex items-center justify-center text-brand dark:text-brand-ink shrink-0">
+              <i class="ph ph-user text-lg" aria-hidden="true"></i>
             </div>
             <div class="min-w-0">
               <p id="ui-username" class="text-sm font-bold text-slate-800 dark:text-white truncate">User</p>
@@ -109,11 +119,12 @@
   <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-500">
         <header class="bg-white dark:bg-slate-900 p-4 lg:px-8 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sticky top-0 z-30 shadow-sm transition-colors">
       <div class="flex min-w-0 items-center gap-3">
-            <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="min-h-11 min-w-11 flex items-center justify-center text-2xl text-slate-600 dark:text-slate-300 hover:text-brand transition-colors">
+            <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="min-h-11 min-w-11 flex items-center justify-center text-2xl text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink transition-colors">
               <i class="ph ph-list" aria-hidden="true"></i>
         </button>
-        <h2 class="min-w-0 truncate font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2 lg:hidden">
-              <i class="ph ph-wallet text-brand" aria-hidden="true"></i> MyKeuGuech
+        <h2 class="min-w-0 truncate font-extrabold text-lg text-slate-900 dark:text-white flex items-center gap-2.5 lg:hidden">
+              <span class="w-8 h-8 brand-gradient rounded-xl inline-flex items-center justify-center shrink-0"><i class="ph-fill ph-wallet text-white text-base" aria-hidden="true"></i></span>
+              <span>MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
         </h2>
       </div>
           <div class="flex w-full items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-end">
@@ -139,11 +150,13 @@
 
     <div class="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full relative">
       <?!= include('dashboard'); ?>
+      <?!= include('aset'); ?>
+      <?!= include('histori'); ?>
       <?!= include('utang'); ?>
       <?!= include('form'); ?>
       <?!= include('laporan'); ?>
       <?!= include('budgeting'); ?>
-      <?!= include('perencanaan'); ?>
+      <?!= include('ai'); ?>
       <?!= include('admin'); ?>
     </div>
   </main>

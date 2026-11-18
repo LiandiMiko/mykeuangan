@@ -6,7 +6,7 @@ Status: Complete
 
 ### 1. On-Demand Gemini AI Cashflow Analyzer
 - Menambahkan helper `buildAiCashflowPayload()`, `buildGeminiCashflowPrompt()`, dan `parseGeminiCashflowResponse()` ke `web/finance-analysis.js`, disertai unit test di `tests/finance-analysis.test.js`.
-- Menambahkan kartu `#ai-cashflow-card` di `src/dashboard.html` beserta fungsi `configureGeminiApiKey()`, `updateAiKeyStatusUI()`, `runAiCashflowAnalysis()`, dan `renderAiCashflowResult()` di `src/script.html`.
+- Menambahkan kartu `#ai-cashflow-card` di halaman khusus `src/ai.html` beserta fungsi `configureGeminiApiKey()`, `updateAiKeyStatusUI()`, `runAiCashflowAnalysis()`, dan `renderAiCashflowResult()` di `src/script.html`.
 - API Key disimpan lokal di `localStorage` (`mk_gemini_api_key`), dikirim via header `x-goog-api-key` ke endpoint `gemini-2.5-flash`, dan eksekusi hanya berjalan saat tombol `#btnRunAiAnalysis` ditekan.
 
 ### 2. Keamanan & Edge Function Hardening
@@ -24,13 +24,19 @@ Status: Complete
 ### 4. Fitur Baru, RPC Database & Optimasi Query
 - Menambahkan RPC `get_admin_platform_stats()`, `rename_category_with_transactions()`, `delete_category()`, `delete_wallet()`, `liquidate_asset()`, `contribute_to_goal()`, serta parameter opsional `p_wallet_id` pada `search_user_transactions()` di `supabase/migrations/20261118000000_comprehensive_upgrade.sql`.
 - Menambahkan UI & handler untuk:
-  - Jadwal Transaksi Rutin (`renderRecurring()`, `openRecurringForm()`, `toggleRecurringItem()`, `deleteRecurringItem()`) di `src/dashboard.html`, `src/script.html`, dan `web/supabase-api.js`.
+  - Jadwal Transaksi Rutin (`renderRecurring()`, `openRecurringForm()`, `toggleRecurringItem()`, `deleteRecurringItem()`) dan Target Keuangan (`#financialGoals`) di halaman `src/budgeting.html`, `src/script.html`, dan `web/supabase-api.js`.
   - Cairkan/Jual aset (`withdrawAsset()`), alokasi target keuangan dari dompet (`openGoalForm()`), kelola rename/hapus kategori (`openManageCategoriesModal()`), edit jenis/hapus dompet (`editWallet()`, `deleteWalletUI()`).
   - Kalender harian interaktif (`openCalendarDayModal()`), filter dompet `#lapWallet` & ekspor CSV (`exportCSV()`) di `src/laporan.html` & `src/script.html`.
   - Pencarian & filter status/role pengguna di `src/admin.html` (`#admSearchInput`, `#admFilterStatus`, `filterAdminUsersTable()`).
 - Mengganti `partialData()` di `web/supabase-api.js` dengan query terarah (`fetchCategoriesOnly`, `fetchBudgetsOnly`, `fetchWalletsAndTransfers`, `fetchAssetsOnly`, `fetchRecurringOnly`, `fetchEntitiesOnly`).
 - Menyelaraskan dokumentasi di `README.md` dan `src/admin.html` (`Riwayat Pembaruan`) serta membuat skill `change-notes-sync` dan memperbarui `release-notes-sync`.
-- Merapikan `src/dashboard.html` agar hanya menampilkan Hero Net Worth, Cash Flow & Balance, Dompet, Kalender, dan Utang & Piutang, serta memindahkan Analisis AI Gemini, Portofolio & Chart, Target Keuangan, Transaksi Rutin, dan Histori Siklus ke halaman menu baru `src/perencanaan.html` (`#view-perencanaan` dengan navigasi `#nav-perencanaan` di `src/Index.html`).
+- Merapikan `src/dashboard.html` dengan urutan bersih: Hero Net Worth → Arus Kas & Saldo → Dompet → Utang & Piutang → Kalender (memindahkan `#wallet-transfers` keluar dari Dashboard).
+- Menata halaman navigasi sidebar (`src/Index.html`):
+  - `src/aset.html` (`#view-aset`, `#nav-aset` — Tabungan & Investasi / Savings & Investment): Portofolio aset, Portfolio Chart 30 hari, serta `#wallet-transfers` (Riwayat Transfer Terakhir dompet).
+  - `src/budgeting.html` (`#view-budgeting`, `#nav-budgeting` — Budgeting): Anggaran kategori, tren/insight 6 bulan, Target Keuangan (`#financialGoals`), serta Tagihan & Transaksi Rutin (`#recurringSection`, `#recurringList`).
+  - `src/histori.html` (`#view-histori`, `#nav-histori` — Histori Transaksi): Histori Transaksi Siklus (`#listViewIn` & `#listViewOut`).
+  - `src/ai.html` (`#view-ai`, `#nav-ai` — Analisis AI): Analisis Arus Keuangan AI Gemini (`#ai-cashflow-card`).
+- Meningkatkan sistem tema warna di `src/styles.html`, `src/Index.html`, dan `src/script.html` (`brand` berbasis `rgb(var(--color-brand-rgb) / <alpha-value>)`, `.dark.theme-*` tanpa spasi, `--color-brand-ink` untuk mode gelap, `.brand-gradient` Hero banner, `.active-nav`, `[data-theme-btn].active-theme`, update `meta[name="theme-color"]` dan `renderPortfolioChart()` saat ganti tema, serta pembaruan logo `MyKeuGuech`).
 
 ## Verifikasi
 
