@@ -880,9 +880,565 @@
     });
   };
 
-  /* ---------------- 8. Hook Post-Render Enhancements ---------------- */
+  /* ---------------- 8. Wave v3.1 Interactive Features ---------------- */
+  window.openWalletDetailModal = async function (walletId) {
+    const w = (DB.wallets || []).find((x) => String(x.id) === String(walletId));
+    if (!w) return;
+    const defaultId = (DB.wallets[0] && DB.wallets[0].id) || '';
+    const opening = Number(w.openingBalance) || 0;
+    let totalIn = 0;
+    let totalOut = 0;
+    let netTransfers = 0;
+
+    const walletTxs = (DB.transactions || []).filter((tx) => {
+      const wid = tx.walletId || defaultId;
+      return String(wid) === String(walletId);
+    });
+
+    walletTxs.forEach((tx) => {
+      const cat = String(tx.kategori || '');
+      const n = Number(tx.nominal) || 0;
+      const isPiutang = cat.startsWith('Piutang');
+      const isUtang = !isPiutang && cat.startsWith('Utang');
+      if (isPiutang) {
+        if (tx.tipe === 'Pengeluaran') totalOut += n;
+        else totalIn += n;
+      } else if (isUtang) {
+        if (tx.tipe === 'Pengeluaran') totalOut += n;
+      } else {
+        if (tx.tipe === 'Pemasukan') totalIn += n;
+        else totalOut += n;
+      }
+    });
+
+    (DB.transfers || []).forEach((x) => {
+      const n = Number(x.nominal) || 0;
+      const f = Number(x.fee) || 0;
+      if (String(x.fromWallet) === String(walletId)) netTransfers -= (n + f);
+      if (String(x.toWallet) === String(walletId)) netTransfers += n;
+    });
+
+    const currentBal = opening + totalIn - totalOut + netTransfers;
+    const recent = [...walletTxs]
+      .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)))
+      .slice(0, 10);
+
+    const recentHtml = recent.length
+      ? recent.map((tx) => `
+          <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
+            <div class="min-w-0 text-left">
+              <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(tx.kategori)}</p>
+              <p class="text-[11px] text-slate-400 truncate">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+            </div>
+            <span class="font-black shrink-0 ${tx.tipe === 'Pemasukan' ? 'text-emerald-600' : 'text-rose-600'}">${tx.tipe === 'Pemasukan' ? '+' : '-'}${formatRupiah(tx.nominal).replace(',00', '')}</span>
+          </div>`).join('')
+      : '<p class="text-xs text-slate-400 py-3 text-center">Belum ada transaksi tercatat di dompet ini.</p>';
+
+    await Swal.fire({
+      title: escapeHtmlJS(w.name) + ' (' + escapeHtmlJS(typeof walletKindLabel === 'function' ? walletKindLabel(w.kind) : w.kind) + ')',
+      html: `
+        <div class="text-left space-y-3">
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70">
+              <p class="text-[10px] text-slate-400 uppercase font-bold">Saldo Awal</p>
+              <p class="font-bold text-slate-700 dark:text-slate-200">${formatRupiah(opening).replace(',00', '')}</p>
+            </div>
+            <div class="p-2.5 rounded-xl bg-brand/10">
+              <p class="text-[10px] text-brand dark:text-brand-ink uppercase font-bold">Saldo Saat Ini</p>
+              <p class="font-black text-brand dark:text-brand-ink">${formatRupiah(currentBal).replace(',00', '')}</p>
+            </div>
+            <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10">
+              <p class="text-[10px] text-emerald-600 uppercase font-bold">Total Masuk</p>
+              <p class="font-bold text-emerald-600">+${formatRupiah(totalIn).replace(',00', '')}</p>
+            </div>
+            <div class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10">
+              <p class="text-[10px] text-rose-600 uppercase font-bold">Total Keluar</p>
+              <p class="font-bold text-rose-600">-${formatRupiah(totalOut).replace(',00', '')}</p>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-500">Mutasi Transfer Netto: <strong class="text-slate-700 dark:text-slate-200">${netTransfers >= 0 ? '+' : ''}${formatRupiah(netTransfers).replace(',00', '')}</strong></p>
+          <div>
+            <p class="text-xs font-bold text-slate-500 mb-1">10 Transaksi Terakhir</p>
+            <div class="max-h-52 overflow-y-auto pr-1">${recentHtml}</div>
+          </div>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'Filter di Laporan',
+      cancelButtonText: t('btn.tutup'),
+      customClass: { popup: getSwalClass() }
+    }).then((res) => {
+      if (res.isConfirmed) {
+        const lapW = document.getElementById('lapWallet');
+        if (lapW) lapW.value = walletId;
+        switchView('laporan');
+        if (typeof retryReportLoad === 'function') retryReportLoad();
+      }
+    });
+  };
+
+  window.filterHistoriView = function () {
+    const listIn = document.getElementById('listViewIn');
+    const listOut = document.getElementById('listViewOut');
+    if (!listIn && !listOut) return;
+
+    const wSelect = document.getElementById('historiWalletFilter');
+    if (wSelect) {
+      const prev = wSelect.value;
+      const ws = DB.wallets || [];
+      wSelect.innerHTML = `<option value="">${escapeHtmlJS(t('lap.all_wallets'))}</option>` +
+        ws.map((w) => `<option value="${escapeAttrJS(w.id)}">${escapeHtmlJS(w.name)}</option>`).join('');
+      if (prev && ws.some((w) => String(w.id) === String(prev))) wSelect.value = prev;
+    }
+
+    const q = ((document.getElementById('historiSearch') || {}).value || '').trim().toLowerCase();
+    const wFilter = (wSelect && wSelect.value) || '';
+    const defaultWid = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+
+    const cycleTxs = (DB.transactions || [])
+      .map((item, i) => Object.assign({}, item, { _idx: i }))
+      .filter((tx) => isInPeriod(tx.tanggal, DB.currentPeriod))
+      .filter((tx) => {
+        if (tx.kategori.startsWith('Utang') || tx.kategori.startsWith('Piutang')) return false;
+        if (wFilter && String(tx.walletId || defaultWid) !== String(wFilter)) return false;
+        if (!q) return true;
+        return String(tx.kategori || '').toLowerCase().includes(q) ||
+          String(tx.keterangan || '').toLowerCase().includes(q) ||
+          String(tx.tanggal || '').toLowerCase().includes(q);
+      })
+      .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b._idx - a._idx);
+
+    const buildRow = (tx, colClass, iconCol, iconBG) => `
+      <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 mb-2 hover:border-slate-300 dark:hover:border-slate-600 transition-colors group">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconCol} ${iconBG}">
+            <i class="ph ph-receipt text-lg"></i>
+          </div>
+          <div class="truncate">
+            <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(tx.kategori)}</p>
+            <p class="text-[10px] text-slate-500">${escapeHtmlJS(String(tx.tanggal).substring(5))} • ${escapeHtmlJS(tx.keterangan || '-')} • ${escapeHtmlJS(walletName(tx.walletId))}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 ml-2">
+          <p class="${colClass} font-bold text-sm">${formatRupiah(tx.nominal).replace(',00', '')}</p>
+          <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+            <button type="button" onclick="editTransaction('${escapeAttrJS(tx.id)}')" aria-label="Edit transaksi ${escapeAttrJS(tx.kategori)}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
+              <i class="ph ph-pencil text-base" aria-hidden="true"></i>
+            </button>
+            <button type="button" onclick="deleteTransaction('${escapeAttrJS(tx.id)}')" aria-label="Hapus transaksi ${escapeAttrJS(tx.kategori)}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
+              <i class="ph ph-trash text-base" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>`;
+
+    if (listIn) {
+      const inRows = cycleTxs.filter((tx) => tx.tipe === 'Pemasukan');
+      listIn.innerHTML = inRows.map((tx) => buildRow(tx, 'text-emerald-500', 'text-emerald-500', 'bg-emerald-50 dark:bg-emerald-500/10')).join('') ||
+        `<p class="text-center text-xs text-slate-400 p-4">${escapeHtmlJS(t('dash.kosong'))}</p>`;
+    }
+    if (listOut) {
+      const outRows = cycleTxs.filter((tx) => tx.tipe === 'Pengeluaran');
+      listOut.innerHTML = outRows.map((tx) => buildRow(tx, 'text-rose-500', 'text-rose-500', 'bg-rose-50 dark:bg-rose-500/10')).join('') ||
+        `<p class="text-center text-xs text-slate-400 p-4">${escapeHtmlJS(t('dash.kosong'))}</p>`;
+    }
+  };
+
+  window.renderFinancialRatios = function () {
+    const panel = document.getElementById('financialRatiosPanel');
+    if (!panel || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const r = FinanceAnalysis.computeFinancialHealthRatios(DB, DB.currentPeriod, DB.payrollDay);
+    const badgeColor = (s) => s === 'excellent'
+      ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+      : s === 'good'
+        ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+        : s === 'danger'
+          ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300'
+          : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
+
+    panel.innerHTML = `
+      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="text-xs font-bold text-slate-500 dark:text-slate-400">Dana Darurat (Runway)</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor(r.runwayStatus)}">${r.emergencyRunwayMonths !== null ? (r.emergencyRunwayMonths >= 6 ? 'Aman 6+ bln' : r.emergencyRunwayMonths >= 3 ? 'Cukup' : 'Perlu ditambah') : 'Info'}</span>
+        </div>
+        <p class="text-2xl font-black text-slate-900 dark:text-white">${r.emergencyRunwayMonths !== null ? (r.emergencyRunwayMonths + ' bln') : '—'}</p>
+        <p class="text-[11px] text-slate-400 mt-1">Kas likuid ${formatRupiah(r.liquidCash).replace(',00', '')} / rata-rata keluar ${formatRupiah(r.avgMonthlyExpense).replace(',00', '')}</p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="text-xs font-bold text-slate-500 dark:text-slate-400">Savings Rate Siklus Ini</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor(r.savingsStatus)}">${r.savingsRatePct >= 20 ? 'Ideal ≥20%' : r.savingsRatePct >= 10 ? 'Baik' : 'Rendah'}</span>
+        </div>
+        <p class="text-2xl font-black ${r.savingsRatePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${r.savingsRatePct}%</p>
+        <p class="text-[11px] text-slate-400 mt-1">Porsi pemasukan yang tersisa setelah pengeluaran</p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="text-xs font-bold text-slate-500 dark:text-slate-400">Rasio Utang vs Aset</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor(r.debtStatus)}">${r.debtToAssetPct === 0 ? 'Bebas Utang' : r.debtToAssetPct <= 30 ? 'Sehat ≤30%' : 'Tinggi >30%'}</span>
+        </div>
+        <p class="text-2xl font-black text-slate-900 dark:text-white">${r.debtToAssetPct}%</p>
+        <p class="text-[11px] text-slate-400 mt-1">Utang ${formatRupiah(r.utangTotal).replace(',00', '')} dari aset kotor ${formatRupiah(r.grossAssets).replace(',00', '')}</p>
+      </div>`;
+  };
+
+  window.openAutoBudgetModal = async function () {
+    const recs = FinanceAnalysis.recommendCategoryBudgets(DB.transactions, DB.currentPeriod, DB.payrollDay, 3);
+    if (!recs.length) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Belum ada riwayat pengeluaran',
+        text: 'Catat minimal beberapa pengeluaran agar sistem dapat menghitung rata-rata budget per kategori.',
+        customClass: { popup: getSwalClass() }
+      });
+      return;
+    }
+
+    const rowsHtml = recs.map((r, idx) => `
+      <label class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs">
+        <span class="flex items-center gap-2 min-w-0">
+          <input type="checkbox" class="mk-autobudget-chk" data-idx="${idx}" checked>
+          <span class="font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(r.category)}</span>
+        </span>
+        <span class="text-right shrink-0">
+          <span class="font-black text-brand dark:text-brand-ink">${formatRupiah(r.recommendedAmount).replace(',00', '')}</span>
+          <span class="block text-[10px] text-slate-400">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
+        </span>
+      </label>`).join('');
+
+    const conf = await Swal.fire({
+      title: 'Rekomendasi Budget (' + escapeHtmlJS(DB.currentPeriod) + ')',
+      html: `<p class="text-xs text-slate-500 mb-3">Dihitung otomatis dari rata-rata 3 siklus terakhir:</p><div class="space-y-2 max-h-64 overflow-y-auto text-left">${rowsHtml}</div>`,
+      showCancelButton: true,
+      confirmButtonText: 'Terapkan Budget Terpilih',
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() },
+      preConfirm: () => {
+        const picked = [];
+        document.querySelectorAll('.mk-autobudget-chk:checked').forEach((chk) => {
+          const item = recs[Number(chk.dataset.idx)];
+          if (item) picked.push(item);
+        });
+        return picked;
+      }
+    });
+
+    if (!conf.isConfirmed || !conf.value || !conf.value.length) return;
+    Swal.fire({ title: 'Menyimpan budget...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { popup: getSwalClass() } });
+    try {
+      let lastData = null;
+      for (const item of conf.value) {
+        lastData = await callServer('api_saveBudget', item.category, DB.currentPeriod, item.recommendedAmount);
+      }
+      if (lastData) await refreshFromServer(lastData);
+      Swal.fire({ icon: 'success', title: conf.value.length + ' budget diterapkan!', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  };
+
+  window.toggleSplitBillFields = function () {
+    const chk = document.getElementById('tr_split_enable');
+    const fields = document.getElementById('tr_split_fields');
+    if (fields) fields.classList.toggle('hide', !(chk && chk.checked));
+  };
+
+  window.exportBackupJson = function () {
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const snapshot = {
+      exportedAt: new Date().toISOString(),
+      version: '3.1',
+      user: sessionUser,
+      currentPeriod: DB.currentPeriod,
+      payrollDay: DB.payrollDay,
+      wallets: DB.wallets || [],
+      transfers: DB.transfers || [],
+      categories: DB.categories || {},
+      entities: DB.entities || {},
+      assets: DB.assets || [],
+      budgets: DB.budgets || [],
+      goals: DB.goals || [],
+      recurring: DB.recurring || [],
+      debtDueDates: DB.debtDueDates || {},
+      transactions: DB.transactions || []
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Backup_MyKeuangan_${sessionUser}_${todayStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  async function hashPin(pin) {
+    const data = new TextEncoder().encode('mkpin:' + String(pin));
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  window.openAccountSettingsModal = async function () {
+    const hasPin = Boolean(localStorage.getItem('mk_app_pin_hash'));
+    const res = await Swal.fire({
+      title: 'Pengaturan Akun & Keamanan',
+      html: `
+        <div class="text-left space-y-3 text-xs">
+          <div>
+            <label for="acc-display-name" class="block font-bold text-slate-500 mb-1">Nama Tampilan</label>
+            <input id="acc-display-name" class="swal2-input" style="margin:0;width:100%" maxlength="60" value="${escapeAttrJS(sessionUser || '')}">
+          </div>
+          <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+            <label for="acc-pin-input" class="block font-bold text-slate-500 mb-1">PIN Kunci Aplikasi Lokal (4–6 digit, ${hasPin ? 'Aktif' : 'Belum diatur'})</label>
+            <input id="acc-pin-input" type="password" inputmode="numeric" maxlength="6" class="swal2-input" style="margin:0;width:100%" placeholder="${hasPin ? 'Kosongkan jika tetap / ketik PIN baru' : 'Contoh: 1234'}">
+          </div>
+          <div class="flex flex-wrap gap-2 pt-2">
+            <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">🔑 Ganti Password</button>
+            ${hasPin ? '<button type="button" id="acc-clear-pin-btn" class="py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 font-bold">🔓 Hapus PIN</button>' : ''}
+          </div>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() },
+      didOpen: () => {
+        const clr = document.getElementById('acc-clear-pin-btn');
+        if (clr) {
+          clr.addEventListener('click', () => {
+            localStorage.removeItem('mk_app_pin_hash');
+            sessionStorage.removeItem('mk_pin_unlocked');
+            Swal.fire({ icon: 'info', title: 'PIN aplikasi dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+          });
+        }
+      },
+      preConfirm: () => {
+        const displayName = (document.getElementById('acc-display-name').value || '').trim();
+        const pin = (document.getElementById('acc-pin-input').value || '').trim();
+        if (displayName.length < 2) {
+          Swal.showValidationMessage('Nama tampilan minimal 2 karakter.');
+          return false;
+        }
+        if (pin && !/^\d{4,6}$/.test(pin)) {
+          Swal.showValidationMessage('PIN harus 4 sampai 6 angka.');
+          return false;
+        }
+        return { displayName, pin };
+      }
+    });
+
+    if (!res.isConfirmed || !res.value) return;
+    try {
+      if (res.value.displayName !== sessionUser) {
+        const out = await callServer('api_updateOwnProfile', res.value.displayName);
+        if (out && out.displayName) {
+          sessionUser = out.displayName;
+          const uEl = document.getElementById('ui-username');
+          const dEl = document.getElementById('dashTitle');
+          if (uEl) uEl.innerText = sessionUser;
+          if (dEl) dEl.innerText = 'Dashboard Keuangan ' + sessionUser;
+        }
+      }
+      if (res.value.pin) {
+        const hashed = await hashPin(res.value.pin);
+        localStorage.setItem('mk_app_pin_hash', hashed);
+        sessionStorage.setItem('mk_pin_unlocked', '1');
+      }
+      Swal.fire({ icon: 'success', title: 'Pengaturan akun tersimpan', timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  };
+
+  let pinPromptShown = false;
+  async function verifyAppPinIfEnabled() {
+    const savedHash = localStorage.getItem('mk_app_pin_hash');
+    if (!savedHash || sessionStorage.getItem('mk_pin_unlocked') === '1' || pinPromptShown) return;
+    pinPromptShown = true;
+    const mainEl = document.getElementById('mainContent');
+    if (mainEl) mainEl.classList.add('blur-md', 'pointer-events-none');
+    try {
+      while (true) {
+        const res = await Swal.fire({
+          title: 'Masukkan PIN Aplikasi',
+          input: 'password',
+          inputAttributes: { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' },
+          inputPlaceholder: 'PIN 4–6 digit',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showDenyButton: true,
+          denyButtonText: 'Keluar',
+          denyButtonColor: '#64748b',
+          confirmButtonText: 'Buka Kunci',
+          customClass: { popup: getSwalClass() }
+        });
+        if (res.isDenied) {
+          if (typeof window.logout === 'function') window.logout();
+          return;
+        }
+        const hashed = await hashPin(String(res.value || '').trim());
+        if (hashed === savedHash) {
+          sessionStorage.setItem('mk_pin_unlocked', '1');
+          break;
+        }
+        await Swal.fire({ icon: 'error', title: 'PIN salah', timer: 1100, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      }
+    } finally {
+      if (mainEl) mainEl.classList.remove('blur-md', 'pointer-events-none');
+    }
+  }
+
+  window.openQuickAddMenu = async function () {
+    const res = await Swal.fire({
+      title: 'Catat Cepat',
+      html: `
+        <div class="grid grid-cols-2 gap-2.5 text-xs font-bold">
+          <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center gap-1.5">
+            <i class="ph ph-minus-circle text-2xl"></i><span>Pengeluaran</span>
+          </button>
+          <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center gap-1.5">
+            <i class="ph ph-plus-circle text-2xl"></i><span>Pemasukan</span>
+          </button>
+          <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center gap-1.5">
+            <i class="ph ph-camera text-2xl"></i><span>Scan Struk AI</span>
+          </button>
+          <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-1.5">
+            <i class="ph ph-arrows-left-right text-2xl"></i><span>Transfer Dompet</span>
+          </button>
+        </div>`,
+      showConfirmButton: false,
+      showCancelButton: true,
+      cancelButtonText: t('btn.tutup'),
+      customClass: { popup: getSwalClass() },
+      didOpen: () => {
+        document.getElementById('fab-out')?.addEventListener('click', () => { Swal.close(); openForm('Pengeluaran'); });
+        document.getElementById('fab-in')?.addEventListener('click', () => { Swal.close(); openForm('Pemasukan'); });
+        document.getElementById('fab-ocr')?.addEventListener('click', () => { Swal.close(); openForm('Pengeluaran'); setTimeout(() => triggerReceiptOcr(), 120); });
+        document.getElementById('fab-tf')?.addEventListener('click', () => { Swal.close(); openTransferModal('transfer'); });
+      }
+    });
+    return res;
+  };
+
+  /* ---------------- 9. Hook Post-Render Enhancements ---------------- */
   function installHooks() {
     waitAndWrapCallServer();
+
+    if (typeof window.openForm === 'function' && !window._origOpenForm) {
+      window._origOpenForm = window.openForm;
+      window.openForm = function (action) {
+        window._origOpenForm(action);
+        const box = document.getElementById('splitBillBox');
+        const chk = document.getElementById('tr_split_enable');
+        const fields = document.getElementById('tr_split_fields');
+        const dl = document.getElementById('tr_split_person_list');
+        const tipe = (document.getElementById('tr_tipe') || {}).value;
+        if (chk) chk.checked = false;
+        if (fields) fields.classList.add('hide');
+        if (box) box.classList.toggle('hide', tipe !== 'Pengeluaran');
+        if (dl) {
+          dl.innerHTML = ((DB.entities && DB.entities.Piutang) || [])
+            .map((p) => `<option value="${escapeAttrJS(p)}">`).join('');
+        }
+      };
+    }
+
+    if (typeof window.editTransaction === 'function' && !window._origEditTransaction) {
+      window._origEditTransaction = window.editTransaction;
+      window.editTransaction = function (id) {
+        window._origEditTransaction(id);
+        const box = document.getElementById('splitBillBox');
+        const chk = document.getElementById('tr_split_enable');
+        if (chk) chk.checked = false;
+        if (box) box.classList.add('hide');
+      };
+    }
+
+    if (typeof window.submitTransaction === 'function' && !window._origSubmitTransaction) {
+      window._origSubmitTransaction = window.submitTransaction;
+      window.submitTransaction = async function (e) {
+        const rowId = (document.getElementById('tr_row') || {}).value;
+        const tipe = (document.getElementById('tr_tipe') || {}).value;
+        const splitChk = document.getElementById('tr_split_enable');
+        if (!rowId && tipe === 'Pengeluaran' && splitChk && splitChk.checked) {
+          e.preventDefault();
+          let tanggal = (document.getElementById('tr_tanggal') || {}).value;
+          if (!tanggal && typeof fpTanggal !== 'undefined' && fpTanggal && fpTanggal.selectedDates && fpTanggal.selectedDates.length) {
+            const d = fpTanggal.selectedDates[0];
+            tanggal = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          }
+          const totalNominal = parseFloat((document.getElementById('tr_nominal') || {}).value);
+          const friendShare = parseFloat((document.getElementById('tr_split_amount') || {}).value);
+          const person = ((document.getElementById('tr_split_person') || {}).value || '').trim();
+          const kategori = (document.getElementById('tr_kategori') || {}).value;
+          const note = ((document.getElementById('tr_keterangan') || {}).value || '').trim();
+          const walletId = (document.getElementById('tr_wallet') || {}).value || '';
+
+          if (!tanggal || !/^\d{4}-\d{2}-\d{2}/.test(tanggal) || !totalNominal || totalNominal <= 0) {
+            Swal.fire({ icon: 'error', title: 'Data tidak valid', text: 'Isi tanggal dan nominal total dengan benar.', customClass: { popup: getSwalClass() } });
+            return;
+          }
+          if (!person || !friendShare || friendShare <= 0 || friendShare >= totalNominal) {
+            Swal.fire({ icon: 'error', title: 'Split Bill tidak valid', text: 'Isi nama teman dan porsi teman lebih dari 0 serta lebih kecil dari total transaksi.', customClass: { popup: getSwalClass() } });
+            return;
+          }
+
+          const myPortion = totalNominal - friendShare;
+          try {
+            if (!((DB.entities && DB.entities.Piutang) || []).includes(person)) {
+              const entData = await callServer('api_addEntity', 'Piutang', person);
+              if (entData && entData.entities) DB.entities = entData.entities;
+            }
+            await callServer('api_addTransaction', {
+              tanggal, tipe: 'Pengeluaran', kategori, nominal: myPortion,
+              keterangan: (note ? note + ' ' : '') + '[Split Bill dengan ' + person + ']', walletId
+            });
+            const data2 = await callServer('api_addTransaction', {
+              tanggal, tipe: 'Pengeluaran', kategori: 'Piutang - ' + person, nominal: friendShare,
+              keterangan: 'Patungan: ' + (note || kategori), walletId
+            });
+            const txMonth = cycleOfDate(tanggal);
+            if (txMonth !== DB.currentPeriod) {
+              await callServer('api_savePeriod', txMonth);
+              data2.currentPeriod = txMonth;
+            }
+            await refreshFromServer(data2);
+            Swal.fire({
+              icon: 'success',
+              title: 'Split Bill Tercatat!',
+              html: `Porsi Anda <b>${formatRupiah(myPortion)}</b> + Piutang <b>${escapeHtmlJS(person)}</b> sebesar <b>${formatRupiah(friendShare)}</b> tersimpan.`,
+              timer: 1800,
+              showConfirmButton: false,
+              customClass: { popup: getSwalClass() }
+            });
+            switchView('dashboard');
+          } catch (err) {
+            if (typeof showActionError === 'function') showActionError(err);
+          }
+          return;
+        }
+        return window._origSubmitTransaction(e);
+      };
+    }
+
+    if (typeof window.renderWallets === 'function' && !window._origRenderWallets) {
+      window._origRenderWallets = window.renderWallets;
+      window.renderWallets = function () {
+        window._origRenderWallets();
+        document.querySelectorAll('#wallet-panel > div').forEach((card) => {
+          if (card.dataset.detailBound === 'true') return;
+          const editBtn = card.querySelector('button[onclick^="editWallet("]');
+          if (!editBtn) return;
+          const m = (editBtn.getAttribute('onclick') || '').match(/editWallet\('([^']+)'\)/);
+          if (!m) return;
+          const walletId = m[1];
+          card.dataset.detailBound = 'true';
+          card.classList.add('cursor-pointer', 'hover:border-brand/50');
+          card.addEventListener('click', (ev) => {
+            if (ev.target.closest('button')) return;
+            openWalletDetailModal(walletId);
+          });
+        });
+      };
+    }
 
     if (typeof window.renderFinancialGoals === 'function' && !window._origRenderFinancialGoals) {
       window._origRenderFinancialGoals = window.renderFinancialGoals;
@@ -960,7 +1516,13 @@
         window._origSwitchView(id);
         if (id === 'budgeting') {
           setTimeout(renderBudgetCharts, 60);
+        } else if (id === 'aset') {
+          renderFinancialRatios();
+        } else if (id === 'histori') {
+          filterHistoriView();
         }
+        const fab = document.getElementById('mobileFabBtn');
+        if (fab) fab.classList.toggle('hide', id === 'form-transaction');
       };
     }
 
@@ -968,7 +1530,10 @@
       window._origRenderAll = window.renderAll;
       window.renderAll = function () {
         window._origRenderAll();
+        filterHistoriView();
+        renderFinancialRatios();
         refreshNotificationBell();
+        verifyAppPinIfEnabled();
       };
     }
 
@@ -992,6 +1557,25 @@
   });
   window.addEventListener('online', () => {
     window.flushOfflineQueue(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) return;
+    if (typeof isDataReady === 'undefined' || !isDataReady) return;
+    const k = String(e.key || '').toLowerCase();
+    if (k === 'n') {
+      e.preventDefault();
+      openForm('Pengeluaran');
+    } else if (k === 'h') {
+      e.preventDefault();
+      if (typeof toggleHideNominal === 'function') toggleHideNominal();
+    } else if (e.key === '/') {
+      e.preventDefault();
+      switchView('laporan');
+      setTimeout(() => { const s = document.getElementById('lapSearch'); if (s) s.focus(); }, 80);
+    }
   });
 })();
 </script>

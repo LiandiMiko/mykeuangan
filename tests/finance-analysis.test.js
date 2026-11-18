@@ -16,7 +16,9 @@ const {
   buildAppNotifications,
   buildReceiptOcrPrompt,
   parseReceiptOcrResponse,
-  buildAiFinancialChatPrompt
+  buildAiFinancialChatPrompt,
+  computeFinancialHealthRatios,
+  recommendCategoryBudgets
 } = require('../web/finance-analysis.js');
 
 test('payroll cycle spans month and year boundaries', () => {
@@ -232,4 +234,39 @@ test('receipt OCR helpers and AI chat prompt builder format and validate correct
   const chatPrompt = buildAiFinancialChatPrompt({ netWorth: 10000000 }, 'Bisa nabung berapa?', 'id');
   assert.match(chatPrompt, /Bisa nabung berapa\?/);
   assert.throws(() => buildAiFinancialChatPrompt({}, '   ', 'id'), /wajib/);
+});
+
+test('computeFinancialHealthRatios and recommendCategoryBudgets calculate runway, debt ratio, and averages', () => {
+  const sampleData = {
+    wallets: [{ id: 'w1', name: 'BCA', openingBalance: 10000000 }],
+    assets: [{ name: 'Tabungan Darurat', type: 'Cash', value: 2000000 }, { name: 'BTC', type: 'Crypto', value: 4000000 }],
+    transactions: [
+      { tanggal: '2026-09-10', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 2000000, walletId: 'w1' },
+      { tanggal: '2026-10-10', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 3000000, walletId: 'w1' },
+      { tanggal: '2026-11-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 10000000, walletId: 'w1' },
+      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 4000000, walletId: 'w1' },
+      { tanggal: '2026-11-08', tipe: 'Pengeluaran', kategori: 'Transport', nominal: 123000, walletId: 'w1' },
+      { tanggal: '2026-11-10', tipe: 'Pemasukan', kategori: 'UtangPerson - Andi', nominal: 2000000, walletId: 'w1' }
+    ]
+  };
+
+  const ratios = computeFinancialHealthRatios(sampleData, '2026-11', 1);
+  // liquidCash = (10M + 10M - 2M - 3M - 4M - 0.123M) + 2M = 12,877,000; avg 3 cycles = (2M + 3M + 4.123M)/3 = 3,041,000
+  assert.equal(ratios.liquidCash, 12877000);
+  assert.equal(ratios.avgMonthlyExpense, 3041000);
+  assert.equal(ratios.emergencyRunwayMonths, 4.2);
+  assert.equal(ratios.runwayStatus, 'good');
+  // 2026-11 income=10M, expense=4,123,000 -> net=5,877,000 -> savingsRate=58.8%
+  assert.equal(ratios.savingsRatePct, 58.8);
+  assert.equal(ratios.savingsStatus, 'excellent');
+  // grossAssets = 10,877,000 + 6,000,000 = 16,877,000; debt = 2,000,000 -> ~11.9%
+  assert.equal(ratios.debtToAssetPct, 11.9);
+  assert.equal(ratios.debtStatus, 'good');
+
+  const recs = recommendCategoryBudgets(sampleData.transactions, '2026-11', 1, 3);
+  assert.equal(recs[0].category, 'Makan');
+  assert.equal(recs[0].recommendedAmount, 3000000);
+  assert.equal(recs[0].activeCycles, 3);
+  assert.equal(recs[1].category, 'Transport');
+  assert.equal(recs[1].recommendedAmount, 130000);
 });

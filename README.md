@@ -368,6 +368,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 18 November 2026: Wave v3.1 (Rincian Dompet, Rasio Finansial, Split Bill, Backup JSON &amp; PIN Lock)
+- **Rincian Dompet & Filter Histori**: Klik kartu dompet di `src/dashboard.html` untuk modal ringkasan mutasi + transaksi terakhir (`openWalletDetailModal()`), tambah cari & filter dompet di `src/histori.html`, Mobile FAB (`#mobileFabBtn`), serta shortcut keyboard (`N`, `H`, `/`).
+- **Rasio Kesehatan, Auto-Budget & Split Bill**: Panel 3 rasio otomatis (*Dana Darurat Runway*, *Savings Rate*, *Rasio Utang vs Aset*) di `src/aset.html`, Generator **Rekomendasi Budget Otomatis** 3 siklus di `src/budgeting.html`, dan **Split Bill / Patungan** otomatis ke `Piutang` di `src/form.html`.
+- **Laporan Dompet & Backup JSON**: Tambah kolom `Dompet` di tabel `#table-laporan` dan `exportPDF()`, plus unduh **Backup JSON** penuh di `src/laporan.html`.
+- **Profil & PIN Lock Semua User**: Semua pengguna (bukan admin saja) kini memiliki tombol pengaturan di sidebar untuk ubah nama tampilan (`api_updateOwnProfile`), ganti password, dan kunci layar PIN 4–6 digit SHA-256 lokal (`openAccountSettingsModal()`).
+
 ### 18 November 2026: Roadmap v2.1–v3.0 (AI Multimodal, Grafik Budgeting, Notifikasi & Offline Sync)
 - **Scan Struk AI & Tanya Jawab Keuangan**: Tombol **Scan Struk (AI)** di Form Transaksi (`src/form.html`), handler foto struk & *voice note* Gemini 2.5 Flash pada bot Telegram (`supabase/functions/telegram-bot/index.ts`), serta panel **Tanya & Simulasi Keuangan AI** on-demand (`src/ai.html`).
 - **Grafik Budgeting & Kalkulator Target**: Donut Chart pengeluaran per kategori + Bar Chart arus kas 6 bulan vs budget dan saran setoran bulanan target di `src/budgeting.html`.

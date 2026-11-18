@@ -1230,6 +1230,21 @@
       const { error } = await sb.auth.updateUser({ password });
       fail(error);
     },
+    async api_updateOwnProfile(displayName) {
+      const name = String(displayName || '').trim().slice(0, 60);
+      if (name.length < 2) {
+        throw new Error('Nama tampilan minimal 2 karakter.');
+      }
+      const { data: authData, error: authErr } = await sb.auth.getUser();
+      fail(authErr);
+      if (!authData || !authData.user) throw new Error('Sesi login tidak valid.');
+      const { error } = await sb.from('profiles')
+        .update({ display_name: name, updated_at: new Date().toISOString() })
+        .eq('id', authData.user.id);
+      fail(error);
+      window.sessionUser = name;
+      return { displayName: name };
+    },
     async api_adminSetPassword(userId, password) {
       if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       if (typeof password !== 'string' || password.length < 8 || password.length > 128) {

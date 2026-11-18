@@ -97,7 +97,7 @@
 
       <!-- USER INFO + LOGOUT -->
       <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between gap-2 mb-4">
           <div class="flex items-center gap-3 overflow-hidden">
             <div class="w-9 h-9 rounded-xl bg-brand/15 flex items-center justify-center text-brand dark:text-brand-ink shrink-0">
               <i class="ph ph-user text-lg" aria-hidden="true"></i>
@@ -107,6 +107,10 @@
               <p id="ui-role" class="text-[10px] uppercase text-slate-500 dark:text-slate-400">User</p>
             </div>
           </div>
+          <button type="button" onclick="openAccountSettingsModal()" aria-label="Pengaturan Akun & PIN" title="Pengaturan Akun & PIN" data-i18n-aria-label="account.settings" data-i18n-title="account.settings"
+                  class="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
+            <i class="ph ph-user-gear text-lg" aria-hidden="true"></i>
+          </button>
         </div>
         <button onclick="logout()" class="w-full min-h-11 mt-2 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-200/70 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all flex justify-center items-center gap-2">
           <i class="ph ph-sign-out text-sm" aria-hidden="true"></i> <span data-i18n="nav.logout">Keluar (Logout)</span>
@@ -167,6 +171,12 @@
       <?!= include('admin'); ?>
     </div>
   </main>
+
+  <!-- Mobile Floating Action Button (Quick Add) -->
+  <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
+          class="lg:hidden fixed right-4 bottom-5 z-30 w-14 h-14 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center shadow-xl active:scale-95 transition-transform">
+    <i class="ph ph-plus-bold text-2xl" aria-hidden="true"></i>
+  </button>
 
   <!-- Sidebar Overlay for Mobile -->
   <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300 opacity-0 pointer-events-none"></div>

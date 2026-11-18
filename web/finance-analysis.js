@@ -628,12 +628,104 @@
     ].join('\n');
   }
 
+  function computeFinancialHealthRatios(data, period, payrollDay) {
+    const src = data && typeof data === 'object' ? data : {};
+    const payload = buildAiCashflowPayload(src, period, payrollDay);
+    const assets = Array.isArray(src.assets) ? src.assets : [];
+    const cashAssetsTotal = assets
+      .filter((a) => String(a.type || '').toLowerCase() === 'cash')
+      .reduce((sum, a) => sum + (Number(a.value) || 0), 0);
+    const liquidCash = Math.max(0, payload.walletsTotal) + Math.max(0, cashAssetsTotal);
+
+    const series = monthlyCashflowSeries(src.transactions, period, payrollDay, 3);
+    const nonZeroExpenses = series.map((s) => s.expenseTotal).filter((v) => v > 0);
+    const avgMonthlyExpense = nonZeroExpenses.length
+      ? nonZeroExpenses.reduce((sum, v) => sum + v, 0) / nonZeroExpenses.length
+      : payload.expenseTotal;
+
+    const emergencyRunwayMonths = avgMonthlyExpense > 0
+      ? Number((liquidCash / avgMonthlyExpense).toFixed(1))
+      : null;
+    const runwayStatus = emergencyRunwayMonths === null
+      ? 'info'
+      : emergencyRunwayMonths >= 6
+        ? 'excellent'
+        : emergencyRunwayMonths >= 3
+          ? 'good'
+          : 'warning';
+
+    const savingsRatePct = payload.savingsRate;
+    const savingsStatus = payload.incomeTotal <= 0
+      ? 'info'
+      : savingsRatePct >= 20
+        ? 'excellent'
+        : savingsRatePct >= 10
+          ? 'good'
+          : 'warning';
+
+    const grossAssets = Math.max(0, payload.walletsTotal) + Math.max(0, payload.assetsTotal) + Math.max(0, payload.piutangTotal);
+    const debtToAssetPct = grossAssets > 0
+      ? Number(((payload.utangTotal / grossAssets) * 100).toFixed(1))
+      : (payload.utangTotal > 0 ? 100 : 0);
+    const debtStatus = debtToAssetPct === 0
+      ? 'excellent'
+      : debtToAssetPct <= 30
+        ? 'good'
+        : 'danger';
+
+    return {
+      liquidCash,
+      avgMonthlyExpense: Math.round(avgMonthlyExpense),
+      emergencyRunwayMonths,
+      runwayStatus,
+      savingsRatePct,
+      savingsStatus,
+      grossAssets,
+      utangTotal: payload.utangTotal,
+      debtToAssetPct,
+      debtStatus
+    };
+  }
+
+  function recommendCategoryBudgets(transactions, endPeriod, payrollDay, cycleCount) {
+    const count = Math.max(1, Math.min(6, Math.trunc(Number(cycleCount) || 3)));
+    parsePeriod(endPeriod);
+    const list = Array.isArray(transactions) ? transactions : [];
+    const perCategoryTotals = new Map();
+
+    for (let i = 0; i < count; i += 1) {
+      const period = shiftPeriod(endPeriod, -i);
+      const summary = summarizePeriod([], list, period, payrollDay);
+      summary.rows.forEach((row) => {
+        if (row.actual <= 0) return;
+        const entry = perCategoryTotals.get(row.category) || { sum: 0, cycles: 0 };
+        entry.sum += row.actual;
+        entry.cycles += 1;
+        perCategoryTotals.set(row.category, entry);
+      });
+    }
+
+    return Array.from(perCategoryTotals.entries())
+      .map(([category, stats]) => {
+        const avg = stats.sum / stats.cycles;
+        const rounded = Math.max(10000, Math.ceil(avg / 10000) * 10000);
+        return {
+          category,
+          recommendedAmount: rounded,
+          averageActual: Math.round(avg),
+          activeCycles: stats.cycles
+        };
+      })
+      .sort((a, b) => b.recommendedAmount - a.recommendedAmount || a.category.localeCompare(b.category));
+  }
+
   const api = {
     getPeriodRange, isInPeriod, shiftPeriod, summarizePeriod, monthlyTrend,
     periodInsights, goalProgress, buildAiCashflowPayload,
     buildGeminiCashflowPrompt, parseGeminiCashflowResponse,
     calculateGoalMonthlySaving, monthlyCashflowSeries, buildAppNotifications,
-    buildReceiptOcrPrompt, parseReceiptOcrResponse, buildAiFinancialChatPrompt
+    buildReceiptOcrPrompt, parseReceiptOcrResponse, buildAiFinancialChatPrompt,
+    computeFinancialHealthRatios, recommendCategoryBudgets
   };
   root.FinanceAnalysis = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

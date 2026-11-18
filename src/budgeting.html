@@ -25,9 +25,14 @@
         </div>
       </div>
     </div>
-    <button id="budgetCopyBtn" onclick="copyBudgetFromLastMonth()" class="hidden md:inline-flex px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors items-center gap-2">
-      <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
-    </button>
+    <div class="hidden md:flex items-center gap-2">
+      <button type="button" onclick="openAutoBudgetModal()" class="px-4 py-2.5 bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 hover:bg-brand hover:text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-2">
+        <i class="ph ph-magic-wand" aria-hidden="true"></i> <span data-i18n="budget.btn_auto">Rekomendasi Otomatis</span>
+      </button>
+      <button id="budgetCopyBtn" onclick="copyBudgetFromLastMonth()" class="inline-flex px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors items-center gap-2">
+        <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
+      </button>
+    </div>
   </div>
 
   <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 mb-6">
@@ -48,9 +53,14 @@
         <i class="ph ph-check-bold"></i> <span data-i18n="btn.simpan">Simpan</span>
       </button>
     </div>
-    <button onclick="copyBudgetFromLastMonth()" class="md:hidden mt-3 w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
-      <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
-    </button>
+    <div class="md:hidden mt-3 grid grid-cols-2 gap-2">
+      <button type="button" onclick="openAutoBudgetModal()" class="px-3 py-2.5 bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+        <i class="ph ph-magic-wand" aria-hidden="true"></i> <span data-i18n="budget.btn_auto">Otomatis</span>
+      </button>
+      <button type="button" onclick="copyBudgetFromLastMonth()" class="px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+        <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy Lalu</span>
+      </button>
+    </div>
   </div>
 
   <section class="mb-6" aria-labelledby="budgetAnalysisTitle">

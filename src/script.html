@@ -2289,7 +2289,7 @@ async function loadReportPage() {
   if (pageStatus) pageStatus.textContent = '';
   if (previous) previous.disabled = true;
   if (next) next.disabled = true;
-  tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-500">${escapeHtmlJS(t('lap.loading'))}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="px-8 py-16 text-center text-slate-500">${escapeHtmlJS(t('lap.loading'))}</td></tr>`;
 
   try {
     const result = await callServer('api_searchTransactions', filters);
@@ -2309,7 +2309,7 @@ async function loadReportPage() {
     if (requestId !== laporanState.requestId) return;
     laporanState.dirty = true;
     if (status) status.textContent = String(error.message || error);
-    tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-12 text-center">
+    tbody.innerHTML = `<tr><td colspan="7" class="px-8 py-12 text-center">
       <p class="text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>
       <button type="button" onclick="retryReportLoad()" class="min-h-[44px] px-4 rounded-xl bg-brand text-white font-semibold">${escapeHtmlJS(t('lap.retry'))}</button>
     </td></tr>`;
@@ -2320,7 +2320,7 @@ function renderReportRows(txs) {
   const tbody = document.getElementById('table-laporan');
   if (!tbody) return;
   if (!txs.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.no_results'))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="px-8 py-16 text-center text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.no_results'))}</td></tr>`;
     return;
   }
 
@@ -2334,11 +2334,12 @@ function renderReportRows(txs) {
 
     return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-        <td class="px-6 py-4">${escapeHtmlJS(r.tanggal)}</td>
+        <td class="px-6 py-4 whitespace-nowrap">${escapeHtmlJS(r.tanggal)}</td>
         <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[10px] font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span></td>
         <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${escapeHtmlJS(r.kategori)}</td>
+        <td class="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">${escapeHtmlJS(walletName(r.walletId))}</td>
         <td class="px-6 py-4">${escapeHtmlJS(r.keterangan || '-')}</td>
-        <td class="px-6 py-4 text-right font-bold ${textColor}">${symbol} ${formatRupiah(r.nominal)}</td>
+        <td class="px-6 py-4 text-right font-bold whitespace-nowrap ${textColor}">${symbol} ${formatRupiah(r.nominal)}</td>
         <td class="px-6 py-4 text-center">
           <button type="button" onclick="editTransaction('${escapeAttrJS(r.id)}')" aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-11 h-11 text-blue-500 hover:text-blue-700"><i class="ph ph-pencil text-lg" aria-hidden="true"></i></button>
           <button type="button" onclick="deleteTransaction('${escapeAttrJS(r.id)}')" aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-11 h-11 text-rose-500 hover:text-rose-700"><i class="ph ph-trash text-lg" aria-hidden="true"></i></button>
@@ -2532,23 +2533,24 @@ function exportPDF() {
 
   doc.autoTable({
     startY: 76,
-    head: [['Tanggal', 'Tipe', 'Kategori', 'Catatan', 'Nominal']],
+    head: [['Tanggal', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Nominal']],
     body: txs.map(r => [
-      r.tanggal, r.tipe, r.kategori, r.keterangan || '-',
+      r.tanggal, r.tipe, r.kategori, walletName(r.walletId), r.keterangan || '-',
       formatRupiah(r.nominal).replace(',00','')
     ]),
     theme: 'grid',
     headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', halign: 'center' },
-    styles: { fontSize: 9, cellPadding: 5, font: 'helvetica' },
+    styles: { fontSize: 8.5, cellPadding: 4.5, font: 'helvetica' },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { cellWidth: 25 },
-      1: { cellWidth: 25 },
-      2: { cellWidth: 35 },
-      4: { halign: 'right', fontStyle: 'bold', cellWidth: 35 }
+      0: { cellWidth: 23 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 24 },
+      5: { halign: 'right', fontStyle: 'bold', cellWidth: 32 }
     },
     didParseCell: function (data) {
-      if (data.section === 'body' && data.column.index === 4) {
+      if (data.section === 'body' && data.column.index === 5) {
         const tipe = txs[data.row.index].tipe;
         if (tipe === 'Pemasukan') data.cell.styles.textColor = [5, 150, 105];
         else data.cell.styles.textColor = [225, 29, 72];

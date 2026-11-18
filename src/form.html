@@ -49,9 +49,26 @@
           <input type="number" id="tr_nominal" required min="1" class="w-full pl-14 pr-6 py-5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-3xl font-black text-slate-800 dark:text-white">
         </div>
       </div>
-      <div class="mb-10">
+      <div class="mb-6">
         <label class="block text-xs font-bold mb-2 uppercase tracking-widest text-slate-500" data-i18n="form.catatan">Catatan Opsional</label>
         <textarea id="tr_keterangan" rows="3" class="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand resize-none font-medium text-slate-800 dark:text-white"></textarea>
+      </div>
+      <div id="splitBillBox" class="mb-8 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+        <label class="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+          <input type="checkbox" id="tr_split_enable" onchange="toggleSplitBillFields()" class="w-4 h-4 rounded accent-indigo-600">
+          <span>Split Bill / Patungan (catatkan porsi teman otomatis ke Piutang)</span>
+        </label>
+        <div id="tr_split_fields" class="hide grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+          <div>
+            <label for="tr_split_person" class="block text-[11px] font-bold text-slate-500 mb-1">Nama Teman (Piutang)</label>
+            <input type="text" id="tr_split_person" list="tr_split_person_list" maxlength="60" placeholder="Mis. Budi" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
+            <datalist id="tr_split_person_list"></datalist>
+          </div>
+          <div>
+            <label for="tr_split_amount" class="block text-[11px] font-bold text-slate-500 mb-1">Porsi Teman (Rp)</label>
+            <input type="number" id="tr_split_amount" min="1" placeholder="Mis. 50000" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
+          </div>
+        </div>
       </div>
       <button id="btnSubmitTrans" type="submit" class="w-full text-white font-bold py-5 rounded-2xl shadow-xl transition-all hover:opacity-90 active:scale-95 flex items-center justify-center gap-2">
         <i class="ph ph-lock-key-bold text-xl"></i> <span data-i18n="form.btn_save">Enkripsi &amp; Simpan</span>

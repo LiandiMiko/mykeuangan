@@ -23,6 +23,18 @@
     </div>
   </div>
 
+  <!-- FILTER CEPAT SIKLUS -->
+  <div class="mb-5 flex flex-col sm:flex-row gap-3">
+    <div class="relative flex-1">
+      <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+      <input type="search" id="historiSearch" oninput="filterHistoriView()" maxlength="100" data-i18n-placeholder="histori.search_placeholder" placeholder="Cari kategori atau catatan di siklus ini..."
+             class="w-full min-h-11 pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm text-slate-800 dark:text-white">
+    </div>
+    <select id="historiWalletFilter" onchange="filterHistoriView()" aria-label="Filter dompet histori" class="sm:w-56 min-h-11 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">
+      <option value="" data-i18n="lap.all_wallets">Semua dompet</option>
+    </select>
+  </div>
+
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
     <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
       <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/70 dark:bg-slate-800/40">
