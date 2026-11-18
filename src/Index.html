@@ -117,34 +117,36 @@
 
   <!-- ================= MAIN ================= -->
   <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-500">
-        <header class="bg-white dark:bg-slate-900 p-4 lg:px-8 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sticky top-0 z-30 shadow-sm transition-colors">
-      <div class="flex min-w-0 items-center gap-3">
-            <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="min-h-11 min-w-11 flex items-center justify-center text-2xl text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink transition-colors">
-              <i class="ph ph-list" aria-hidden="true"></i>
+    <header class="bg-white dark:bg-slate-900 px-2.5 py-2.5 sm:p-4 lg:px-8 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between gap-1.5 sm:gap-3 sticky top-0 z-30 shadow-sm transition-colors">
+      <div class="flex min-w-0 items-center gap-1 sm:gap-3">
+        <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
+          <i class="ph ph-list" aria-hidden="true"></i>
         </button>
-        <h2 class="min-w-0 truncate font-extrabold text-lg text-slate-900 dark:text-white flex items-center gap-2.5 lg:hidden">
-              <span class="w-8 h-8 brand-gradient rounded-xl inline-flex items-center justify-center shrink-0"><i class="ph-fill ph-wallet text-white text-base" aria-hidden="true"></i></span>
-              <span>MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
+        <h2 class="min-w-0 truncate font-extrabold text-[13px] sm:text-lg text-slate-900 dark:text-white flex items-center gap-1.5 sm:gap-2.5 lg:hidden">
+          <span class="w-6 h-6 sm:w-8 sm:h-8 brand-gradient rounded-lg sm:rounded-xl inline-flex items-center justify-center shrink-0"><i class="ph-fill ph-wallet text-white text-xs sm:text-base" aria-hidden="true"></i></span>
+          <span class="truncate">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
         </h2>
       </div>
-          <div class="flex w-full items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-end">
-            <div class="relative w-32 sm:w-44">
-              <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
-              <input type="text" id="dashMonthPicker" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
-                     class="w-full min-h-11 pl-9 pr-2 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200"
-                     placeholder="Pilih Bulan">
-              <i class="ph ph-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+      <div class="flex items-center justify-end gap-1 sm:gap-2 ml-auto shrink-0">
+        <div class="relative w-[96px] sm:w-44">
+          <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
+          <input type="text" id="dashMonthPicker" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
+                 class="w-full h-9 sm:min-h-11 pl-6 sm:pl-9 pr-1.5 sm:pr-2 py-1 sm:py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-[11px] sm:text-sm text-slate-700 dark:text-slate-200 truncate"
+                 placeholder="Pilih Bulan">
+          <i class="ph ph-calendar absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-base" aria-hidden="true"></i>
         </div>
-            <button onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
-                    class="min-h-11 min-w-11 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand hover:border-brand transition-colors">
-              <i class="ph ph-gear" aria-hidden="true"></i>
-            </button>
-            <button id="toggleHideBtn" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal" class="min-h-11 min-w-11 text-slate-400 hover:text-brand dark:hover:text-white text-xl transition-colors">
-              <i id="eyeIcon" class="ph ph-eye" aria-hidden="true"></i>
-            </button>
-            <button onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme" class="min-h-11 min-w-11 text-slate-400 hover:text-brand dark:hover:text-white text-xl transition-colors">
-              <i class="ph ph-moon dark:hidden" aria-hidden="true"></i><i class="ph ph-sun hidden dark:block" aria-hidden="true"></i>
-            </button>
+        <button onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
+                class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg shrink-0">
+          <i class="ph ph-gear" aria-hidden="true"></i>
+        </button>
+        <button id="toggleHideBtn" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
+                class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-xl shrink-0">
+          <i id="eyeIcon" class="ph ph-eye" aria-hidden="true"></i>
+        </button>
+        <button onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
+                class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-xl shrink-0">
+          <i class="ph ph-moon dark:hidden" aria-hidden="true"></i><i class="ph ph-sun hidden dark:block" aria-hidden="true"></i>
+        </button>
       </div>
     </header>
 
