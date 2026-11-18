@@ -34,14 +34,14 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
 
 | Kategori | Fitur |
 |---|---|
-| **Keuangan** | Transaksi, kalender interaktif, pencarian/filter dompet/paginasi laporan, impor & ekspor CSV, ekspor PDF, kelola kategori & dompet, transaksi rutin (recurring), utang/piutang |
-| **Target** | Target tabungan dengan alokasi langsung dari dompet, nominal terkumpul, tenggat opsional, dan progres |
-| **Aset** | Portofolio saham & kripto dengan harga real-time, beli/top-up dari dompet, dan cairkan/jual ke dompet |
+| **Keuangan** | Transaksi + Scan Struk AI, header mobile satu baris, kalender interaktif, pencarian/filter dompet/paginasi laporan, impor CSV & e-statement bank, ekspor CSV/Excel/PDF, kelola kategori & dompet, transaksi rutin, jatuh tempo utang/piutang |
+| **Target** | Target tabungan dengan kalkulator rekomendasi setoran bulanan otomatis, alokasi langsung dari dompet, nominal terkumpul, tenggat opsional |
+| **Aset** | Portofolio Crypto, Emas (gram), Valas USD, Saham/Reksa Dana dengan auto refresh harga, beli/top-up dari dompet, dan cairkan/jual ke dompet |
 | **Multi-User** | Registrasi mandiri (min. 8 karakter), login/register dark mode, lupa password via email |
 | **Admin Panel** | Statistik global platform, cari & filter user, suspend/aktifkan akun, proteksi self-lockout/admin terakhir |
-| **PWA** | Bisa di-install di HP/desktop; shell statis tersedia offline tanpa mencache API sensitif |
-| **Telegram** | Notifikasi & query saldo via bot, pairing via OTP mandiri + tombol salin perintah |
-| **AI** | Analisis arus keuangan on-demand dengan Google Gemini 2.5 Flash (bekerja hanya saat tombol Analisis ditekan) |
+| **PWA** | Bisa di-install di HP/desktop; shell statis offline + antrean transaksi offline IndexedDB auto-sync saat online, Pusat Notifikasi Lonceng in-app |
+| **Telegram** | Notifikasi, query saldo, dan baca foto struk + voice note AI via Gemini 2.5 Flash; pairing via OTP mandiri + tombol salin perintah |
+| **AI** | Analisis arus keuangan, Scan Struk Vision, & Tanya Jawab / Simulasi Keuangan on-demand dengan Google Gemini 2.5 Flash |
 | **Keamanan** | XSS sanitization, RLS Supabase, constant-time secret verification, purge cache saat logout |
 
 ---
@@ -61,6 +61,7 @@ mykeuangan/
 │   ├── form.html           # View: tambah transaksi
 │   ├── laporan.html        # View: laporan keuangan
 │   ├── budgeting.html      # View: anggaran kategori, target keuangan & transaksi rutin
+│   ├── features-v21.html   # Modul JS lanjutan: OCR struk, AI chat, chart budget, offline sync
 │   ├── utang.html          # View: utang/piutang
 │   └── i18n.html           # Terjemahan (ID/EN)
 │
@@ -367,6 +368,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 18 November 2026: Roadmap v2.1–v3.0 (AI Multimodal, Grafik Budgeting, Notifikasi & Offline Sync)
+- **Scan Struk AI & Tanya Jawab Keuangan**: Tombol **Scan Struk (AI)** di Form Transaksi (`src/form.html`), handler foto struk & *voice note* Gemini 2.5 Flash pada bot Telegram (`supabase/functions/telegram-bot/index.ts`), serta panel **Tanya & Simulasi Keuangan AI** on-demand (`src/ai.html`).
+- **Grafik Budgeting & Kalkulator Target**: Donut Chart pengeluaran per kategori + Bar Chart arus kas 6 bulan vs budget dan saran setoran bulanan target di `src/budgeting.html`.
+- **Pusat Notifikasi & Offline Queue**: Ikon lonceng `#notifBellBtn` di header `src/Index.html` dan antrean transaksi offline IndexedDB di `src/features-v21.html` dengan sinkronisasi otomatis saat kembali online.
+- **Investasi Emas/USD, Bank Mutation CSV & Ekspor Excel**: Dukungan aset Emas (gram), Valas USD, Saham/Reksa Dana (`refreshPrices()`), parser e-statement bank BCA/Mandiri (`web/transaction-import.js`), ekspor `.xls` (`src/laporan.html`), jatuh tempo & riwayat utang (`debtDueDates`), serta header mobile satu baris.
+
 ### 18 November 2026: Comprehensive Upgrade, Tata Letak Modular & On-Demand Gemini AI
 - **AI Cashflow Analyzer (On-Demand)**: Halaman khusus analisis arus kas (`src/ai.html`) memakai Google Gemini 2.5 Flash (`buildAiCashflowPayload`, `buildGeminiCashflowPrompt`, `parseGeminiCashflowResponse` di `web/finance-analysis.js`) dengan input API key di browser dan eksekusi hanya saat tombol ditekan.
 - **Budgeting, Target Keuangan & Transaksi Rutin**: Halaman `Budgeting` (`src/budgeting.html`) kini menggabungkan anggaran kategori & tren 6 bulan bersama *Target Keuangan* (alokasi tabungan dari dompet via `contribute_to_goal`) dan *Tagihan & Transaksi Rutin* bulanan (tambah, edit, jeda/aktifkan, hapus).
@@ -447,8 +454,8 @@ Lihat [PWA_MULTIUSER_ROADMAP.md](./PWA_MULTIUSER_ROADMAP.md) untuk rencana penge
 
 Prioritas berikutnya:
 - [ ] Notifikasi push via FCM (Web Push API)
-- [ ] Multi-currency support
-- [ ] Import transaksi dari Excel
+- [x] Multi-currency USD, Emas & Bank CSV import
+- [x] Ekspor laporan ke Excel (.xls) & Scan Struk Gemini Vision
 
 ---
 

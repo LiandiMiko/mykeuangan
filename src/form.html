@@ -1,11 +1,19 @@
 <!-- ================= FORM TRANSAKSI ================= -->
 <section id="view-form-transaction" class="view-section hide fade-in">
   <div class="max-w-2xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 p-8 md:p-12 mx-auto transition-colors">
-    <div class="flex items-center gap-3 mb-8 border-b border-slate-100 dark:border-slate-800 pb-6">
-      <button onclick="switchView('dashboard')" class="w-10 h-10 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95">
-        <i class="ph ph-arrow-left text-xl"></i>
-      </button>
-      <h2 id="formTitle" class="text-2xl font-bold text-slate-800 dark:text-white">Input Data</h2>
+    <div class="flex items-center justify-between gap-3 mb-8 border-b border-slate-100 dark:border-slate-800 pb-6 flex-wrap">
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="switchView('dashboard')" class="w-10 h-10 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95">
+          <i class="ph ph-arrow-left text-xl" aria-hidden="true"></i>
+        </button>
+        <h2 id="formTitle" class="text-2xl font-bold text-slate-800 dark:text-white">Input Data</h2>
+      </div>
+      <div>
+        <button type="button" id="btnScanReceipt" onclick="triggerReceiptOcr()" class="min-h-10 px-3.5 py-2 brand-gradient text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm hover:opacity-95 transition-all">
+          <i class="ph ph-camera text-base" aria-hidden="true"></i> <span data-i18n="form.scan_receipt">Scan Struk (AI)</span>
+        </button>
+        <input type="file" id="trReceiptInput" accept="image/*" capture="environment" class="hidden" onchange="handleReceiptOcrFile(event)">
+      </div>
     </div>
     <form id="formTransaction" onsubmit="submitTransaction(event)">
       <input type="hidden" id="tr_tipe">

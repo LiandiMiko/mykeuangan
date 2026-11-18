@@ -62,6 +62,32 @@
       <div id="budgetSummary"></div>
     </div>
     <div id="budgetInsights" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" aria-live="polite"></div>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <h4 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="ph ph-chart-donut text-brand dark:text-brand-ink" aria-hidden="true"></i>
+            <span data-i18n="budget.chart_category">Proporsi Pengeluaran per Kategori</span>
+          </h4>
+        </div>
+        <div class="p-4 relative" style="height: 250px;">
+          <canvas id="budgetCategoryChart"></canvas>
+          <p id="budgetCategoryChartEmpty" class="hidden text-center text-xs text-slate-400 pt-20" data-i18n="budget.no_activity">Belum ada transaksi pengeluaran di periode ini.</p>
+        </div>
+      </div>
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <h4 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="ph ph-chart-bar text-brand dark:text-brand-ink" aria-hidden="true"></i>
+            <span data-i18n="budget.chart_cashflow">Grafik Arus Kas 6 Bulan</span>
+          </h4>
+        </div>
+        <div class="p-4 relative" style="height: 250px;">
+          <canvas id="budgetCashflowChart"></canvas>
+          <p id="budgetCashflowChartEmpty" class="hidden text-center text-xs text-slate-400 pt-20" data-i18n="budget.no_activity">Belum ada data arus kas.</p>
+        </div>
+      </div>
+    </div>
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
       <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <h4 class="p-4 font-bold text-sm border-b border-slate-100 dark:border-slate-800" data-i18n="budget.by_category">Rencana dan aktual per kategori</h4>

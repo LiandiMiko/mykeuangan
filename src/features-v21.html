@@ -1,0 +1,997 @@
+<script>
+/* ============================================================
+   FEATURES v2.1–v3.0 MODULAR ENHANCEMENTS
+   - Receipt OCR Scanner (On-Demand Gemini Vision)
+   - AI Financial Chat & Installment Simulator (On-Demand)
+   - Budgeting Charts (Category Donut + 6-Month Cashflow Bar)
+   - Financial Goal Monthly Saving Calculator
+   - Header Notification Bell Center
+   - Gold (Emas), USD, & Stock Asset Support
+   - Excel (.xls) Export
+   - Debt Due Dates (Jatuh Tempo) & Installment History
+   - PWA Offline Transaction Queue & Auto-Sync
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const OFFLINE_QUEUE_KEY = 'mk_offline_tx_queue_v1';
+  const IDB_NAME = 'mykeuangan_offline_db';
+  const IDB_STORE = 'pending_transactions';
+
+  let budgetCategoryChartInstance = null;
+  let budgetCashflowChartInstance = null;
+
+  /* ---------------- Offline Queue Storage (IndexedDB + localStorage mirror) ---------------- */
+  function readLocalQueue() {
+    try {
+      const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeLocalQueue(items) {
+    try {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(items || []));
+    } catch (_) {}
+  }
+
+  function openOfflineDb() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      try {
+        const req = window.indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) {
+            db.createObjectStore(IDB_STORE, { keyPath: 'localId' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function saveOfflineQueueItem(item) {
+    const list = readLocalQueue().filter((x) => x.localId !== item.localId);
+    list.push(item);
+    writeLocalQueue(list);
+
+    const db = await openOfflineDb();
+    if (!db) return;
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(item);
+    } catch (_) {}
+  }
+
+  async function removeOfflineQueueItem(localId) {
+    writeLocalQueue(readLocalQueue().filter((x) => x.localId !== localId));
+    const db = await openOfflineDb();
+    if (!db) return;
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(localId);
+    } catch (_) {}
+  }
+
+  async function getOfflineQueueItems() {
+    const db = await openOfflineDb();
+    if (!db) return readLocalQueue();
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).getAll();
+        req.onsuccess = () => {
+          const idbItems = Array.isArray(req.result) ? req.result : [];
+          if (idbItems.length) writeLocalQueue(idbItems);
+          resolve(idbItems.length ? idbItems : readLocalQueue());
+        };
+        req.onerror = () => resolve(readLocalQueue());
+      } catch (_) {
+        resolve(readLocalQueue());
+      }
+    });
+  }
+
+  function isNetworkOfflineError(err) {
+    if (!navigator.onLine) return true;
+    const msg = String((err && err.message) || err || '').toLowerCase();
+    return msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed');
+  }
+
+  let isFlushingOffline = false;
+  window.flushOfflineQueue = async function (silent) {
+    if (isFlushingOffline || !navigator.onLine) return 0;
+    const queue = await getOfflineQueueItems();
+    if (!queue.length) return 0;
+
+    isFlushingOffline = true;
+    let synced = 0;
+    let lastPayload = null;
+    try {
+      for (const item of queue) {
+        try {
+          const payload = Object.assign({}, item.payload);
+          lastPayload = await window._rawCallServer('api_addTransaction', payload);
+          await removeOfflineQueueItem(item.localId);
+          if (typeof DB !== 'undefined' && Array.isArray(DB.transactions)) {
+            DB.transactions = DB.transactions.filter((tx) => tx.id !== item.localId);
+          }
+          synced += 1;
+        } catch (err) {
+          if (isNetworkOfflineError(err)) break;
+        }
+      }
+      if (synced > 0 && lastPayload && typeof refreshFromServer === 'function') {
+        await refreshFromServer(lastPayload);
+      }
+      if (synced > 0 && !silent && typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'success',
+          title: synced + ' transaksi offline tersinkronisasi',
+          timer: 1600,
+          showConfirmButton: false,
+          customClass: { popup: getSwalClass() }
+        });
+      }
+    } finally {
+      isFlushingOffline = false;
+      refreshNotificationBell();
+    }
+    return synced;
+  };
+
+  /* Wrap callServer so initial data loads debtDueDates and offline transactions queue cleanly */
+  const waitAndWrapCallServer = () => {
+    if (typeof window.callServer !== 'function' || window._rawCallServer) return;
+    window._rawCallServer = window.callServer;
+    window.callServer = async function (fn, ...args) {
+      if (fn === 'api_addTransaction' && !navigator.onLine) {
+        const txPayload = Object.assign({}, args[0] || {});
+        const localId = 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+        await saveOfflineQueueItem({ localId, payload: txPayload, createdAt: new Date().toISOString() });
+        setTimeout(refreshNotificationBell, 50);
+        return {
+          _offlineQueued: true,
+          transaction: {
+            id: localId,
+            tanggal: txPayload.tanggal,
+            tipe: txPayload.tipe,
+            kategori: txPayload.kategori,
+            nominal: Number(txPayload.nominal) || 0,
+            keterangan: (txPayload.keterangan ? txPayload.keterangan + ' ' : '') + '[Offline Queue]',
+            walletId: txPayload.walletId || ''
+          }
+        };
+      }
+      try {
+        const res = await window._rawCallServer(fn, ...args);
+        if (fn === 'getInitialData' && res && typeof res === 'object') {
+          if (typeof DB !== 'undefined') {
+            DB.debtDueDates = res.debtDueDates || {};
+          }
+          const pending = readLocalQueue();
+          if (pending.length && Array.isArray(res.transactions)) {
+            pending.forEach((item) => {
+              if (!res.transactions.some((x) => x.id === item.localId)) {
+                res.transactions.push({
+                  id: item.localId,
+                  tanggal: item.payload.tanggal,
+                  tipe: item.payload.tipe,
+                  kategori: item.payload.kategori,
+                  nominal: Number(item.payload.nominal) || 0,
+                  keterangan: (item.payload.keterangan ? item.payload.keterangan + ' ' : '') + '[Offline Queue]',
+                  walletId: item.payload.walletId || ''
+                });
+              }
+            });
+          }
+        }
+        return res;
+      } catch (err) {
+        if (fn === 'api_addTransaction' && isNetworkOfflineError(err)) {
+          const txPayload = Object.assign({}, args[0] || {});
+          const localId = 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+          await saveOfflineQueueItem({ localId, payload: txPayload, createdAt: new Date().toISOString() });
+          setTimeout(refreshNotificationBell, 50);
+          return {
+            _offlineQueued: true,
+            transaction: {
+              id: localId,
+              tanggal: txPayload.tanggal,
+              tipe: txPayload.tipe,
+              kategori: txPayload.kategori,
+              nominal: Number(txPayload.nominal) || 0,
+              keterangan: (txPayload.keterangan ? txPayload.keterangan + ' ' : '') + '[Offline Queue]',
+              walletId: txPayload.walletId || ''
+            }
+          };
+        }
+        if (fn === 'api_savePeriod' && isNetworkOfflineError(err)) {
+          return args[0];
+        }
+        throw err;
+      }
+    };
+  };
+
+  /* ---------------- 1. Receipt OCR Scanner (On-Demand Gemini Vision) ---------------- */
+  window.triggerReceiptOcr = async function () {
+    let key = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : (localStorage.getItem('mk_gemini_api_key') || '');
+    if (!key && typeof configureGeminiApiKey === 'function') {
+      key = await configureGeminiApiKey();
+      if (!key) return;
+    }
+    const input = document.getElementById('trReceiptInput');
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  };
+
+  function compressImageToBase64(file) {
+    return new Promise((resolve, reject) => {
+      if (file.size > 10 * 1024 * 1024) {
+        reject(new Error('Ukuran gambar melebihi batas 10 MB.'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Gagal membaca file gambar.'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => {
+          const raw = String(reader.result || '');
+          const comma = raw.indexOf(',');
+          resolve({ mimeType: file.type || 'image/jpeg', base64: comma >= 0 ? raw.slice(comma + 1) : raw });
+        };
+        img.onload = () => {
+          const maxDim = 1280;
+          let w = img.naturalWidth || img.width;
+          let h = img.naturalHeight || img.height;
+          if (w > maxDim || h > maxDim) {
+            const scale = Math.min(maxDim / w, maxDim / h);
+            w = Math.max(1, Math.round(w * scale));
+            h = Math.max(1, Math.round(h * scale));
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          resolve({ mimeType: 'image/jpeg', base64: dataUrl.split(',')[1] });
+        };
+        img.src = String(reader.result || '');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  window.handleReceiptOcrFile = async function (event) {
+    const file = event && event.target && event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
+    if (!apiKey) return;
+
+    const btn = document.getElementById('btnScanReceipt');
+    if (btn) btn.disabled = true;
+
+    Swal.fire({
+      title: 'Membaca struk dengan AI...',
+      text: 'Mengekstrak tanggal, nominal, kategori, dan catatan.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+      customClass: { popup: getSwalClass() }
+    });
+
+    try {
+      const { mimeType, base64 } = await compressImageToBase64(file);
+      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const prompt = FinanceAnalysis.buildReceiptOcrPrompt(DB.categories, todayStr, currentLang);
+
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType, data: base64 } }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
+        })
+      });
+
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error((json && json.error && json.error.message) || ('HTTP ' + response.status));
+      }
+      const rawText = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
+      const parsed = FinanceAnalysis.parseReceiptOcrResponse(rawText, todayStr);
+
+      document.getElementById('tr_tipe').value = parsed.tipe;
+      const submitBtn = document.getElementById('btnSubmitTrans');
+      if (submitBtn) {
+        submitBtn.className = 'w-full text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ' +
+          (parsed.tipe === 'Pemasukan' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600');
+      }
+      const tipeKey = parsed.tipe === 'Pemasukan' ? 'form.pemasukan' : 'form.pengeluaran';
+      const titleEl = document.getElementById('formTitle');
+      if (titleEl) titleEl.innerText = t('form.title_add') + ' ' + t(tipeKey);
+      const wl = document.getElementById('tr_wallet_label');
+      if (wl) wl.innerText = parsed.tipe === 'Pemasukan' ? 'Masuk ke dompet' : 'Dibayar dari dompet';
+
+      if (typeof syncFormCategorySelect === 'function') {
+        const listKey = parsed.tipe === 'Pemasukan' ? 'pemasukan' : 'pengeluaran';
+        syncFormCategorySelect();
+        const catSelect = document.getElementById('tr_kategori');
+        if (catSelect) {
+          const opts = DB.categories[listKey] || [];
+          const match = opts.find((c) => c.toLowerCase() === parsed.kategori.toLowerCase());
+          if (match) catSelect.value = match;
+        }
+      }
+
+      document.getElementById('tr_tanggal').value = parsed.tanggal;
+      if (typeof fpTanggal !== 'undefined' && fpTanggal) {
+        try { fpTanggal.setDate(parsed.tanggal, true); } catch (_) {}
+      }
+      document.getElementById('tr_nominal').value = parsed.nominal;
+      document.getElementById('tr_keterangan').value = parsed.keterangan;
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Struk terbaca!',
+        text: 'Periksa kembali isian lalu klik Enkripsi & Simpan.',
+        timer: 1800,
+        showConfirmButton: false,
+        customClass: { popup: getSwalClass() }
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal membaca struk',
+        text: String((err && err.message) || err),
+        customClass: { popup: getSwalClass() }
+      });
+    } finally {
+      if (btn) btn.disabled = false;
+      if (event && event.target) event.target.value = '';
+    }
+  };
+
+  /* ---------------- 2. AI Financial Chat & Simulator ---------------- */
+  window.fillAiChatPrompt = function (text) {
+    const input = document.getElementById('aiChatInput');
+    if (input) {
+      input.value = text;
+      input.focus();
+    }
+  };
+
+  function formatAiTextSafe(text) {
+    return escapeHtmlJS(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+  }
+
+  window.runAiFinancialChat = async function () {
+    const input = document.getElementById('aiChatInput');
+    const out = document.getElementById('aiChatResult');
+    const btn = document.getElementById('btnAskAiChat');
+    const question = ((input && input.value) || '').trim();
+    if (!question) {
+      if (input) input.focus();
+      return;
+    }
+
+    let apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
+    if (!apiKey && typeof configureGeminiApiKey === 'function') {
+      apiKey = await configureGeminiApiKey();
+      if (!apiKey) return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (out) {
+      out.classList.remove('hide');
+      out.innerHTML = '<div class="flex items-center gap-2 text-slate-500"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div><span>Gemini sedang menjawab pertanyaan Anda...</span></div>';
+    }
+
+    try {
+      const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
+      const prompt = FinanceAnalysis.buildAiFinancialChatPrompt(payload, question, currentLang);
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.35 }
+        })
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error((json && json.error && json.error.message) || ('HTTP ' + response.status));
+      }
+      const answer = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
+      if (!answer) throw new Error('Gemini tidak mengembalikan jawaban.');
+      if (out) {
+        out.innerHTML = `<div class="leading-relaxed space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-brand dark:text-brand-ink">Jawaban Gemini AI</p><div>${formatAiTextSafe(answer)}</div></div>`;
+      }
+    } catch (err) {
+      if (out) {
+        out.innerHTML = `<p class="text-rose-600 dark:text-rose-400 font-semibold">Gagal meminta jawaban AI: ${escapeHtmlJS(String((err && err.message) || err))}</p>`;
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  /* ---------------- 3. Budgeting Charts (Donut + 6-Month Cashflow Bar) ---------------- */
+  window.renderBudgetCharts = function () {
+    if (typeof Chart === 'undefined' || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#cbd5e1' : '#475569';
+    const gridColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.2)';
+    const brandHex = getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#4f46e5';
+
+    // Chart A: Category Spending Donut
+    const catCanvas = document.getElementById('budgetCategoryChart');
+    const catEmpty = document.getElementById('budgetCategoryChartEmpty');
+    if (catCanvas) {
+      const summary = FinanceAnalysis.summarizePeriod(DB.budgets, DB.transactions, DB.currentPeriod, DB.payrollDay);
+      const nonZero = summary.rows
+        .filter((r) => r.actual > 0)
+        .sort((a, b) => b.actual - a.actual);
+
+      if (budgetCategoryChartInstance) {
+        budgetCategoryChartInstance.destroy();
+        budgetCategoryChartInstance = null;
+      }
+
+      if (!nonZero.length) {
+        catCanvas.style.display = 'none';
+        if (catEmpty) catEmpty.classList.remove('hidden');
+      } else {
+        catCanvas.style.display = 'block';
+        if (catEmpty) catEmpty.classList.add('hidden');
+        const top = nonZero.slice(0, 6);
+        const restSum = nonZero.slice(6).reduce((s, r) => s + r.actual, 0);
+        if (restSum > 0) top.push({ category: 'Lainnya', actual: restSum });
+
+        const palette = [brandHex, '#10b981', '#f59e0b', '#ec4899', '#0ea5e9', '#8b5cf6', '#64748b'];
+        budgetCategoryChartInstance = new Chart(catCanvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: top.map((r) => r.category),
+            datasets: [{
+              data: top.map((r) => r.actual),
+              backgroundColor: top.map((_, i) => palette[i % palette.length]),
+              borderWidth: 2,
+              borderColor: isDark ? '#0f172a' : '#ffffff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: { color: textColor, boxWidth: 10, font: { family: 'Inter', size: 11 } }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ctx.label + ': ' + formatRupiah(ctx.parsed).replace(',00', '')
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // Chart B: 6-Month Cashflow Bar Chart
+    const cfCanvas = document.getElementById('budgetCashflowChart');
+    const cfEmpty = document.getElementById('budgetCashflowChartEmpty');
+    if (cfCanvas) {
+      const series = FinanceAnalysis.monthlyCashflowSeries(DB.transactions, DB.currentPeriod, DB.payrollDay, 6);
+      const trend = FinanceAnalysis.monthlyTrend(DB.budgets, DB.transactions, DB.currentPeriod, DB.payrollDay, 6);
+      const hasAny = series.some((s) => s.incomeTotal > 0 || s.expenseTotal > 0) || trend.some((m) => m.budgetTotal > 0);
+
+      if (budgetCashflowChartInstance) {
+        budgetCashflowChartInstance.destroy();
+        budgetCashflowChartInstance = null;
+      }
+
+      if (!hasAny) {
+        cfCanvas.style.display = 'none';
+        if (cfEmpty) cfEmpty.classList.remove('hidden');
+      } else {
+        cfCanvas.style.display = 'block';
+        if (cfEmpty) cfEmpty.classList.add('hidden');
+        budgetCashflowChartInstance = new Chart(cfCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: series.map((s) => getMonthShort(Number(s.period.slice(5, 7)) - 1) + ' ' + s.period.slice(2, 4)),
+            datasets: [
+              {
+                label: 'Pemasukan',
+                data: series.map((s) => s.incomeTotal),
+                backgroundColor: '#10b981',
+                borderRadius: 6
+              },
+              {
+                label: 'Pengeluaran',
+                data: series.map((s) => s.expenseTotal),
+                backgroundColor: '#f43f5e',
+                borderRadius: 6
+              },
+              {
+                label: 'Budget',
+                data: trend.map((m) => m.budgetTotal),
+                backgroundColor: brandHex + '66',
+                borderColor: brandHex,
+                borderWidth: 1.5,
+                borderRadius: 6
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: textColor, boxWidth: 10, font: { family: 'Inter', size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => ctx.dataset.label + ': ' + formatRupiah(ctx.parsed.y).replace(',00', '')
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: textColor, font: { family: 'Inter', size: 10 } } },
+              y: {
+                grid: { color: gridColor },
+                ticks: {
+                  color: textColor,
+                  font: { family: 'Inter', size: 10 },
+                  callback: (val) => typeof formatShortIDR === 'function' ? formatShortIDR(val) : val
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+  };
+
+  /* ---------------- 4. Notification Bell Center ---------------- */
+  window.getCurrentNotifications = function () {
+    const queue = readLocalQueue();
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    return FinanceAnalysis.buildAppNotifications({
+      budgets: DB.budgets,
+      transactions: DB.transactions,
+      recurring: DB.recurring,
+      goals: DB.goals,
+      offlineQueueCount: queue.length
+    }, DB.currentPeriod, DB.payrollDay, todayStr);
+  };
+
+  window.refreshNotificationBell = function () {
+    const badge = document.getElementById('notifBadge');
+    if (!badge || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const list = window.getCurrentNotifications();
+    if (list.length > 0) {
+      badge.textContent = list.length > 99 ? '99+' : String(list.length);
+      badge.classList.remove('hide');
+    } else {
+      badge.textContent = '0';
+      badge.classList.add('hide');
+    }
+  };
+
+  window.recordRecurringFromNotif = async function (recId) {
+    const item = (DB.recurring || []).find((r) => String(r.id) === String(recId));
+    if (!item) return;
+    Swal.close();
+    try {
+      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const payload = {
+        tanggal: todayStr,
+        tipe: item.tipe,
+        kategori: item.kategori,
+        nominal: Number(item.nominal) || 0,
+        keterangan: (item.keterangan ? item.keterangan + ' ' : '') + '(rutin)',
+        walletId: (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || ''
+      };
+      const data = await callServer('api_addTransaction', payload);
+      await refreshFromServer(data);
+      Swal.fire({
+        icon: 'success',
+        title: 'Jadwal rutin dicatat!',
+        timer: 1400,
+        showConfirmButton: false,
+        customClass: { popup: getSwalClass() }
+      });
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  };
+
+  window.openNotificationsModal = async function () {
+    const list = window.getCurrentNotifications();
+    if (!list.length) {
+      await Swal.fire({
+        icon: 'success',
+        title: t('notif.title'),
+        text: t('notif.empty'),
+        customClass: { popup: getSwalClass() }
+      });
+      return;
+    }
+
+    const sevStyle = {
+      danger: 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300',
+      warning: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300',
+      info: 'border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+    };
+
+    const rows = list.map((n) => {
+      let actionBtn = '';
+      if (n.actionType === 'view' && n.actionPayload && n.actionPayload.view) {
+        actionBtn = `<button type="button" onclick="Swal.close();switchView('${escapeAttrJS(n.actionPayload.view)}')" class="mt-2 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">Lihat</button>`;
+      } else if (n.actionType === 'recurring' && n.actionPayload && n.actionPayload.id) {
+        actionBtn = `<button type="button" onclick="recordRecurringFromNotif('${escapeAttrJS(n.actionPayload.id)}')" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Catat Sekarang</button>`;
+      } else if (n.actionType === 'sync_offline') {
+        actionBtn = `<button type="button" onclick="Swal.close();flushOfflineQueue(false)" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Sinkronisasi</button>`;
+      }
+      return `
+        <div class="p-3 rounded-xl border text-left ${sevStyle[n.severity] || sevStyle.info}">
+          <p class="font-bold text-xs">${escapeHtmlJS(n.title)}</p>
+          <p class="text-[11px] opacity-90 mt-0.5">${escapeHtmlJS(n.message)}</p>
+          ${actionBtn}
+        </div>`;
+    }).join('');
+
+    await Swal.fire({
+      title: t('notif.title'),
+      html: `<div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">${rows}</div>`,
+      confirmButtonText: t('btn.tutup'),
+      customClass: { popup: getSwalClass() }
+    });
+  };
+
+  /* ---------------- 5. Excel (.xls) Export ---------------- */
+  window.exportExcel = function () {
+    const { txs, period } = getFilteredReportTransactions();
+    if (!txs.length) {
+      Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
+      return;
+    }
+    const rowsHtml = txs.map((r) => `
+      <tr>
+        <td>${escapeHtmlJS(r.tanggal)}</td>
+        <td>${escapeHtmlJS(r.tipe)}</td>
+        <td>${escapeHtmlJS(r.kategori)}</td>
+        <td>${Number(r.nominal) || 0}</td>
+        <td>${escapeHtmlJS(r.keterangan || '')}</td>
+        <td>${escapeHtmlJS(walletName(r.walletId))}</td>
+      </tr>`).join('');
+
+    const tableDoc = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+      <head><meta charset="UTF-8"></head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr><th>Tanggal</th><th>Tipe</th><th>Kategori</th><th>Nominal (IDR)</th><th>Catatan</th><th>Dompet</th></tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </body></html>`;
+
+    const blob = new Blob(['\ufeff' + tableDoc], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.xls`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /* ---------------- 6. Debt Due Date (Jatuh Tempo) & History ---------------- */
+  function debtKey(group, name) {
+    return String(group) + '::' + String(name);
+  }
+
+  window.openDebtDetailModal = async function (group, name) {
+    const key = debtKey(group, name);
+    const prefix = group + ' - ' + name;
+    const dueMap = (DB && DB.debtDueDates) || {};
+    const currentDue = dueMap[key] || '';
+    const history = (DB.transactions || [])
+      .filter((tx) => tx.kategori === prefix)
+      .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+
+    const rowsHtml = history.length
+      ? history.slice(0, 15).map((tx) => `
+          <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
+            <div class="min-w-0 text-left">
+              <p class="font-bold text-slate-700 dark:text-slate-200">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.tipe)}</p>
+              <p class="text-[11px] text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || '-')}</p>
+            </div>
+            <span class="font-black shrink-0 ${tx.tipe === 'Pemasukan' ? 'text-emerald-600' : 'text-rose-600'}">${formatRupiah(tx.nominal).replace(',00', '')}</span>
+          </div>`).join('')
+      : '<p class="text-xs text-slate-400 py-3">Belum ada riwayat cicilan untuk entitas ini.</p>';
+
+    const res = await Swal.fire({
+      title: escapeHtmlJS(name),
+      html: `
+        <div class="text-left space-y-3">
+          <div>
+            <label for="debt-due-input" class="block text-xs font-bold text-slate-500 mb-1">Tanggal Jatuh Tempo (opsional)</label>
+            <input id="debt-due-input" type="date" class="swal2-input" style="margin:0;width:100%" value="${escapeAttrJS(currentDue)}">
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-500 mb-1">Riwayat Transaksi (${history.length})</p>
+            <div class="max-h-52 overflow-y-auto">${rowsHtml}</div>
+          </div>
+        </div>`,
+      showCancelButton: true,
+      showDenyButton: Boolean(currentDue),
+      denyButtonText: 'Hapus Jatuh Tempo',
+      confirmButtonText: 'Simpan Jatuh Tempo',
+      cancelButtonText: t('btn.tutup'),
+      customClass: { popup: getSwalClass() },
+      preConfirm: () => (document.getElementById('debt-due-input').value || '').slice(0, 10)
+    });
+
+    if (!res.isConfirmed && !res.isDenied) return;
+    const nextMap = Object.assign({}, dueMap);
+    if (res.isDenied || !res.value) delete nextMap[key];
+    else nextMap[key] = res.value;
+
+    try {
+      const data = await callServer('api_saveDebtDueDates', nextMap);
+      DB.debtDueDates = (data && data.debtDueDates) || nextMap;
+      if (typeof renderDebtLists === 'function') renderDebtLists();
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  };
+
+  /* ---------------- 7. Emas (Gram), USD & Saham Support in Asset Form ---------------- */
+  window.addManualAssetUI = function () {
+    Swal.fire({
+      title: 'Tambah Aset & Investasi',
+      html: `
+        <select id="asset-type" class="swal2-input" style="background:#f1f5f9;color:#0f172a;">
+          <option value="Crypto">🪙 Crypto (CoinGecko)</option>
+          <option value="Emas">🥇 Emas (gram · Auto Harga)</option>
+          <option value="USD">💵 Valas USD (Auto Kurs IDR)</option>
+          <option value="Saham">📈 Saham / Reksa Dana</option>
+          <option value="Cash">🏦 Cash / Deposito / Tabungan</option>
+          <option value="Other">📦 Aset Lainnya</option>
+        </select>
+        <input id="asset-name" class="swal2-input" placeholder="Nama aset (mis. Bitcoin / Antam 5g / Tabungan USD)">
+        <input id="asset-symbol" class="swal2-input" placeholder="Simbol/Kode (mis. BTC, ETH, BBCA)" style="display:none;">
+        <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input" placeholder="Jumlah unit" style="display:none;">
+        <input id="asset-buyprice" type="number" class="swal2-input" placeholder="Harga beli per unit (Rp)" style="display:none;">
+        <input id="asset-value" type="number" class="swal2-input" placeholder="Total Nilai (Rp)">
+        <label for="asset-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana (opsional)</label>
+        <select id="asset-wallet" class="swal2-input">
+          <option value="">Catat sebagai aset manual</option>
+          ${walletOptions('')}
+        </select>
+        <p style="font-size:12px;color:#64748b;margin:6px 4px">Jika dompet dipilih, pembelian dicatat ke pengeluaran kategori Investasi.</p>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      customClass: { popup: getSwalClass() },
+      didOpen: () => {
+        const typeSelect = document.getElementById('asset-type');
+        const symbolInput = document.getElementById('asset-symbol');
+        const qtyInput = document.getElementById('asset-quantity');
+        const buyInput = document.getElementById('asset-buyprice');
+        const valInput = document.getElementById('asset-value');
+
+        function toggleFields() {
+          const v = typeSelect.value;
+          const isCrypto = v === 'Crypto';
+          const isEmas = v === 'Emas';
+          const isUsd = v === 'USD';
+          const isSaham = v === 'Saham';
+
+          symbolInput.style.display = (isCrypto || isSaham) ? 'block' : 'none';
+          symbolInput.placeholder = isCrypto ? 'Symbol crypto (BTC, ETH, SOL, PAXG)' : 'Kode emiten / ticker (mis. BBCA, BBRI)';
+
+          qtyInput.style.display = (isCrypto || isEmas || isUsd) ? 'block' : 'none';
+          qtyInput.placeholder = isEmas ? 'Berat emas (gram, mis. 5)' : isUsd ? 'Nominal USD (mis. 500)' : 'Jumlah coin (mis. 0.05)';
+
+          buyInput.style.display = isCrypto ? 'block' : 'none';
+          valInput.style.display = isCrypto ? 'none' : 'block';
+          valInput.placeholder = isEmas ? 'Total nilai beli/saat ini (Rp)' : isUsd ? 'Total nilai setara (Rp)' : 'Nilai aset (Rp)';
+        }
+        typeSelect.addEventListener('change', toggleFields);
+        toggleFields();
+      },
+      preConfirm: () => {
+        const type = document.getElementById('asset-type').value;
+        const name = document.getElementById('asset-name').value.trim();
+        if (!name) { Swal.showValidationMessage('Isi nama aset'); return false; }
+        const walletId = document.getElementById('asset-wallet').value;
+
+        if (type === 'Crypto') {
+          const symbol = document.getElementById('asset-symbol').value.trim().toUpperCase();
+          const quantity = parseFloat(document.getElementById('asset-quantity').value);
+          const buyPrice = parseFloat(document.getElementById('asset-buyprice').value) || 0;
+          if (!symbol) { Swal.showValidationMessage('Isi symbol crypto'); return false; }
+          if (!quantity || quantity <= 0) { Swal.showValidationMessage('Isi jumlah coin'); return false; }
+          if (buyPrice < 0 || (walletId && buyPrice <= 0)) {
+            Swal.showValidationMessage('Isi harga beli di atas nol untuk mencatat sumber dana');
+            return false;
+          }
+          return { name, type, symbol, quantity, buyPrice, value: 0, walletId, tanggal: localToday() };
+        }
+
+        const value = parseFloat(document.getElementById('asset-value').value);
+        if (!value || value <= 0) { Swal.showValidationMessage('Isi total nilai Rupiah aset'); return false; }
+        const quantity = (type === 'Emas' || type === 'USD') ? (parseFloat(document.getElementById('asset-quantity').value) || 0) : 0;
+        if ((type === 'Emas' || type === 'USD') && quantity <= 0) {
+          Swal.showValidationMessage(type === 'Emas' ? 'Isi berat emas (gram)' : 'Isi jumlah nominal USD');
+          return false;
+        }
+        const symbol = type === 'Emas' ? 'XAU' : type === 'USD' ? 'USD' : (document.getElementById('asset-symbol').value.trim().toUpperCase() || '');
+        const buyPrice = quantity > 0 ? Number((value / quantity).toFixed(2)) : 0;
+        return { name, type, symbol, quantity, buyPrice, value, walletId, tanggal: localToday() };
+      }
+    }).then(async (res) => {
+      if (res.isConfirmed && res.value) {
+        try {
+          const data = await callServer('api_addAssetV2', res.value);
+          await refreshFromServer(data);
+          if (['Crypto', 'Emas', 'USD'].includes(res.value.type)) {
+            try {
+              const data2 = await callServer('api_refreshPrices');
+              await refreshFromServer(data2);
+            } catch (_) {}
+          }
+        } catch (e) {
+          Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+        }
+      }
+    });
+  };
+
+  /* ---------------- 8. Hook Post-Render Enhancements ---------------- */
+  function installHooks() {
+    waitAndWrapCallServer();
+
+    if (typeof window.renderFinancialGoals === 'function' && !window._origRenderFinancialGoals) {
+      window._origRenderFinancialGoals = window.renderFinancialGoals;
+      window.renderFinancialGoals = function () {
+        window._origRenderFinancialGoals();
+        const container = document.getElementById('financialGoals');
+        if (!container || !DB.goals || !DB.goals.length) return;
+        const articles = container.querySelectorAll('article');
+        const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+        DB.goals.forEach((goal, idx) => {
+          const card = articles[idx];
+          if (!card || card.querySelector('.mk-goal-calc')) return;
+          const calc = FinanceAnalysis.calculateGoalMonthlySaving(goal.currentAmount, goal.targetAmount, goal.targetDate, todayStr);
+          let label = '';
+          let tone = 'bg-brand/10 text-brand dark:text-brand-ink';
+          if (calc.status === 'completed') {
+            label = '✅ Target tercapai!';
+            tone = 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300';
+          } else if (calc.status === 'overdue') {
+            label = '⚠️ Lewat tenggat · Sisa ' + formatRupiah(calc.remaining).replace(',00', '');
+            tone = 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300';
+          } else if (calc.monthlySaving !== null) {
+            label = '💡 Saran nabung: ' + formatRupiah(calc.monthlySaving).replace(',00', '') + ' / bln (' + calc.daysLeft + ' hari)';
+            if (calc.status === 'urgent') tone = 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
+          } else {
+            label = 'Kurang ' + formatRupiah(calc.remaining).replace(',00', '');
+            tone = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
+          }
+          const badge = document.createElement('p');
+          badge.className = 'mk-goal-calc mt-2.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold ' + tone;
+          badge.textContent = label;
+          card.appendChild(badge);
+        });
+      };
+    }
+
+    if (typeof window.renderDebtLists === 'function' && !window._origRenderDebtLists) {
+      window._origRenderDebtLists = window.renderDebtLists;
+      window.renderDebtLists = function () {
+        window._origRenderDebtLists();
+        const dueMap = (DB && DB.debtDueDates) || {};
+        const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+        document.querySelectorAll('#view-utang [data-debt-action="edit"]').forEach((editBtn) => {
+          const group = editBtn.dataset.debtGroup;
+          const name = editBtn.dataset.debtName;
+          const card = editBtn.closest('div.rounded-2xl');
+          if (!card || !group || !name || card.querySelector('.mk-debt-due-row')) return;
+          const due = dueMap[debtKey(group, name)] || '';
+          const overdue = due && due < todayStr;
+          const bar = document.createElement('div');
+          bar.className = 'mk-debt-due-row mt-3 pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between gap-2 text-[11px]';
+          bar.innerHTML = `
+            <span class="${due ? (overdue ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-semibold') : 'text-slate-400'} truncate">
+              ${due ? ((overdue ? '⚠️ Lewat tempo: ' : '📅 Tempo: ') + escapeHtmlJS(due)) : 'Belum ada jatuh tempo'}
+            </span>
+            <button type="button" class="text-brand dark:text-brand-ink font-bold hover:underline shrink-0">Riwayat &amp; Tempo</button>
+          `;
+          bar.querySelector('button').addEventListener('click', () => openDebtDetailModal(group, name));
+          card.appendChild(bar);
+        });
+      };
+    }
+
+    if (typeof window.renderBudgeting === 'function' && !window._origRenderBudgeting) {
+      window._origRenderBudgeting = window.renderBudgeting;
+      window.renderBudgeting = function () {
+        window._origRenderBudgeting();
+        renderBudgetCharts();
+      };
+    }
+
+    if (typeof window.switchView === 'function' && !window._origSwitchView) {
+      window._origSwitchView = window.switchView;
+      window.switchView = function (id) {
+        window._origSwitchView(id);
+        if (id === 'budgeting') {
+          setTimeout(renderBudgetCharts, 60);
+        }
+      };
+    }
+
+    if (typeof window.renderAll === 'function' && !window._origRenderAll) {
+      window._origRenderAll = window.renderAll;
+      window.renderAll = function () {
+        window._origRenderAll();
+        refreshNotificationBell();
+      };
+    }
+
+    if (typeof window.setTheme === 'function' && !window._origSetTheme) {
+      window._origSetTheme = window.setTheme;
+      window.setTheme = function (t) {
+        window._origSetTheme(t);
+        if (typeof isDataReady !== 'undefined' && isDataReady) {
+          try { renderBudgetCharts(); } catch (_) {}
+        }
+      };
+    }
+  }
+
+  installHooks();
+  document.addEventListener('DOMContentLoaded', () => {
+    installHooks();
+    if (navigator.onLine) {
+      setTimeout(() => { window.flushOfflineQueue(true); }, 1500);
+    }
+  });
+  window.addEventListener('online', () => {
+    window.flushOfflineQueue(false);
+  });
+})();
+</script>

@@ -127,24 +127,29 @@
           <span class="truncate">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
         </h2>
       </div>
-      <div class="flex items-center justify-end gap-1 sm:gap-2 ml-auto shrink-0">
-        <div class="relative w-[96px] sm:w-44">
+      <div class="flex items-center justify-end gap-0.5 sm:gap-2 ml-auto shrink-0">
+        <div class="relative w-[84px] sm:w-44">
           <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
           <input type="text" id="dashMonthPicker" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
-                 class="w-full h-9 sm:min-h-11 pl-6 sm:pl-9 pr-1.5 sm:pr-2 py-1 sm:py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-[11px] sm:text-sm text-slate-700 dark:text-slate-200 truncate"
+                 class="w-full h-9 sm:min-h-11 pl-6 sm:pl-9 pr-1 sm:pr-2 py-1 sm:py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-[11px] sm:text-sm text-slate-700 dark:text-slate-200 truncate"
                  placeholder="Pilih Bulan">
-          <i class="ph ph-calendar absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-base" aria-hidden="true"></i>
+          <i class="ph ph-calendar absolute left-1.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-base" aria-hidden="true"></i>
         </div>
         <button onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
-                class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg shrink-0">
+                class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-sm sm:text-lg shrink-0">
           <i class="ph ph-gear" aria-hidden="true"></i>
         </button>
+        <button id="notifBellBtn" type="button" onclick="openNotificationsModal()" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
+                class="relative w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
+          <i class="ph ph-bell" aria-hidden="true"></i>
+          <span id="notifBadge" class="hide absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center leading-none">0</span>
+        </button>
         <button id="toggleHideBtn" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
-                class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-xl shrink-0">
+                class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
           <i id="eyeIcon" class="ph ph-eye" aria-hidden="true"></i>
         </button>
         <button onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
-                class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-xl shrink-0">
+                class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
           <i class="ph ph-moon dark:hidden" aria-hidden="true"></i><i class="ph ph-sun hidden dark:block" aria-hidden="true"></i>
         </button>
       </div>
@@ -167,6 +172,7 @@
   <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
   <?!= include('scripts'); ?>
+  <?!= include('features-v21'); ?>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

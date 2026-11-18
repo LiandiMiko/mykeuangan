@@ -384,10 +384,256 @@
     };
   }
 
+  function calculateGoalMonthlySaving(currentAmount, targetAmount, targetDate, todayStr) {
+    const current = Math.max(0, Number(currentAmount) || 0);
+    const target = Number(targetAmount);
+    const remaining = Number.isFinite(target) && target > 0 ? Math.max(0, target - current) : 0;
+    if (remaining <= 0) {
+      return { remaining: 0, daysLeft: 0, monthsLeft: 0, monthlySaving: 0, status: 'completed' };
+    }
+
+    const cleanDate = String(targetDate || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      return { remaining, daysLeft: null, monthsLeft: null, monthlySaving: null, status: 'no_date' };
+    }
+    const targetMs = Date.parse(cleanDate + 'T00:00:00Z');
+    if (!Number.isFinite(targetMs)) {
+      return { remaining, daysLeft: null, monthsLeft: null, monthlySaving: null, status: 'no_date' };
+    }
+
+    const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : formatDate(new Date());
+    const todayMs = Date.parse(baseDate + 'T00:00:00Z');
+    const daysLeft = Math.ceil((targetMs - todayMs) / 86400000);
+    if (daysLeft < 0) {
+      return { remaining, daysLeft, monthsLeft: 0, monthlySaving: remaining, status: 'overdue' };
+    }
+    const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+    const monthlySaving = Math.ceil(remaining / monthsLeft);
+    return {
+      remaining,
+      daysLeft,
+      monthsLeft,
+      monthlySaving,
+      status: daysLeft <= 14 ? 'urgent' : 'on_track'
+    };
+  }
+
+  function monthlyCashflowSeries(transactions, endPeriod, payrollDay, count) {
+    const total = Math.max(1, Math.min(24, Math.trunc(Number(count) || 6)));
+    parsePeriod(endPeriod);
+    const list = Array.isArray(transactions) ? transactions : [];
+    return Array.from({ length: total }, (_, index) => {
+      const period = shiftPeriod(endPeriod, index - total + 1);
+      let incomeTotal = 0;
+      let expenseTotal = 0;
+      list.forEach((transaction) => {
+        if (isDebtCategory(transaction.kategori) || !isInPeriod(transaction.tanggal, period, payrollDay)) {
+          return;
+        }
+        const amount = Number(transaction.nominal) || 0;
+        if (transaction.tipe === 'Pemasukan') incomeTotal += amount;
+        else if (transaction.tipe === 'Pengeluaran') expenseTotal += amount;
+      });
+      return {
+        period,
+        incomeTotal,
+        expenseTotal,
+        netCashflow: incomeTotal - expenseTotal
+      };
+    });
+  }
+
+  function buildAppNotifications(data, period, payrollDay, todayStr) {
+    const src = data && typeof data === 'object' ? data : {};
+    const budgets = Array.isArray(src.budgets) ? src.budgets : [];
+    const transactions = Array.isArray(src.transactions) ? src.transactions : [];
+    const recurring = Array.isArray(src.recurring) ? src.recurring : [];
+    const goals = Array.isArray(src.goals) ? src.goals : [];
+    const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : formatDate(new Date());
+    const notifications = [];
+
+    if (/^\d{4}-\d{2}$/.test(String(period || ''))) {
+      const summary = summarizePeriod(budgets, transactions, period, payrollDay);
+      summary.rows.forEach((row) => {
+        if (row.plan > 0 && row.percent !== null && row.percent >= 80) {
+          const isOver = row.percent > 100;
+          notifications.push({
+            id: 'budget:' + period + ':' + row.category,
+            severity: isOver ? 'danger' : 'warning',
+            title: isOver ? ('Budget terlampaui: ' + row.category) : ('Budget hampir habis: ' + row.category),
+            message: 'Terpakai ' + Math.round(row.percent) + '% (' + row.actual + ' / ' + row.plan + ').',
+            actionType: 'view',
+            actionPayload: { view: 'budgeting' }
+          });
+        }
+      });
+    }
+
+    const baseDateObj = new Date(baseDate + 'T00:00:00Z');
+    const year = baseDateObj.getUTCFullYear();
+    const month = baseDateObj.getUTCMonth();
+    const todayDay = baseDateObj.getUTCDate();
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const daysInNextMonth = new Date(Date.UTC(year, month + 2, 0)).getUTCDate();
+
+    recurring.forEach((item) => {
+      if (item.active === false || String(item.active) === 'false') return;
+      const rawDay = Math.trunc(Number(item.dayOfMonth ?? item.day_of_month) || 0);
+      if (rawDay < 1 || rawDay > 31) return;
+      const lastRun = String(item.lastRun ?? item.last_run ?? '').slice(0, 10);
+      if (lastRun === baseDate) return;
+
+      const clampedThisMonth = Math.min(rawDay, daysInMonth);
+      let diffDays = clampedThisMonth - todayDay;
+      if (diffDays < 0) {
+        const clampedNextMonth = Math.min(rawDay, daysInNextMonth);
+        diffDays = (daysInMonth - todayDay) + clampedNextMonth;
+      }
+
+      if (diffDays >= 0 && diffDays <= 3) {
+        notifications.push({
+          id: 'recurring:' + (item.id || item.kategori + ':' + rawDay),
+          severity: diffDays === 0 ? 'warning' : 'info',
+          title: 'Jadwal rutin: ' + String(item.kategori || 'Transaksi'),
+          message: (diffDays === 0 ? 'Jatuh tempo hari ini' : ('Jatuh tempo ' + diffDays + ' hari lagi')) +
+            ' (tgl ' + rawDay + ') · ' + (Number(item.nominal) || 0),
+          actionType: 'recurring',
+          actionPayload: { id: item.id || null }
+        });
+      }
+    });
+
+    goals.forEach((goal) => {
+      const calc = calculateGoalMonthlySaving(goal.currentAmount, goal.targetAmount, goal.targetDate, baseDate);
+      if (calc.status === 'overdue' || calc.status === 'urgent') {
+        notifications.push({
+          id: 'goal:' + (goal.id || goal.name),
+          severity: calc.status === 'overdue' ? 'danger' : 'warning',
+          title: calc.status === 'overdue'
+            ? ('Target melewati tenggat: ' + String(goal.name || 'Target'))
+            : ('Target mendekati tenggat: ' + String(goal.name || 'Target')),
+          message: 'Sisa ' + calc.remaining + (calc.daysLeft !== null ? ' (' + calc.daysLeft + ' hari)' : '') + '.',
+          actionType: 'view',
+          actionPayload: { view: 'budgeting' }
+        });
+      }
+    });
+
+    const pendingOffline = Math.max(0, Math.trunc(Number(src.offlineQueueCount) || 0));
+    if (pendingOffline > 0) {
+      notifications.push({
+        id: 'offline:queue',
+        severity: 'info',
+        title: 'Antrean transaksi offline',
+        message: pendingOffline + ' transaksi menunggu sinkronisasi ke Supabase saat online.',
+        actionType: 'sync_offline',
+        actionPayload: { count: pendingOffline }
+      });
+    }
+
+    return notifications;
+  }
+
+  function stripJsonFences(rawText) {
+    let cleaned = String(rawText || '').trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenceMatch) return fenceMatch[1].trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start !== -1 && end > start) return cleaned.slice(start, end + 1);
+    return cleaned;
+  }
+
+  function buildReceiptOcrPrompt(categories, todayStr, lang) {
+    const cats = categories && typeof categories === 'object' ? categories : {};
+    const pemasukan = Array.isArray(cats.pemasukan) && cats.pemasukan.length ? cats.pemasukan : ['Gaji', 'Lainnya'];
+    const pengeluaran = Array.isArray(cats.pengeluaran) && cats.pengeluaran.length ? cats.pengeluaran : ['Makan', 'Belanja', 'Lainnya'];
+    const fallbackDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : formatDate(new Date());
+
+    if (lang === 'en') {
+      return [
+        'Extract transaction details from this shopping receipt or bank transfer screenshot.',
+        'Return ONLY a valid JSON object with exact keys:',
+        '- "tanggal": string YYYY-MM-DD (use "' + fallbackDate + '" if unreadable)',
+        '- "tipe": "Pengeluaran" or "Pemasukan"',
+        '- "kategori": choose the closest category from PENGELUARAN [' + pengeluaran.join(', ') + '] or PEMASUKAN [' + pemasukan.join(', ') + ']',
+        '- "nominal": positive integer amount in IDR without dots/commas',
+        '- "keterangan": concise merchant name and item summary',
+        'Do not wrap in explanations.'
+      ].join('\n');
+    }
+    return [
+      'Ekstrak detail transaksi dari gambar struk belanja atau bukti transfer ini.',
+      'Kembalikan HANYA objek JSON valid dengan key persis berikut:',
+      '- "tanggal": format YYYY-MM-DD (pakai "' + fallbackDate + '" jika tanggal tidak terbaca)',
+      '- "tipe": "Pengeluaran" atau "Pemasukan"',
+      '- "kategori": pilih satu kategori paling cocok dari PENGELUARAN [' + pengeluaran.join(', ') + '] atau PEMASUKAN [' + pemasukan.join(', ') + ']',
+      '- "nominal": angka bulat positif dalam Rupiah tanpa titik/koma',
+      '- "keterangan": ringkasan singkat nama merchant dan item utama',
+      'Jangan sertakan teks penjelasan di luar JSON.'
+    ].join('\n');
+  }
+
+  function parseReceiptOcrResponse(rawText, todayStr) {
+    const fallbackDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : formatDate(new Date());
+    const cleaned = stripJsonFences(rawText);
+    const parsed = JSON.parse(cleaned);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Respons OCR struk tidak berupa objek JSON.');
+    }
+    const rawType = String(parsed.tipe || '').trim().toLowerCase();
+    const tipe = rawType === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
+    const rawDate = String(parsed.tanggal || '').slice(0, 10);
+    const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : fallbackDate;
+    const nominal = Math.round(Number(parsed.nominal));
+    if (!Number.isFinite(nominal) || nominal <= 0) {
+      throw new Error('Nominal transaksi pada struk tidak terbaca.');
+    }
+    return {
+      tanggal,
+      tipe,
+      kategori: String(parsed.kategori || 'Lainnya').trim() || 'Lainnya',
+      nominal,
+      keterangan: String(parsed.keterangan || '').trim()
+    };
+  }
+
+  function buildAiFinancialChatPrompt(payload, question, lang) {
+    const safeQuestion = String(question || '').trim().slice(0, 500);
+    if (!safeQuestion) throw new Error('Pertanyaan AI wajib diisi.');
+    const dataJson = JSON.stringify(payload || {});
+    if (lang === 'en') {
+      return [
+        'You are a concise personal finance advisor answering the user\'s question strictly based on their financial summary (in IDR).',
+        'Use 2-4 concise paragraphs or bullet points with concrete IDR numbers from the payload. Do not invent numbers.',
+        'USER QUESTION: ' + safeQuestion,
+        'USER FINANCIAL DATA (JSON):',
+        dataJson
+      ].join('\n');
+    }
+    return [
+      'Kamu adalah penasihat keuangan pribadi yang menjawab pertanyaan pengguna secara ringkas dan berbasis data keuangan berikut (dalam IDR).',
+      'Jawab dalam 2-4 poin atau paragraf singkat yang realistis beserta perhitungan angka Rupiah konkret dari data. Jangan mengarang angka di luar data.',
+      'PERTANYAAN PENGGUNA: ' + safeQuestion,
+      'DATA KEUANGAN PENGGUNA (JSON):',
+      dataJson
+    ].join('\n');
+  }
+
   const api = {
     getPeriodRange, isInPeriod, shiftPeriod, summarizePeriod, monthlyTrend,
     periodInsights, goalProgress, buildAiCashflowPayload,
-    buildGeminiCashflowPrompt, parseGeminiCashflowResponse
+    buildGeminiCashflowPrompt, parseGeminiCashflowResponse,
+    calculateGoalMonthlySaving, monthlyCashflowSeries, buildAppNotifications,
+    buildReceiptOcrPrompt, parseReceiptOcrResponse, buildAiFinancialChatPrompt
   };
   root.FinanceAnalysis = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

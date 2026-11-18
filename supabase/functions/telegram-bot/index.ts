@@ -280,6 +280,106 @@ OUTPUT:`;
   };
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + step));
+  }
+  return btoa(binary);
+}
+
+async function parseMediaWithAI(
+  c: Ctx,
+  mimeType: string,
+  base64: string,
+  caption: string,
+): Promise<Tx & { keterangan: string }> {
+  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
+  const inc = await getCategories(c.uid, 'pemasukan');
+  const exp = await getCategories(c.uid, 'pengeluaran');
+  const now = today();
+  const prompt = `Kamu adalah asisten keuangan yang mengekstrak 1 transaksi dari foto struk/bukti transfer atau pesan suara bahasa Indonesia.
+
+ATURAN:
+1. "tipe": "Pemasukan" atau "Pengeluaran".
+2. "kategori" WAJIB salah satu dari:
+   PEMASUKAN: ${inc.join(', ') || 'Lainnya'}
+   PENGELUARAN: ${exp.join(', ') || 'Lainnya'}
+   Jika tidak ada yang cocok, pilih "Lainnya".
+3. "nominal" angka murni bulat (IDR).
+4. "keterangan" ringkasan singkat (nama toko/merchant/isi utama).
+5. "tanggal" format YYYY-MM-DD. Default: ${now}.
+${caption ? 'CATATAN PENGIRIM: ' + JSON.stringify(caption) : ''}`;
+
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            tipe: { type: 'STRING', enum: ['Pemasukan', 'Pengeluaran'] },
+            kategori: { type: 'STRING' },
+            nominal: { type: 'NUMBER' },
+            keterangan: { type: 'STRING' },
+            tanggal: { type: 'STRING' },
+          },
+          required: ['tipe', 'kategori', 'nominal', 'tanggal'],
+        },
+      },
+    }),
+  });
+  const j = await r.json();
+  if (j.error) throw new Error('Gemini: ' + j.error.message);
+  const p = JSON.parse(j.candidates[0].content.parts[0].text);
+  const nominal = Math.round(Number(p.nominal));
+  if (!nominal || nominal <= 0) throw new Error('Nominal tidak terbaca dari media');
+  const cats = p.tipe === 'Pemasukan' ? inc : exp;
+  return {
+    tipe: p.tipe,
+    kategori: cats.includes(p.kategori) ? p.kategori : (cats.includes('Lainnya') ? 'Lainnya' : p.kategori),
+    nominal,
+    keterangan: p.keterangan || 'Via Media AI',
+    tanggal: /^\d{4}-\d{2}-\d{2}$/.test(p.tanggal) ? p.tanggal : now,
+  };
+}
+
+async function handleMediaMessage(c: Ctx, msg: Any) {
+  if (msg.document) {
+    return send(c.chat, '📄 Upload CSV & bank statement dapat dilakukan melalui menu <b>Laporan → Impor CSV</b> di web MyKeuangan.', mainKb());
+  }
+  const photo = Array.isArray(msg.photo) && msg.photo.length ? msg.photo[msg.photo.length - 1] : null;
+  const voice = msg.voice ?? null;
+  const fileId = photo?.file_id ?? voice?.file_id;
+  const mimeType = photo ? 'image/jpeg' : (voice?.mime_type || 'audio/ogg');
+  if (!fileId) return;
+
+  await send(c.chat, photo ? '📸 Membaca foto struk dengan Gemini AI...' : '🎙️ Memahami voice note dengan Gemini AI...');
+
+  const metaRes = await fetch(`${TG}/getFile?file_id=${encodeURIComponent(fileId)}`);
+  const metaJson = await metaRes.json();
+  const filePath = metaJson?.result?.file_path;
+  const fileSize = Number(metaJson?.result?.file_size || 0);
+  if (!filePath) throw new Error('Gagal mengambil file dari Telegram.');
+  if (fileSize > 4 * 1024 * 1024) throw new Error('Ukuran media melebihi batas 4 MB.');
+
+  const fileRes = await fetch(`https://api.telegram.org/file/bot${TOKEN}/${filePath}`);
+  if (!fileRes.ok) throw new Error('Gagal mengunduh file media Telegram.');
+  const bytes = new Uint8Array(await fileRes.arrayBuffer());
+  const base64 = bytesToBase64(bytes);
+
+  const caption = String(msg.caption || '').trim();
+  const p = await parseMediaWithAI(c, mimeType, base64, caption);
+  const w = walletByKind(await getWallets(c.uid), detectWalletKind(caption + ' ' + p.keterangan) ?? 'bank');
+  const pend = { ...p, originalText: caption || '[Media AI]', wallet_id: w?.id ?? null, walletName: w?.name ?? '' };
+  await setTemp(c.chat, 'pending', pend);
+  await confirmPreview(c.chat, pend);
+}
+
 function confirmPreview(chat: number, p: Tx) {
   const text = `📝 <b>Saya pahami:</b>\n\n${p.tipe === 'Pemasukan' ? '🟢' : '🔴'} <b>${p.tipe}</b>\n` +
     `🏷️ Kategori: <b>${esc(p.kategori)}</b>\n💵 Nominal: <b>${rp(p.nominal)}</b>\n📅 Tanggal: <b>${p.tanggal}</b>` +
@@ -953,7 +1053,7 @@ const GREETINGS = ['halo', 'hai', 'hi', 'hello', 'helo', 'hei', 'pagi', 'siang',
 
 async function handleMessage(c: Ctx, msg: Any) {
   if (msg.document || msg.photo || msg.voice) {
-    return send(c.chat, '🚧 Foto struk, voice note, dan upload CSV sedang dipindahkan ke versi baru (tahap berikutnya).', mainKb());
+    return handleMediaMessage(c, msg);
   }
   let text = String(msg.text || '').trim();
   if (!text) return;
@@ -1039,6 +1139,7 @@ const CRYPTO_MAP: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', ONDO: 'ondo-finance', TAO: 'bittensor', SOL: 'solana', ADA: 'cardano',
   DOT: 'polkadot', MATIC: 'matic-network', USDT: 'tether', USDC: 'usd-coin', BNB: 'binancecoin', XRP: 'ripple',
   DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink', PEPE: 'pepe', SHIB: 'shiba-inu', ARB: 'arbitrum', OP: 'optimism',
+  PAXG: 'pax-gold',
 };
 
 async function chatsOf(uid?: string): Promise<{ chat_id: number; user_id: string }[]> {
@@ -1049,10 +1150,9 @@ async function chatsOf(uid?: string): Promise<{ chat_id: number; user_id: string
   return data ?? [];
 }
 
-// Satu request CoinGecko untuk semua simbol (versi lama: 1 request + jeda 3 detik per simbol)
+// Satu request CoinGecko untuk semua simbol (crypto, emas PAXG, & kurs USD/IDR via tether)
 async function fetchPricesIDR(symbols: string[]): Promise<Record<string, number>> {
   const wanted = [...new Set(symbols.map((s) => s.toUpperCase()))].filter((s) => CRYPTO_MAP[s]);
-  if (wanted.length === 0) return {};
   const ids = [...new Set([...wanted.map((s) => CRYPTO_MAP[s]), 'tether'])];
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd` +
     (CG_KEY ? `&x_cg_demo_api_key=${encodeURIComponent(CG_KEY)}` : '');
@@ -1060,7 +1160,7 @@ async function fetchPricesIDR(symbols: string[]): Promise<Record<string, number>
   if (!r.ok) throw new Error('CoinGecko HTTP ' + r.status);
   const j = await r.json();
   const usdIdr = Number(j.tether?.idr) || 16000;
-  const out: Record<string, number> = {};
+  const out: Record<string, number> = { USD: usdIdr };
   for (const s of wanted) {
     const d = j[CRYPTO_MAP[s]];
     if (d?.idr) out[s] = Number(d.idr);
@@ -1089,8 +1189,13 @@ async function savePortfolioSnapshot(uid: string) {
 async function refreshPrices(uid: string) {
   const assets = await fetchAll('assets', 'id,type,symbol,quantity', uid, ['id']);
   const cryptos = assets.filter((a) => String(a.type).toLowerCase() === 'crypto' && a.symbol);
-  if (cryptos.length === 0) return { updated: 0, missing: [] as string[] };
-  const prices = await fetchPricesIDR(cryptos.map((a) => String(a.symbol)));
+  const golds = assets.filter((a) => String(a.type).toLowerCase() === 'emas' && Number(a.quantity) > 0);
+  const usds = assets.filter((a) => String(a.type).toLowerCase() === 'usd' && Number(a.quantity) > 0);
+  if (cryptos.length === 0 && golds.length === 0 && usds.length === 0) {
+    return { updated: 0, missing: [] as string[] };
+  }
+  const querySyms = [...cryptos.map((a) => String(a.symbol)), ...(golds.length ? ['PAXG'] : [])];
+  const prices = await fetchPricesIDR(querySyms);
   let updated = 0;
   const missing = new Set<string>();
   for (const a of cryptos) {
@@ -1099,6 +1204,22 @@ async function refreshPrices(uid: string) {
     if (!price) { missing.add(sym); continue; }
     const { error } = await sb.from('assets').update({ value: Math.round(Number(a.quantity || 0) * price) })
       .eq('id', a.id).eq('user_id', uid);
+    if (error) throw error;
+    updated++;
+  }
+  const goldPerGram = prices.PAXG ? prices.PAXG / 31.1034768 : 0;
+  for (const g of golds) {
+    if (!goldPerGram) { missing.add('XAU'); continue; }
+    const { error } = await sb.from('assets').update({ value: Math.round(Number(g.quantity || 0) * goldPerGram) })
+      .eq('id', g.id).eq('user_id', uid);
+    if (error) throw error;
+    updated++;
+  }
+  const usdRate = prices.USD || 0;
+  for (const u of usds) {
+    if (!usdRate) { missing.add('USD'); continue; }
+    const { error } = await sb.from('assets').update({ value: Math.round(Number(u.quantity || 0) * usdRate) })
+      .eq('id', u.id).eq('user_id', uid);
     if (error) throw error;
     updated++;
   }

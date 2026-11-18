@@ -10,7 +10,13 @@ const {
   summarizePeriod,
   buildAiCashflowPayload,
   buildGeminiCashflowPrompt,
-  parseGeminiCashflowResponse
+  parseGeminiCashflowResponse,
+  calculateGoalMonthlySaving,
+  monthlyCashflowSeries,
+  buildAppNotifications,
+  buildReceiptOcrPrompt,
+  parseReceiptOcrResponse,
+  buildAiFinancialChatPrompt
 } = require('../web/finance-analysis.js');
 
 test('payroll cycle spans month and year boundaries', () => {
@@ -146,4 +152,84 @@ test('buildGeminiCashflowPrompt and parseGeminiCashflowResponse handle JSON fenc
   const plain = parseGeminiCashflowResponse('Kondisi keuangan cukup baik.');
   assert.equal(plain.healthScore, null);
   assert.equal(plain.ringkasan, 'Kondisi keuangan cukup baik.');
+});
+
+test('calculateGoalMonthlySaving handles completed, overdue, urgent, and normal targets', () => {
+  assert.deepEqual(calculateGoalMonthlySaving(5000000, 5000000, '2026-12-31', '2026-11-18'), {
+    remaining: 0, daysLeft: 0, monthsLeft: 0, monthlySaving: 0, status: 'completed'
+  });
+
+  const onTrack = calculateGoalMonthlySaving(2000000, 8000000, '2027-02-16', '2026-11-18');
+  assert.equal(onTrack.remaining, 6000000);
+  assert.equal(onTrack.daysLeft, 90);
+  assert.equal(onTrack.monthsLeft, 3);
+  assert.equal(onTrack.monthlySaving, 2000000);
+  assert.equal(onTrack.status, 'on_track');
+
+  const urgent = calculateGoalMonthlySaving(100000, 500000, '2026-11-28', '2026-11-18');
+  assert.equal(urgent.status, 'urgent');
+  assert.equal(urgent.monthsLeft, 1);
+
+  const overdue = calculateGoalMonthlySaving(100000, 500000, '2026-11-10', '2026-11-18');
+  assert.equal(overdue.status, 'overdue');
+  assert.equal(overdue.monthlySaving, 400000);
+});
+
+test('monthlyCashflowSeries aggregates income and expense excluding debt transactions', () => {
+  const series = monthlyCashflowSeries([
+    { tanggal: '2026-02-05', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 5000000 },
+    { tanggal: '2026-02-10', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 1200000 },
+    { tanggal: '2026-03-01', tipe: 'Pemasukan', kategori: 'UtangPerson - Andi', nominal: 1000000 },
+    { tanggal: '2026-03-02', tipe: 'Pengeluaran', kategori: 'Transport', nominal: 300000 }
+  ], '2026-03', 1, 2);
+
+  assert.equal(series.length, 2);
+  assert.deepEqual(series[0], { period: '2026-02', incomeTotal: 5000000, expenseTotal: 1200000, netCashflow: 3800000 });
+  assert.deepEqual(series[1], { period: '2026-03', incomeTotal: 0, expenseTotal: 300000, netCashflow: -300000 });
+});
+
+test('buildAppNotifications detects budget alerts, upcoming recurring rules, urgent goals, and offline queue', () => {
+  const alerts = buildAppNotifications({
+    budgets: [
+      { bulan: '2026-11', kategori: 'Makan', jumlah: 1000000 },
+      { bulan: '2026-11', kategori: 'Transport', jumlah: 500000 }
+    ],
+    transactions: [
+      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 1200000 },
+      { tanggal: '2026-11-06', tipe: 'Pengeluaran', kategori: 'Transport', nominal: 420000 }
+    ],
+    recurring: [
+      { id: 'r1', kategori: 'Internet', nominal: 350000, dayOfMonth: 20, lastRun: '', active: 'true' },
+      { id: 'r2', kategori: 'Listrik', nominal: 200000, dayOfMonth: 18, lastRun: '2026-11-18', active: 'true' }
+    ],
+    goals: [
+      { id: 'g1', name: 'Darurat', targetAmount: 1000000, currentAmount: 500000, targetDate: '2026-11-25' }
+    ],
+    offlineQueueCount: 2
+  }, '2026-11', 1, '2026-11-18');
+
+  assert.equal(alerts.some((a) => a.id === 'budget:2026-11:Makan' && a.severity === 'danger'), true);
+  assert.equal(alerts.some((a) => a.id === 'budget:2026-11:Transport' && a.severity === 'warning'), true);
+  assert.equal(alerts.some((a) => a.id === 'recurring:r1'), true);
+  assert.equal(alerts.some((a) => a.id === 'recurring:r2'), false);
+  assert.equal(alerts.some((a) => a.id === 'goal:g1' && a.severity === 'warning'), true);
+  assert.equal(alerts.some((a) => a.id === 'offline:queue' && a.actionType === 'sync_offline'), true);
+});
+
+test('receipt OCR helpers and AI chat prompt builder format and validate correctly', () => {
+  const prompt = buildReceiptOcrPrompt({ pengeluaran: ['Makan', 'Belanja'], pemasukan: ['Gaji'] }, '2026-11-18', 'id');
+  assert.match(prompt, /Makan, Belanja/);
+
+  const parsed = parseReceiptOcrResponse('```json\n{"tanggal":"2026-11-17","tipe":"Pengeluaran","kategori":"Makan","nominal":45500,"keterangan":"Indomaret - Kopi & Roti"}\n```', '2026-11-18');
+  assert.deepEqual(parsed, {
+    tanggal: '2026-11-17',
+    tipe: 'Pengeluaran',
+    kategori: 'Makan',
+    nominal: 45500,
+    keterangan: 'Indomaret - Kopi & Roti'
+  });
+
+  const chatPrompt = buildAiFinancialChatPrompt({ netWorth: 10000000 }, 'Bisa nabung berapa?', 'id');
+  assert.match(chatPrompt, /Bisa nabung berapa\?/);
+  assert.throws(() => buildAiFinancialChatPrompt({}, '   ', 'id'), /wajib/);
 });

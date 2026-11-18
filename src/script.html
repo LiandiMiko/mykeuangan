@@ -1099,7 +1099,11 @@ function renderAssets() {
   }
 
   container.innerHTML = DB.assets.map(a => {
-    const isCrypto = String(a.type).toLowerCase() === 'crypto';
+    const typeLower = String(a.type).toLowerCase();
+    const isCrypto = typeLower === 'crypto';
+    const isEmas = typeLower === 'emas';
+    const isUsd = typeLower === 'usd';
+    const isSaham = typeLower === 'saham';
     const qty = Number(a.quantity || 0);
     const value = Number(a.value || 0);
     const buyPrice = Number(a.buyPrice || 0);
@@ -1107,18 +1111,26 @@ function renderAssets() {
     const pnl = buyTotal > 0 ? (value - buyTotal) : 0;
     const pnlPct = buyTotal > 0 ? (pnl / buyTotal * 100) : 0;
 
-    const iconName = isCrypto ? 'currency-btc' 
-                    : (String(a.type).toLowerCase() === 'cash' ? 'bank' : 'coins');
-    const iconColor = isCrypto ? 'text-amber-500' 
-                     : (String(a.type).toLowerCase() === 'cash' ? 'text-emerald-500' : 'text-brand dark:text-brand-ink');
-    const iconBG = isCrypto ? 'bg-amber-50 dark:bg-amber-500/10' 
-                  : (String(a.type).toLowerCase() === 'cash' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand/10');
+    const iconName = isCrypto ? 'currency-btc'
+                    : isUsd ? 'currency-dollar'
+                    : isSaham ? 'chart-line-up'
+                    : (typeLower === 'cash' ? 'bank' : 'coins');
+    const iconColor = (isCrypto || isEmas) ? 'text-amber-500'
+                     : (typeLower === 'cash' || isUsd ? 'text-emerald-500' : 'text-brand dark:text-brand-ink');
+    const iconBG = (isCrypto || isEmas) ? 'bg-amber-50 dark:bg-amber-500/10'
+                  : (typeLower === 'cash' || isUsd ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand/10');
 
     const meta = isCrypto
-      ? `<span class="text-[10px] text-slate-400">${qty} ${escapeHtmlJS(a.symbol)} · ${escapeHtmlJS(a.symbol)}</span>`
+      ? `<span class="text-[10px] text-slate-400">${qty} ${escapeHtmlJS(a.symbol)} · Crypto</span>`
+      : isEmas
+      ? `<span class="text-[10px] text-slate-400">${qty} gram · Emas</span>`
+      : isUsd
+      ? `<span class="text-[10px] text-slate-400">$${qty.toLocaleString('id-ID')} USD · Valas</span>`
+      : isSaham
+      ? `<span class="text-[10px] text-slate-400">${a.symbol ? escapeHtmlJS(a.symbol) + ' · ' : ''}Saham / Reksa Dana</span>`
       : `<span class="text-[10px] text-slate-400">${escapeHtmlJS(a.type)}</span>`;
 
-    const pnlHtml = isCrypto && buyTotal > 0
+    const pnlHtml = (isCrypto || isEmas || isUsd) && buyTotal > 0
       ? `<div class="text-[10px] font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
            ${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00','')} (${pnlPct.toFixed(1)}%)
          </div>`

@@ -33,3 +33,51 @@ test('transaction import requires supported headers and paired quotes', () => {
   assert.throws(() => parseTransactionCsv('date,type,amount', [], []), /Kolom wajib/);
   assert.throws(() => parseRows('a,b\n1,"unfinished'), /tanda kutip/);
 });
+
+test('CSV parser supports semicolon delimiters and bank mutation statements (BCA/Mandiri)', () => {
+  const semicolonCsv = [
+    'tanggal;tipe;kategori;nominal;keterangan;dompet',
+    '18/11/2026;Pengeluaran;Makan;Rp 45.000;Sarapan pagi;Cash'
+  ].join('\n');
+  const parsedSemi = parseTransactionCsv(semicolonCsv, [], [{ id: 'w-cash', name: 'Cash' }]);
+  assert.equal(parsedSemi.valid.length, 1);
+  assert.equal(parsedSemi.valid[0].tanggal, '2026-11-18');
+  assert.equal(parsedSemi.valid[0].nominal, 45000);
+
+  const bankCsv = [
+    'Date,Uraian,Mutasi,DB/CR,Dompet',
+    '17/11/2026,"QRIS WARUNG KOPI","25000.00",DB,BCA',
+    '18/11/2026,"TRANSFER MASUK GAJI","5,000,000.00",CR,BCA'
+  ].join('\n');
+  const parsedBank = parseTransactionCsv(bankCsv, [], [{ id: 'w-bca', name: 'BCA' }]);
+  assert.equal(parsedBank.invalidCount, 0);
+  assert.equal(parsedBank.valid.length, 2);
+  assert.deepEqual(parsedBank.valid[0], {
+    tanggal: '2026-11-17',
+    tipe: 'Pengeluaran',
+    kategori: 'Lainnya',
+    nominal: 25000,
+    keterangan: 'QRIS WARUNG KOPI',
+    walletId: 'w-bca'
+  });
+  assert.deepEqual(parsedBank.valid[1], {
+    tanggal: '2026-11-18',
+    tipe: 'Pemasukan',
+    kategori: 'Lainnya',
+    nominal: 5000000,
+    keterangan: 'TRANSFER MASUK GAJI',
+    walletId: 'w-bca'
+  });
+
+  const debitCreditCsv = [
+    'Tanggal,Uraian,Debit,Kredit',
+    '18-11-2026,Listrik PLN,350.000,',
+    '18-11-2026,Cashback,,15.500'
+  ].join('\n');
+  const parsedDC = parseTransactionCsv(debitCreditCsv, [], [{ id: 'w-1', name: 'BCA' }]);
+  assert.equal(parsedDC.valid.length, 2);
+  assert.equal(parsedDC.valid[0].tipe, 'Pengeluaran');
+  assert.equal(parsedDC.valid[0].nominal, 350000);
+  assert.equal(parsedDC.valid[1].tipe, 'Pemasukan');
+  assert.equal(parsedDC.valid[1].nominal, 15500);
+});

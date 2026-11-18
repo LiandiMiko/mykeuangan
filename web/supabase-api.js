@@ -425,6 +425,14 @@
         keterangan: r.keterangan || '', dayOfMonth: r.day_of_month,
         lastRun: r.last_run || '', active: String(r.active)
       })),
+      debtDueDates: (() => {
+        try {
+          const parsed = JSON.parse(settings.debtDueDates || '{}');
+          return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch (_) {
+          return {};
+        }
+      })(),
       currentPeriod: settings.currentPeriod || cycleFor(ymd(new Date()), payrollDay),
       payrollDay
     };
@@ -853,6 +861,13 @@
         if (type === 'Crypto' && (quantity <= 0 || buyPrice <= 0)) {
           throw new Error('Isi jumlah aset dan harga beli untuk mencatat sumber dana.');
         }
+        const needMetaSync = (type === 'Emas' || type === 'USD') && quantity > 0;
+        let preIds = null;
+        if (needMetaSync) {
+          const preRes = await sb.from('assets').select('id');
+          fail(preRes.error);
+          preIds = new Set((preRes.data || []).map((row) => row.id));
+        }
         const { data: transactions, error } = await sb.rpc('create_asset_with_expense', {
           p_name: name,
           p_type: type,
@@ -866,6 +881,19 @@
         fail(error);
         if (!transactions || !transactions.length) {
           throw new Error('Pembelian aset tidak mengembalikan catatan transaksi.');
+        }
+        if (needMetaSync && preIds) {
+          const postRes = await sb.from('assets').select('id');
+          fail(postRes.error);
+          const created = (postRes.data || []).find((row) => !preIds.has(row.id));
+          if (created) {
+            const { error: metaErr } = await sb.from('assets').update({
+              symbol: String(d.symbol || (type === 'Emas' ? 'XAU' : 'USD')).toUpperCase(),
+              quantity,
+              buy_price: buyPrice > 0 ? buyPrice : Number((amount / quantity).toFixed(4))
+            }).eq('id', created.id);
+            fail(metaErr);
+          }
         }
         const [assetsRes, catsRes, currentPeriod] = await Promise.all([
           fetchAssetsOnly(),
@@ -1242,6 +1270,17 @@
       const { error } = await sb.rpc('replace_telegram_pairing', { p_otp: otp });
       fail(error);
       return otp;
+    },
+    async api_saveDebtDueDates(dueMap) {
+      const clean = {};
+      if (dueMap && typeof dueMap === 'object' && !Array.isArray(dueMap)) {
+        Object.keys(dueMap).forEach((k) => {
+          const v = String(dueMap[k] || '').slice(0, 10);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) clean[String(k).slice(0, 120)] = v;
+        });
+      }
+      await setSetting('debtDueDates', JSON.stringify(clean));
+      return { debtDueDates: clean };
     },
 
   };
