@@ -34,15 +34,15 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
 
 | Kategori | Fitur |
 |---|---|
-| **Keuangan** | Transaksi, pencarian/filter/paginasi laporan, impor CSV dengan pratinjau dan deteksi duplikasi, kategori, budget bulanan, insight dan tren 6 bulan, utang/piutang |
-| **Target** | Target tabungan dengan nominal terkumpul, tenggat opsional, dan progres |
-| **Aset** | Portofolio saham & kripto dengan harga real-time |
-| **Multi-User** | Registrasi mandiri, login, lupa password via email |
-| **Admin Panel** | Kelola user, suspend/aktifkan akun, ubah role |
-| **PWA** | Bisa di-install di HP/desktop; shell dapat dibuka offline, data tetap memerlukan internet |
-| **Telegram** | Notifikasi & query saldo via bot, pairing via OTP mandiri |
-| **AI** | Analisis keuangan & prediksi dengan Gemini 2.5 Flash |
-| **Keamanan** | XSS sanitization, RLS Supabase, RBAC admin/user |
+| **Keuangan** | Transaksi, kalender interaktif, pencarian/filter dompet/paginasi laporan, impor & ekspor CSV, ekspor PDF, kelola kategori & dompet, transaksi rutin (recurring), utang/piutang |
+| **Target** | Target tabungan dengan alokasi langsung dari dompet, nominal terkumpul, tenggat opsional, dan progres |
+| **Aset** | Portofolio saham & kripto dengan harga real-time, beli/top-up dari dompet, dan cairkan/jual ke dompet |
+| **Multi-User** | Registrasi mandiri (min. 8 karakter), login/register dark mode, lupa password via email |
+| **Admin Panel** | Statistik global platform, cari & filter user, suspend/aktifkan akun, proteksi self-lockout/admin terakhir |
+| **PWA** | Bisa di-install di HP/desktop; shell statis tersedia offline tanpa mencache API sensitif |
+| **Telegram** | Notifikasi & query saldo via bot, pairing via OTP mandiri + tombol salin perintah |
+| **AI** | Analisis arus keuangan on-demand dengan Google Gemini 2.5 Flash (bekerja hanya saat tombol Analisis ditekan) |
+| **Keamanan** | XSS sanitization, RLS Supabase, constant-time secret verification, purge cache saat logout |
 
 ---
 
@@ -86,7 +86,8 @@ mykeuangan/
 │       ├── 20261115000000_admin_panel_hardening.sql # Admin RLS, pairing, onboarding fixes
 │       ├── 20261115040200_application_hardening.sql # Active account and transactional safeguards
 │       ├── 20261116000000_financial_goals_and_transaction_search.sql
-│       └── 20261117000000_wallets_asset_purchases.sql
+│       ├── 20261117000000_wallets_asset_purchases.sql
+│       └── 20261118000000_comprehensive_upgrade.sql
 │
 ├── tests/
 │   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
@@ -204,6 +205,17 @@ Migrasi ini membuat tabel target keuangan dengan RLS akun aktif dan fungsi penca
 ```
 
 Migrasi ini mengizinkan jenis dompet e-wallet dan menambahkan fungsi atomik untuk menyimpan pembelian aset bersama transaksi pengeluaran kategori Investasi. Jalankan satu kali setelah migrasi sebelumnya. Pembelian dari dompet mengurangi saldo dompet dan menambah nilai aset.
+
+#### Step 9 — Comprehensive Upgrade (Security, Stats, Category/Wallet RPC, Cairkan Aset, Target & Filter Dompet)
+```sql
+-- Jalankan isi file: supabase/migrations/20261118000000_comprehensive_upgrade.sql
+```
+
+Migrasi ini menambahkan:
+- Trigger `prevent_admin_lockout` untuk mencegah admin men-suspend/mendemosi diri sendiri maupun admin aktif terakhir
+- RPC `get_admin_platform_stats()` untuk statistik global admin panel
+- RPC `rename_category_with_transactions()`, `delete_category()`, `delete_wallet()`, `liquidate_asset()`, `contribute_to_goal()`
+- Pembaruan `search_user_transactions()` dengan filter opsional `p_wallet_id`
 
 > Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi baru setelah migrasi hardening.
 
@@ -343,9 +355,23 @@ Semua tabel diproteksi RLS. User hanya bisa akses data miliknya. Admin aktif men
 ### XSS Prevention
 Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk dengan menginterpolasi data pengguna ke dalam kode inline.
 
+### 🤖 Analisis Arus Keuangan AI (On-Demand Gemini)
+- Di Dashboard terdapat panel **Analisis Arus Keuangan AI (Gemini)**.
+- Pengguna memasukkan **Gemini API Key** sendiri melalui tombol **Atur API Key Gemini** (key disimpan lokal di browser `localStorage` dan dikirim melalui header `x-goog-api-key`).
+- **On-Demand**: AI **hanya** mengirim ringkasan payload arus kas ke Gemini 2.5 Flash saat pengguna menekan tombol **Analisis Arus Keuangan** — tidak pernah berjalan otomatis di latar belakang.
+
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 18 November 2026: Comprehensive Upgrade & On-Demand Gemini AI
+- **AI Cashflow Analyzer (On-Demand)**: Kartu analisis arus kas di Dashboard memakai Google Gemini 2.5 Flash (`buildAiCashflowPayload`, `buildGeminiCashflowPrompt`, `parseGeminiCashflowResponse` di `web/finance-analysis.js`) dengan input API key di browser dan eksekusi hanya saat tombol ditekan.
+- **Transaksi Rutin (Recurring) Web UI**: Tambah, edit, jeda/aktifkan, dan hapus jadwal bulanan langsung di Dashboard.
+- **Pencairan Aset & Alokasi Target**: Tombol cairkan/jual aset ke dompet (`liquidate_asset`), tombol alokasi tabungan target dari dompet (`contribute_to_goal`), serta kelola rename/hapus kategori dan edit jenis/hapus dompet.
+- **Laporan & Kalender Interaktif**: Tambah filter dompet pada laporan, ekspor CSV terfilter, dan klik tanggal pada kalender untuk melihat/menambah transaksi di tanggal tersebut.
+- **Admin Panel & UX Mobile**: Statistik global platform, pencarian & filter daftar pengguna, proteksi DB self-lockout admin, dark mode pada form login & seluruh modal, tombol salin perintah `/link` Telegram, tombol aksi selalu tampil di layar sentuh, serta target klik ≥40–44px dengan `aria-label`.
+- **Security & Performance Hardening**: Service Worker (`web/sw.js`) tidak lagi mencache endpoint `supabase.co` atau `googleapis.com`, Cache Storage dibersihkan saat logout, verifikasi secret constant-time SHA-256 pada `telegram-bot`, pin versi library CDN di `src/styles.html`, seragamkan password minimal 8 karakter, dan mutasi API hanya mengambil tabel yang berubah.
+- Migrasi `supabase/migrations/20261118000000_comprehensive_upgrade.sql`.
 
 ### 17 November 2026: Dompet dan pembelian aset
 - Tambah dompet dengan jenis bank, e-wallet, atau tunai beserta saldo awal, lalu transfer saldo antar dompet.

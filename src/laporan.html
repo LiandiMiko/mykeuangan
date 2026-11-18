@@ -13,6 +13,9 @@
         <button type="button" id="lapImportBtn" class="min-h-[44px] px-4 py-2 bg-brand text-white hover:bg-brand-hover rounded-xl font-bold text-sm flex items-center justify-center gap-2">
           <i class="ph ph-upload-simple" aria-hidden="true"></i><span data-i18n="lap.import">Impor CSV</span>
         </button>
+        <button type="button" onclick="exportCSV()" class="min-h-[44px] px-4 py-2 bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+          <i class="ph ph-file-csv" aria-hidden="true"></i><span data-i18n="lap.export_csv">Ekspor CSV</span>
+        </button>
         <button type="button" onclick="exportPDF()" class="min-h-[44px] px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700">
           <i class="ph ph-file-pdf" aria-hidden="true"></i><span data-i18n="lap.export">Ekspor PDF</span>
         </button>
@@ -20,7 +23,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
       <div class="sm:col-span-2 xl:col-span-1">
         <label for="lapSearch" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1" data-i18n="lap.search">Cari transaksi</label>
         <input id="lapSearch" type="search" maxlength="100" autocomplete="off" class="w-full min-h-[44px] px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
@@ -44,6 +47,10 @@
       <div>
         <label for="lapCategory" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1" data-i18n="lap.category">Kategori</label>
         <select id="lapCategory" class="w-full min-h-[44px] px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white"></select>
+      </div>
+      <div>
+        <label for="lapWallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1" data-i18n="lap.wallet">Dompet</label>
+        <select id="lapWallet" class="w-full min-h-[44px] px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white"></select>
       </div>
     </div>
   </div>

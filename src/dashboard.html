@@ -55,16 +55,41 @@
     </div>
   </div>
 
+  <!-- ================= AI CASHFLOW ANALYZER (ON-DEMAND) ================= -->
+  <section id="ai-cashflow-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiCardTitle">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h3 id="aiCardTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="ph ph-sparkle text-brand" aria-hidden="true"></i>
+            <span data-i18n="ai.title">Analisis Arus Keuangan AI (Gemini)</span>
+          </h3>
+          <span id="aiKeyStatus" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" data-i18n="ai.key_missing">API Key belum diatur</span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.subtitle">AI hanya berjalan ketika Anda menekan tombol analisis untuk menjaga privasi dan kuota API Anda.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 shrink-0">
+        <button type="button" onclick="configureGeminiApiKey()" class="min-h-11 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 transition-colors">
+          <i class="ph ph-key" aria-hidden="true"></i> <span data-i18n="ai.btn_key">Atur API Key Gemini</span>
+        </button>
+        <button type="button" id="btnRunAiAnalysis" onclick="runAiCashflowAnalysis()" class="min-h-11 px-5 py-2 bg-brand text-white hover:bg-brand-hover rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-60">
+          <i class="ph ph-magic-wand text-base" aria-hidden="true"></i> <span data-i18n="ai.btn_analyze">Analisis Arus Keuangan</span>
+        </button>
+      </div>
+    </div>
+    <div id="aiAnalysisResult" class="hide mt-5 pt-5 border-t border-slate-100 dark:border-slate-800" aria-live="polite"></div>
+  </section>
+
   <!-- ================= DOMPET ================= -->
   <div class="mb-8">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-      <h3 class="text-lg font-bold text-slate-800 dark:text-white"><i class="ph ph-wallet text-brand"></i> Dompet</h3>
+      <h3 class="text-lg font-bold text-slate-800 dark:text-white"><i class="ph ph-wallet text-brand" aria-hidden="true"></i> <span data-i18n="dash.wallets">Dompet</span></h3>
       <div class="flex flex-wrap gap-2">
         <button type="button" onclick="addWallet()" class="min-h-11 px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 active:bg-emerald-900 flex items-center justify-center gap-1.5">
-          <i class="ph ph-plus-bold" aria-hidden="true"></i> Tambah Dompet
+          <i class="ph ph-plus-bold" aria-hidden="true"></i> <span data-i18n="dash.add_wallet">Tambah Dompet</span>
         </button>
         <button type="button" onclick="openTransferModal('transfer')" class="min-h-11 px-4 py-2 bg-brand text-white rounded-xl text-xs font-bold hover:opacity-90 flex items-center justify-center gap-1.5">
-          <i class="ph ph-arrows-left-right" aria-hidden="true"></i> Tarik Tunai / Transfer
+          <i class="ph ph-arrows-left-right" aria-hidden="true"></i> <span data-i18n="dash.transfer_wallet">Tarik Tunai / Transfer</span>
         </button>
       </div>
     </div>
@@ -86,6 +111,23 @@
       </button>
     </div>
     <div id="financialGoals" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+  </section>
+
+  <!-- ================= TRANSAKSI RUTIN (RECURRING) ================= -->
+  <section id="recurringSection" class="mb-8" aria-labelledby="recurringTitle">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+      <div>
+        <h3 id="recurringTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <i class="ph ph-arrows-clockwise text-brand" aria-hidden="true"></i>
+          <span data-i18n="rec.title">Tagihan &amp; Transaksi Rutin</span>
+        </h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="rec.subtitle">Jadwal pemasukan atau pengeluaran otomatis setiap bulan.</p>
+      </div>
+      <button type="button" onclick="openRecurringForm()" class="min-h-[44px] px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-hover flex items-center justify-center gap-2">
+        <i class="ph ph-plus" aria-hidden="true"></i><span data-i18n="rec.add">Tambah Jadwal Rutin</span>
+      </button>
+    </div>
+    <div id="recurringList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
   </section>
 
   <!-- ================= KALENDER ================= -->
@@ -147,11 +189,11 @@
       <p class="text-xs text-slate-500 mt-1" data-i18n="dash.portofolio_sub">Kelola saldo Reksa Dana, Crypto, Saham, dll secara manual.</p>
     </div>
     <div class="flex gap-2">
-      <button onclick="refreshAssetPrices()" title="Refresh Harga Crypto" class="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
-        <i class="ph ph-arrows-clockwise"></i> Refresh
+      <button type="button" onclick="refreshAssetPrices()" title="Refresh Harga Crypto" class="min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
+        <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Refresh
       </button>
-      <button onclick="addManualAssetUI()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
-        <i class="ph ph-plus-bold"></i> <span data-i18n="dash.btn_add_aset">Tambah Aset</span>
+      <button type="button" onclick="addManualAssetUI()" class="min-h-11 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
+        <i class="ph ph-plus-bold" aria-hidden="true"></i> <span data-i18n="dash.btn_add_aset">Tambah Aset</span>
       </button>
     </div>
   </div>

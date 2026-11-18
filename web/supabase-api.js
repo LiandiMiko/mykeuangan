@@ -103,72 +103,98 @@
   }, 60000);
 
   function showLogin() {
+    const isDark = localStorage.getItem('mode') === 'dark' || document.documentElement.classList.contains('dark');
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;' +
-      'justify-content:center;background:#0f172a;font-family:system-ui,sans-serif';
-    const field = 'padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px';
-    const fieldLabel = 'font-size:12px;font-weight:600;color:#334155';
+      'justify-content:center;background:#0f172a;padding:16px;font-family:Inter,system-ui,sans-serif';
+    const cardBg = isDark ? '#1e293b' : '#ffffff';
+    const textMain = isDark ? '#f8fafc' : '#0f172a';
+    const textMuted = isDark ? '#94a3b8' : '#64748b';
+    const labelColor = isDark ? '#cbd5e1' : '#334155';
+    const inputBg = isDark ? '#0f172a' : '#ffffff';
+    const inputBorder = isDark ? '#334155' : '#cbd5e1';
+    const field = `width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid ${inputBorder};border-radius:10px;font-size:14px;background:${inputBg};color:${textMain}`;
+    const passField = `width:100%;box-sizing:border-box;padding:10px 44px 10px 12px;border:1px solid ${inputBorder};border-radius:10px;font-size:14px;background:${inputBg};color:${textMain}`;
+    const fieldLabel = `font-size:12px;font-weight:600;color:${labelColor}`;
+    const toggleBtnStyle = `position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:${textMuted};font-size:11px;font-weight:700;cursor:pointer;padding:6px 8px`;
     let mode = 'login';
     let isSubmitting = false;
+
+    const passInputGroup = (id, placeholder, autocomplete, minLen) => `
+      <div style="position:relative">
+        <input id="${id}" type="password" placeholder="${placeholder}" ${minLen ? `minlength="${minLen}"` : ''} required autocomplete="${autocomplete}" aria-describedby="mkErr" style="${passField}">
+        <button type="button" data-toggle-pass="${id}" aria-label="Tampilkan atau sembunyikan kata sandi" style="${toggleBtnStyle}">Lihat</button>
+      </div>
+    `;
 
     function renderForm() {
       let content = '';
       if (mode === 'login') {
         content = `
-          <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Masuk ke Akun</h2>
-          <p style="margin:0 0 12px;font-size:13px;color:#64748b">Kelola finansial dan portofolio Anda</p>
+          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Masuk ke Akun</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Kelola finansial dan portofolio Anda</p>
           <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
           <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
           <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
-          <input id="mkPass" type="password" placeholder="Kata Sandi" required autocomplete="current-password" aria-describedby="mkErr" style="${field}">
+          ${passInputGroup('mkPass', 'Kata Sandi', 'current-password', 0)}
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
-            <a href="#" id="mkForgotLink" style="color:#2563eb;text-decoration:none">Lupa kata sandi?</a>
+            <a href="#" id="mkForgotLink" style="color:#3b82f6;text-decoration:none">Lupa kata sandi?</a>
           </div>
-          <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Masuk</button>
-          <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
-            Belum punya akun? <a href="#" id="mkRegisterLink" style="color:#2563eb;font-weight:700;text-decoration:none">Daftar sekarang</a>
+          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Masuk</button>
+          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
+            Belum punya akun? <a href="#" id="mkRegisterLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Daftar sekarang</a>
           </p>
         `;
       } else if (mode === 'register') {
         content = `
-          <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Daftar Akun Baru</h2>
-          <p style="margin:0 0 12px;font-size:13px;color:#64748b">Gratis dan instan untuk kelola keuangan</p>
+          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Daftar Akun Baru</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Gratis dan instan untuk kelola keuangan</p>
           <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
           <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-          <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
-          <input id="mkPass" type="password" placeholder="Kata Sandi (min. 6 karakter)" minlength="6" required autocomplete="new-password" aria-describedby="mkErr" style="${field}">
+          <label for="mkPass" style="${fieldLabel}">Kata Sandi (min. 8 karakter)</label>
+          ${passInputGroup('mkPass', 'Minimal 8 karakter', 'new-password', 8)}
           <label for="mkPassConfirm" style="${fieldLabel}">Ulangi Kata Sandi</label>
-          <input id="mkPassConfirm" type="password" placeholder="Ulangi Kata Sandi" minlength="6" required autocomplete="new-password" aria-describedby="mkErr" style="${field}">
-          <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Daftar Akun</button>
-          <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
-            Sudah punya akun? <a href="#" id="mkLoginLink" style="color:#2563eb;font-weight:700;text-decoration:none">Masuk di sini</a>
+          ${passInputGroup('mkPassConfirm', 'Ulangi Kata Sandi', 'new-password', 8)}
+          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Daftar Akun</button>
+          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
+            Sudah punya akun? <a href="#" id="mkLoginLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Masuk di sini</a>
           </p>
         `;
       } else if (mode === 'forgot') {
         content = `
-          <h2 style="margin:0 0 4px;font-size:20px;color:#0f172a;font-weight:800">Reset Kata Sandi</h2>
-          <p style="margin:0 0 12px;font-size:13px;color:#64748b">Masukkan email untuk menerima link reset</p>
+          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Reset Kata Sandi</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Masukkan email untuk menerima link reset</p>
           <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
           <input id="mkEmail" type="email" placeholder="Alamat Email Anda" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-          <button type="submit" id="mkSubmitBtn" style="padding:10px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Kirim Link Reset</button>
-          <p style="margin:12px 0 0;font-size:13px;color:#64748b;text-align:center">
-            Kembali ke <a href="#" id="mkLoginLink" style="color:#2563eb;font-weight:700;text-decoration:none">Halaman Masuk</a>
+          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Kirim Link Reset</button>
+          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
+            Kembali ke <a href="#" id="mkLoginLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Halaman Masuk</a>
           </p>
         `;
       }
 
       el.innerHTML = `
-        <div style="background:#fff;padding:32px 28px;border-radius:20px;width:min(92vw,360px);box-shadow:0 25px 50px -12px rgba(0,0,0,0.35)">
+        <div style="background:${cardBg};padding:32px 28px;border-radius:20px;width:min(92vw,370px);box-shadow:0 25px 50px -12px rgba(0,0,0,0.45);border:1px solid ${isDark ? '#334155' : 'transparent'}">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
             <div style="width:36px;height:36px;border-radius:10px;background:#2563eb;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900">M</div>
-            <h1 style="margin:0;font-size:18px;color:#0f172a;font-weight:800">MyKeuangan<span style="color:#2563eb">Guech</span></h1>
+            <h1 style="margin:0;font-size:18px;color:${textMain};font-weight:800">MyKeuangan<span style="color:#3b82f6">Guech</span></h1>
           </div>
           <form id="mkAuthForm" style="display:grid;gap:10px">
             ${content}
-            <p id="mkErr" role="status" aria-live="polite" style="margin:4px 0 0;color:#dc2626;font-size:12px;min-height:1em;text-align:center"></p>
+            <p id="mkErr" role="status" aria-live="polite" style="margin:4px 0 0;color:#ef4444;font-size:12px;min-height:1em;text-align:center"></p>
           </form>
         </div>
       `;
+
+      el.querySelectorAll('[data-toggle-pass]').forEach((btn) => {
+        btn.onclick = () => {
+          const input = el.querySelector('#' + btn.dataset.togglePass);
+          if (!input) return;
+          const showing = input.type === 'text';
+          input.type = showing ? 'password' : 'text';
+          btn.textContent = showing ? 'Lihat' : 'Tutup';
+        };
+      });
 
       const regLink = el.querySelector('#mkRegisterLink');
       if (regLink) regLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'register'; renderForm(); } };
@@ -190,7 +216,7 @@
       const submitLabel = submitBtn.textContent;
       const submitMode = mode;
       errEl.textContent = '';
-      errEl.style.color = '#dc2626';
+      errEl.style.color = '#ef4444';
       submitBtn.disabled = true;
       submitBtn.setAttribute('aria-busy', 'true');
       submitBtn.style.cursor = 'not-allowed';
@@ -209,6 +235,10 @@
         } else if (submitMode === 'register') {
           const pass = el.querySelector('#mkPass').value;
           const passConfirm = el.querySelector('#mkPassConfirm').value;
+          if (pass.length < 8 || pass.length > 128) {
+            errEl.textContent = 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+            return;
+          }
           if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
           const { data, error } = await sb.auth.signUp({ email, password: pass });
           if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
@@ -216,13 +246,13 @@
             el.remove();
             finishLogin(data.session);
           } else {
-            errEl.style.color = '#059669';
+            errEl.style.color = '#10b981';
             errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
           }
         } else if (submitMode === 'forgot') {
           const { error } = await sb.auth.resetPasswordForEmail(email);
           if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
-          errEl.style.color = '#059669';
+          errEl.style.color = '#10b981';
           errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
         }
       } catch (error) {
@@ -252,7 +282,21 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.logout = async function () { await sb.auth.signOut(); location.reload(); };
+  window.logout = async function () {
+    try {
+      await sb.auth.signOut();
+    } finally {
+      if ('caches' in window) {
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        } catch (cacheErr) {
+          console.warn('Gagal membersihkan cache logout:', cacheErr);
+        }
+      }
+      location.reload();
+    }
+  };
 
   /* ---------------- Helper data ---------------- */
   // PostgREST membatasi 1000 baris per request → ambil bertahap.
@@ -295,7 +339,11 @@
   async function syncPeriod(tanggal) {
     const s = await getSettings();
     const cyc = cycleFor(tanggal, s.payrollDay);
-    if (cyc && (!s.currentPeriod || cyc > s.currentPeriod)) await setSetting('currentPeriod', cyc);
+    if (cyc && (!s.currentPeriod || cyc > s.currentPeriod)) {
+      await setSetting('currentPeriod', cyc);
+      return cyc;
+    }
+    return s.currentPeriod || '';
   }
 
   /* ---------------- getInitialData ---------------- */
@@ -419,7 +467,71 @@
     keterangan: row.keterangan || '',
     walletId: row.wallet_id || ''
   });
-  const partialData = () => getInitialData({ includeTransactions: false });
+  const fetchCategoriesOnly = async () => {
+    const cats = await fetchAll('categories', 'tipe,name', ['tipe', 'name']);
+    return {
+      categories: {
+        pemasukan: cats.filter((c) => c.tipe === 'pemasukan').map((c) => c.name),
+        pengeluaran: cats.filter((c) => c.tipe === 'pengeluaran').map((c) => c.name)
+      }
+    };
+  };
+  const fetchEntitiesOnly = async () => {
+    const ents = await fetchAll('entities', 'grp,name', ['grp', 'name']);
+    return {
+      entities: {
+        UtangApp: ents.filter((e) => e.grp === 'UtangApp').map((e) => e.name),
+        UtangPerson: ents.filter((e) => e.grp === 'UtangPerson').map((e) => e.name),
+        Piutang: ents.filter((e) => e.grp === 'Piutang').map((e) => e.name)
+      }
+    };
+  };
+  const fetchBudgetsOnly = async () => {
+    const budgets = await fetchAll('budgets', 'id,kategori,bulan,jumlah', ['bulan', 'kategori']);
+    return {
+      budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah) }))
+    };
+  };
+  const fetchWalletsOnly = async () => {
+    const wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
+    return {
+      wallets: wallets.map((w) => ({
+        id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort
+      }))
+    };
+  };
+  const fetchWalletsAndTransfers = async () => {
+    const [walletsRes, transfers] = await Promise.all([
+      fetchWalletsOnly(),
+      fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id'])
+    ]);
+    return {
+      ...walletsRes,
+      transfers: transfers.map((x) => ({
+        id: x.id, tanggal: x.tanggal, kind: x.kind, fromWallet: x.from_wallet || '', toWallet: x.to_wallet || '',
+        nominal: num(x.nominal), fee: num(x.fee), keterangan: x.keterangan || ''
+      }))
+    };
+  };
+  const fetchAssetsOnly = async () => {
+    const assets = await fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']);
+    return {
+      assets: assets.map((a) => ({
+        id: a.id, name: a.name, type: a.type, symbol: a.symbol,
+        quantity: num(a.quantity), buyPrice: num(a.buy_price), value: num(a.value)
+      }))
+    };
+  };
+  const fetchRecurringOnly = async () => {
+    const recurring = await fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active', ['id']);
+    return {
+      recurring: recurring.map((r) => ({
+        id: r.id, tipe: r.tipe, kategori: r.kategori, nominal: num(r.nominal),
+        keterangan: r.keterangan || '', dayOfMonth: r.day_of_month,
+        lastRun: r.last_run || '', active: String(r.active)
+      }))
+    };
+  };
   const goalFromRow = (goal) => ({
     id: goal.id,
     name: goal.name,
@@ -474,10 +586,11 @@
         throw new Error('Tipe transaksi laporan tidak valid.');
       }
       const category = String(value.category || '');
+      const walletId = String(value.walletId || '').trim() || null;
       const search = String(value.search || '').trim().slice(0, 100);
       const offset = Math.max(0, Math.min(1000000, Math.trunc(Number(value.offset) || 0)));
       const limit = Math.max(1, Math.min(100, Math.trunc(Number(value.limit) || 20)));
-      const { data, error } = await sb.rpc('search_user_transactions', {
+      const baseParams = {
         p_start: start,
         p_end: end,
         p_type: type || null,
@@ -485,7 +598,13 @@
         p_search: search,
         p_offset: offset,
         p_limit: limit
-      });
+      };
+      let { data, error } = await sb.rpc('search_user_transactions', { ...baseParams, p_wallet_id: walletId });
+      if (error && !walletId && /p_wallet_id|Could not find the function/i.test(error.message || '')) {
+        const retry = await sb.rpc('search_user_transactions', baseParams);
+        data = retry.data;
+        error = retry.error;
+      }
       fail(error);
       return {
         transactions: (data || []).map((row) => ({
@@ -508,8 +627,11 @@
         .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
         .single();
       fail(error);
-      await syncPeriod(row.tanggal);
-      return { ...(await partialData()), transaction: trxFromRow(data) };
+      const currentPeriod = await syncPeriod(row.tanggal);
+      return {
+        transaction: trxFromRow(data),
+        ...(currentPeriod ? { currentPeriod } : {})
+      };
     },
     async api_updateTransaction(id, d) {
       const row = trxRow(d);
@@ -519,14 +641,17 @@
         .maybeSingle();
       fail(error);
       if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
-      await syncPeriod(row.tanggal);
-      return { ...(await partialData()), transaction: trxFromRow(data) };
+      const currentPeriod = await syncPeriod(row.tanggal);
+      return {
+        transaction: trxFromRow(data),
+        ...(currentPeriod ? { currentPeriod } : {})
+      };
     },
     async api_deleteTransaction(id) {
       const { data, error } = await sb.from('transactions').delete().eq('id', id).select('id').maybeSingle();
       fail(error);
       if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
-      return { ...(await partialData()), deletedTransactionId: data.id };
+      return { deletedTransactionId: data.id };
     },
     async api_importTransactions(items) {
       if (!Array.isArray(items) || items.length === 0 || items.length > 500) {
@@ -560,18 +685,19 @@
       });
 
       let addedTransactions = [];
+      let currentPeriod = '';
       if (insertRows.length) {
         const { data, error } = await sb.from('transactions').insert(insertRows)
           .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id');
         fail(error);
         addedTransactions = data.map(trxFromRow);
-        await syncPeriod(dates[dates.length - 1]);
+        currentPeriod = await syncPeriod(dates[dates.length - 1]);
       }
       return {
-        ...(await partialData()),
         addedTransactions,
         addedCount: addedTransactions.length,
-        skippedCount: items.length - addedTransactions.length
+        skippedCount: items.length - addedTransactions.length,
+        ...(currentPeriod ? { currentPeriod } : {})
       };
     },
 
@@ -610,7 +736,28 @@
         .maybeSingle();
       fail(error);
       if (!data) throw new Error('Target tidak ditemukan atau tidak dapat diakses.');
-      return { ...(await partialData()), goal: goalFromRow(data) };
+      return { goal: goalFromRow(data) };
+    },
+
+    async api_contributeGoal(d) {
+      if (!d || typeof d !== 'object' || !d.goalId) throw new Error('Target keuangan tidak valid.');
+      const amount = Number(d.amount);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Nominal alokasi harus lebih dari nol.');
+      const date = String(d.tanggal || ymd(new Date())).slice(0, 10);
+      const { data, error } = await sb.rpc('contribute_to_goal', {
+        p_goal_id: d.goalId,
+        p_amount: amount,
+        p_wallet_id: d.walletId || null,
+        p_date: date
+      });
+      fail(error);
+      const payload = { goal: data && data.goal };
+      if (data && data.transaction) {
+        payload.transaction = data.transaction;
+        const cats = await fetchCategoriesOnly();
+        payload.categories = cats.categories;
+      }
+      return payload;
     },
 
     async api_deleteGoal(id) {
@@ -618,21 +765,56 @@
         .delete().eq('id', id).select('id').maybeSingle();
       fail(error);
       if (!data) throw new Error('Target tidak ditemukan atau tidak dapat diakses.');
-      return { ...(await partialData()), deletedGoalId: data.id };
+      return { deletedGoalId: data.id };
     },
 
     async api_addCategory(tipe, name) {
+      const clean = String(name || '').trim();
+      if (!clean) throw new Error('Nama kategori wajib diisi.');
       const { error } = await sb.from('categories')
-        .upsert({ tipe, name }, { onConflict: 'user_id,tipe,name', ignoreDuplicates: true });
+        .upsert({ tipe, name: clean }, { onConflict: 'user_id,tipe,name', ignoreDuplicates: true });
       fail(error);
-      return partialData();
+      return fetchCategoriesOnly();
+    },
+    async api_renameCategory(tipe, oldName, newName) {
+      const cleanOld = String(oldName || '').trim();
+      const cleanNew = String(newName || '').trim();
+      if (!['pemasukan', 'pengeluaran'].includes(tipe)) throw new Error('Tipe kategori tidak valid.');
+      if (!cleanOld || !cleanNew) throw new Error('Nama kategori wajib diisi.');
+      const { error } = await sb.rpc('rename_category_with_transactions', {
+        p_tipe: tipe,
+        p_old_name: cleanOld,
+        p_new_name: cleanNew
+      });
+      fail(error);
+      const [cats, budgets, recurring] = await Promise.all([
+        fetchCategoriesOnly(),
+        fetchBudgetsOnly(),
+        fetchRecurringOnly()
+      ]);
+      return {
+        ...cats,
+        ...budgets,
+        ...recurring,
+        renamedTransactionCategory: {
+          from: cleanOld,
+          to: cleanNew,
+          tipe: tipe === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran'
+        }
+      };
+    },
+    async api_deleteCategory(tipe, name) {
+      if (!['pemasukan', 'pengeluaran'].includes(tipe)) throw new Error('Tipe kategori tidak valid.');
+      const { error } = await sb.rpc('delete_category', { p_tipe: tipe, p_name: String(name || '') });
+      fail(error);
+      return fetchCategoriesOnly();
     },
 
     async api_addEntity(group, name) {
       const { error } = await sb.from('entities')
         .upsert({ grp: group, name }, { onConflict: 'user_id,grp,name', ignoreDuplicates: true });
       fail(error);
-      return partialData();
+      return fetchEntitiesOnly();
     },
     async api_updateEntity(group, oldName, newName) {
       if (typeof newName !== 'string' || !newName.trim()) throw new Error('Nama entitas wajib diisi.');
@@ -643,7 +825,7 @@
       });
       fail(error);
       return {
-        ...(await partialData()),
+        ...(await fetchEntitiesOnly()),
         renamedTransactionCategory: {
           from: group + ' - ' + oldName,
           to: group + ' - ' + newName.trim()
@@ -653,7 +835,7 @@
     async api_deleteEntity(group, name) {
       const { error } = await sb.from('entities').delete().eq('grp', group).eq('name', name);
       fail(error);
-      return partialData();
+      return fetchEntitiesOnly();
     },
 
     async api_addAssetV2(d) {
@@ -685,8 +867,17 @@
         if (!transactions || !transactions.length) {
           throw new Error('Pembelian aset tidak mengembalikan catatan transaksi.');
         }
-        await syncPeriod(date);
-        return { ...(await partialData()), transaction: trxFromRow(transactions[0]) };
+        const [assetsRes, catsRes, currentPeriod] = await Promise.all([
+          fetchAssetsOnly(),
+          fetchCategoriesOnly(),
+          syncPeriod(date)
+        ]);
+        return {
+          ...assetsRes,
+          ...catsRes,
+          transaction: trxFromRow(transactions[0]),
+          ...(currentPeriod ? { currentPeriod } : {})
+        };
       }
 
       const { error } = await sb.from('assets').insert({
@@ -698,12 +889,43 @@
         value: num(d.value)
       });
       fail(error);
-      return partialData();
+      return fetchAssetsOnly();
     },
     async api_deleteAsset(id) {
       const { error } = await sb.from('assets').delete().eq('id', id);
       fail(error);
-      return partialData();
+      return fetchAssetsOnly();
+    },
+    async api_withdrawAsset(id, d) {
+      const amount = Number(d && d.amount);
+      const quantity = d && d.quantity !== '' && d.quantity != null ? Number(d.quantity) : null;
+      const date = String((d && d.tanggal) || ymd(new Date())).slice(0, 10);
+      if (!Number.isFinite(amount) || amount <= 0 ||
+          (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0))) {
+        throw new Error('Nominal atau jumlah pencairan aset tidak valid.');
+      }
+      const { data: transactions, error } = await sb.rpc('liquidate_asset', {
+        p_asset_id: id,
+        p_amount: amount,
+        p_quantity: quantity,
+        p_wallet_id: (d && d.walletId) || null,
+        p_date: date
+      });
+      fail(error);
+      const assetsRes = await fetchAssetsOnly();
+      if (d && d.walletId && transactions && transactions.length) {
+        const [catsRes, currentPeriod] = await Promise.all([
+          fetchCategoriesOnly(),
+          syncPeriod(date)
+        ]);
+        return {
+          ...assetsRes,
+          ...catsRes,
+          transaction: trxFromRow(transactions[0]),
+          ...(currentPeriod ? { currentPeriod } : {})
+        };
+      }
+      return assetsRes;
     },
 
     async api_saveBudget(kategori, bulan, jumlah) {
@@ -718,12 +940,12 @@
         { onConflict: 'user_id,kategori,bulan' }
       );
       fail(error);
-      return partialData();
+      return fetchBudgetsOnly();
     },
     async api_deleteBudget(id) {
       const { error } = await sb.from('budgets').delete().eq('id', id);
       fail(error);
-      return partialData();
+      return fetchBudgetsOnly();
     },
     async api_copyBudget(fromBulan, toBulan) {
       const fB = String(fromBulan || '').slice(0, 7);
@@ -741,7 +963,7 @@
         const { error } = await sb.from('budgets').insert(rows);
         fail(error);
       }
-      return partialData();
+      return fetchBudgetsOnly();
     },
 
     async api_savePayrollDay(day) {
@@ -751,6 +973,45 @@
     async api_savePeriod(period) {
       await setSetting('currentPeriod', period);
       return true;
+    },
+
+    /* ---------- Transaksi berulang (Recurring) ---------- */
+    async api_saveRecurring(d) {
+      if (!d || typeof d !== 'object') throw new Error('Data jadwal rutin tidak valid.');
+      const tipe = String(d.tipe || '');
+      const kategori = String(d.kategori || '').trim();
+      const nominal = Number(d.nominal);
+      const dayOfMonth = Math.trunc(Number(d.dayOfMonth));
+      if (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') throw new Error('Tipe transaksi rutin tidak valid.');
+      if (!kategori) throw new Error('Kategori transaksi rutin wajib diisi.');
+      if (!Number.isFinite(nominal) || nominal <= 0) throw new Error('Nominal harus lebih dari 0.');
+      if (!Number.isFinite(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) {
+        throw new Error('Tanggal eksekusi bulanan harus antara 1 dan 31.');
+      }
+      const row = {
+        tipe,
+        kategori,
+        nominal,
+        keterangan: String(d.keterangan || '').trim(),
+        day_of_month: dayOfMonth,
+        active: d.active === undefined ? true : Boolean(d.active)
+      };
+      const query = d.id
+        ? sb.from('recurring').update(row).eq('id', d.id)
+        : sb.from('recurring').insert(row);
+      const { error } = await query;
+      fail(error);
+      return fetchRecurringOnly();
+    },
+    async api_toggleRecurring(id, active) {
+      const { error } = await sb.from('recurring').update({ active: Boolean(active) }).eq('id', id);
+      fail(error);
+      return fetchRecurringOnly();
+    },
+    async api_deleteRecurring(id) {
+      const { error } = await sb.from('recurring').delete().eq('id', id);
+      fail(error);
+      return fetchRecurringOnly();
     },
 
     /* ---------- Dompet, transfer, tarik tunai ---------- */
@@ -776,17 +1037,30 @@
         sort
       });
       fail(error);
-      return partialData();
+      return fetchWalletsOnly();
     },
     async api_updateWallet(id, d) {
       const patch = {};
       if (d.name && String(d.name).trim()) patch.name = String(d.name).trim();
+      if (d.kind && ['bank', 'cash', 'ewallet'].includes(String(d.kind))) patch.kind = String(d.kind);
       if (d.openingBalance !== undefined && d.openingBalance !== null && isFinite(Number(d.openingBalance))) {
         patch.opening_balance = Number(d.openingBalance);
       }
       const { error } = await sb.from('wallets').update(patch).eq('id', id);
       fail(error);
-      return partialData();
+      return fetchWalletsOnly();
+    },
+    async api_deleteWallet(id) {
+      const { error } = await sb.rpc('delete_wallet', { p_wallet_id: id });
+      fail(error);
+      const [wt, trx] = await Promise.all([
+        fetchWalletsAndTransfers(),
+        fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id'])
+      ]);
+      return {
+        ...wt,
+        transactions: trx.map(trxFromRow)
+      };
     },
     async api_addTransfer(d) {
       const nominal = num(d.nominal);
@@ -804,12 +1078,12 @@
         keterangan: d.keterangan || ''
       });
       fail(error);
-      return partialData();
+      return fetchWalletsAndTransfers();
     },
     async api_deleteTransfer(id) {
       const { error } = await sb.from('transfers').delete().eq('id', id);
       fail(error);
-      return partialData();
+      return fetchWalletsAndTransfers();
     },
 
     /* ---------- Tambah nilai aset yang sudah ada (top-up) ---------- */
@@ -832,7 +1106,9 @@
         p_date: date
       });
       fail(error);
-      return partialData();
+      return d.walletId
+        ? { ...(await fetchAssetsOnly()), ...(await fetchWalletsAndTransfers()) }
+        : fetchAssetsOnly();
     },
 
     async api_refreshPrices() {
@@ -843,7 +1119,21 @@
       if (data && data.updated === 0 && data.missing && data.missing.length) {
         throw new Error('Simbol belum didukung: ' + data.missing.join(', '));
       }
-      return partialData();
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+      const [assetsRes, snapRes] = await Promise.all([
+        fetchAssetsOnly(),
+        sb.from('portfolio_snapshots')
+          .select('tanggal,total_value,crypto_value,cash_value,other_value')
+          .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true })
+      ]);
+      fail(snapRes.error);
+      return {
+        ...assetsRes,
+        snapshots: (snapRes.data || []).map((s) => ({
+          tanggal: s.tanggal, total: num(s.total_value), crypto: num(s.crypto_value),
+          cash: num(s.cash_value), other: num(s.other_value)
+        }))
+      };
     },
     /* ---------- Admin Panel & User Management ---------- */
     async api_getAdminData() {
@@ -851,30 +1141,56 @@
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (!authData.user) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
-      const [profiles, chCount] = await Promise.all([
+      const [profiles, statsRes] = await Promise.all([
         fetchAll('profiles', 'id,email,display_name,role,status,created_at', ['created_at']),
-        sb.from('telegram_chats').select('chat_id', { count: 'exact', head: true })
+        sb.rpc('get_admin_platform_stats')
       ]);
-      fail(chCount.error);
-      return {
-        users: profiles,
-        currentUserId: authData.user.id,
-        stats: {
+
+      let stats;
+      if (!statsRes.error && Array.isArray(statsRes.data) && statsRes.data.length) {
+        const s = statsRes.data[0];
+        stats = {
+          totalUsers: Number(s.total_users) || profiles.length,
+          activeUsers: Number(s.active_users) || 0,
+          suspendedUsers: Number(s.suspended_users) || 0,
+          totalTelegramChats: Number(s.total_telegram_chats) || 0,
+          totalTransactions: Number(s.total_transactions) || 0
+        };
+      } else {
+        const chCount = await sb.from('telegram_chats').select('chat_id', { count: 'exact', head: true });
+        fail(chCount.error);
+        stats = {
           totalUsers: profiles.length,
           activeUsers: profiles.filter(p => p.status === 'active').length,
           suspendedUsers: profiles.filter(p => p.status === 'suspended').length,
           totalTelegramChats: chCount.count || 0
-        }
+        };
+      }
+
+      return {
+        users: profiles,
+        currentUserId: authData.user.id,
+        stats
       };
     },
     async api_setUserStatus(userId, status) {
       if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      const { data: authData, error: authError } = await sb.auth.getUser();
+      fail(authError);
+      if (authData.user && authData.user.id === userId && status !== 'active') {
+        throw new Error('Admin tidak dapat menonaktifkan akunnya sendiri.');
+      }
       const { error } = await sb.from('profiles').update({ status }).eq('id', userId);
       fail(error);
       return true;
     },
     async api_setUserRole(userId, role) {
       if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      const { data: authData, error: authError } = await sb.auth.getUser();
+      fail(authError);
+      if (authData.user && authData.user.id === userId && role !== 'admin') {
+        throw new Error('Admin tidak dapat menurunkan role akunnya sendiri.');
+      }
       const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
       fail(error);
       return true;

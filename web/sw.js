@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mykeuangan-v3';
+const CACHE_NAME = 'mykeuangan-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -29,16 +29,14 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  // Network-first untuk API Supabase agar data mutasi selalu up-to-date
-  if (url.hostname.includes('supabase.co')) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
+  // Jangan pernah menyimpan atau mengambil API Supabase / Google Gemini dari Cache Storage
+  if (url.hostname.includes('supabase.co') || url.hostname.includes('googleapis.com')) {
     return;
   }
 
-  // Stale-While-Revalidate untuk asset frontend
+  // Stale-While-Revalidate untuk asset frontend statis
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)

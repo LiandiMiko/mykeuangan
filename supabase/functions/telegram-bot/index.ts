@@ -13,7 +13,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
-const SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET')!;
+const SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL_PARSER') ?? 'gemini-2.5-flash';
 const TZ = Deno.env.get('APP_TIMEZONE') ?? 'Asia/Jakarta';
@@ -1014,10 +1014,24 @@ async function handleMessage(c: Ctx, msg: Any) {
 const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
 const CG_KEY = Deno.env.get('COINGECKO_API_KEY') ?? '';
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') || '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+async function safeEqual(a: string, b: string): Promise<boolean> {
+  if (!a || !b) return false;
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(a)),
+    crypto.subtle.digest('SHA-256', enc.encode(b)),
+  ]);
+  const va = new Uint8Array(ha);
+  const vb = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+  return diff === 0;
+}
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'content-type': 'application/json' } });
 
@@ -1196,7 +1210,7 @@ async function snapshotAll() {
 }
 
 async function handleJob(req: Request, job: string): Promise<Response> {
-  const cron = CRON_SECRET !== '' && req.headers.get('x-cron-secret') === CRON_SECRET;
+  const cron = await safeEqual(req.headers.get('x-cron-secret') ?? '', CRON_SECRET);
   let uid: string | null = null;
   if (!cron) {
     // Panggilan dari website: JWT login Supabase, hanya boleh refresh harga milik sendiri
@@ -1243,7 +1257,9 @@ Deno.serve(async (req) => {
   // Job otomatis (pg_cron) & refresh harga dari website — punya autentikasi sendiri
   if (typeof update?.job === 'string') return handleJob(req, update.job);
 
-  if (req.headers.get('x-telegram-bot-api-secret-token') !== SECRET) return new Response('forbidden', { status: 403 });
+  if (!await safeEqual(req.headers.get('x-telegram-bot-api-secret-token') ?? '', SECRET)) {
+    return new Response('forbidden', { status: 403 });
+  }
 
   try {
     // Dedup: Telegram bisa mengirim ulang update yang sama

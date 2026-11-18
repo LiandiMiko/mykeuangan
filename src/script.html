@@ -12,6 +12,7 @@ const DB = {
   wallets: [],
   transfers: [],
   goals: [],
+  recurring: [],
   currentPeriod: new Date().toISOString().slice(0, 7),
   payrollDay: 28
 };
@@ -176,7 +177,8 @@ async function refreshFromServer(payload) {
     }
     if (payload.renamedTransactionCategory) {
       DB.transactions.forEach((item) => {
-        if (item.kategori === payload.renamedTransactionCategory.from) {
+        if (item.kategori === payload.renamedTransactionCategory.from &&
+            (!payload.renamedTransactionCategory.tipe || item.tipe === payload.renamedTransactionCategory.tipe)) {
           item.kategori = payload.renamedTransactionCategory.to;
         }
       });
@@ -197,6 +199,7 @@ async function refreshFromServer(payload) {
       else DB.goals[index] = payload.goal;
     }
     if (payload.deletedGoalId) DB.goals = DB.goals.filter((goal) => goal.id !== payload.deletedGoalId);
+    if (has('recurring')) DB.recurring = payload.recurring || [];
   }
   renderAll();
 }
@@ -230,6 +233,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     DB.wallets = data.wallets || [];
     DB.transfers = data.transfers || [];
     DB.goals = data.goals || [];
+    DB.recurring = data.recurring || [];
+    if (uEl) uEl.innerText = sessionUser;
+    if (rEl) rEl.innerText = sessionRole;
+    if (dEl) dEl.innerText = 'Dashboard Keuangan ' + sessionUser;
     console.log('[INIT] loaded', DB.transactions.length, 'transactions,', DB.snapshots.length, 'snapshots, period:', DB.currentPeriod);
     
     // 🆕 Auto-refresh harga crypto (kalau ada)
@@ -285,6 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 🆕 Init eye icon
   updateEyeIcon();
+  updateAiKeyStatusUI();
   bindReportControls();
 
   const loader = document.getElementById('appLoader');
@@ -366,11 +374,13 @@ function renderAll() {
   if (!isDataReady) return;
   try { renderDashboard(); } catch (e) { console.error('renderDashboard err:', e); }
   try { renderWallets(); } catch (e) { console.error('renderWallets err:', e); }
+  try { renderRecurring(); } catch (e) { console.error('renderRecurring err:', e); }
   try { renderLaporan(); } catch (e) { console.error('renderLaporan err:', e); }
   try { renderDebtLists(); } catch (e) { console.error('renderDebtLists err:', e); }
   try { renderKalender(); } catch (e) { console.error('renderKalender err:', e); }
   try { renderBudgeting(); } catch (e) { console.error('renderBudgeting err:', e); }
   try { renderPortfolioChart(); } catch (e) { console.error('renderPortfolioChart err:', e); }
+  try { updateAiKeyStatusUI(); } catch (e) { console.error('updateAiKeyStatusUI err:', e); }
 }
 /* ============================================================
    DASHBOARD
@@ -494,14 +504,14 @@ function renderDashboard() {
           <p class="text-[10px] text-slate-500">${escapeHtmlJS(String(t.tanggal).substring(5))} • ${escapeHtmlJS(t.keterangan || '-')}</p>
         </div>
       </div>
-      <div class="flex items-center gap-3 shrink-0 ml-2">
-        <p class="${colClass} font-bold">${formatRupiah(t.nominal).replace(',00','')}</p>
-        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onclick="editTransaction('${escapeAttrJS(t.id)}')" class="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200">
-            <i class="ph ph-pencil"></i>
+      <div class="flex items-center gap-2 shrink-0 ml-2">
+        <p class="${colClass} font-bold text-sm">${formatRupiah(t.nominal).replace(',00','')}</p>
+        <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+          <button type="button" onclick="editTransaction('${escapeAttrJS(t.id)}')" aria-label="Edit transaksi ${escapeAttrJS(t.kategori)}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
+            <i class="ph ph-pencil text-base" aria-hidden="true"></i>
           </button>
-          <button onclick="deleteTransaction('${escapeAttrJS(t.id)}')" class="w-6 h-6 rounded bg-rose-100 text-rose-600 flex items-center justify-center hover:bg-rose-200">
-            <i class="ph ph-trash"></i>
+          <button type="button" onclick="deleteTransaction('${escapeAttrJS(t.id)}')" aria-label="Hapus transaksi ${escapeAttrJS(t.kategori)}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
+            <i class="ph ph-trash text-base" aria-hidden="true"></i>
           </button>
         </div>
       </div>
@@ -586,9 +596,22 @@ async function openGoalForm(id, progressOnly) {
   const goal = (DB.goals || []).find((item) => item.id === id);
   if (id && !goal) return;
   const current = goal || { name: '', targetAmount: '', currentAmount: 0, targetDate: '' };
+  const hasWallets = (DB.wallets || []).length > 0;
   const html = progressOnly
-    ? `<label for="goalCurrent" class="block text-left text-sm font-semibold mb-1">${t('goal.current')}</label>
-       <input id="goalCurrent" type="number" min="0" step="0.01" value="${escapeHtmlJS(current.currentAmount)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.current'))}">`
+    ? `<div class="text-left space-y-2 text-sm">
+         <label for="goalAddAmount" class="block font-semibold">Tambah tabungan baru (Rp)</label>
+         <input id="goalAddAmount" type="number" min="0" step="0.01" placeholder="Contoh: 500000" class="swal2-input" style="margin:0 0 8px 0;width:100%">
+         ${hasWallets ? `
+           <label for="goalWallet" class="block font-semibold">Ambil dari dompet (opsional)</label>
+           <select id="goalWallet" class="swal2-input" style="margin:0 0 8px 0;width:100%">
+             <option value="">Catat progres saja (tanpa potong dompet)</option>
+             ${walletOptions('')}
+           </select>
+         ` : ''}
+         <hr class="my-2 border-slate-200 dark:border-slate-700">
+         <label for="goalCurrent" class="block text-xs text-slate-500">Atau atur ulang total terkumpul langsung (Rp)</label>
+         <input id="goalCurrent" type="number" min="0" step="0.01" value="${escapeHtmlJS(current.currentAmount)}" class="swal2-input" style="margin:0;width:100%" aria-label="${escapeHtmlJS(t('goal.current'))}">
+       </div>`
     : `<label for="goalName" class="block text-left text-sm font-semibold mb-1">${t('goal.name')}</label>
        <input id="goalName" maxlength="80" value="${escapeHtmlJS(current.name)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.name'))}">
        <label for="goalTarget" class="block text-left text-sm font-semibold mb-1">${t('goal.target')}</label>
@@ -606,6 +629,15 @@ async function openGoalForm(id, progressOnly) {
     cancelButtonText: t('btn.batal'),
     customClass: { popup: getSwalClass() },
     preConfirm: () => {
+      if (progressOnly) {
+        const addEl = document.getElementById('goalAddAmount');
+        const addAmount = Number(addEl ? addEl.value : 0);
+        const walletEl = document.getElementById('goalWallet');
+        const walletId = walletEl ? walletEl.value : '';
+        if (addAmount > 0) {
+          return { mode: 'contribute', goalId: current.id, amount: addAmount, walletId, tanggal: localToday() };
+        }
+      }
       const name = progressOnly ? current.name : document.getElementById('goalName').value.trim();
       const targetAmount = progressOnly ? Number(current.targetAmount) : Number(document.getElementById('goalTarget').value);
       const currentAmount = Number(document.getElementById('goalCurrent').value);
@@ -615,12 +647,14 @@ async function openGoalForm(id, progressOnly) {
         Swal.showValidationMessage(t('goal.form_invalid'));
         return false;
       }
-      return { id: current.id, name, targetAmount, currentAmount, targetDate };
+      return { mode: 'save', id: current.id, name, targetAmount, currentAmount, targetDate };
     }
   });
   if (!result.isConfirmed) return;
   try {
-    const response = await callServer('api_saveGoal', result.value);
+    const response = result.value.mode === 'contribute'
+      ? await callServer('api_contributeGoal', result.value)
+      : await callServer('api_saveGoal', result.value);
     await refreshFromServer(response);
     await Swal.fire({ icon: 'success', title: t('goal.saved'), customClass: { popup: getSwalClass() } });
   } catch (error) {
@@ -906,10 +940,14 @@ function renderKalender() {
       else bgClass = 'bg-amber-50/70 dark:bg-amber-500/10';
     }
 
-    const cell = document.createElement('div');
-    cell.className = 'min-h-[80px] sm:min-h-[90px] p-1.5 sm:p-2 border-b border-r border-slate-100 dark:border-slate-800/60 relative transition-colors ' + bgClass;
+    const dateStr = period + '-' + String(d).padStart(2, '0');
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'text-left align-top min-h-[80px] sm:min-h-[90px] p-1.5 sm:p-2 border-b border-r border-slate-100 dark:border-slate-800/60 relative transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/60 focus-visible:ring-2 focus-visible:ring-brand ' + bgClass;
     if (isToday) cell.classList.add('ring-2', 'ring-inset', 'ring-brand');
-    if (hasData) cell.title = data.count + ' transaksi · Net: ' + formatRupiah(net);
+    cell.title = hasData ? (data.count + ' transaksi · Net: ' + formatRupiah(net)) : ('Lihat atau tambah transaksi ' + dateStr);
+    cell.setAttribute('aria-label', dateStr + (hasData ? (', ' + data.count + ' transaksi') : ''));
+    cell.addEventListener('click', () => openCalendarDayModal(dateStr));
 
     let html = '<div class="flex items-center justify-between mb-1">';
     html += '<span class="text-[11px] sm:text-xs font-bold ' +
@@ -972,6 +1010,54 @@ function formatShortIDR(n) {
   return String(n);
 }
 
+function openFormForDate(dateStr, tipe) {
+  Swal.close();
+  openForm(tipe || 'Pengeluaran');
+  if (fpTanggal) {
+    try { fpTanggal.setDate(dateStr, true); } catch (_) {}
+  }
+  const el = document.getElementById('tr_tanggal');
+  if (el) el.value = dateStr;
+}
+
+function openCalendarDayModal(dateStr) {
+  const dayTxs = (DB.transactions || []).filter((tx) => String(tx.tanggal).slice(0, 10) === dateStr);
+  const rowsHtml = dayTxs.length
+    ? dayTxs.map((tx) => {
+        const isIn = tx.tipe === 'Pemasukan';
+        const color = isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+        const sign = isIn ? '+' : '-';
+        return `
+          <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs">
+            <div class="min-w-0 text-left">
+              <p class="font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(tx.kategori)}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}</p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="font-black ${color}">${sign}${formatRupiah(tx.nominal)}</span>
+              <button type="button" onclick="Swal.close(); editTransaction('${escapeAttrJS(tx.id)}')" aria-label="Edit transaksi" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+              <button type="button" onclick="Swal.close(); deleteTransaction('${escapeAttrJS(tx.id)}')" aria-label="Hapus transaksi" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
+            </div>
+          </div>`;
+      }).join('')
+    : '<p class="text-xs text-slate-500 dark:text-slate-400 py-4 text-center">Belum ada transaksi pada tanggal ini.</p>';
+
+  Swal.fire({
+    title: 'Transaksi · ' + dateStr,
+    html: `<div class="space-y-2 max-h-64 overflow-y-auto">${rowsHtml}</div>`,
+    showCancelButton: true,
+    showDenyButton: true,
+    confirmButtonText: '+ Pengeluaran',
+    denyButtonText: '+ Pemasukan',
+    denyButtonColor: '#059669',
+    cancelButtonText: t('btn.tutup'),
+    customClass: { popup: getSwalClass() }
+  }).then((res) => {
+    if (res.isConfirmed) openFormForDate(dateStr, 'Pengeluaran');
+    else if (res.isDenied) openFormForDate(dateStr, 'Pemasukan');
+  });
+}
+
 /* ============================================================
    ASSETS
    ============================================================ */
@@ -1021,17 +1107,22 @@ function renderAssets() {
             ${meta}
           </div>
         </div>
-        <div class="flex items-center gap-3 text-right">
+        <div class="flex items-center gap-2 text-right">
           <div>
             <p class="font-black ${iconColor}">${formatRupiah(value)}</p>
             ${pnlHtml}
           </div>
-          <button onclick="topUpAsset('${a.id}')" title="Tambah nilai aset" class="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all">
-            <i class="ph ph-plus-bold text-sm"></i>
-          </button>
-          <button onclick="deleteAsset('${a.id}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 opacity-0 group-hover:opacity-100 transition-opacity">
-            <i class="ph ph-trash text-sm"></i>
-          </button>
+          <div class="flex items-center gap-1 opacity-100 sm:opacity-75 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+            <button type="button" onclick="topUpAsset('${escapeAttrJS(a.id)}')" aria-label="Tambah nilai aset ${escapeAttrJS(a.name)}" title="Tambah nilai aset" class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all">
+              <i class="ph ph-plus-bold text-sm" aria-hidden="true"></i>
+            </button>
+            <button type="button" onclick="withdrawAsset('${escapeAttrJS(a.id)}')" aria-label="Cairkan atau jual aset ${escapeAttrJS(a.name)}" title="Cairkan / Jual ke Dompet" class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-all">
+              <i class="ph ph-hand-coins text-sm" aria-hidden="true"></i>
+            </button>
+            <button type="button" onclick="deleteAsset('${escapeAttrJS(a.id)}')" aria-label="Hapus aset ${escapeAttrJS(a.name)}" title="Hapus aset" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all">
+              <i class="ph ph-trash text-sm" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -1445,8 +1536,8 @@ function renderWallets() {
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <span class="font-black text-slate-700 dark:text-slate-200">${formatRupiah(x.nominal)}</span>
-            <button onclick="deleteTransfer('${x.id}')" class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100">
-              <i class="ph ph-trash text-sm"></i>
+            <button type="button" onclick="deleteTransfer('${escapeAttrJS(x.id)}')" aria-label="Hapus transfer" title="Hapus transfer" class="min-w-10 min-h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100">
+              <i class="ph ph-trash text-sm" aria-hidden="true"></i>
             </button>
           </div>
         </div>`).join('')}
@@ -1499,29 +1590,68 @@ async function editWallet(id) {
   const w = (DB.wallets || []).find(x => x.id === id);
   if (!w) return;
   const bal = walletBalances()[id] || 0;
+  const canDelete = (DB.wallets || []).length > 1;
   const res = await Swal.fire({
-    title: 'Edit ' + w.name,
+    title: 'Edit ' + escapeHtmlJS(w.name),
     html: `
+      <label for="wl-name" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nama dompet</label>
       <input id="wl-name" class="swal2-input" value="${escapeHtmlJS(w.name)}" placeholder="Nama dompet">
+      <label for="wl-kind" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jenis dompet</label>
+      <select id="wl-kind" class="swal2-input">
+        <option value="bank" ${w.kind === 'bank' ? 'selected' : ''}>Bank</option>
+        <option value="ewallet" ${w.kind === 'ewallet' ? 'selected' : ''}>E-wallet</option>
+        <option value="cash" ${w.kind === 'cash' ? 'selected' : ''}>Tunai</option>
+      </select>
+      <label for="wl-bal" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Saldo sekarang (Rp)</label>
       <input id="wl-bal" type="number" class="swal2-input" value="${Math.round(bal)}" placeholder="Saldo sekarang (Rp)">
       <p style="font-size:12px;color:#64748b;margin-top:10px">Mengubah saldo akan menyesuaikan saldo awal dompet. Riwayat transaksi tidak berubah.</p>`,
     showCancelButton: true,
+    showDenyButton: canDelete,
+    denyButtonText: 'Hapus Dompet',
+    denyButtonColor: '#e11d48',
     confirmButtonText: 'Simpan',
     cancelButtonText: 'Batal',
     customClass: { popup: getSwalClass() },
     preConfirm: () => {
+      const name = document.getElementById('wl-name').value.trim();
+      const kind = document.getElementById('wl-kind').value;
       const b = parseFloat(document.getElementById('wl-bal').value);
+      if (!name) { Swal.showValidationMessage('Isi nama dompet'); return false; }
       if (!isFinite(b)) { Swal.showValidationMessage('Isi saldo dengan angka'); return false; }
-      return { name: document.getElementById('wl-name').value.trim(), balance: b };
+      return { name, kind, balance: b };
     }
   });
+  if (res.isDenied) {
+    await deleteWalletUI(id, w.name);
+    return;
+  }
   if (!res.isConfirmed || !res.value) return;
   const newOpening = (Number(w.openingBalance) || 0) + (res.value.balance - bal);
   try {
-    const data = await callServer('api_updateWallet', id, { name: res.value.name, openingBalance: newOpening });
+    const data = await callServer('api_updateWallet', id, { name: res.value.name, kind: res.value.kind, openingBalance: newOpening });
     await refreshFromServer(data);
   } catch (e) {
     Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
+async function deleteWalletUI(id, name) {
+  const conf = await Swal.fire({
+    icon: 'warning',
+    title: 'Hapus dompet ' + escapeHtmlJS(name) + '?',
+    text: 'Transaksi lama pada dompet ini akan dipindahkan ke dompet utama lainnya.',
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    confirmButtonText: t('btn.ya_hapus'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  });
+  if (!conf.isConfirmed) return;
+  try {
+    await refreshFromServer(await callServer('api_deleteWallet', id));
+    Swal.fire({ icon: 'success', title: 'Dompet dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+  } catch (e) {
+    showActionError(e);
   }
 }
 
@@ -1623,6 +1753,59 @@ async function topUpAsset(id) {
     Swal.fire({ icon: 'success', title: 'Aset ditambah', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
   } catch (e) {
     Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+  }
+}
+
+async function withdrawAsset(id) {
+  const a = (DB.assets || []).find(x => String(x.id) === String(id));
+  if (!a) return;
+  const isCrypto = String(a.type).toLowerCase() === 'crypto';
+  const val = Number(a.value || 0);
+  const qty = Number(a.quantity || 0);
+  const res = await Swal.fire({
+    title: 'Cairkan / Jual ' + escapeHtmlJS(a.name),
+    html: `
+      <label for="wd-amount" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nominal dicairkan (maks. ${formatRupiah(val)})</label>
+      <input id="wd-amount" type="number" min="1" max="${Math.round(val)}" value="${Math.round(val)}" class="swal2-input" placeholder="Nominal dicairkan (Rp)">
+      ${isCrypto && qty > 0 ? `
+        <label for="wd-qty" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jumlah koin dijual (${qty} ${escapeHtmlJS(a.symbol)}) — opsional</label>
+        <input id="wd-qty" type="number" step="0.00000001" min="0" max="${qty}" class="swal2-input" placeholder="Kosongkan untuk hitung proporsional">` : ''}
+      <label for="wd-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Masuk ke dompet tujuan</label>
+      <select id="wd-wallet" class="swal2-input">
+        ${walletOptions('')}
+        <option value="">Catat pencairan tanpa masuk dompet</option>
+      </select>`,
+    showCancelButton: true,
+    confirmButtonText: 'Cairkan',
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const amount = parseFloat(document.getElementById('wd-amount').value);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > val + 1) {
+        Swal.showValidationMessage('Nominal harus di antara 1 sampai nilai aset saat ini.');
+        return false;
+      }
+      const qtyEl = document.getElementById('wd-qty');
+      const soldQty = qtyEl && qtyEl.value !== '' ? parseFloat(qtyEl.value) : null;
+      if (soldQty !== null && (!Number.isFinite(soldQty) || soldQty <= 0 || soldQty > qty)) {
+        Swal.showValidationMessage('Jumlah koin tidak valid.');
+        return false;
+      }
+      return {
+        amount,
+        quantity: soldQty,
+        walletId: document.getElementById('wd-wallet').value,
+        tanggal: localToday()
+      };
+    }
+  });
+  if (!res.isConfirmed || !res.value) return;
+  try {
+    const data = await callServer('api_withdrawAsset', id, res.value);
+    await refreshFromServer(data);
+    Swal.fire({ icon: 'success', title: 'Aset dicairkan', timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+  } catch (e) {
+    showActionError(e);
   }
 }
 
@@ -1730,6 +1913,100 @@ async function promptAddCategory() {
       select.appendChild(opt);
       select.value = name;
     } catch (e) { showActionError(e); }
+  }
+}
+
+function syncFormCategorySelect(selectedName) {
+  const tipeEl = document.getElementById('tr_tipe');
+  const select = document.getElementById('tr_kategori');
+  if (!tipeEl || !select) return;
+  const tipe = tipeEl.value === 'Pemasukan' ? 'pemasukan' : 'pengeluaran';
+  const opts = DB.categories[tipe] || [];
+  const prev = selectedName || select.value;
+  select.innerHTML = opts.map(o => `<option value="${escapeHtmlJS(o)}">${escapeHtmlJS(o)}</option>`).join('');
+  if (opts.includes(prev)) select.value = prev;
+}
+
+async function openManageCategoriesModal(defaultTipe) {
+  const formTipeEl = document.getElementById('tr_tipe');
+  const tipe = defaultTipe || (formTipeEl && formTipeEl.value === 'Pemasukan' ? 'pemasukan' : 'pengeluaran');
+  const list = (DB.categories && DB.categories[tipe]) || [];
+  const rowsHtml = list.length
+    ? list.map((name) => {
+        const safe = escapeHtmlJS(name);
+        const attr = escapeAttrJS(name);
+        return `
+          <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs">
+            <span class="font-bold text-slate-800 dark:text-white truncate">${safe}</span>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" onclick="renameCategoryUI('${tipe}', '${attr}')" aria-label="Ubah nama ${safe}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+              <button type="button" onclick="deleteCategoryUI('${tipe}', '${attr}')" aria-label="Hapus kategori ${safe}" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
+            </div>
+          </div>`;
+      }).join('')
+    : '<p class="text-xs text-slate-400 py-4 text-center">Belum ada kategori.</p>';
+
+  await Swal.fire({
+    title: 'Kelola Kategori (' + (tipe === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran') + ')',
+    html: `
+      <div class="flex gap-2 mb-3">
+        <button type="button" onclick="openManageCategoriesModal('pengeluaran')" class="flex-1 py-2 rounded-xl text-xs font-bold ${tipe === 'pengeluaran' ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">Pengeluaran</button>
+        <button type="button" onclick="openManageCategoriesModal('pemasukan')" class="flex-1 py-2 rounded-xl text-xs font-bold ${tipe === 'pemasukan' ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">Pemasukan</button>
+      </div>
+      <div class="space-y-2 max-h-64 overflow-y-auto text-left">${rowsHtml}</div>`,
+    showConfirmButton: true,
+    confirmButtonText: t('btn.tutup'),
+    customClass: { popup: getSwalClass() }
+  });
+}
+
+async function renameCategoryUI(tipe, oldName) {
+  const { value: newName } = await Swal.fire({
+    title: 'Ubah Nama Kategori',
+    input: 'text',
+    inputValue: oldName,
+    showCancelButton: true,
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() },
+    inputValidator: (v) => (!v || !v.trim()) ? 'Nama kategori wajib diisi.' : undefined
+  });
+  if (!newName || newName.trim() === oldName) {
+    await openManageCategoriesModal(tipe);
+    return;
+  }
+  try {
+    const data = await callServer('api_renameCategory', tipe, oldName, newName.trim());
+    await refreshFromServer(data);
+    syncFormCategorySelect(newName.trim());
+    await openManageCategoriesModal(tipe);
+  } catch (e) {
+    showActionError(e);
+  }
+}
+
+async function deleteCategoryUI(tipe, name) {
+  const conf = await Swal.fire({
+    icon: 'warning',
+    title: 'Hapus kategori "' + escapeHtmlJS(name) + '"?',
+    text: 'Transaksi lama tetap tersimpan, kategori hanya dihapus dari daftar pilihan.',
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    confirmButtonText: t('btn.ya_hapus'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  });
+  if (!conf.isConfirmed) {
+    await openManageCategoriesModal(tipe);
+    return;
+  }
+  try {
+    const data = await callServer('api_deleteCategory', tipe, name);
+    await refreshFromServer(data);
+    syncFormCategorySelect();
+    await openManageCategoriesModal(tipe);
+  } catch (e) {
+    showActionError(e);
   }
 }
 
@@ -1859,7 +2136,18 @@ function renderLaporan() {
     laporanState.page = 0;
   }
   renderReportCategories();
+  renderReportWallets();
   loadReportPage();
+}
+
+function renderReportWallets() {
+  const select = document.getElementById('lapWallet');
+  if (!select) return;
+  const current = select.value;
+  const wallets = DB.wallets || [];
+  select.innerHTML = `<option value="">${escapeHtmlJS(t('lap.all_wallets'))}</option>` +
+    wallets.map((w) => `<option value="${escapeHtmlJS(w.id)}">${escapeHtmlJS(w.name)}</option>`).join('');
+  if (wallets.some((w) => w.id === current)) select.value = current;
 }
 
 function renderReportCategories() {
@@ -1882,7 +2170,7 @@ function bindReportControls() {
   const search = document.getElementById('lapSearch');
   if (!search || search.dataset.bound === 'true') return;
   search.dataset.bound = 'true';
-  const filterIds = ['lapStart', 'lapEnd', 'lapType', 'lapCategory'];
+  const filterIds = ['lapStart', 'lapEnd', 'lapType', 'lapCategory', 'lapWallet'];
   const reload = () => {
     laporanState.page = 0;
     laporanState.dirty = true;
@@ -1938,6 +2226,7 @@ async function loadReportPage() {
   const search = document.getElementById('lapSearch');
   const type = document.getElementById('lapType');
   const category = document.getElementById('lapCategory');
+  const wallet = document.getElementById('lapWallet');
   const status = document.getElementById('lapStatus');
   const pageStatus = document.getElementById('lapPageStatus');
   const previous = document.getElementById('lapPrev');
@@ -1948,6 +2237,7 @@ async function loadReportPage() {
     search: search ? search.value.trim() : '',
     type: type ? type.value : '',
     category: category ? category.value : '',
+    walletId: wallet ? wallet.value : '',
     offset: laporanState.page * laporanState.pageSize,
     limit: laporanState.pageSize
   };
@@ -2084,23 +2374,60 @@ async function importTransactionsCsv(file) {
   }
 }
 
-/* ============================================================
-   EXPORT PDF
-   ============================================================ */
-function exportPDF() {
+function getFilteredReportTransactions() {
   const start = (document.getElementById('lapStart') || {}).value || getPeriodRange(DB.currentPeriod, DB.payrollDay).start;
   const end = (document.getElementById('lapEnd') || {}).value || getPeriodRange(DB.currentPeriod, DB.payrollDay).end;
   const search = ((document.getElementById('lapSearch') || {}).value || '').trim().toLocaleLowerCase();
   const type = (document.getElementById('lapType') || {}).value || '';
   const category = (document.getElementById('lapCategory') || {}).value || '';
-  const period = `${start}_${end}`;
+  const walletId = (document.getElementById('lapWallet') || {}).value || '';
   const txs = DB.transactions.filter((transaction) =>
     transaction.tanggal >= start &&
     transaction.tanggal <= end &&
     (!type || transaction.tipe === type) &&
     (!category || transaction.kategori === category) &&
+    (!walletId || transaction.walletId === walletId) &&
     (!search || `${transaction.kategori} ${transaction.keterangan || ''}`.toLocaleLowerCase().includes(search))
+  ).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+  return { txs, period: `${start}_${end}` };
+}
+
+function csvEscapeCell(val) {
+  const s = String(val == null ? '' : val);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCSV() {
+  const { txs, period } = getFilteredReportTransactions();
+  if (txs.length === 0) {
+    Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
+    return;
+  }
+  const header = ['tanggal', 'tipe', 'kategori', 'nominal', 'keterangan', 'dompet'];
+  const lines = [header.join(',')].concat(
+    txs.map((r) => [
+      csvEscapeCell(r.tanggal),
+      csvEscapeCell(r.tipe),
+      csvEscapeCell(r.kategori),
+      csvEscapeCell(r.nominal),
+      csvEscapeCell(r.keterangan || ''),
+      csvEscapeCell(walletName(r.walletId))
+    ].join(','))
   );
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   EXPORT PDF
+   ============================================================ */
+function exportPDF() {
+  const { txs, period } = getFilteredReportTransactions();
 
   if (txs.length === 0) {
     Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
@@ -2701,6 +3028,9 @@ async function settingPayrollDay() {
 /* ============================================================
    ADMIN PANEL & TELEGRAM PAIRING
    ============================================================ */
+let adminUsersCache = [];
+let adminCurrentUserId = '';
+
 async function loadAdminData() {
   const tbody = document.getElementById('adm-user-table');
   const setAdminText = (id, value) => {
@@ -2715,77 +3045,16 @@ async function loadAdminData() {
     const data = await callServer('api_getAdminData');
     if (!data) throw new Error('Supabase tidak mengembalikan data panel admin.');
 
+    adminUsersCache = data.users || [];
+    adminCurrentUserId = data.currentUserId || '';
+
     const s = data.stats || {};
     setAdminText('adm-total-users', s.totalUsers || 0);
     setAdminText('adm-active-users', s.activeUsers || 0);
     setAdminText('adm-suspended-users', s.suspendedUsers || 0);
     setAdminText('adm-total-chats', s.totalTelegramChats || 0);
-    setAdminText('adm-user-count', (data.users || []).length);
 
-    if (!tbody) return false;
-
-    if (!data.users || data.users.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Belum ada data pengguna.</td></tr>';
-      return true;
-    }
-
-    tbody.innerHTML = data.users.map(u => {
-      const isSuspended = u.status === 'suspended';
-      const statusBadge = isSuspended
-        ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
-        : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
-
-      const roleBadge = u.role === 'admin'
-        ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
-        : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
-
-      const nextStatus = isSuspended ? 'active' : 'suspended';
-      const statusBtnText = isSuspended ? 'Aktifkan' : 'Suspend';
-      const statusBtnColor = isSuspended ? 'text-emerald-600 hover:text-emerald-800' : 'text-rose-500 hover:text-rose-700';
-
-      const nextRole = u.role === 'admin' ? 'user' : 'admin';
-      const roleBtnText = u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin';
-
-      const safeId = escapeHtmlJS(u.id);
-      const actions = u.id === data.currentUserId
-        ? '<span class="text-slate-400">Akun Anda</span>'
-        : `
-          <button type="button" data-admin-action="status" data-user-id="${safeId}" data-value="${nextStatus}" class="min-h-[44px] px-2 font-bold cursor-pointer ${statusBtnColor}">${statusBtnText}</button>
-          <button type="button" data-admin-action="role" data-user-id="${safeId}" data-value="${nextRole}" class="min-h-[44px] px-2 font-bold text-blue-500 hover:text-blue-700 cursor-pointer">${roleBtnText}</button>
-          <button type="button" data-admin-action="password" data-user-id="${safeId}" class="min-h-[44px] px-2 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>
-        `;
-
-      return `
-        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-          <td class="px-6 py-4">
-            <p class="font-bold text-slate-800 dark:text-white">${escapeHtmlJS(u.display_name || 'User')}</p>
-            <p class="text-[11px] text-slate-400">${escapeHtmlJS(u.email)}</p>
-          </td>
-          <td class="px-6 py-4">${roleBadge}</td>
-          <td class="px-6 py-4">${statusBadge}</td>
-          <td class="px-6 py-4 text-slate-500">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
-          <td class="px-6 py-4 text-center">
-            <div class="flex items-center justify-center gap-3">
-              ${actions}
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-    const usersById = new Map(data.users.map((user) => [user.id, user]));
-    tbody.querySelectorAll('[data-admin-action]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const user = usersById.get(button.dataset.userId);
-        if (!user) return;
-        if (button.dataset.adminAction === 'status') {
-          toggleUserStatus(user.id, button.dataset.value);
-        } else if (button.dataset.adminAction === 'role') {
-          toggleUserRole(user.id, button.dataset.value);
-        } else if (button.dataset.adminAction === 'password') {
-          resetUserPassword(user.id, user.email || '');
-        }
-      });
-    });
+    filterAdminUsersTable();
     return true;
   } catch (err) {
     console.error('loadAdminData error:', err);
@@ -2803,6 +3072,94 @@ async function loadAdminData() {
   }
 }
 
+function filterAdminUsersTable() {
+  const tbody = document.getElementById('adm-user-table');
+  const countEl = document.getElementById('adm-user-count');
+  if (!tbody) return;
+
+  const search = ((document.getElementById('admSearchInput') || {}).value || '').trim().toLocaleLowerCase();
+  const filter = (document.getElementById('admFilterStatus') || {}).value || '';
+
+  const filtered = adminUsersCache.filter((u) => {
+    if (search) {
+      const hay = `${u.display_name || ''} ${u.email || ''}`.toLocaleLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    if (filter === 'active' || filter === 'suspended') {
+      if (u.status !== filter) return false;
+    } else if (filter === 'admin' || filter === 'user') {
+      if (u.role !== filter) return false;
+    }
+    return true;
+  });
+
+  if (countEl) countEl.textContent = String(filtered.length);
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Tidak ada pengguna yang cocok.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(u => {
+    const isSuspended = u.status === 'suspended';
+    const statusBadge = isSuspended
+      ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
+      : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
+
+    const roleBadge = u.role === 'admin'
+      ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
+      : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
+
+    const nextStatus = isSuspended ? 'active' : 'suspended';
+    const statusBtnText = isSuspended ? 'Aktifkan' : 'Suspend';
+    const statusBtnColor = isSuspended ? 'text-emerald-600 hover:text-emerald-800' : 'text-rose-500 hover:text-rose-700';
+
+    const nextRole = u.role === 'admin' ? 'user' : 'admin';
+    const roleBtnText = u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin';
+
+    const safeId = escapeHtmlJS(u.id);
+    const actions = u.id === adminCurrentUserId
+      ? '<span class="text-slate-400">Akun Anda</span>'
+      : `
+        <button type="button" data-admin-action="status" data-user-id="${safeId}" data-value="${nextStatus}" class="min-h-[44px] px-2 font-bold cursor-pointer ${statusBtnColor}">${statusBtnText}</button>
+        <button type="button" data-admin-action="role" data-user-id="${safeId}" data-value="${nextRole}" class="min-h-[44px] px-2 font-bold text-blue-500 hover:text-blue-700 cursor-pointer">${roleBtnText}</button>
+        <button type="button" data-admin-action="password" data-user-id="${safeId}" class="min-h-[44px] px-2 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>
+      `;
+
+    return `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <td class="px-6 py-4">
+          <p class="font-bold text-slate-800 dark:text-white">${escapeHtmlJS(u.display_name || 'User')}</p>
+          <p class="text-[11px] text-slate-400">${escapeHtmlJS(u.email)}</p>
+        </td>
+        <td class="px-6 py-4">${roleBadge}</td>
+        <td class="px-6 py-4">${statusBadge}</td>
+        <td class="px-6 py-4 text-slate-500">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
+        <td class="px-6 py-4 text-center">
+          <div class="flex items-center justify-center gap-3">
+            ${actions}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const usersById = new Map(adminUsersCache.map((user) => [user.id, user]));
+  tbody.querySelectorAll('[data-admin-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const user = usersById.get(button.dataset.userId);
+      if (!user) return;
+      if (button.dataset.adminAction === 'status') {
+        toggleUserStatus(user.id, button.dataset.value);
+      } else if (button.dataset.adminAction === 'role') {
+        toggleUserRole(user.id, button.dataset.value);
+      } else if (button.dataset.adminAction === 'password') {
+        resetUserPassword(user.id, user.email || '');
+      }
+    });
+  });
+}
+
 async function toggleUserStatus(uid, status) {
   const actionText = status === 'suspended' ? 'menonaktifkan (suspend)' : 'mengaktifkan kembali';
   const confirm = await Swal.fire({
@@ -2811,18 +3168,19 @@ async function toggleUserStatus(uid, status) {
     icon: 'warning',
     showCancelButton: true,
     confirmButtonText: 'Ya, Lanjutkan',
-    cancelButtonText: 'Batal'
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() }
   });
   if (confirm.isConfirmed) {
     try {
       await callServer('api_setUserStatus', uid, status);
       if (!await loadAdminData()) {
-        await Swal.fire({ icon: 'warning', title: 'Status tersimpan', text: 'Daftar pengguna gagal dimuat ulang. Tekan Segarkan Data untuk mencoba lagi.' });
+        await Swal.fire({ icon: 'warning', title: 'Status tersimpan', text: 'Daftar pengguna gagal dimuat ulang. Tekan Segarkan Data untuk mencoba lagi.', customClass: { popup: getSwalClass() } });
         return;
       }
-      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Status pengguna telah diperbarui.', timer: 1500 });
+      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Status pengguna telah diperbarui.', timer: 1500, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e) });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e), customClass: { popup: getSwalClass() } });
     }
   }
 }
@@ -2834,18 +3192,19 @@ async function toggleUserRole(uid, role) {
     icon: 'question',
     showCancelButton: true,
     confirmButtonText: 'Ubah Role',
-    cancelButtonText: 'Batal'
+    cancelButtonText: 'Batal',
+    customClass: { popup: getSwalClass() }
   });
   if (confirm.isConfirmed) {
     try {
       await callServer('api_setUserRole', uid, role);
       if (!await loadAdminData()) {
-        await Swal.fire({ icon: 'warning', title: 'Role tersimpan', text: 'Daftar pengguna gagal dimuat ulang. Tekan Segarkan Data untuk mencoba lagi.' });
+        await Swal.fire({ icon: 'warning', title: 'Role tersimpan', text: 'Daftar pengguna gagal dimuat ulang. Tekan Segarkan Data untuk mencoba lagi.', customClass: { popup: getSwalClass() } });
         return;
       }
-      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Role pengguna telah diperbarui.', timer: 1500 });
+      Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Role pengguna telah diperbarui.', timer: 1500, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e) });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e), customClass: { popup: getSwalClass() } });
     }
   }
 }
@@ -2910,32 +3269,359 @@ async function openTelegramPairingModal() {
     Swal.fire({
       title: 'Membuat Kode Pairing...',
       allowOutsideClick: false,
+      customClass: { popup: getSwalClass() },
       didOpen: () => Swal.showLoading()
     });
 
     const otp = await callServer('api_generateTelegramOTP');
+    const linkCmd = `/link ${otp}`;
 
     Swal.fire({
       title: 'Hubungkan Bot Telegram',
       html: `
         <div class="text-left space-y-3 text-sm">
-          <p class="text-slate-600">Gunakan kode OTP 8 digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
-          <div class="p-4 bg-slate-100 rounded-2xl text-center">
-            <span class="text-3xl font-black tracking-widest text-brand">${otp}</span>
+          <p class="text-slate-600 dark:text-slate-300">Gunakan kode OTP 8 digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
+          <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-center">
+            <span class="text-3xl font-black tracking-widest text-brand dark:text-white">${escapeHtmlJS(otp)}</span>
             <p class="text-[11px] text-slate-400 mt-1">Berlaku selama 10 menit</p>
           </div>
-          <div class="p-3 bg-blue-50 text-blue-700 rounded-xl text-xs space-y-1">
+          <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
             <p class="font-bold">Cara Menghubungkan:</p>
             <p>1. Buka Bot Telegram MyKeuangan.</p>
-            <p>2. Kirim pesan: <code>/link ${otp}</code></p>
+            <p>2. Kirim pesan: <code class="font-bold">${escapeHtmlJS(linkCmd)}</code></p>
+            <button type="button" id="btnCopyTgLink" class="w-full min-h-[40px] mt-1 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors">
+              <i class="ph ph-copy" aria-hidden="true"></i> Salin Perintah /link
+            </button>
           </div>
         </div>
       `,
       confirmButtonText: 'Selesai',
-      showCloseButton: true
+      showCloseButton: true,
+      customClass: { popup: getSwalClass() },
+      didOpen: () => {
+        const copyBtn = document.getElementById('btnCopyTgLink');
+        if (copyBtn && navigator.clipboard) {
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(linkCmd);
+              copyBtn.textContent = '✓ Perintah Disalin!';
+            } catch (_) {}
+          });
+        }
+      }
     });
   } catch (err) {
-    Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err) });
+    Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
   }
+}
+
+/* ============================================================
+   TRANSAKSI RUTIN (RECURRING)
+   ============================================================ */
+function renderRecurring() {
+  const container = document.getElementById('recurringList');
+  if (!container) return;
+  const list = (DB.recurring || []).slice().sort((a, b) => Number(a.dayOfMonth) - Number(b.dayOfMonth));
+  if (!list.length) {
+    container.innerHTML = `<p class="md:col-span-2 p-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-sm text-slate-500">${escapeHtmlJS(t('rec.empty'))}</p>`;
+    return;
+  }
+
+  container.innerHTML = list.map((r) => {
+    const isActive = String(r.active) !== 'false' && r.active !== false;
+    const isIncome = r.tipe === 'Pemasukan';
+    const badgeClass = isActive
+      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
+    const amountClass = isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+    const idAttr = escapeAttrJS(r.id);
+
+    return `
+      <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h4 class="font-bold text-slate-800 dark:text-white text-sm truncate">${escapeHtmlJS(r.kategori)}</h4>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">${escapeHtmlJS(isActive ? t('rec.active') : t('rec.paused'))}</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${escapeHtmlJS(t('rec.day_prefix'))} ${escapeHtmlJS(r.dayOfMonth)}${r.keterangan ? ' · ' + escapeHtmlJS(r.keterangan) : ''}</p>
+          <p class="font-black text-sm mt-1 ${amountClass}">${isIncome ? '+' : '-'}${formatRupiah(r.nominal)}</p>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <button type="button" onclick="toggleRecurringItem('${idAttr}', ${!isActive})" aria-label="${isActive ? 'Jeda' : 'Aktifkan'} jadwal ${escapeAttrJS(r.kategori)}" title="${isActive ? 'Jeda' : 'Aktifkan'}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700">
+            <i class="ph ph-${isActive ? 'pause' : 'play'}" aria-hidden="true"></i>
+          </button>
+          <button type="button" onclick="openRecurringForm('${idAttr}')" aria-label="Edit jadwal ${escapeAttrJS(r.kategori)}" title="Edit" class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100">
+            <i class="ph ph-pencil" aria-hidden="true"></i>
+          </button>
+          <button type="button" onclick="deleteRecurringItem('${idAttr}')" aria-label="Hapus jadwal ${escapeAttrJS(r.kategori)}" title="Hapus" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100">
+            <i class="ph ph-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function openRecurringForm(id) {
+  const item = (DB.recurring || []).find((x) => String(x.id) === String(id));
+  const cur = item || { tipe: 'Pengeluaran', kategori: '', nominal: '', dayOfMonth: 1, keterangan: '', active: true };
+  const optsFor = (tipe) => {
+    const list = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
+    return (list.length ? list : ['Lainnya']).map((c) => `<option value="${escapeHtmlJS(c)}" ${c === cur.kategori ? 'selected' : ''}>${escapeHtmlJS(c)}</option>`).join('');
+  };
+
+  const res = await Swal.fire({
+    title: item ? 'Edit Jadwal Rutin' : t('rec.add'),
+    html: `
+      <div class="text-left space-y-2 text-sm">
+        <label for="rec-tipe" class="block font-semibold">Tipe</label>
+        <select id="rec-tipe" class="swal2-input" style="margin:0;width:100%">
+          <option value="Pengeluaran" ${cur.tipe === 'Pengeluaran' ? 'selected' : ''}>Pengeluaran</option>
+          <option value="Pemasukan" ${cur.tipe === 'Pemasukan' ? 'selected' : ''}>Pemasukan</option>
+        </select>
+        <label for="rec-kat" class="block font-semibold">Kategori</label>
+        <select id="rec-kat" class="swal2-input" style="margin:0;width:100%">${optsFor(cur.tipe)}</select>
+        <label for="rec-nom" class="block font-semibold">Nominal (Rp)</label>
+        <input id="rec-nom" type="number" min="1" value="${escapeHtmlJS(cur.nominal)}" class="swal2-input" style="margin:0;width:100%" placeholder="Contoh: 350000">
+        <label for="rec-day" class="block font-semibold">Tanggal Eksekusi Setiap Bulan (1-31)</label>
+        <input id="rec-day" type="number" min="1" max="31" value="${escapeHtmlJS(cur.dayOfMonth || 1)}" class="swal2-input" style="margin:0;width:100%">
+        <label for="rec-ket" class="block font-semibold">Catatan</label>
+        <input id="rec-ket" type="text" value="${escapeHtmlJS(cur.keterangan)}" class="swal2-input" style="margin:0;width:100%" placeholder="Contoh: Internet Rumah">
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() },
+    didOpen: () => {
+      const tipeSel = document.getElementById('rec-tipe');
+      const katSel = document.getElementById('rec-kat');
+      if (tipeSel && katSel) {
+        tipeSel.addEventListener('change', () => {
+          katSel.innerHTML = optsFor(tipeSel.value);
+        });
+      }
+    },
+    preConfirm: () => {
+      const tipe = document.getElementById('rec-tipe').value;
+      const kategori = document.getElementById('rec-kat').value;
+      const nominal = parseFloat(document.getElementById('rec-nom').value);
+      const dayOfMonth = parseInt(document.getElementById('rec-day').value, 10);
+      const keterangan = document.getElementById('rec-ket').value.trim();
+      if (!kategori || !Number.isFinite(nominal) || nominal <= 0 || !dayOfMonth || dayOfMonth < 1 || dayOfMonth > 31) {
+        Swal.showValidationMessage('Periksa tipe, kategori, nominal, dan tanggal (1-31).');
+        return false;
+      }
+      return { id: item ? item.id : undefined, tipe, kategori, nominal, dayOfMonth, keterangan, active: String(cur.active) !== 'false' && cur.active !== false };
+    }
+  });
+  if (!res.isConfirmed || !res.value) return;
+  try {
+    await refreshFromServer(await callServer('api_saveRecurring', res.value));
+    Swal.fire({ icon: 'success', title: t('alert.saved'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+  } catch (e) { showActionError(e); }
+}
+
+async function toggleRecurringItem(id, active) {
+  try {
+    await refreshFromServer(await callServer('api_toggleRecurring', id, active));
+  } catch (e) { showActionError(e); }
+}
+
+async function deleteRecurringItem(id) {
+  const conf = await Swal.fire({
+    icon: 'warning',
+    title: t('alert.confirm_delete'),
+    text: 'Jadwal transaksi rutin ini akan dihapus.',
+    showCancelButton: true,
+    confirmButtonColor: '#e11d48',
+    confirmButtonText: t('btn.ya_hapus'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() }
+  });
+  if (!conf.isConfirmed) return;
+  try {
+    await refreshFromServer(await callServer('api_deleteRecurring', id));
+  } catch (e) { showActionError(e); }
+}
+
+/* ============================================================
+   ON-DEMAND GEMINI AI CASHFLOW ANALYZER
+   ============================================================ */
+const GEMINI_KEY_STORAGE = 'mk_gemini_api_key';
+
+function getGeminiApiKey() {
+  return (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
+}
+
+function updateAiKeyStatusUI() {
+  const badge = document.getElementById('aiKeyStatus');
+  if (!badge) return;
+  const hasKey = Boolean(getGeminiApiKey());
+  badge.textContent = hasKey ? t('ai.key_saved') : t('ai.key_missing');
+  badge.className = hasKey
+    ? 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+    : 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
+}
+
+async function configureGeminiApiKey() {
+  const existing = getGeminiApiKey();
+  const res = await Swal.fire({
+    title: 'API Key Google Gemini',
+    html: `
+      <div class="text-left text-xs space-y-2">
+        <p class="text-slate-500 dark:text-slate-400">Masukkan Gemini API Key dari Google AI Studio. Key disimpan secara lokal di browser Anda dan hanya dipakai ketika Anda menekan tombol <b>Analisis Arus Keuangan</b>.</p>
+        <input id="swal-gemini-key" type="password" class="swal2-input" style="margin:6px 0 0;width:100%" placeholder="${existing ? '•••••••••••• (tersimpan — ketik baru untuk mengganti)' : 'AIza...'}">
+      </div>
+    `,
+    showCancelButton: true,
+    showDenyButton: Boolean(existing),
+    denyButtonText: 'Hapus API Key',
+    denyButtonColor: '#e11d48',
+    confirmButtonText: t('btn.simpan'),
+    cancelButtonText: t('btn.batal'),
+    customClass: { popup: getSwalClass() },
+    preConfirm: () => {
+      const val = (document.getElementById('swal-gemini-key').value || '').trim();
+      if (!val) {
+        Swal.showValidationMessage('Masukkan API Key Gemini terlebih dahulu.');
+        return false;
+      }
+      return val;
+    }
+  });
+
+  if (res.isDenied) {
+    localStorage.removeItem(GEMINI_KEY_STORAGE);
+    updateAiKeyStatusUI();
+    Swal.fire({ icon: 'info', title: 'API Key dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    return '';
+  }
+
+  if (res.isConfirmed && res.value) {
+    localStorage.setItem(GEMINI_KEY_STORAGE, res.value);
+    updateAiKeyStatusUI();
+    Swal.fire({ icon: 'success', title: 'API Key disimpan di browser', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    return res.value;
+  }
+  return '';
+}
+
+async function runAiCashflowAnalysis() {
+  let apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    apiKey = await configureGeminiApiKey();
+    if (!apiKey) return;
+  }
+
+  const btn = document.getElementById('btnRunAiAnalysis');
+  const box = document.getElementById('aiAnalysisResult');
+  if (!box) return;
+
+  if (btn) btn.disabled = true;
+  box.classList.remove('hide');
+  box.innerHTML = `
+    <div class="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-600 dark:text-slate-300">
+      <div class="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0"></div>
+      <span>${escapeHtmlJS(t('ai.loading'))}</span>
+    </div>
+  `;
+
+  try {
+    const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
+    const prompt = FinanceAnalysis.buildGeminiCashflowPrompt(payload, currentLang);
+
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: 'application/json'
+        }
+      })
+    });
+
+    const json = await response.json();
+    if (!response.ok) {
+      const msg = (json && json.error && json.error.message) || ('HTTP ' + response.status);
+      throw new Error(msg);
+    }
+
+    const rawText = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
+    if (!rawText) throw new Error('Gemini tidak mengembalikan respons teks.');
+
+    const parsed = FinanceAnalysis.parseGeminiCashflowResponse(rawText);
+    renderAiCashflowResult(parsed, payload);
+  } catch (err) {
+    console.error('runAiCashflowAnalysis error:', err);
+    box.innerHTML = `
+      <div class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
+        <span>Gagal menjalankan analisis AI: ${escapeHtmlJS(String(err.message || err))}</span>
+        <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
+      </div>
+    `;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderAiCashflowResult(parsed, payload) {
+  const box = document.getElementById('aiAnalysisResult');
+  if (!box) return;
+
+  const score = parsed.healthScore;
+  const scoreColor = score === null
+    ? 'bg-brand text-white'
+    : score >= 75
+      ? 'bg-emerald-600 text-white'
+      : score >= 50
+        ? 'bg-amber-500 text-white'
+        : 'bg-rose-600 text-white';
+
+  const renderBullets = (items, emptyText) => {
+    if (!items || !items.length) {
+      return emptyText ? `<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(emptyText)}</p>` : '';
+    }
+    return '<ul class="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 list-disc pl-4">' +
+      items.map((item) => `<li>${escapeHtmlJS(item)}</li>`).join('') +
+      '</ul>';
+  };
+
+  box.innerHTML = `
+    <div class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
+        <div class="flex items-center gap-3">
+          ${score !== null ? `<div class="w-12 h-12 rounded-2xl ${scoreColor} flex flex-col items-center justify-center shrink-0 font-black"><span class="text-lg leading-none">${score}</span><span class="text-[9px] opacity-80">/100</span></div>` : ''}
+          <div>
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtmlJS(t('ai.score'))} · ${escapeHtmlJS(payload.period)}</p>
+            <p class="text-base font-bold text-slate-800 dark:text-white">${escapeHtmlJS(parsed.statusLabel || 'Hasil Analisis')} <span class="text-xs font-medium text-slate-500 dark:text-slate-400">(Savings Rate: ${escapeHtmlJS(payload.savingsRate)}%)</span></p>
+          </div>
+        </div>
+        <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand self-start sm:self-center">Tutup</button>
+      </div>
+
+      ${parsed.ringkasan ? `<p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">${escapeHtmlJS(parsed.ringkasan)}</p>` : ''}
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-900/30">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 mb-2">${escapeHtmlJS(t('ai.highlights'))}</h4>
+          ${renderBullets(parsed.sorotan, '-')}
+        </div>
+        <div class="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-900/30">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-2">${escapeHtmlJS(t('ai.alerts'))}</h4>
+          ${renderBullets(parsed.bocorAnggaran, t('ai.no_alerts'))}
+        </div>
+        <div class="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-900/30">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">${escapeHtmlJS(t('ai.recommendations'))}</h4>
+          ${renderBullets(parsed.rekomendasi, '-')}
+        </div>
+      </div>
+    </div>
+  `;
 }
 </script>
