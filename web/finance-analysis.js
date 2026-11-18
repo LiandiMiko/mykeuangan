@@ -719,13 +719,297 @@
       .sort((a, b) => b.recommendedAmount - a.recommendedAmount || a.category.localeCompare(b.category));
   }
 
+  function resolveWalletsLiquidTotal(src) {
+    const wallets = Array.isArray(src.wallets) ? src.wallets : [];
+    if (!wallets.length) {
+      return Math.max(0, Number(src.walletsTotal) || 0);
+    }
+    if (src.walletBalances && typeof src.walletBalances === 'object') {
+      return wallets.reduce((sum, w) => sum + Math.max(0, Number(src.walletBalances[w.id]) || 0), 0);
+    }
+    const hasDirectBalance = wallets.some((w) => w && w.balance !== undefined && w.balance !== null && Number.isFinite(Number(w.balance)));
+    if (hasDirectBalance) {
+      return wallets.reduce((sum, w) => sum + Math.max(0, Number(w.balance) || 0), 0);
+    }
+    const bal = new Map();
+    wallets.forEach((w) => { bal.set(w.id, Number(w.openingBalance) || 0); });
+    const defId = wallets[0].id;
+    (Array.isArray(src.transactions) ? src.transactions : []).forEach((t) => {
+      const wid = t.walletId && bal.has(t.walletId) ? t.walletId : defId;
+      if (!wid) return;
+      const cat = String(t.kategori || '');
+      const amount = Number(t.nominal) || 0;
+      const isPiutang = cat.startsWith('Piutang');
+      const isUtang = !isPiutang && cat.startsWith('Utang');
+      let delta = 0;
+      if (isPiutang) delta = t.tipe === 'Pengeluaran' ? -amount : amount;
+      else if (isUtang) delta = t.tipe === 'Pemasukan' ? 0 : -amount;
+      else delta = t.tipe === 'Pemasukan' ? amount : -amount;
+      bal.set(wid, (bal.get(wid) || 0) + delta);
+    });
+    (Array.isArray(src.transfers) ? src.transfers : []).forEach((x) => {
+      const n = Number(x.nominal) || 0;
+      const f = Number(x.fee) || 0;
+      if (x.fromWallet && bal.has(x.fromWallet)) bal.set(x.fromWallet, bal.get(x.fromWallet) - (n + f));
+      if (x.toWallet && bal.has(x.toWallet)) bal.set(x.toWallet, bal.get(x.toWallet) + n);
+    });
+    return Array.from(bal.values()).reduce((sum, v) => sum + Math.max(0, v), 0);
+  }
+
+  function computeAssetAllocation(data) {
+    const src = data && typeof data === 'object' ? data : {};
+    const assets = Array.isArray(src.assets) ? src.assets : [];
+    const buckets = {
+      cash: resolveWalletsLiquidTotal(src),
+      emas: 0,
+      crypto: 0,
+      usd: 0,
+      other: 0
+    };
+
+    assets.forEach((a) => {
+      if (!a || typeof a !== 'object') return;
+      const typeLower = String(a.type || '').trim().toLowerCase();
+      const rawVal = Number(a.currentValue) || Number(a.value) || Number(a.amount) ||
+        (Number(a.quantity || 0) * Number(a.currentPrice || a.buyPrice || 0));
+      const val = Math.max(0, Number.isFinite(rawVal) ? rawVal : 0);
+      if (val <= 0) return;
+
+      if (typeLower === 'cash' || typeLower === 'tabungan') {
+        buckets.cash += val;
+      } else if (typeLower === 'emas') {
+        buckets.emas += val;
+      } else if (typeLower === 'crypto') {
+        buckets.crypto += val;
+      } else if (typeLower === 'usd') {
+        buckets.usd += val;
+      } else {
+        buckets.other += val;
+      }
+    });
+
+    const total = buckets.cash + buckets.emas + buckets.crypto + buckets.usd + buckets.other;
+    const defs = [
+      { key: 'cash', label: 'Kas & Likuid', color: '#10b981' },
+      { key: 'emas', label: 'Emas', color: '#f59e0b' },
+      { key: 'crypto', label: 'Crypto', color: '#6366f1' },
+      { key: 'usd', label: 'Valas USD', color: '#0ea5e9' },
+      { key: 'other', label: 'Saham & Lainnya', color: '#ec4899' }
+    ];
+
+    const segments = defs.map((d) => {
+      const amount = Math.round(buckets[d.key]);
+      const sharePct = total > 0 ? Number(((amount / total) * 100).toFixed(1)) : 0;
+      return { key: d.key, label: d.label, amount, sharePct, color: d.color };
+    });
+
+    const diversificationScore = segments.filter((s) => s.sharePct >= 5).length;
+    return { total: Math.round(total), diversificationScore, segments };
+  }
+
+  function detectSpendingAnomalies(transactions, recurring, period, payrollDay) {
+    parsePeriod(period);
+    const list = Array.isArray(transactions) ? transactions : [];
+    const recList = Array.isArray(recurring) ? recurring : [];
+
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    const expenseRows = [];
+
+    list.forEach((tx) => {
+      if (!tx || isDebtCategory(tx.kategori) || !isInPeriod(tx.tanggal, period, payrollDay)) return;
+      const amount = Number(tx.nominal) || 0;
+      if (amount <= 0) return;
+      if (tx.tipe === 'Pemasukan') {
+        incomeTotal += amount;
+      } else if (tx.tipe === 'Pengeluaran') {
+        expenseTotal += amount;
+        expenseRows.push(tx);
+      }
+    });
+
+    const avgExpenseTx = expenseRows.length > 0 ? expenseTotal / expenseRows.length : 0;
+    const threshold = Math.max(250000, avgExpenseTx * 2.5);
+    const anomalies = expenseRows
+      .filter((tx) => (Number(tx.nominal) || 0) >= threshold)
+      .sort((a, b) => (Number(b.nominal) || 0) - (Number(a.nominal) || 0))
+      .slice(0, 3)
+      .map((tx) => {
+        const nominal = Number(tx.nominal) || 0;
+        return {
+          id: tx.id || '',
+          tanggal: String(tx.tanggal || '').slice(0, 10),
+          kategori: String(tx.kategori || ''),
+          keterangan: String(tx.keterangan || ''),
+          nominal,
+          multipleOfAvg: avgExpenseTx > 0 ? Number((nominal / avgExpenseTx).toFixed(1)) : 1
+        };
+      });
+
+    const fixedExpenseTotal = recList
+      .filter((r) => r && String(r.active) !== 'false' && r.active !== false && r.tipe === 'Pengeluaran')
+      .reduce((sum, r) => sum + Math.max(0, Number(r.nominal) || 0), 0);
+
+    const denominator = incomeTotal > 0 ? incomeTotal : expenseTotal;
+    const fixedCostRatioPct = denominator > 0 ? Number(((fixedExpenseTotal / denominator) * 100).toFixed(1)) : 0;
+    const fixedCostBasis = incomeTotal > 0 ? 'income' : (expenseTotal > 0 ? 'expense' : 'none');
+
+    return {
+      expenseCount: expenseRows.length,
+      avgExpenseTx: Math.round(avgExpenseTx),
+      incomeTotal,
+      expenseTotal,
+      anomalies,
+      fixedExpenseTotal,
+      fixedCostRatioPct,
+      fixedCostBasis
+    };
+  }
+
+  function prepareBackupRestorePayload(backupObj, existingData) {
+    const empty = {
+      valid: false,
+      newTransactions: [],
+      skippedTransactions: 0,
+      newBudgets: [],
+      skippedBudgets: 0,
+      newGoals: [],
+      skippedGoals: 0
+    };
+    if (!backupObj || typeof backupObj !== 'object') return empty;
+
+    const src = (backupObj.data && typeof backupObj.data === 'object') ? backupObj.data : backupObj;
+    const rawTx = Array.isArray(src.transactions)
+      ? src.transactions
+      : (Array.isArray(src.transaksi) ? src.transaksi : null);
+    const rawBudgets = Array.isArray(src.budgets) ? src.budgets : null;
+    const rawGoals = Array.isArray(src.goals) ? src.goals : null;
+
+    if (!rawTx && !rawBudgets && !rawGoals) return empty;
+
+    const existing = existingData && typeof existingData === 'object' ? existingData : {};
+    const existingTxList = Array.isArray(existing.transactions)
+      ? existing.transactions
+      : (Array.isArray(existing.transaksi) ? existing.transaksi : []);
+
+    const txSig = (t) => {
+      const tanggal = String(t.tanggal || '').slice(0, 10);
+      const tipe = String(t.tipe || '').trim();
+      const kategori = String(t.kategori || '').trim().toLowerCase();
+      const nominal = Math.round(Number(t.nominal) || 0);
+      const keterangan = String(t.keterangan || '').trim().toLowerCase();
+      return `${tanggal}|${tipe}|${kategori}|${nominal}|${keterangan}`;
+    };
+
+    const seenTx = new Set(existingTxList.map(txSig));
+    const newTransactions = [];
+    let skippedTransactions = 0;
+
+    (rawTx || []).forEach((t) => {
+      if (!t || typeof t !== 'object') {
+        skippedTransactions += 1;
+        return;
+      }
+      const tanggal = String(t.tanggal || '').slice(0, 10);
+      const tipe = String(t.tipe || '').trim();
+      const kategori = String(t.kategori || '').trim();
+      const nominal = Number(t.nominal);
+      const keterangan = String(t.keterangan || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) ||
+          (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') ||
+          !kategori || !Number.isFinite(nominal) || nominal <= 0) {
+        skippedTransactions += 1;
+        return;
+      }
+      const item = { tanggal, tipe, kategori, nominal, keterangan, walletId: t.walletId ? String(t.walletId) : '' };
+      const sig = txSig(item);
+      if (seenTx.has(sig)) {
+        skippedTransactions += 1;
+        return;
+      }
+      seenTx.add(sig);
+      newTransactions.push(item);
+    });
+
+    const budgetSig = (b) => `${String(b.bulan || '').slice(0, 7)}|${String(b.kategori || '').trim().toLowerCase()}`;
+    const seenBudgets = new Set((Array.isArray(existing.budgets) ? existing.budgets : []).map(budgetSig));
+    const newBudgets = [];
+    let skippedBudgets = 0;
+
+    (rawBudgets || []).forEach((b) => {
+      if (!b || typeof b !== 'object') {
+        skippedBudgets += 1;
+        return;
+      }
+      const bulan = String(b.bulan || '').slice(0, 7);
+      const kategori = String(b.kategori || '').trim();
+      const jumlah = Number(b.jumlah);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bulan) || !kategori || !Number.isFinite(jumlah) || jumlah < 0) {
+        skippedBudgets += 1;
+        return;
+      }
+      const item = { bulan, kategori, jumlah };
+      const sig = budgetSig(item);
+      if (seenBudgets.has(sig)) {
+        skippedBudgets += 1;
+        return;
+      }
+      seenBudgets.add(sig);
+      newBudgets.push(item);
+    });
+
+    const goalSig = (g) => `${String(g.name || '').trim().toLowerCase()}|${Math.round(Number(g.targetAmount) || 0)}`;
+    const seenGoals = new Set((Array.isArray(existing.goals) ? existing.goals : []).map(goalSig));
+    const newGoals = [];
+    let skippedGoals = 0;
+
+    (rawGoals || []).forEach((g) => {
+      if (!g || typeof g !== 'object') {
+        skippedGoals += 1;
+        return;
+      }
+      const name = String(g.name || '').trim();
+      const targetAmount = Number(g.targetAmount);
+      const currentAmount = Number(g.currentAmount) || 0;
+      const targetDate = String(g.targetDate || '').slice(0, 10);
+      if (!name || !Number.isFinite(targetAmount) || targetAmount <= 0) {
+        skippedGoals += 1;
+        return;
+      }
+      const item = {
+        name: name.slice(0, 80),
+        targetAmount,
+        currentAmount: Math.max(0, currentAmount),
+        targetDate: /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : ''
+      };
+      const sig = goalSig(item);
+      if (seenGoals.has(sig)) {
+        skippedGoals += 1;
+        return;
+      }
+      seenGoals.add(sig);
+      newGoals.push(item);
+    });
+
+    return {
+      valid: true,
+      newTransactions,
+      skippedTransactions,
+      newBudgets,
+      skippedBudgets,
+      newGoals,
+      skippedGoals
+    };
+  }
+
   const api = {
     getPeriodRange, isInPeriod, shiftPeriod, summarizePeriod, monthlyTrend,
     periodInsights, goalProgress, buildAiCashflowPayload,
     buildGeminiCashflowPrompt, parseGeminiCashflowResponse,
     calculateGoalMonthlySaving, monthlyCashflowSeries, buildAppNotifications,
     buildReceiptOcrPrompt, parseReceiptOcrResponse, buildAiFinancialChatPrompt,
-    computeFinancialHealthRatios, recommendCategoryBudgets
+    computeFinancialHealthRatios, recommendCategoryBudgets,
+    computeAssetAllocation, detectSpendingAnomalies, prepareBackupRestorePayload
   };
   root.FinanceAnalysis = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

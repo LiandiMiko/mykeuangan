@@ -932,6 +932,12 @@
           (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0))) {
         throw new Error('Nominal atau jumlah pencairan aset tidak valid.');
       }
+      const { data: assetBefore, error: preErr } = await sb
+        .from('assets')
+        .select('id, type, value, quantity, buy_price')
+        .eq('id', id)
+        .maybeSingle();
+      fail(preErr);
       const { data: transactions, error } = await sb.rpc('liquidate_asset', {
         p_asset_id: id,
         p_amount: amount,
@@ -940,6 +946,22 @@
         p_date: date
       });
       fail(error);
+      const typeLower = String((assetBefore && assetBefore.type) || '').toLowerCase();
+      if ((typeLower === 'emas' || typeLower === 'usd') && assetBefore && Number(assetBefore.quantity) > 0) {
+        const oldQty = Number(assetBefore.quantity) || 0;
+        const oldVal = Number(assetBefore.value) || 0;
+        const remainingVal = Math.max(0, oldVal - amount);
+        if (remainingVal > 0) {
+          const soldQty = (quantity && quantity > 0)
+            ? Math.min(oldQty, quantity)
+            : (oldVal > 0 ? Math.min(oldQty, oldQty * (amount / oldVal)) : 0);
+          const remainingQty = Math.max(0, Number((oldQty - soldQty).toFixed(6)));
+          const { error: qtyErr } = await sb.from('assets')
+            .update({ quantity: remainingQty })
+            .eq('id', id);
+          fail(qtyErr);
+        }
+      }
       const assetsRes = await fetchAssetsOnly();
       if (d && d.walletId && transactions && transactions.length) {
         const [catsRes, currentPeriod] = await Promise.all([
@@ -1125,6 +1147,12 @@
           (quantity !== null && (!Number.isFinite(quantity) || quantity < 0))) {
         throw new Error('Nominal, harga, atau jumlah aset tidak valid.');
       }
+      const { data: assetBefore, error: preErr } = await sb
+        .from('assets')
+        .select('id, type, value, quantity, buy_price')
+        .eq('id', id)
+        .maybeSingle();
+      fail(preErr);
       const { error } = await sb.rpc('top_up_asset', {
         p_asset_id: id,
         p_amount: amount,
@@ -1134,6 +1162,27 @@
         p_date: date
       });
       fail(error);
+      const typeLower = String((assetBefore && assetBefore.type) || '').toLowerCase();
+      if ((typeLower === 'emas' || typeLower === 'usd') && assetBefore) {
+        const oldQty = Number(assetBefore.quantity) || 0;
+        const oldVal = Number(assetBefore.value) || 0;
+        const oldBuyPrice = Number(assetBefore.buy_price) || 0;
+        const unitPrice = (price && price > 0)
+          ? price
+          : (oldQty > 0 && oldVal > 0 ? oldVal / oldQty : (oldBuyPrice > 0 ? oldBuyPrice : 0));
+        const addedQty = (quantity && quantity > 0)
+          ? quantity
+          : (unitPrice > 0 ? amount / unitPrice : 0);
+        if (addedQty > 0) {
+          const newQty = Number((oldQty + addedQty).toFixed(6));
+          const oldCost = oldQty > 0 && oldBuyPrice > 0 ? oldQty * oldBuyPrice : oldVal;
+          const newBuyPrice = Number(((oldCost + amount) / newQty).toFixed(4));
+          const { error: updErr } = await sb.from('assets')
+            .update({ quantity: newQty, buy_price: newBuyPrice })
+            .eq('id', id);
+          fail(updErr);
+        }
+      }
       return d.walletId
         ? { ...(await fetchAssetsOnly()), ...(await fetchWalletsAndTransfers()) }
         : fetchAssetsOnly();

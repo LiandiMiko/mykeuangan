@@ -18,7 +18,10 @@ const {
   parseReceiptOcrResponse,
   buildAiFinancialChatPrompt,
   computeFinancialHealthRatios,
-  recommendCategoryBudgets
+  recommendCategoryBudgets,
+  computeAssetAllocation,
+  detectSpendingAnomalies,
+  prepareBackupRestorePayload
 } = require('../web/finance-analysis.js');
 
 test('payroll cycle spans month and year boundaries', () => {
@@ -269,4 +272,93 @@ test('computeFinancialHealthRatios and recommendCategoryBudgets calculate runway
   assert.equal(recs[0].activeCycles, 3);
   assert.equal(recs[1].category, 'Transport');
   assert.equal(recs[1].recommendedAmount, 130000);
+});
+
+test('computeAssetAllocation groups wallets and asset classes with shares and diversification score', () => {
+  const alloc = computeAssetAllocation({
+    wallets: [{ id: 'w1', balance: 5000000 }, { id: 'w2', balance: -100000 }],
+    assets: [
+      { name: 'Tabungan', type: 'Cash', value: 5000000 },
+      { name: 'Antam', type: 'Emas', value: 4000000 },
+      { name: 'BTC', type: 'Crypto', value: 3000000 },
+      { name: 'USD', type: 'USD', value: 2000000 },
+      { name: 'BBCA', type: 'Saham', value: 1000000 }
+    ]
+  });
+
+  assert.equal(alloc.total, 20000000);
+  assert.equal(alloc.diversificationScore, 5);
+  assert.deepEqual(
+    alloc.segments.map((s) => [s.key, s.amount, s.sharePct]),
+    [
+      ['cash', 10000000, 50],
+      ['emas', 4000000, 20],
+      ['crypto', 3000000, 15],
+      ['usd', 2000000, 10],
+      ['other', 1000000, 5]
+    ]
+  );
+});
+
+test('detectSpendingAnomalies identifies spending spikes and computes fixed cost ratio', () => {
+  const result = detectSpendingAnomalies(
+    [
+      { id: 't1', tanggal: '2026-11-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 10000000 },
+      { id: 't2', tanggal: '2026-11-02', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 50000, keterangan: 'Sarapan' },
+      { id: 't3', tanggal: '2026-11-03', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 60000, keterangan: 'Siang' },
+      { id: 't4', tanggal: '2026-11-04', tipe: 'Pengeluaran', kategori: 'Transport', nominal: 40000, keterangan: 'Ojek' },
+      { id: 't5', tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Elektronik', nominal: 2500000, keterangan: 'Servis Laptop' },
+      { id: 't6', tanggal: '2026-11-06', tipe: 'Pengeluaran', kategori: 'UtangPerson - Andi', nominal: 3000000 }
+    ],
+    [
+      { id: 'r1', tipe: 'Pengeluaran', nominal: 1500000, active: true },
+      { id: 'r2', tipe: 'Pengeluaran', nominal: 500000, active: 'true' },
+      { id: 'r3', tipe: 'Pengeluaran', nominal: 800000, active: false },
+      { id: 'r4', tipe: 'Pemasukan', nominal: 10000000, active: true }
+    ],
+    '2026-11',
+    1
+  );
+
+  assert.equal(result.expenseCount, 4);
+  assert.equal(result.anomalies.length, 1);
+  assert.equal(result.anomalies[0].id, 't5');
+  assert.equal(result.anomalies[0].nominal, 2500000);
+  assert.equal(result.fixedExpenseTotal, 2000000);
+  assert.equal(result.fixedCostRatioPct, 20);
+  assert.equal(result.fixedCostBasis, 'income');
+});
+
+test('prepareBackupRestorePayload deduplicates transactions, budgets, and goals', () => {
+  const payload = prepareBackupRestorePayload(
+    {
+      transactions: [
+        { tanggal: '2026-11-01', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 50000, keterangan: 'Bakso' },
+        { tanggal: '2026-11-02', tipe: 'Pemasukan', kategori: 'Bonus', nominal: 500000, keterangan: 'Project' }
+      ],
+      budgets: [
+        { bulan: '2026-11', kategori: 'Makan', jumlah: 1000000 },
+        { bulan: '2026-11', kategori: 'Hobi', jumlah: 300000 }
+      ],
+      goals: [
+        { id: 'old-id-1', name: 'Dana Darurat', targetAmount: 10000000, currentAmount: 2000000, targetDate: '2027-01-01' },
+        { id: 'old-id-2', name: 'Laptop Baru', targetAmount: 15000000, currentAmount: 1000000, targetDate: '2027-06-01' }
+      ]
+    },
+    {
+      transactions: [{ tanggal: '2026-11-01', tipe: 'Pengeluaran', kategori: 'makan', nominal: 50000, keterangan: 'Bakso' }],
+      budgets: [{ bulan: '2026-11', kategori: 'Makan', jumlah: 1000000 }],
+      goals: [{ name: 'Dana Darurat', targetAmount: 10000000 }]
+    }
+  );
+
+  assert.equal(payload.valid, true);
+  assert.equal(payload.newTransactions.length, 1);
+  assert.equal(payload.skippedTransactions, 1);
+  assert.equal(payload.newTransactions[0].kategori, 'Bonus');
+  assert.equal(payload.newBudgets.length, 1);
+  assert.equal(payload.skippedBudgets, 1);
+  assert.equal(payload.newGoals.length, 1);
+  assert.equal(payload.skippedGoals, 1);
+  assert.equal(payload.newGoals[0].id, undefined);
 });

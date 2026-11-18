@@ -368,6 +368,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 18 November 2026: Wave v3.2 (Top-Up/Jual Emas &amp; USD, Alokasi Portofolio, Anomaly Detector, Restore JSON &amp; PWA Shortcuts)
+- **Top-Up & Pencairan Parsial Emas (gram) & Valas USD**: Modal `topUpAsset` dan `withdrawAsset` (`src/script.html` + `web/supabase-api.js`) kini menghitung konversi unit dan menyinkronkan `quantity` & rata-rata tertimbang `buy_price` ke Supabase.
+- **Pemilih Tanggal & Catat Cepat Rutin**: Tambah input tanggal pada modal **Transfer Antar Dompet** dan **Utang/Piutang** (`src/script.html`), serta tombol 1-klik **`⚡ Catat`** di setiap kartu jadwal `#recurringList`.
+- **Alokasi Portofolio & Anomaly Detector**: Panel bar bertumpuk 5 kelas aset (`computeAssetAllocation` di `web/finance-analysis.js`, `#assetAllocationPanel` di `src/aset.html`) plus banner **Beban Biaya Rutin & Lonjakan Pengeluaran** (`detectSpendingAnomalies`) di `Budgeting`.
+- **Restore JSON Anti-Duplikat & PWA Shortcuts**: Tambah tombol **Restore JSON** (`prepareBackupRestorePayload`) di `src/laporan.html`, **App Shortcuts** (`?action=pengeluaran|pemasukan|scan|budgeting`) di `web/manifest.webmanifest`, tombol **Install Aplikasi (PWA)** di sidebar `src/Index.html`, serta migrasi model default AI ke `gemini-3.8-flash` dengan auto-fallback.
+
 ### 18 November 2026: Wave v3.1 (Rincian Dompet, Rasio Finansial, Split Bill, Backup JSON &amp; PIN Lock)
 - **Rincian Dompet & Filter Histori**: Klik kartu dompet di `src/dashboard.html` untuk modal ringkasan mutasi + transaksi terakhir (`openWalletDetailModal()`), tambah cari & filter dompet di `src/histori.html`, Mobile FAB (`#mobileFabBtn`), serta shortcut keyboard (`N`, `H`, `/`).
 - **Rasio Kesehatan, Auto-Budget & Split Bill**: Panel 3 rasio otomatis (*Dana Darurat Runway*, *Savings Rate*, *Rasio Utang vs Aset*) di `src/aset.html`, Generator **Rekomendasi Budget Otomatis** 3 siklus di `src/budgeting.html`, dan **Split Bill / Patungan** otomatis ke `Piutang` di `src/form.html`.
@@ -473,7 +479,7 @@ Prioritas berikutnya:
 | Backend | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
 | Runtime | Deno (Edge Functions) |
 | Build | Node.js (`build.mjs` — no bundler) |
-| AI | Google Gemini 2.5 Flash |
+| AI | Google Gemini 3.8 Flash (auto-fallback) |
 | Bot | Telegram Bot API |
 | Hosting | GitHub Pages + Supabase Cloud |
 

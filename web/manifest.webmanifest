@@ -27,5 +27,35 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "+ Pengeluaran",
+      "short_name": "Pengeluaran",
+      "description": "Catat transaksi pengeluaran baru",
+      "url": "./index.html?action=pengeluaran",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "+ Pemasukan",
+      "short_name": "Pemasukan",
+      "description": "Catat transaksi pemasukan baru",
+      "url": "./index.html?action=pemasukan",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Scan Struk AI",
+      "short_name": "Scan Struk",
+      "description": "Pindai struk belanja dengan AI",
+      "url": "./index.html?action=scan",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Budgeting",
+      "short_name": "Budgeting",
+      "description": "Lihat anggaran, target, dan tagihan rutin",
+      "url": "./index.html?action=budgeting",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

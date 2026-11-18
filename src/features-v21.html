@@ -296,30 +296,18 @@
       const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
       const prompt = FinanceAnalysis.buildReceiptOcrPrompt(DB.categories, todayStr, currentLang);
 
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType, data: base64 } }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: 'application/json'
-          }
-        })
+      const { json } = await callGeminiApi(apiKey, {
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType, data: base64 } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: 'application/json'
+        }
       });
-
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error((json && json.error && json.error.message) || ('HTTP ' + response.status));
-      }
       const rawText = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
       const parsed = FinanceAnalysis.parseReceiptOcrResponse(rawText, todayStr);
 
@@ -412,21 +400,10 @@
     try {
       const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
       const prompt = FinanceAnalysis.buildAiFinancialChatPrompt(payload, question, currentLang);
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.35 }
-        })
+      const { json } = await callGeminiApi(apiKey, {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.35 }
       });
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error((json && json.error && json.error.message) || ('HTTP ' + response.status));
-      }
       const answer = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
       if (!answer) throw new Error('Gemini tidak mengembalikan jawaban.');
       if (out) {
@@ -1437,6 +1414,7 @@
             openWalletDetailModal(walletId);
           });
         });
+        if (typeof window.renderAssetAllocation === 'function') renderAssetAllocation();
       };
     }
 
@@ -1502,11 +1480,20 @@
       };
     }
 
+    if (typeof window.renderAssets === 'function' && !window._origRenderAssets) {
+      window._origRenderAssets = window.renderAssets;
+      window.renderAssets = function () {
+        window._origRenderAssets();
+        renderAssetAllocation();
+      };
+    }
+
     if (typeof window.renderBudgeting === 'function' && !window._origRenderBudgeting) {
       window._origRenderBudgeting = window.renderBudgeting;
       window.renderBudgeting = function () {
         window._origRenderBudgeting();
         renderBudgetCharts();
+        renderBudgetAnomalyBanner();
       };
     }
 
@@ -1515,9 +1502,10 @@
       window.switchView = function (id) {
         window._origSwitchView(id);
         if (id === 'budgeting') {
-          setTimeout(renderBudgetCharts, 60);
+          setTimeout(() => { renderBudgetCharts(); renderBudgetAnomalyBanner(); }, 60);
         } else if (id === 'aset') {
           renderFinancialRatios();
+          renderAssetAllocation();
         } else if (id === 'histori') {
           filterHistoriView();
         }
@@ -1532,8 +1520,10 @@
         window._origRenderAll();
         filterHistoriView();
         renderFinancialRatios();
+        renderAssetAllocation();
         refreshNotificationBell();
         verifyAppPinIfEnabled();
+        handlePwaShortcutAction();
       };
     }
 
@@ -1548,9 +1538,316 @@
     }
   }
 
+  /* ---------------- 10. Wave v3.2 Analytics, Restore JSON & PWA ---------------- */
+  window.renderAssetAllocation = function () {
+    const panel = document.getElementById('assetAllocationPanel');
+    if (!panel || typeof isDataReady === 'undefined' || !isDataReady) return;
+    if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.computeAssetAllocation !== 'function') return;
+
+    const wb = typeof walletBalances === 'function' ? walletBalances() : null;
+    const alloc = FinanceAnalysis.computeAssetAllocation({
+      wallets: DB.wallets || [],
+      assets: DB.assets || [],
+      transactions: DB.transactions || [],
+      transfers: DB.transfers || [],
+      walletBalances: wb
+    });
+
+    if (!alloc.total || alloc.total <= 0) {
+      panel.innerHTML = `
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm text-center">
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Belum ada saldo dompet atau nilai aset untuk menghitung alokasi portofolio.</p>
+        </div>`;
+      return;
+    }
+
+    const score = alloc.diversificationScore;
+    const divLabel = score >= 3 ? 'Terdiversifikasi Baik' : score === 2 ? 'Cukup Terdiversifikasi' : 'Terkonsentrasi';
+    const divBadgeClass = score >= 3
+      ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+      : score === 2
+        ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+        : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
+
+    const barsHtml = alloc.segments
+      .filter((s) => s.amount > 0)
+      .map((s) => `<div style="width:${Math.max(2, s.sharePct)}%;background-color:${s.color};" title="${escapeAttrJS(s.label)}: ${s.sharePct}%" class="h-full transition-all duration-300"></div>`)
+      .join('');
+
+    const legendHtml = alloc.segments.map((s) => `
+      <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-3 min-w-0">
+        <div class="flex items-center justify-between gap-1.5 mb-1">
+          <span class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${s.color};"></span>
+            <span class="truncate">${escapeHtmlJS(s.label)}</span>
+          </span>
+          <span class="text-[11px] font-black text-slate-800 dark:text-white shrink-0">${s.sharePct}%</span>
+        </div>
+        <p class="text-xs font-extrabold text-slate-900 dark:text-white truncate">${formatRupiah(s.amount).replace(',00', '')}</p>
+      </div>`).join('');
+
+    const titleText = typeof t === 'function' ? t('aset.allocation_title') : 'Alokasi & Diversifikasi Portofolio';
+    panel.innerHTML = `
+      <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h3 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+              <i class="ph ph-chart-pie-slice text-brand dark:text-brand-ink" aria-hidden="true"></i>
+              <span>${escapeHtmlJS(titleText)}</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Total portofolio bruto: <strong class="text-slate-700 dark:text-slate-200">${formatRupiah(alloc.total).replace(',00', '')}</strong></p>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${divBadgeClass}">${divLabel} (${score}/5 kelas)</span>
+        </div>
+        <div class="h-3.5 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex gap-0.5 mb-4" role="img" aria-label="Diagram alokasi portofolio">
+          ${barsHtml}
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          ${legendHtml}
+        </div>
+      </div>`;
+  };
+
+  window.renderBudgetAnomalyBanner = function () {
+    if (typeof isDataReady === 'undefined' || !isDataReady) return;
+    if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.detectSpendingAnomalies !== 'function') return;
+
+    let banner = document.getElementById('budgetAnomalyBanner');
+    if (!banner) {
+      const insightsEl = document.getElementById('budgetInsights');
+      if (!insightsEl || !insightsEl.parentNode) return;
+      banner = document.createElement('div');
+      banner.id = 'budgetAnomalyBanner';
+      banner.className = 'mb-4';
+      insightsEl.insertAdjacentElement('afterend', banner);
+    }
+
+    const info = FinanceAnalysis.detectSpendingAnomalies(
+      DB.transactions || [],
+      DB.recurring || [],
+      DB.currentPeriod,
+      DB.payrollDay
+    );
+
+    const isFixedHigh = info.fixedCostRatioPct > 50;
+    const fixedBadgeClass = info.fixedExpenseTotal === 0
+      ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300'
+      : isFixedHigh
+        ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+        : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300';
+    const fixedStatusText = info.fixedExpenseTotal === 0
+      ? 'Belum ada tagihan rutin'
+      : isFixedHigh ? 'Perlu perhatian (>50%)' : 'Sehat (≤50%)';
+    const fixedBasisLabel = info.fixedCostBasis === 'income' ? 'dari pemasukan siklus' : (info.fixedCostBasis === 'expense' ? 'dari pengeluaran siklus' : 'belum ada arus kas');
+
+    const anomalyBadge = info.anomalies.length
+      ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300">${info.anomalies.length} Lonjakan Terdeteksi</span>`
+      : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">Pengeluaran Stabil</span>`;
+
+    const anomalyBody = info.anomalies.length
+      ? `<ul class="mt-2 space-y-1.5">${info.anomalies.map((tx) => `
+          <li class="flex items-center justify-between gap-2 text-xs">
+            <span class="truncate text-slate-700 dark:text-slate-200">
+              <strong>${escapeHtmlJS(tx.kategori)}</strong>${tx.keterangan ? ' · ' + escapeHtmlJS(tx.keterangan) : ''}
+              <span class="text-[10px] text-slate-400">(${escapeHtmlJS(tx.tanggal)})</span>
+            </span>
+            <span class="shrink-0 font-bold text-rose-600 dark:text-rose-400">${formatRupiah(tx.nominal).replace(',00', '')} · ${tx.multipleOfAvg}x rata2</span>
+          </li>`).join('')}</ul>`
+      : `<p class="mt-2 text-xs text-slate-500 dark:text-slate-400">${info.expenseCount > 0
+          ? `Rata-rata transaksi keluar ${formatRupiah(info.avgExpenseTx).replace(',00', '')}. Tidak ada lonjakan ekstrem siklus ini.`
+          : 'Belum ada transaksi pengeluaran untuk dianalisis pada siklus ini.'}</p>`;
+
+    banner.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Beban Biaya Rutin (Fixed Cost)</h4>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${fixedBadgeClass}">${fixedStatusText}</span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span class="text-xl font-black text-slate-900 dark:text-white">${info.fixedCostRatioPct}%</span>
+            <span class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(fixedBasisLabel)}</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Total jadwal rutin keluar aktif: <strong>${formatRupiah(info.fixedExpenseTotal).replace(',00', '')}</strong> / siklus</p>
+        </article>
+        <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Deteksi Lonjakan Pengeluaran</h4>
+            ${anomalyBadge}
+          </div>
+          ${anomalyBody}
+        </article>
+      </div>`;
+  };
+
+  window.triggerRestoreJson = function () {
+    const input = document.getElementById('lapRestoreJsonInput');
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  };
+
+  window.handleRestoreJsonFile = async function (event) {
+    const file = event && event.target && event.target.files && event.target.files[0];
+    if (!file) return;
+    if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.prepareBackupRestorePayload !== 'function') {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Modul analisis belum siap.', customClass: { popup: getSwalClass() } });
+      return;
+    }
+
+    let parsed;
+    try {
+      const text = await file.text();
+      parsed = JSON.parse(text);
+    } catch (_) {
+      Swal.fire({ icon: 'error', title: 'File Tidak Valid', text: 'File bukan JSON backup yang valid.', customClass: { popup: getSwalClass() } });
+      return;
+    }
+
+    const plan = FinanceAnalysis.prepareBackupRestorePayload(parsed, DB);
+    if (!plan.valid) {
+      Swal.fire({ icon: 'error', title: 'Format Tidak Dikenali', text: 'File JSON tidak memuat array transactions, budgets, atau goals.', customClass: { popup: getSwalClass() } });
+      return;
+    }
+
+    const totalNew = plan.newTransactions.length + plan.newBudgets.length + plan.newGoals.length;
+    if (totalNew === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Semua Data Sudah Tersimpan',
+        text: `Tidak ada data baru untuk ditambahkan (${plan.skippedTransactions} transaksi, ${plan.skippedBudgets} budget, ${plan.skippedGoals} target sudah ada).`,
+        customClass: { popup: getSwalClass() }
+      });
+      return;
+    }
+
+    const confirmRes = await Swal.fire({
+      icon: 'question',
+      title: 'Konfirmasi Restore & Merge JSON',
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300">
+          <p>Data baru akan ditambahkan tanpa menduplikasi data yang sudah ada:</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>Transaksi baru:</strong> ${plan.newTransactions.length} <span class="text-slate-400">(${plan.skippedTransactions} dilewati)</span></li>
+            <li><strong>Budget baru:</strong> ${plan.newBudgets.length} <span class="text-slate-400">(${plan.skippedBudgets} dilewati)</span></li>
+            <li><strong>Target keuangan baru:</strong> ${plan.newGoals.length} <span class="text-slate-400">(${plan.skippedGoals} dilewati)</span></li>
+          </ul>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'Pulihkan Sekarang',
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() }
+    });
+    if (!confirmRes.isConfirmed) return;
+
+    Swal.fire({
+      title: 'Memulihkan data...',
+      text: 'Mohon tunggu sebentar.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+      customClass: { popup: getSwalClass() }
+    });
+
+    try {
+      const validWalletIds = new Set((DB.wallets || []).map((w) => String(w.id)));
+      const fallbackWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+      for (let i = 0; i < plan.newTransactions.length; i += 500) {
+        const chunk = plan.newTransactions.slice(i, i + 500).map((tx) => ({
+          ...tx,
+          walletId: tx.walletId && validWalletIds.has(String(tx.walletId)) ? tx.walletId : fallbackWalletId
+        }));
+        const txRes = await callServer('api_importTransactions', chunk);
+        await refreshFromServer(txRes);
+      }
+      for (const b of plan.newBudgets) {
+        const bRes = await callServer('api_saveBudget', b.kategori, b.bulan, b.jumlah);
+        await refreshFromServer(bRes);
+      }
+      for (const g of plan.newGoals) {
+        const gRes = await callServer('api_saveGoal', g);
+        await refreshFromServer(gRes);
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Restore Selesai!',
+        text: `${plan.newTransactions.length} transaksi, ${plan.newBudgets.length} budget, dan ${plan.newGoals.length} target berhasil dipulihkan.`,
+        customClass: { popup: getSwalClass() }
+      });
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+      else Swal.fire({ icon: 'error', title: 'Gagal Restore', text: String(err.message || err), customClass: { popup: getSwalClass() } });
+    }
+  };
+
+  window.installPwaApp = async function () {
+    const promptEvt = window._deferredPwaPrompt;
+    if (promptEvt && typeof promptEvt.prompt === 'function') {
+      promptEvt.prompt();
+      try {
+        const choice = await promptEvt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          window._deferredPwaPrompt = null;
+          document.getElementById('pwaInstallWrap')?.classList.add('hidden');
+        }
+      } catch (_) {}
+      return;
+    }
+    Swal.fire({
+      icon: 'info',
+      title: 'Pasang di Layar Utama',
+      html: '<p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">Di <strong>iOS Safari</strong>, ketuk ikon <strong>Bagikan (Share)</strong> di bawah lalu pilih <strong>Add to Home Screen</strong>. Di <strong>Chrome/Edge</strong>, buka menu browser lalu pilih <strong>Install App</strong>.</p>',
+      confirmButtonText: 'Mengerti',
+      customClass: { popup: getSwalClass() }
+    });
+  };
+
+  function handlePwaShortcutAction() {
+    if (window._pwaShortcutHandled || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const params = new URLSearchParams(window.location.search || '');
+    const action = (params.get('action') || '').toLowerCase();
+    if (!action) return;
+    window._pwaShortcutHandled = true;
+    try {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    } catch (_) {}
+
+    setTimeout(() => {
+      if (action === 'pengeluaran' && typeof openForm === 'function') {
+        openForm('Pengeluaran');
+      } else if (action === 'pemasukan' && typeof openForm === 'function') {
+        openForm('Pemasukan');
+      } else if (action === 'scan' && typeof openForm === 'function') {
+        openForm('Pengeluaran');
+        setTimeout(() => {
+          if (typeof triggerReceiptOcr === 'function') triggerReceiptOcr();
+        }, 180);
+      } else if (action === 'budgeting' && typeof switchView === 'function') {
+        switchView('budgeting');
+      }
+    }, 120);
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window._deferredPwaPrompt = e;
+    document.getElementById('pwaInstallWrap')?.classList.remove('hidden');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    window._deferredPwaPrompt = null;
+    document.getElementById('pwaInstallWrap')?.classList.add('hidden');
+  });
+
   installHooks();
   document.addEventListener('DOMContentLoaded', () => {
     installHooks();
+    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+    if (!isStandalone && (window._deferredPwaPrompt || isIos)) {
+      document.getElementById('pwaInstallWrap')?.classList.remove('hidden');
+    }
     if (navigator.onLine) {
       setTimeout(() => { window.flushOfflineQueue(true); }, 1500);
     }

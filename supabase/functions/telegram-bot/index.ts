@@ -15,7 +15,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 const TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
 const SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL_PARSER') ?? 'gemini-2.5-flash';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL_PARSER') ?? 'gemini-3.8-flash';
 const TZ = Deno.env.get('APP_TIMEZONE') ?? 'Asia/Jakarta';
 
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -630,7 +630,7 @@ async function handleUndo(c: Ctx) {
 }
 
 /* ---------------- Tahap 3b: helper bersama ---------------- */
-const GEMINI_INSIGHT_MODEL = Deno.env.get('GEMINI_MODEL_INSIGHT') ?? 'gemini-2.5-flash';
+const GEMINI_INSIGHT_MODEL = Deno.env.get('GEMINI_MODEL_INSIGHT') ?? 'gemini-3.8-flash';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const isFlow = (k: string) => !isUtang(k) && !isPiutang(k);
 

@@ -18,6 +18,7 @@ Status: Complete
 ### 3. Pengaturan Profil Semua User, PIN App Lock, Mobile FAB & Shortcut
 - Menambahkan handler `api_updateOwnProfile()` di `web/supabase-api.js` serta tombol pengaturan akun (`openAccountSettingsModal()`) di kartu profil sidebar `src/Index.html` untuk seluruh role (`user` & `admin`).
 - Menambahkan kunci PIN lokal 4–6 digit berbasis SHA-256 (`verifyAppPinIfEnabled()`), tombol melayang Mobile FAB (`#mobileFabBtn`, `openQuickAddMenu()`), dan shortcut keyboard desktop (`N`, `H`, `/`).
+- Memperbarui model default Gemini menjadi `gemini-3.8-flash` (karena `gemini-2.5-flash` tidak lagi tersedia untuk pengguna baru) di `src/script.html` (`callGeminiApi()` dengan auto-fallback & pengaturan model di `configureGeminiApiKey()`), `src/features-v21.html` (`handleReceiptOcrFile()`, `runAiFinancialChat()`), serta `supabase/functions/telegram-bot/index.ts`.
 
 ## Verifikasi
 - PASS (static inspection via `konoha`): seluruh `src/*.html`, `web/finance-analysis.js`, `tests/finance-analysis.test.js`, dan `src/features-v21.html` telah diverifikasi secara statis tanpa duplikasi ID DOM, dan rumus ekspektasi pada unit test `tests/finance-analysis.test.js` sesuai dengan hasil perhitungan.
