@@ -1002,6 +1002,172 @@
     };
   }
 
+  function projectGoalMilestone(currentAmount, targetAmount, targetDate, monthlySavingOverride, avgMonthlySavings, todayStr) {
+    const cur = Math.max(0, Number(currentAmount) || 0);
+    const target = Number(targetAmount);
+    if (!Number.isFinite(target) || target <= 0) {
+      return { status: 'invalid', remaining: 0, projectedMonths: 0, projectedDate: '', label: 'Target tidak valid' };
+    }
+    const remaining = Math.max(0, target - cur);
+    if (remaining <= 0) {
+      return { status: 'completed', remaining: 0, projectedMonths: 0, projectedDate: '', label: 'Target sudah tercapai! 🎉' };
+    }
+
+    const todayDate = todayStr ? new Date(todayStr + 'T00:00:00Z') : new Date();
+    const savingRate = Math.max(0, Number(monthlySavingOverride) || 0) || Math.max(0, Number(avgMonthlySavings) || 0);
+
+    let projectedMonths = null;
+    let projectedDate = '';
+
+    if (savingRate > 0) {
+      projectedMonths = Math.ceil(remaining / savingRate);
+      const proj = new Date(Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth() + projectedMonths, 1));
+      projectedDate = proj.toISOString().slice(0, 7);
+    }
+
+    let status = 'in_progress';
+    let targetMonthsRemaining = null;
+    if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      const tDate = new Date(targetDate + 'T00:00:00Z');
+      const diffDays = Math.ceil((tDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) {
+        status = 'overdue';
+      } else {
+        targetMonthsRemaining = Math.max(1, Math.round(diffDays / 30.4));
+      }
+    }
+
+    return {
+      status,
+      remaining: Math.round(remaining),
+      percent: Math.min(100, Math.round((cur / target) * 100)),
+      projectedMonths,
+      projectedDate,
+      targetMonthsRemaining,
+      savingRate: Math.round(savingRate)
+    };
+  }
+
+  function getDueRecurringBills(recurringList, transactions, todayStr, period, payrollDay) {
+    const todayDate = todayStr ? new Date(todayStr + 'T00:00:00Z') : new Date();
+    const todayDay = todayDate.getUTCDate();
+    const curDateStr = todayStr || todayDate.toISOString().slice(0, 10);
+    const activeList = (Array.isArray(recurringList) ? recurringList : [])
+      .filter((r) => r && String(r.active) !== 'false' && r.active !== false);
+
+    const txList = (Array.isArray(transactions) ? transactions : []).filter((t) =>
+      isInPeriod(t.tanggal, period, payrollDay)
+    );
+
+    const dueBills = [];
+    let totalDueAmount = 0;
+
+    activeList.forEach((rec) => {
+      const recNominal = Math.round(Number(rec.nominal) || 0);
+      const recCat = String(rec.kategori || '').trim().toLowerCase();
+      const recDay = Number(rec.dayOfMonth) || 1;
+
+      // Sudah dicatat siklus ini jika:
+      // 1. lastRun sudah sama dengan tanggal hari ini atau berada di periode siklus saat ini
+      const lastRunInPeriod = rec.lastRun && isInPeriod(rec.lastRun, period, payrollDay);
+      // 2. ATAU ada transaksi di periode siklus ini dengan kategori sama, nominal sama, dan tipe sama
+      const alreadyTransacted = lastRunInPeriod || txList.some((tx) =>
+        tx.tipe === rec.tipe &&
+        String(tx.kategori || '').trim().toLowerCase() === recCat &&
+        Math.abs((Number(tx.nominal) || 0) - recNominal) <= 1
+      );
+
+      // Jatuh tempo jika hari bulan saat ini >= dayOfMonth atau dalam siklus
+      const isDue = todayDay >= recDay || isInPeriod(curDateStr, period, payrollDay);
+
+      if (!alreadyTransacted && isDue) {
+        dueBills.push({
+          id: rec.id,
+          tipe: rec.tipe,
+          kategori: rec.kategori,
+          nominal: recNominal,
+          keterangan: rec.keterangan || '',
+          dayOfMonth: recDay
+        });
+        totalDueAmount += recNominal;
+      }
+    });
+
+    return {
+      dueBills,
+      count: dueBills.length,
+      totalDueAmount
+    };
+  }
+
+  function computeNetWorthSeries(data, currentPeriod, payrollDay, count = 6) {
+    const numCycles = Math.max(2, Math.min(12, Math.trunc(Number(count) || 6)));
+    parsePeriod(currentPeriod);
+    const src = data && typeof data === 'object' ? data : {};
+    const flowSeries = monthlyCashflowSeries(src.transactions, currentPeriod, payrollDay, numCycles);
+
+    // Hitung net worth siklus saat ini
+    const curPayload = buildAiCashflowPayload(src, currentPeriod, payrollDay);
+    const curNetWorth = curPayload.netWorth;
+
+    // Rekonstruksi mundur berdasarkan net cashflow historis
+    // netWorth(t-1) ~ netWorth(t) - netCashflow(t)
+    const points = new Array(flowSeries.length);
+    let runningNetWorth = curNetWorth;
+
+    for (let i = flowSeries.length - 1; i >= 0; i--) {
+      points[i] = {
+        period: flowSeries[i].period,
+        netCashflow: flowSeries[i].netCashflow,
+        incomeTotal: flowSeries[i].incomeTotal,
+        expenseTotal: flowSeries[i].expenseTotal,
+        estimatedNetWorth: Math.round(runningNetWorth)
+      };
+      if (i > 0) {
+        runningNetWorth -= flowSeries[i].netCashflow;
+      }
+    }
+
+    return points;
+  }
+
+  function compileOnePageFinancialStatement(data, period, payrollDay) {
+    parsePeriod(period);
+    const src = data && typeof data === 'object' ? data : {};
+    const payload = buildAiCashflowPayload(src, period, payrollDay);
+    const ratios = computeFinancialHealthRatios(src, period, payrollDay);
+    const allocation = computeAssetAllocation(src);
+    const anomalies = detectSpendingAnomalies(src.transactions, src.recurring, period, payrollDay);
+    const range = getPeriodRange(period, payrollDay);
+
+    return {
+      period,
+      range,
+      generatedAt: new Date().toISOString(),
+      netWorth: payload.netWorth,
+      walletsTotal: payload.walletsTotal,
+      assetsTotal: payload.assetsTotal,
+      piutangTotal: payload.piutangTotal,
+      utangTotal: payload.utangTotal,
+      incomeTotal: payload.incomeTotal,
+      expenseTotal: payload.expenseTotal,
+      netCashflow: payload.netCashflow,
+      savingsRate: payload.savingsRate,
+      topExpenses: payload.topExpenses,
+      budgetSummary: payload.budgetSummary,
+      ratios: {
+        emergencyRunwayMonths: ratios.emergencyRunwayMonths,
+        runwayStatus: ratios.runwayStatus,
+        savingsRatePct: ratios.savingsRatePct,
+        debtToAssetPct: ratios.debtToAssetPct,
+        debtStatus: ratios.debtStatus
+      },
+      portfolioAllocation: allocation.segments,
+      fixedCostRatioPct: anomalies.fixedCostRatioPct,
+      spendingSpikesCount: anomalies.anomalies.length
+    };
+  }
+
   const api = {
     getPeriodRange, isInPeriod, shiftPeriod, summarizePeriod, monthlyTrend,
     periodInsights, goalProgress, buildAiCashflowPayload,
@@ -1009,7 +1175,8 @@
     calculateGoalMonthlySaving, monthlyCashflowSeries, buildAppNotifications,
     buildReceiptOcrPrompt, parseReceiptOcrResponse, buildAiFinancialChatPrompt,
     computeFinancialHealthRatios, recommendCategoryBudgets,
-    computeAssetAllocation, detectSpendingAnomalies, prepareBackupRestorePayload
+    computeAssetAllocation, detectSpendingAnomalies, prepareBackupRestorePayload,
+    projectGoalMilestone, getDueRecurringBills, computeNetWorthSeries, compileOnePageFinancialStatement
   };
   root.FinanceAnalysis = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -368,6 +368,13 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 18 November 2026: Wave v3.3 (Batch Catat Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak & Filter Kalender)
+- **Batch Eksekusi Tagihan Rutin Jatuh Tempo**: Banner peringatan cerdas `#recurringDueBanner` di Dashboard mendeteksi seluruh tagihan rutin yang jatuh tempo pada siklus berjalan (`getDueRecurringBills`), dilengkapi tombol **`⚡ Catat Semua Sekaligus`** (`batchRecordRecurring`) dengan dialog konfirmasi sekali klik.
+- **Grafik Riwayat Pertumbuhan Kekayaan Bersih (Net Worth Evolution)**: Visualisasi Chart.js 6 siklus ke belakang (`computeNetWorthSeries`, `#netWorthChart`) di Tabungan & Investasi berbasis saldo kas riil, aset, piutang, dan utang historis.
+- **Ekstensi Bot Telegram (`/transfer`, `/utang`, `/piutang`)**: Perintah baru untuk transfer antar dompet (`/transfer [dari] [ke] [nominal]`), pencatatan pinjaman/pembayaran cicilan (`/utang pinjam|bayar [nama] [nominal]`), serta peminjaman/pelunasan pihak lain (`/piutang beri|terima [nama] [nominal]`) langsung dari chat Telegram.
+- **Lembar Ringkasan Finansial Eksekutif Siap Cetak (1-Page Financial Statement)**: Tombol **Ringkasan Cetak** (`openFinancialStatementModal`) di header Laporan & Ekspor untuk menyusun dan mencetak preview posisi neraca, arus kas, metrik rasio, dan top pengeluaran secara elegan.
+- **Filter Kalender Finansial & Proyeksi Target**: Filter pill cepat (*Semua / 🔴 Keluar / 🟢 Masuk*) pada Kalender Finansial Dashboard serta kalkulator proyeksi pencapaian target keuangan cerdas (*Milestone Projection*) pada kartu Target Keuangan.
+
 ### 18 November 2026: Wave v3.2 (Top-Up/Jual Emas &amp; USD, Alokasi Portofolio, Anomaly Detector, Restore JSON &amp; PWA Shortcuts)
 - **Top-Up & Pencairan Parsial Emas (gram) & Valas USD**: Modal `topUpAsset` dan `withdrawAsset` (`src/script.html` + `web/supabase-api.js`) kini menghitung konversi unit dan menyinkronkan `quantity` & rata-rata tertimbang `buy_price` ke Supabase.
 - **Pemilih Tanggal & Catat Cepat Rutin**: Tambah input tanggal pada modal **Transfer Antar Dompet** dan **Utang/Piutang** (`src/script.html`), serta tombol 1-klik **`⚡ Catat`** di setiap kartu jadwal `#recurringList`.

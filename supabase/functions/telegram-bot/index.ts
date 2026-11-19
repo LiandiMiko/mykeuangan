@@ -471,6 +471,132 @@ async function handleTarik(c: Ctx, arg: string) {
     `${esc(cash.name)}: <b>+${rp(nominal)}</b>\n\n💳 <b>Saldo sekarang</b>\n${m.walletLines}`, mainKb());
 }
 
+async function handleTransfer(c: Ctx, arg: string) {
+  const parts = arg.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 3) {
+    return send(c.chat,
+      '❌ <b>Format Transfer Antar Dompet</b>:\n<code>/transfer [dari] [ke] [nominal] [catatan...]</code>\n\n' +
+      'Contoh:\n<code>/transfer bca cash 200rb</code>\n<code>/transfer gopay bca 50rb transfer balik</code>', mainKb());
+  }
+  const fromQuery = parts[0].toLowerCase();
+  const toQuery = parts[1].toLowerCase();
+  const nominal = parseNominal(parts[2]);
+  if (nominal <= 0) {
+    return send(c.chat, '❌ Nominal tidak valid. Contoh: <code>/transfer bca cash 150rb</code>', mainKb());
+  }
+  const notes = parts.slice(3).join(' ').trim();
+  const ws = await getWallets(c.uid);
+  if (ws.length < 2) {
+    return send(c.chat, '❌ Butuh minimal 2 dompet untuk transfer.', mainKb());
+  }
+  const matchW = (q: string) => ws.find(w => w.name.toLowerCase().includes(q) || w.kind.toLowerCase() === q);
+  const fromW = matchW(fromQuery);
+  const toW = matchW(toQuery);
+
+  if (!fromW || !toW) {
+    const listNames = ws.map(w => `• <b>${esc(w.name)}</b> (${esc(w.kind)})`).join('\n');
+    return send(c.chat, `❌ Dompet tidak ditemukan.\n\nDaftar dompet Anda:\n${listNames}`, mainKb());
+  }
+  if (fromW.id === toW.id) {
+    return send(c.chat, '❌ Dompet asal dan tujuan harus berbeda.', mainKb());
+  }
+
+  const kind = (fromW.kind === 'bank' && toW.kind === 'cash') ? 'tarik_tunai' : 'transfer';
+  const { error } = await sb.from('transfers').insert({
+    user_id: c.uid,
+    tanggal: today(),
+    kind,
+    from_wallet: fromW.id,
+    to_wallet: toW.id,
+    nominal,
+    fee: 0,
+    keterangan: notes || 'Via Telegram'
+  });
+  if (error) throw error;
+  const m = await loadMoney(c.uid);
+  await send(c.chat,
+    `🔁 <b>Transfer berhasil dicatat!</b>\n\n` +
+    `${esc(fromW.name)} ➔ ${esc(toW.name)}: <b>${rp(nominal)}</b>\n` +
+    (notes ? `📝 Catatan: ${esc(notes)}\n` : '') +
+    `\n💳 <b>Saldo sekarang</b>\n${m.walletLines}`, mainKb());
+}
+
+async function handleUtang(c: Ctx, arg: string) {
+  const parts = arg.trim().split(/\s+/).filter(Boolean);
+  const action = (parts[0] || '').toLowerCase();
+  if (parts.length < 3 || (action !== 'pinjam' && action !== 'bayar')) {
+    return send(c.chat,
+      '❌ <b>Format Perintah Utang:</b>\n' +
+      '• <code>/utang pinjam [Nama] [Nominal] [Catatan]</code> (terima pinjaman)\n' +
+      '• <code>/utang bayar [Nama] [Nominal] [Catatan]</code> (lunasi/cicil utang)\n\n' +
+      'Contoh:\n<code>/utang pinjam Budi 500rb</code>\n<code>/utang bayar Budi 200rb</code>', mainKb());
+  }
+  const person = parts[1];
+  const nominal = parseNominal(parts[2]);
+  if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.', mainKb());
+  const notes = parts.slice(3).join(' ').trim();
+  const tipe = action === 'pinjam' ? 'Pemasukan' : 'Pengeluaran';
+  const kategori = `Utang - ${person}`;
+  const p: Tx = {
+    tanggal: today(),
+    tipe,
+    kategori,
+    nominal,
+    keterangan: notes ? `${notes} (via Telegram)` : `Utang ${person} via Telegram`
+  };
+  await saveTx(c, p);
+  const m = await loadMoney(c.uid);
+  const icon = action === 'pinjam' ? '📥' : '📤';
+  const label = action === 'pinjam' ? 'Pinjaman Diterima (Utang Bertambah)' : 'Pembayaran Utang (Utang Berkurang)';
+  await send(c.chat,
+    `🤝 <b>${label}</b>\n\n` +
+    `${icon} Nominal: <b>${rp(nominal)}</b>\n` +
+    `👤 Pihak: <b>${esc(person)}</b>\n` +
+    `📅 Tanggal: ${p.tanggal}\n` +
+    (notes ? `📝 Catatan: ${esc(notes)}\n` : '') +
+    `\n💰 <b>Total Utang Tersisa:</b> <b>${rp(m.b.utang)}</b>\n` +
+    `💼 Saldo Kas: <b>${rp(m.b.kas)}</b>`, mainKb());
+}
+
+async function handlePiutang(c: Ctx, arg: string) {
+  const parts = arg.trim().split(/\s+/).filter(Boolean);
+  const action = (parts[0] || '').toLowerCase();
+  const isGive = action === 'beri' || action === 'pinjamkan';
+  const isRecv = action === 'terima' || action === 'kembali' || action === 'lunas';
+  if (parts.length < 3 || (!isGive && !isRecv)) {
+    return send(c.chat,
+      '❌ <b>Format Perintah Piutang:</b>\n' +
+      '• <code>/piutang beri [Nama] [Nominal] [Catatan]</code> (pinjamkan ke orang)\n' +
+      '• <code>/piutang terima [Nama] [Nominal] [Catatan]</code> (terima pengembalian)\n\n' +
+      'Contoh:\n<code>/piutang beri Andi 300rb</code>\n<code>/piutang terima Andi 150rb</code>', mainKb());
+  }
+  const person = parts[1];
+  const nominal = parseNominal(parts[2]);
+  if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.', mainKb());
+  const notes = parts.slice(3).join(' ').trim();
+  const tipe = isGive ? 'Pengeluaran' : 'Pemasukan';
+  const kategori = `Piutang - ${person}`;
+  const p: Tx = {
+    tanggal: today(),
+    tipe,
+    kategori,
+    nominal,
+    keterangan: notes ? `${notes} (via Telegram)` : `Piutang ${person} via Telegram`
+  };
+  await saveTx(c, p);
+  const m = await loadMoney(c.uid);
+  const icon = isGive ? '📤' : '📥';
+  const label = isGive ? 'Pinjaman Diberikan (Piutang Bertambah)' : 'Piutang Diterima Kembali (Piutang Berkurang)';
+  await send(c.chat,
+    `🤝 <b>${label}</b>\n\n` +
+    `${icon} Nominal: <b>${rp(nominal)}</b>\n` +
+    `👤 Pihak: <b>${esc(person)}</b>\n` +
+    `📅 Tanggal: ${p.tanggal}\n` +
+    (notes ? `📝 Catatan: ${esc(notes)}\n` : '') +
+    `\n💰 <b>Total Piutang Berjalan:</b> <b>${rp(m.b.piutang)}</b>\n` +
+    `💼 Saldo Kas: <b>${rp(m.b.kas)}</b>`, mainKb());
+}
+
 /* ---------------- Handler perintah ---------------- */
 async function handleStatus(c: Ctx) {
   const { trx, st, b, walletLines } = await loadMoney(c.uid);
@@ -1076,7 +1202,7 @@ async function handleMessage(c: Ctx, msg: Any) {
     '📝 tambah transaksi': () => send(c.chat,
       '📝 <b>Tambah Transaksi</b>\n\nAda 3 cara:\n<b>1) Ketik bebas:</b> <i>makan siang 25rb</i>\n' +
       '<b>2) Command:</b> <code>/tambah Pemasukan Gaji 5jt</code>\n<b>3) Voice note:</b> rekam suara', tambahKb()),
-    '❓ bantuan': () => send(c.chat, '<b>❓ Bantuan</b>\n\nKlik tombol di bawah 👇\n\nKetik bebas: <i>kopi 25rb</i>\nDompet Cash: <i>kopi 25rb cash</i>\nTarik tunai: <code>/tarik 500rb</code>', mainKb()),
+    '❓ bantuan': () => send(c.chat, '<b>❓ Bantuan</b>\n\nKlik tombol di bawah 👇\n\nKetik bebas: <i>kopi 25rb</i>\nDompet Cash: <i>kopi 25rb cash</i>\nTarik tunai: <code>/tarik 500rb</code>\nTransfer dompet: <code>/transfer bca cash 200rb</code>\nUtang: <code>/utang pinjam Budi 500rb</code> atau <code>/utang bayar Budi 200rb</code>\nPiutang: <code>/piutang beri Andi 300rb</code> atau <code>/piutang terima Andi 150rb</code>', mainKb()),
     '🔙 menu utama': () => send(c.chat, '🏠 <b>Menu Utama</b>\n\nPilih menu 👇', mainKb()),
     '🟢 pemasukan': () => send(c.chat, '🟢 <b>Tambah Pemasukan</b>\n\nContoh:\n<code>/tambah Pemasukan Gaji 5000000</code>\n\nAtau: <i>gaji bulan ini 8 juta</i>', tambahKb()),
     '🔴 pengeluaran': () => send(c.chat, '🔴 <b>Tambah Pengeluaran</b>\n\nContoh:\n<code>/tambah Pengeluaran Makanan 25000</code>\n\nAtau: <i>makan siang 25rb</i>', tambahKb()),
@@ -1104,6 +1230,9 @@ async function handleMessage(c: Ctx, msg: Any) {
   if (/^\/?batch(\s|$)/i.test(text)) return handleBatch(c, text);
 
   if (/^\/?tarik(\s|$)/i.test(text)) return handleTarik(c, text.replace(/^\/?tarik\s*/i, ''));
+  if (/^\/?transfer(\s|$)/i.test(text)) return handleTransfer(c, text.replace(/^\/?transfer\s*/i, ''));
+  if (/^\/?utang(\s|$)/i.test(text)) return handleUtang(c, text.replace(/^\/?utang\s*/i, ''));
+  if (/^\/?piutang(\s|$)/i.test(text)) return handlePiutang(c, text.replace(/^\/?piutang\s*/i, ''));
 
   if (!cmd.startsWith('/') && text.length >= 3) return handleFreeText(c, text);
 

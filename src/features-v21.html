@@ -1426,21 +1426,30 @@
         if (!container || !DB.goals || !DB.goals.length) return;
         const articles = container.querySelectorAll('article');
         const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+        const ratios = typeof FinanceAnalysis !== 'undefined' && typeof FinanceAnalysis.computeFinancialHealthRatios === 'function'
+          ? FinanceAnalysis.computeFinancialHealthRatios(DB, DB.currentPeriod, DB.payrollDay) : null;
+        const avgSavingRate = ratios ? Math.max(0, ratios.avgMonthlyExpense ? Math.round(ratios.avgMonthlyExpense * 0.2) : 500000) : 500000;
+
         DB.goals.forEach((goal, idx) => {
           const card = articles[idx];
           if (!card || card.querySelector('.mk-goal-calc')) return;
           const calc = FinanceAnalysis.calculateGoalMonthlySaving(goal.currentAmount, goal.targetAmount, goal.targetDate, todayStr);
+          const proj = FinanceAnalysis.projectGoalMilestone(goal.currentAmount, goal.targetAmount, goal.targetDate, calc.monthlySaving, avgSavingRate, todayStr);
+
           let label = '';
           let tone = 'bg-brand/10 text-brand dark:text-brand-ink';
-          if (calc.status === 'completed') {
+          if (calc.status === 'completed' || proj.status === 'completed') {
             label = '✅ Target tercapai!';
             tone = 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300';
-          } else if (calc.status === 'overdue') {
+          } else if (calc.status === 'overdue' || proj.status === 'overdue') {
             label = '⚠️ Lewat tenggat · Sisa ' + formatRupiah(calc.remaining).replace(',00', '');
             tone = 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300';
           } else if (calc.monthlySaving !== null) {
-            label = '💡 Saran nabung: ' + formatRupiah(calc.monthlySaving).replace(',00', '') + ' / bln (' + calc.daysLeft + ' hari)';
+            label = '💡 Saran: ' + formatRupiah(calc.monthlySaving).replace(',00', '') + '/bln (' + calc.daysLeft + ' hari)';
             if (calc.status === 'urgent') tone = 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
+          } else if (proj.projectedDate) {
+            label = '🎯 Proyeksi tercapai: ' + proj.projectedDate + ' (~' + proj.projectedMonths + ' bln dg ' + formatRupiah(proj.savingRate).replace(',00', '') + '/bln)';
+            tone = 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300';
           } else {
             label = 'Kurang ' + formatRupiah(calc.remaining).replace(',00', '');
             tone = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
@@ -1506,6 +1515,9 @@
         } else if (id === 'aset') {
           renderFinancialRatios();
           renderAssetAllocation();
+          renderNetWorthChart();
+        } else if (id === 'dashboard') {
+          checkAndRenderDueRecurringBanner();
         } else if (id === 'histori') {
           filterHistoriView();
         }
@@ -1521,6 +1533,8 @@
         filterHistoriView();
         renderFinancialRatios();
         renderAssetAllocation();
+        renderNetWorthChart();
+        checkAndRenderDueRecurringBanner();
         refreshNotificationBell();
         verifyAppPinIfEnabled();
         handlePwaShortcutAction();
@@ -1828,6 +1842,323 @@
       }
     }, 120);
   }
+
+  /* ---------------- 11. Wave v3.3 Automation & Executive Reports ---------------- */
+  window.checkAndRenderDueRecurringBanner = function () {
+    const banner = document.getElementById('recurringDueBanner');
+    if (!banner) return;
+    if (typeof isDataReady === 'undefined' || !isDataReady || typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.getDueRecurringBills !== 'function') {
+      banner.classList.add('hide');
+      banner.innerHTML = '';
+      return;
+    }
+
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const due = FinanceAnalysis.getDueRecurringBills(
+      DB.recurring || [],
+      DB.transactions || [],
+      todayStr,
+      DB.currentPeriod,
+      DB.payrollDay
+    );
+
+    if (!due || due.count === 0) {
+      banner.classList.add('hide');
+      banner.innerHTML = '';
+      return;
+    }
+
+    banner.classList.remove('hide');
+    const previewChips = due.dueBills.slice(0, 3).map((b) => {
+      const isInc = b.tipe === 'Pemasukan';
+      const color = isInc ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20' : 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/20';
+      return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold ${color}">${escapeHtmlJS(b.kategori)}: ${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>`;
+    }).join('');
+    const moreText = due.dueBills.length > 3 ? `<span class="text-xs text-amber-700 dark:text-amber-300 font-semibold">+${due.dueBills.length - 3} lainnya</span>` : '';
+
+    banner.innerHTML = `
+      <div class="rounded-3xl border border-amber-200 dark:border-amber-500/30 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 p-4 sm:p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <i class="ph-bold ph-calendar-check text-xl" aria-hidden="true"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="text-sm font-extrabold text-slate-800 dark:text-white" data-i18n="dash.recurring_due">${due.count} Tagihan Rutin Jatuh Tempo</h4>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 dark:bg-amber-500/30 text-amber-800 dark:text-amber-300">Siap Catat</span>
+              </div>
+              <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">Total tagihan: <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> pada siklus ini dan belum tercatat.</p>
+              <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
+                ${previewChips}
+                ${moreText}
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            <button type="button" onclick="batchRecordRecurring()" class="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-amber-500/20 transition-all">
+              <i class="ph-bold ph-lightning" aria-hidden="true"></i>
+              <span data-i18n="dash.batch_record">Catat Semua Sekaligus</span>
+            </button>
+          </div>
+        </div>
+      </div>`;
+  };
+
+  window.batchRecordRecurring = async function () {
+    if (typeof isDataReady === 'undefined' || !isDataReady || typeof FinanceAnalysis === 'undefined') return;
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const due = FinanceAnalysis.getDueRecurringBills(
+      DB.recurring || [],
+      DB.transactions || [],
+      todayStr,
+      DB.currentPeriod,
+      DB.payrollDay
+    );
+
+    if (!due || due.count === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Semua Sudah Dicatat',
+        text: 'Tidak ada tagihan rutin yang jatuh tempo untuk dicatat.',
+        customClass: { popup: getSwalClass() }
+      });
+      return;
+    }
+
+    const itemsHtml = due.dueBills.map((b) => {
+      const isInc = b.tipe === 'Pemasukan';
+      return `
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs">
+          <span class="font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(b.kategori)}${b.keterangan ? ' · ' + escapeHtmlJS(b.keterangan) : ''}</span>
+          <span class="font-black ${isInc ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} shrink-0">${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>
+        </div>`;
+    }).join('');
+
+    const res = await Swal.fire({
+      title: 'Catat Semua Tagihan Jatuh Tempo?',
+      html: `
+        <p class="text-xs text-slate-600 dark:text-slate-300 mb-3 text-left">
+          Terdapat <strong>${due.count} tagihan</strong> dengan total <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> yang akan langsung dicatat sebagai transaksi hari ini (${todayStr}).
+        </p>
+        <div class="space-y-1.5 max-h-52 overflow-y-auto text-left mb-2">${itemsHtml}</div>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '⚡ Ya, Catat Semua',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#f59e0b',
+      customClass: { popup: getSwalClass() }
+    });
+    if (!res.isConfirmed) return;
+
+    Swal.fire({
+      title: 'Mencatat Jadwal Rutin...',
+      text: 'Menyimpan transaksi ke database',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+      customClass: { popup: getSwalClass() }
+    });
+
+    try {
+      const defaultWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+      let lastResult = null;
+      for (const bill of due.dueBills) {
+        const payload = {
+          tanggal: todayStr,
+          tipe: bill.tipe,
+          kategori: bill.kategori,
+          nominal: Number(bill.nominal) || 0,
+          keterangan: (bill.keterangan ? bill.keterangan + ' ' : '') + '(rutin)',
+          walletId: defaultWalletId
+        };
+        lastResult = await callServer('api_addTransaction', payload);
+      }
+
+      if (lastResult) {
+        await refreshFromServer(lastResult);
+      } else if (typeof renderAll === 'function') {
+        renderAll();
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Berhasil Dicatat!',
+        text: `${due.count} tagihan rutin berhasil dicatat ke siklus ini.`,
+        timer: 1500,
+        showConfirmButton: false,
+        customClass: { popup: getSwalClass() }
+      });
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+      else Swal.fire({ icon: 'error', title: 'Gagal', text: String(err.message || err), customClass: { popup: getSwalClass() } });
+    }
+  };
+
+  window.renderNetWorthChart = function () {
+    const canvas = document.getElementById('netWorthChart');
+    if (!canvas || typeof isDataReady === 'undefined' || !isDataReady || typeof Chart === 'undefined') return;
+    if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.computeNetWorthSeries !== 'function') return;
+
+    const series = FinanceAnalysis.computeNetWorthSeries(DB, DB.currentPeriod, DB.payrollDay, 6);
+    if (!series || !series.length) return;
+
+    if (window._netWorthChartInstance) {
+      window._netWorthChartInstance.destroy();
+      window._netWorthChartInstance = null;
+    }
+
+    const labels = series.map((s) => s.period);
+    const dataPoints = series.map((s) => s.estimatedNetWorth);
+
+    const isDark = document.documentElement.classList.contains('dark');
+    const gridColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.18)';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const brandColor = '#10b981';
+    const ctx = canvas.getContext('2d');
+
+    window._netWorthChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Kekayaan Bersih (Net Worth)',
+          data: dataPoints,
+          borderColor: brandColor,
+          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+          borderWidth: 2.5,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: brandColor,
+          pointBorderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            titleColor: isDark ? '#ffffff' : '#0f172a',
+            bodyColor: isDark ? '#cbd5e1' : '#334155',
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            borderWidth: 1,
+            padding: 10,
+            boxPadding: 4,
+            callbacks: {
+              label: (ctx) => ' ' + formatRupiah(ctx.parsed.y).replace(',00', '')
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: textColor, font: { size: 11, weight: '600' } }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              font: { size: 10 },
+              callback: (val) => {
+                if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + ' jt';
+                if (Math.abs(val) >= 1e3) return (val / 1e3).toFixed(0) + ' rb';
+                return val;
+              }
+            }
+          }
+        }
+      }
+    });
+  };
+
+  window.openFinancialStatementModal = function () {
+    if (typeof isDataReady === 'undefined' || !isDataReady || typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.compileOnePageFinancialStatement !== 'function') {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Modul analisis keuangan belum siap.', customClass: { popup: getSwalClass() } });
+      return;
+    }
+
+    const st = FinanceAnalysis.compileOnePageFinancialStatement(DB, DB.currentPeriod, DB.payrollDay);
+    const dateRangeLabel = `${st.range.start} s/d ${st.range.end}`;
+
+    const topExpHtml = (st.topExpenses || []).map((e, idx) => `
+      <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800 text-xs">
+        <span class="text-slate-600 dark:text-slate-300">${idx + 1}. ${escapeHtmlJS(e.kategori)}</span>
+        <span class="font-extrabold text-slate-800 dark:text-white">${formatRupiah(e.total).replace(',00', '')} (${e.sharePct}%)</span>
+      </div>`).join('') || '<p class="text-xs text-slate-400 py-1">Belum ada pengeluaran.</p>';
+
+    const modalHtml = `
+      <div id="printStatementArea" class="text-left space-y-4 print:p-0">
+        <div class="border-b border-slate-200 dark:border-slate-700 pb-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-black text-slate-900 dark:text-white uppercase tracking-wide">Ringkasan Finansial Eksekutif</h3>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase">1-Page Statement</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Siklus: <strong>${escapeHtmlJS(st.period)}</strong> (${dateRangeLabel})</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kekayaan Bersih (Net Worth)</span>
+            <p class="text-lg font-black text-slate-900 dark:text-white mt-0.5">${formatRupiah(st.netWorth).replace(',00', '')}</p>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
+              <div class="flex justify-between"><span>Kas Dompet:</span> <strong>${formatRupiah(st.walletsTotal).replace(',00', '')}</strong></div>
+              <div class="flex justify-between"><span>Investasi/Aset:</span> <strong>${formatRupiah(st.assetsTotal).replace(',00', '')}</strong></div>
+              <div class="flex justify-between"><span>Piutang:</span> <strong>${formatRupiah(st.piutangTotal).replace(',00', '')}</strong></div>
+              <div class="flex justify-between"><span>Utang:</span> <strong class="text-rose-500">-${formatRupiah(st.utangTotal).replace(',00', '')}</strong></div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Arus Kas Siklus Berjalan</span>
+            <p class="text-lg font-black ${st.netCashflow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} mt-0.5">${st.netCashflow >= 0 ? '+' : ''}${formatRupiah(st.netCashflow).replace(',00', '')}</p>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
+              <div class="flex justify-between"><span>Pemasukan:</span> <strong class="text-emerald-600">${formatRupiah(st.incomeTotal).replace(',00', '')}</strong></div>
+              <div class="flex justify-between"><span>Pengeluaran:</span> <strong class="text-rose-600">${formatRupiah(st.expenseTotal).replace(',00', '')}</strong></div>
+              <div class="flex justify-between"><span>Savings Rate:</span> <strong>${st.savingsRate}%</strong></div>
+              <div class="flex justify-between"><span>Biaya Rutin (Fixed):</span> <strong>${st.fixedCostRatioPct}%</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Metrik Kesehatan Finansial</span>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+              <span class="text-[10px] text-slate-400">Runway Dana Darurat</span>
+              <p class="font-black text-slate-800 dark:text-white mt-0.5">${st.ratios.emergencyRunwayMonths} Bulan</p>
+              <span class="text-[10px] font-bold text-brand">${escapeHtmlJS(st.ratios.runwayStatus)}</span>
+            </div>
+            <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+              <span class="text-[10px] text-slate-400">Rasio Utang / Aset</span>
+              <p class="font-black text-slate-800 dark:text-white mt-0.5">${st.ratios.debtToAssetPct}%</p>
+              <span class="text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}">${escapeHtmlJS(st.ratios.debtStatus)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Pengeluaran Terbesar Periode Ini</span>
+          <div class="space-y-0.5">${topExpHtml}</div>
+        </div>
+      </div>`;
+
+    Swal.fire({
+      html: modalHtml,
+      width: '540px',
+      showCancelButton: true,
+      confirmButtonText: '🖨️ Cetak / Print',
+      cancelButtonText: 'Tutup',
+      confirmButtonColor: '#4f46e5',
+      customClass: { popup: getSwalClass() }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.print();
+      }
+    });
+  };
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();

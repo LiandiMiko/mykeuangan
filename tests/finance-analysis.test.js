@@ -21,7 +21,11 @@ const {
   recommendCategoryBudgets,
   computeAssetAllocation,
   detectSpendingAnomalies,
-  prepareBackupRestorePayload
+  prepareBackupRestorePayload,
+  projectGoalMilestone,
+  getDueRecurringBills,
+  computeNetWorthSeries,
+  compileOnePageFinancialStatement
 } = require('../web/finance-analysis.js');
 
 test('payroll cycle spans month and year boundaries', () => {
@@ -361,4 +365,58 @@ test('prepareBackupRestorePayload deduplicates transactions, budgets, and goals'
   assert.equal(payload.newGoals.length, 1);
   assert.equal(payload.skippedGoals, 1);
   assert.equal(payload.newGoals[0].id, undefined);
+});
+
+test('projectGoalMilestone calculates months remaining and projected completion date', () => {
+  const result = projectGoalMilestone(4000000, 10000000, '2027-05-01', 1000000, 0, '2026-11-18');
+  assert.equal(result.status, 'in_progress');
+  assert.equal(result.remaining, 6000000);
+  assert.equal(result.percent, 40);
+  assert.equal(result.projectedMonths, 6);
+  assert.equal(result.projectedDate, '2027-05');
+
+  const completed = projectGoalMilestone(10000000, 10000000, '', 0, 0, '2026-11-18');
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.remaining, 0);
+});
+
+test('getDueRecurringBills finds active bills due this cycle and excludes already recorded ones', () => {
+  const recurring = [
+    { id: 'r1', tipe: 'Pengeluaran', kategori: 'Listrik', nominal: 350000, dayOfMonth: 5, active: true },
+    { id: 'r2', tipe: 'Pengeluaran', kategori: 'Internet', nominal: 400000, dayOfMonth: 20, active: true },
+    { id: 'r3', tipe: 'Pengeluaran', kategori: 'Gym', nominal: 250000, dayOfMonth: 1, active: false }
+  ];
+  const transactions = [
+    { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Listrik', nominal: 350000 }
+  ];
+
+  const due = getDueRecurringBills(recurring, transactions, '2026-11-18', '2026-11', 1);
+  assert.equal(due.count, 1);
+  assert.equal(due.dueBills[0].id, 'r2');
+  assert.equal(due.totalDueAmount, 400000);
+});
+
+test('computeNetWorthSeries and compileOnePageFinancialStatement reconstruct history and statement', () => {
+  const sample = {
+    wallets: [{ id: 'w1', openingBalance: 10000000 }],
+    assets: [{ name: 'Emas', type: 'Emas', value: 5000000 }],
+    transactions: [
+      { tanggal: '2026-10-05', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 10000000 },
+      { tanggal: '2026-10-10', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 3000000 },
+      { tanggal: '2026-11-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 10000000 },
+      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 4000000 }
+    ]
+  };
+
+  const series = computeNetWorthSeries(sample, '2026-11', 1, 2);
+  assert.equal(series.length, 2);
+  assert.equal(series[1].period, '2026-11');
+  assert.equal(series[1].netCashflow, 6000000);
+
+  const stmt = compileOnePageFinancialStatement(sample, '2026-11', 1);
+  assert.equal(stmt.period, '2026-11');
+  assert.equal(stmt.incomeTotal, 10000000);
+  assert.equal(stmt.expenseTotal, 4000000);
+  assert.equal(stmt.netCashflow, 6000000);
+  assert.equal(typeof stmt.ratios.savingsRatePct, 'number');
 });

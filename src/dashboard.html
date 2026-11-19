@@ -30,6 +30,9 @@
     </div>
   </div>
 
+  <!-- BANNER TAGIHAN RUTIN JATUH TEMPO -->
+  <div id="recurringDueBanner" class="hide mb-8"></div>
+
   <!-- ================= 1. ARUS KAS & SALDO ================= -->
   <div class="flex items-center justify-between gap-2 mb-4">
     <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2.5">
@@ -119,16 +122,23 @@
       <h3 class="text-lg font-bold text-slate-800 dark:text-white" data-i18n="dash.kalender">Kalender</h3>
       <span class="text-xs font-medium text-slate-500 dark:text-slate-400" id="kalenderMonthLabel">—</span>
     </div>
-    <div class="flex items-center gap-1.5">
-      <button type="button" onclick="kalenderPrev()" data-i18n-title="cal.prev" title="Bulan sebelumnya" class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors">
-        <i class="ph ph-caret-left text-lg" aria-hidden="true"></i>
-      </button>
-      <button type="button" onclick="kalenderToday()" data-i18n-title="cal.today" title="Ke bulan ini" class="px-3 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold" data-i18n="dash.btn_today">
-        Hari Ini
-      </button>
-      <button type="button" onclick="kalenderNext()" data-i18n-title="cal.next" title="Bulan berikutnya" class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors">
-        <i class="ph ph-caret-right text-lg" aria-hidden="true"></i>
-      </button>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[11px] font-bold">
+        <button type="button" id="calFilterAll" onclick="setCalendarFilter('all')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 shadow-xs text-brand dark:text-brand-ink transition-all">Semua</button>
+        <button type="button" id="calFilterOut" onclick="setCalendarFilter('out')" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-rose-600 transition-all">🔴 Keluar</button>
+        <button type="button" id="calFilterIn" onclick="setCalendarFilter('in')" class="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-emerald-600 transition-all">🟢 Masuk</button>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button type="button" onclick="kalenderPrev()" data-i18n-title="cal.prev" title="Bulan sebelumnya" class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors">
+          <i class="ph ph-caret-left text-lg" aria-hidden="true"></i>
+        </button>
+        <button type="button" onclick="kalenderToday()" data-i18n-title="cal.today" title="Ke bulan ini" class="px-3 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold" data-i18n="dash.btn_today">
+          Hari Ini
+        </button>
+        <button type="button" onclick="kalenderNext()" data-i18n-title="cal.next" title="Bulan berikutnya" class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors">
+          <i class="ph ph-caret-right text-lg" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
   </div>
 

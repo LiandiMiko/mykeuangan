@@ -891,6 +891,25 @@ function kalenderToday() {
 /* ============================================================
    RENDER KALENDER
    ============================================================ */
+window.calendarFilter = 'all';
+function setCalendarFilter(mode) {
+  window.calendarFilter = mode || 'all';
+  const btnAll = document.getElementById('calFilterAll');
+  const btnOut = document.getElementById('calFilterOut');
+  const btnIn = document.getElementById('calFilterIn');
+  const activeClass = 'bg-white dark:bg-slate-900 shadow-xs text-brand dark:text-brand-ink';
+  const inactiveClass = 'text-slate-600 dark:text-slate-300';
+  [btnAll, btnOut, btnIn].forEach((btn) => {
+    if (!btn) return;
+    btn.className = btn.className.replace(activeClass, '').trim() + ' ' + inactiveClass;
+  });
+  const activeBtn = mode === 'out' ? btnOut : (mode === 'in' ? btnIn : btnAll);
+  if (activeBtn) {
+    activeBtn.className = activeBtn.className.replace(inactiveClass, '').trim() + ' ' + activeClass;
+  }
+  renderKalender();
+}
+
 function renderKalender() {
   const grid = document.getElementById('kalenderGrid');
   if (!grid) {
@@ -958,12 +977,17 @@ function renderKalender() {
     totalIn += data.inAmt;
     totalOut += data.outAmt;
     const net = data.inAmt - data.outAmt;
-    const hasData = data.count > 0;
-    const isToday = isCurrentMonthView && d === todayDate;
+    const mode = window.calendarFilter || 'all';
+    const showIn = mode === 'all' || mode === 'in';
+    const showOut = mode === 'all' || mode === 'out';
+    const activeAmt = mode === 'out' ? data.outAmt : (mode === 'in' ? data.inAmt : (data.inAmt > 0 || data.outAmt > 0));
+    const hasData = Boolean(activeAmt);
 
     let bgClass = 'bg-white dark:bg-slate-900';
     if (hasData) {
-      if (net > 0) bgClass = 'bg-emerald-50/70 dark:bg-emerald-500/10';
+      if (mode === 'out') bgClass = 'bg-rose-50/70 dark:bg-rose-500/10';
+      else if (mode === 'in') bgClass = 'bg-emerald-50/70 dark:bg-emerald-500/10';
+      else if (net > 0) bgClass = 'bg-emerald-50/70 dark:bg-emerald-500/10';
       else if (net < 0) bgClass = 'bg-rose-50/70 dark:bg-rose-500/10';
       else bgClass = 'bg-amber-50/70 dark:bg-amber-500/10';
     }
@@ -986,15 +1010,15 @@ function renderKalender() {
     html += '</div>';
 
     if (hasData) {
-      if (data.inAmt > 0) {
+      if (showIn && data.inAmt > 0) {
         html += '<p class="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">+' +
           formatShortIDR(data.inAmt) + '</p>';
       }
-      if (data.outAmt > 0) {
+      if (showOut && data.outAmt > 0) {
         html += '<p class="text-[9px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-400 leading-tight truncate">−' +
           formatShortIDR(data.outAmt) + '</p>';
       }
-      if (data.inAmt > 0 && data.outAmt > 0) {
+      if (mode === 'all' && data.inAmt > 0 && data.outAmt > 0) {
         html += '<p class="text-[9px] sm:text-[10px] font-black mt-0.5 ' +
           (net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + '">= ' +
           (net >= 0 ? '+' : '−') + formatShortIDR(Math.abs(net)) + '</p>';

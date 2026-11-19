@@ -58,6 +58,23 @@
     </div>
   </div>
 
+  <!-- GRAFIK TREN KEKAYAAN BERSIH (NET WORTH EVOLUTION) -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+    <div class="p-5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <div>
+        <p class="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
+          <i class="ph ph-trend-up text-brand dark:text-brand-ink" aria-hidden="true"></i>
+          <span data-i18n="aset.networth_chart_title">Tren Kekayaan Bersih (Net Worth)</span>
+        </p>
+        <p class="text-[10px] text-slate-400 mt-0.5">Evolusi kekayaan bersih (kas + investasi + piutang − utang) 6 siklus</p>
+      </div>
+      <span class="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider">6 Siklus</span>
+    </div>
+    <div class="p-5" style="height: 260px; position: relative;">
+      <canvas id="netWorthChart"></canvas>
+    </div>
+  </div>
+
   <!-- RIWAYAT TRANSFER & MUTASI DOMPET TERAKHIR -->
   <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
     <div class="p-5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
