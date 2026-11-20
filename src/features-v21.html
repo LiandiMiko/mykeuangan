@@ -1643,7 +1643,7 @@
             if (calc.status === 'urgent') tone = 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
           } else if (proj.projectedDate) {
             label = '🎯 Proyeksi tercapai: ' + proj.projectedDate + ' (~' + proj.projectedMonths + ' bln dg ' + formatRupiah(proj.savingRate).replace(',00', '') + '/bln)';
-            tone = 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300';
+            tone = 'bg-brand/10 text-brand dark:text-brand-ink';
           } else {
             label = 'Kurang ' + formatRupiah(calc.remaining).replace(',00', '');
             tone = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';

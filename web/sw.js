@@ -11,7 +11,15 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
     })
   );
-  self.skipWaiting();
+  if (!self.registration || !self.registration.active) {
+    self.skipWaiting();
+  }
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -31,12 +39,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  // Jangan pernah menyimpan atau mengambil API Supabase / Google Gemini dari Cache Storage
   if (url.hostname.includes('supabase.co') || url.hostname.includes('googleapis.com')) {
     return;
   }
 
-  // Network-First untuk dokumen HTML / navigasi agar update terbaru langsung aktif saat online
   const accept = event.request.headers.get('accept') || '';
   const isHtmlRequest = event.request.mode === 'navigate'
     || accept.includes('text/html')
@@ -58,7 +64,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-While-Revalidate untuk asset frontend statis non-HTML
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)

@@ -1,23 +1,59 @@
 // Menggabungkan src/*.html (pengganti <?!= include('x') ?> Apps Script)
-// + web/config.js + web/supabase-api.js  →  dist/index.html
+// + web/config.js + modul web/*.js  →  dist/index.html
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SRC = 'src', WEB = 'web', OUT = 'dist';
-// Versi di-pin (hindari "latest"); naikkan manual setelah dites.
+const SRC = 'src';
+const WEB = 'web';
+const OUT = 'dist';
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const SUPABASE_JS_FALLBACK = 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
-const VENDOR = path.join('web', 'vendor', 'supabase.js');   // opsional: file lokal, tanpa bergantung CDN
-const alias = { scripts: 'script' };          // Index.html memanggil 'scripts', filenya script.html
+const VENDOR = path.join('web', 'vendor', 'supabase.js');
+const alias = { scripts: 'script' };
+
+const WEB_MODULES = [
+  'finance-analysis-core.js',
+  'finance-analysis-ai.js',
+  'finance-analysis-portfolio.js',
+  'finance-analysis-backup.js',
+  'finance-analysis.js',
+  'finance-pro.js',
+  'transaction-import.js'
+];
+
+const SUPABASE_MODULES = [
+  'supabase-core.js',
+  'supabase-auth.js',
+  'supabase-records.js',
+  'supabase-planning.js',
+  'supabase-portfolio.js',
+  'supabase-admin.js',
+  'supabase-api.js'
+];
 
 function read(name) {
   const file = path.join(SRC, (alias[name] || name) + '.html');
   if (!fs.existsSync(file)) {
-    throw new Error(`File ${file} tidak ditemukan. (styles.html ada di project Apps Script lama, ` +
-      `tapi tidak ikut di file upload — salin ke folder src/.)`);
+    throw new Error(`File ${file} tidak ditemukan.`);
   }
   return fs.readFileSync(file, 'utf8');
+}
+
+function readInlineScripts(files) {
+  return files
+    .map((f) => `<script>\n${fs.readFileSync(path.join(WEB, f), 'utf8')}\n</script>`)
+    .join('\n');
+}
+
+function resolveSupabaseTag() {
+  if (!fs.existsSync(VENDOR)) {
+    return `<script src="${SUPABASE_JS}" crossorigin="anonymous"></script>\n` +
+      `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}" crossorigin="anonymous"><\\/script>')</script>`;
+  }
+  const code = fs.readFileSync(VENDOR, 'utf8');
+  if (/<\/script/i.test(code)) throw new Error('web/vendor/supabase.js berisi </script>, tidak bisa di-inline.');
+  return `<script>\n${code}\n</script>`;
 }
 
 const cfgFile = path.join(WEB, 'config.js');
@@ -26,29 +62,17 @@ if (!fs.existsSync(cfgFile)) {
 }
 const config = fs.readFileSync(cfgFile, 'utf8');
 if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placeholder GANTI-… — isi URL dan anon key Supabase dulu.');
-const api = fs.readFileSync(path.join(WEB, 'supabase-api.js'), 'utf8');
-const financeAnalysis = fs.readFileSync(path.join(WEB, 'finance-analysis.js'), 'utf8');
-const financePro = fs.readFileSync(path.join(WEB, 'finance-pro.js'), 'utf8');
-const transactionImport = fs.readFileSync(path.join(WEB, 'transaction-import.js'), 'utf8');
-const tailwindVendorPath = path.join(WEB, 'vendor', 'tailwind.min.css');
 
 let html = read('Index');
 html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
   if (name === 'scripts') {
-    let lib;
-    if (fs.existsSync(VENDOR)) {
-      const code = fs.readFileSync(VENDOR, 'utf8');
-      if (/<\/script/i.test(code)) throw new Error('web/vendor/supabase.js berisi </script>, tidak bisa di-inline.');
-      lib = `<script>\n${code}\n</script>`;
-    } else {
-      lib = `<script src="${SUPABASE_JS}"></script>\n` +
-            `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}"><\\/script>')</script>`;
-    }
-    return `${lib}\n<script>\n${financeAnalysis}\n</script>\n<script>\n${financePro}\n</script>\n<script>\n${transactionImport}\n</script>\n${read(name)}\n` +
-           `<script>\n${config}\n</script>\n<script>\n${api}\n</script>`;
+    return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${read(name)}\n` +
+      `<script>\n${config}\n</script>\n${readInlineScripts(SUPABASE_MODULES)}`;
   }
   return read(name);
 });
+
+const tailwindVendorPath = path.join(WEB, 'vendor', 'tailwind.min.css');
 if (fs.existsSync(tailwindVendorPath)) {
   const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
   html = html.replace(
@@ -62,7 +86,6 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
 
-// Salin asset PWA (manifest, sw.js dengan hash cache-busting, icons) ke dist/
 if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
   fs.copyFileSync(path.join(WEB, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 }

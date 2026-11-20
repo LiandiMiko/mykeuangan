@@ -74,8 +74,13 @@ mykeuangan/
 │   ├── finance-pro.js      # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator lokal
 │   ├── transaction-import.js # Parser dan validasi impor CSV
 │   ├── manifest.webmanifest # PWA manifest
-│   ├── sw.js               # Service Worker (Stale-While-Revalidate + Network-First)
-│   └── icons/              # PWA icons (192px, 512px, maskable)
+│   ├── tailwind-input.css   # Entry CSS untuk kompilasi statis Tailwind CSS
+│   ├── sw.js                # Service Worker (Network-First + SKIP_WAITING & cache busting)
+│   ├── finance-analysis*.js # Analisis siklus, AI prompt, portofolio & backup ter-modular
+│   ├── finance-pro.js       # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator
+│   ├── transaction-import.js# Parser dan validasi impor CSV
+│   ├── supabase-*.js        # Core, Auth UI, Records, Planning, Portfolio, Admin & callServer
+│   └── icons/               # PWA icons (192px, 512px, maskable)
 │
 ├── db/
 │   ├── schema.sql          # Skema database awal (jalankan pertama kali)
@@ -85,7 +90,7 @@ mykeuangan/
 │   ├── functions/
 │   │   ├── admin-password/ # Admin-only password reset (JWT required)
 │   │   │   └── index.ts
-│   │   └── telegram-bot/   # Supabase Edge Function (Deno)
+│   │   └── telegram-bot/   # Edge Function Deno (core, wallets, ai, planning, commands, jobs, index)
 │   │       └── index.ts
 │   └── migrations/
 │       ├── 20261114000000_multiuser_onboarding.sql  # profiles, trigger, RLS
@@ -98,16 +103,18 @@ mykeuangan/
 │       └── 20261120000000_hardening_assets_profile_wallets.sql
 │
 ├── tests/
-│   ├── calendar-render.test.js   # Verifikasi grid & inisialisasi kalender
-│   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
-│   ├── finance-pro.test.js      # Quick-Add, #tag, auto-kategori, rekap tahunan & kalkulator lokal
-│   ├── pro-web-ui.test.js       # Verifikasi bottom nav, toolbar laporan & modal fitur pro
+│   ├── calendar-render.test.js    # Verifikasi grid & inisialisasi kalender
+│   ├── finance-analysis.test.js   # Siklus, insight budget, dan progres target
+│   ├── finance-pro.test.js        # Quick-Add, #tag, auto-kategori, rekap tahunan & kalkulator lokal
+│   ├── i18n-build.test.js         # Paritas ID/EN, logout keys, SW SKIP_WAITING & build config
+│   ├── pro-web-ui.test.js         # Bottom nav, Bento dashboard, toolbar & mobile Laporan
 │   ├── transaction-import.test.js # Parsing dan validasi impor CSV
-│   └── updates-view.test.js     # Halaman pembaruan publik & pelacakan rilis baru
+│   └── updates-view.test.js       # Halaman pembaruan publik & pelacakan rilis baru
 │
 ├── scripts/
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
 │
+├── tailwind.config.js      # Konfigurasi build Tailwind CSS statis
 ├── build.mjs               # Build script: src/* + web/*.js → dist/index.html
 └── .github/
     └── workflows/
@@ -386,6 +393,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 20 November 2026: Wave v3.10 (Production-Grade Modularization, Static Tailwind CI, Mobile Laporan Cards, Auth Redesign, Security & PWA Polish)
+- **Modularisasi Total Codebase (`web/finance-analysis*.js`, `web/supabase-*.js`, `supabase/functions/telegram-bot/*.ts`)**: Memecah seluruh file besar (>1.100 baris) menjadi modul-modul fokus di bawah 320 baris beserta perbaikan bug latensi `this.finishAssetWalletMutation` di modul portofolio—menghilangkan seluruh peringatan `complexity/file-too-large`.
+- **Performa CSS Statis CI & Pembaruan PWA (`tailwind.config.js`, `web/tailwind-input.css`, `.github/workflows/deploy.yml`, `web/sw.js`)**: Mengompilasi CSS Tailwind v3.4.17 secara statis saat build CI (menggantikan CDN runtime JIT ~350 KB dan menjamin tampilan offline penuh), serta melengkapi Service Worker `SKIP_WAITING` + `controllerchange`.
+- **Keamanan & Privasi (`web/supabase-auth.js`, `src/Index.html`, `src/styles.html`)**: Menambahkan header meta `Content-Security-Policy` & `Referrer-Policy`, `crossorigin="anonymous"` di seluruh CDN ter-pin, serta memperluas pembersihan `logout()` ke semua **13 key pengguna** di `localStorage` (termasuk Quick Templates, Auto-Cat Rules, Rebalance Targets, dan Browser Notif).
+- **Redesign Auth, Laporan Mobile Cards & Polish Interaksi (`web/supabase-auth.js`, `src/laporan.html`, `src/script.html`, `src/features-v35.html`, `src/i18n.html`)**: Memperbarui overlay Login/Register agar selaras dengan brand & tema pengguna, menghadirkan tampilan kartu responsif `#list-laporan-mobile` yang tersinkron dengan bulk checkbox, navigasi keyboard `ArrowUp/ArrowDown/Enter` pada Command Palette (`Ctrl+K`), merapikan sel & label Kalender Bento, membersihkan sisa `console.log`, serta menambah test paritas `tests/i18n-build.test.js`.
 
 ### 20 November 2026: Wave v3.9 (UI/UX Cohesion, Mobile Bottom Nav & Perbaikan 13 Ikon Phosphor)
 - **Redesign Mobile Bottom Navbar & Aksi Cepat (`src/Index.html`, `src/styles.html`, `src/features-v35.html`, `src/features-v21.html`)**: Menata ulang `#mobileBottomNav` menjadi grid 5 kolom simetris (`grid-cols-5`) dengan indikator pill pada tab aktif, tombol tengah **`+ Catat`** berikon crisp (`ph-bold ph-plus`) + ring border, auto-hide saat membuka Form Transaksi, serta mempercantik popup 4 aksi cepat dan header atas mobile agar sejajar penuh pada layar `>= 360px`.

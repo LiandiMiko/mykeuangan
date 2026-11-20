@@ -286,7 +286,11 @@
     `;
     document.body.appendChild(toast);
     document.getElementById('pwaReloadBtn').onclick = () => {
-      if (reg && reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      if (reg && reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
       window.location.reload();
     };
     document.getElementById('pwaDismissBtn').onclick = () => toast.remove();
@@ -320,6 +324,20 @@
     return items;
   }
 
+  let cmdFiltered = [];
+  let cmdActiveIdx = 0;
+
+  function highlightCmdItem() {
+    const listEl = document.getElementById('mkCmdList');
+    if (!listEl) return;
+    listEl.querySelectorAll('[data-cmd-idx]').forEach((btn, idx) => {
+      const on = idx === cmdActiveIdx;
+      btn.classList.toggle('bg-brand/10', on);
+      btn.classList.toggle('text-brand', on);
+      if (on) btn.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
   window.closeCommandPalette = function () {
     const el = document.getElementById('mkCommandPalette');
     if (el) el.remove();
@@ -330,12 +348,13 @@
     const listEl = document.getElementById('mkCmdList');
     if (!input || !listEl) return;
     const q = String(input.value || '').trim().toLowerCase();
-    const matched = cachedCmdItems.filter((it) => !q || `${it.label} ${it.hint}`.toLowerCase().includes(q));
-    if (!matched.length) {
+    cmdFiltered = cachedCmdItems.filter((it) => !q || `${it.label} ${it.hint}`.toLowerCase().includes(q)).slice(0, 14);
+    cmdActiveIdx = 0;
+    if (!cmdFiltered.length) {
       listEl.innerHTML = '<p class="p-4 text-xs text-slate-400 text-center">Tidak ditemukan perintah yang cocok.</p>';
       return;
     }
-    listEl.innerHTML = matched.slice(0, 14).map((it, idx) => `
+    listEl.innerHTML = cmdFiltered.map((it, idx) => `
       <button type="button" data-cmd-idx="${idx}"
               class="w-full px-3.5 py-2.5 rounded-xl text-left flex items-center justify-between gap-2 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
         <span class="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-100">
@@ -349,9 +368,10 @@
       const idx = Number(btn.getAttribute('data-cmd-idx'));
       btn.onclick = () => {
         window.closeCommandPalette();
-        matched[idx].run();
+        cmdFiltered[idx].run();
       };
     });
+    highlightCmdItem();
   };
 
   window.openCommandPalette = function () {
@@ -378,6 +398,12 @@
     document.body.appendChild(wrap);
     const input = document.getElementById('mkCmdInput');
     input.oninput = window.filterCommandPalette;
+    input.onkeydown = (e) => {
+      if (!cmdFiltered.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); cmdActiveIdx = (cmdActiveIdx + 1) % cmdFiltered.length; highlightCmdItem(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); cmdActiveIdx = (cmdActiveIdx - 1 + cmdFiltered.length) % cmdFiltered.length; highlightCmdItem(); }
+      else if (e.key === 'Enter') { e.preventDefault(); const chosen = cmdFiltered[cmdActiveIdx]; window.closeCommandPalette(); if (chosen) chosen.run(); }
+    };
     window.filterCommandPalette();
     input.focus();
   };
@@ -492,8 +518,22 @@
     return Array.from(document.querySelectorAll('.lap-row-check:checked')).map((el) => el.value);
   }
 
+  window.syncReportRowCheck = function (id, checked) {
+    const val = String(id || '');
+    const flag = Boolean(checked);
+    document.querySelectorAll('.lap-row-check, .lap-row-check-mobile').forEach((el) => {
+      if (String(el.value) === val) el.checked = flag;
+    });
+    window.updateReportBulkBar();
+  };
+
   window.toggleSelectAllReport = function (checked) {
-    document.querySelectorAll('.lap-row-check').forEach((el) => { el.checked = Boolean(checked); });
+    const flag = Boolean(checked);
+    const allTop = document.getElementById('lapSelectAll');
+    const allMob = document.getElementById('lapSelectAllMobile');
+    if (allTop) allTop.checked = flag;
+    if (allMob) allMob.checked = flag;
+    document.querySelectorAll('.lap-row-check, .lap-row-check-mobile').forEach((el) => { el.checked = flag; });
     window.updateReportBulkBar();
   };
 

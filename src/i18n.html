@@ -201,6 +201,7 @@ const I18N = {
     'lap.csv_line': 'Baris CSV',
     'lap.edit': 'Edit transaksi',
     'lap.delete': 'Hapus transaksi',
+    'lap.select_all': 'Pilih semua di halaman ini',
 
     // ============ UTANG PIUTANG ============
     'utang.title': 'Detail Utang & Piutang',
@@ -541,6 +542,7 @@ const I18N = {
     'lap.csv_line': 'CSV row',
     'lap.edit': 'Edit transaction',
     'lap.delete': 'Delete transaction',
+    'lap.select_all': 'Select all on this page',
 
     // ============ UTANG PIUTANG ============
     'utang.title': 'Debt & Receivable Details',
@@ -750,7 +752,6 @@ function applyTranslations() {
    ============================================================ */
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(function() {
-    console.log('[i18n] Init, lang=' + currentLang);
     applyTranslations();
     updateLangUI();
   }, 100);
