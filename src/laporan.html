@@ -1,67 +1,73 @@
 <!-- ================= LAPORAN ================= -->
 <section id="view-laporan" class="view-section hide fade-in" aria-labelledby="reportTitle">
-  <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 p-5 sm:p-6 mb-5 transition-colors">
-    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
-      <div>
-        <h2 id="reportTitle" class="font-bold text-xl sm:text-2xl text-slate-800 dark:text-white" data-i18n="lap.title">Semua Data</h2>
-        <p class="text-xs text-slate-500 mt-1" data-i18n="lap.subtitle">Cari dan saring transaksi dalam rentang tanggal.</p>
+  <div class="mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div class="flex items-start gap-3">
+      <div class="w-11 h-11 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
+        <i class="ph ph-file-pdf text-2xl" aria-hidden="true"></i>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <button type="button" onclick="openFinancialStatementModal()" title="Lihat dan Cetak Lembar Ringkasan Finansial 1 Halaman" class="min-h-[44px] px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors">
-          <i class="ph ph-file-text" aria-hidden="true"></i><span data-i18n="lap.financial_statement">Ringkasan Cetak</span>
-        </button>
-        <button type="button" onclick="openAnnualRecapModal()" title="Ringkasan Tahunan & Perbandingan Siklus" class="min-h-[44px] px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 transition-colors">
-          <i class="ph ph-calendar-blank" aria-hidden="true"></i><span data-i18n="lap.annual_recap">Rekap Tahunan</span>
-        </button>
-
-        <details id="lapImportMenu" class="relative">
-          <summary class="release-summary list-none cursor-pointer min-h-[44px] px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 transition-colors select-none">
-            <i class="ph ph-upload-simple" aria-hidden="true"></i>
-            <span data-i18n="lap.import_menu">Impor &amp; Aturan</span>
-            <i class="ph ph-caret-down text-xs opacity-70" aria-hidden="true"></i>
-          </summary>
-          <div class="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5 z-30 space-y-1">
-            <button type="button" id="lapImportBtn" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink flex items-center gap-2">
-              <i class="ph ph-file-arrow-up text-base" aria-hidden="true"></i><span data-i18n="lap.import">Impor CSV / Bank</span>
-            </button>
-            <button type="button" onclick="downloadTransactionTemplate()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
-              <i class="ph ph-download-simple text-base" aria-hidden="true"></i><span data-i18n="lap.template">Unduh Template CSV</span>
-            </button>
-            <button type="button" onclick="triggerRestoreJson()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
-              <i class="ph ph-clock-counter-clockwise text-base" aria-hidden="true"></i><span data-i18n="lap.restore_json">Restore Backup JSON</span>
-            </button>
-            <button type="button" onclick="openAutoCatRulesModal()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
-              <i class="ph ph-magic-wand text-base" aria-hidden="true"></i><span data-i18n="lap.auto_rules">Aturan Auto-Kategori</span>
-            </button>
-          </div>
-        </details>
-
-        <details id="lapExportMenu" class="relative">
-          <summary class="release-summary list-none cursor-pointer min-h-[44px] px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors select-none">
-            <i class="ph ph-export" aria-hidden="true"></i>
-            <span data-i18n="lap.export_menu">Ekspor &amp; Backup</span>
-            <i class="ph ph-caret-down text-xs opacity-80" aria-hidden="true"></i>
-          </summary>
-          <div class="absolute right-0 mt-2 w-52 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5 z-30 space-y-1">
-            <button type="button" onclick="exportCSV()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 flex items-center gap-2">
-              <i class="ph ph-file-csv text-base text-emerald-600" aria-hidden="true"></i><span data-i18n="lap.export_csv">Ekspor CSV</span>
-            </button>
-            <button type="button" onclick="exportExcel()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-teal-50 dark:hover:bg-teal-500/10 flex items-center gap-2">
-              <i class="ph ph-file-xls text-base text-teal-600" aria-hidden="true"></i><span data-i18n="lap.export_excel">Ekspor Excel (.xls)</span>
-            </button>
-            <button type="button" onclick="exportPDF()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 flex items-center gap-2">
-              <i class="ph ph-file-pdf text-base text-rose-600" aria-hidden="true"></i><span data-i18n="lap.export">Ekspor PDF</span>
-            </button>
-            <button type="button" onclick="exportBackupJson()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
-              <i class="ph ph-database text-base text-brand" aria-hidden="true"></i><span data-i18n="lap.backup_json">Unduh Backup JSON</span>
-            </button>
-          </div>
-        </details>
-
-        <input id="lapRestoreJsonInput" type="file" accept=".json,application/json" class="hidden" onchange="handleRestoreJsonFile(event)" aria-label="Restore JSON">
-        <input id="lapCsvInput" type="file" accept=".csv,text/csv" class="hidden" data-i18n-aria-label="lap.import" aria-label="Impor CSV">
+      <div>
+        <h2 id="reportTitle" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="lap.title">Semua Data</h2>
+        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="lap.subtitle">Cari dan saring transaksi dalam rentang tanggal.</p>
       </div>
     </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" onclick="openFinancialStatementModal()" title="Lihat dan Cetak Lembar Ringkasan Finansial 1 Halaman" class="min-h-11 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-colors">
+        <i class="ph ph-file-text" aria-hidden="true"></i><span data-i18n="lap.financial_statement">Ringkasan Cetak</span>
+      </button>
+      <button type="button" onclick="openAnnualRecapModal()" title="Ringkasan Tahunan & Perbandingan Siklus" class="min-h-11 px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 transition-colors">
+        <i class="ph ph-calendar-blank" aria-hidden="true"></i><span data-i18n="lap.annual_recap">Rekap Tahunan</span>
+      </button>
+
+      <details id="lapImportMenu" class="relative">
+        <summary class="release-summary list-none cursor-pointer min-h-11 px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 transition-colors select-none">
+          <i class="ph ph-upload-simple" aria-hidden="true"></i>
+          <span data-i18n="lap.import_menu">Impor &amp; Aturan</span>
+          <i class="ph ph-caret-down text-xs opacity-70" aria-hidden="true"></i>
+        </summary>
+        <div class="absolute left-0 sm:left-auto sm:right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5 z-30 space-y-1">
+          <button type="button" id="lapImportBtn" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink flex items-center gap-2">
+            <i class="ph ph-file-arrow-up text-base" aria-hidden="true"></i><span data-i18n="lap.import">Impor CSV / Bank</span>
+          </button>
+          <button type="button" onclick="downloadTransactionTemplate()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+            <i class="ph ph-download-simple text-base" aria-hidden="true"></i><span data-i18n="lap.template">Unduh Template CSV</span>
+          </button>
+          <button type="button" onclick="triggerRestoreJson()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+            <i class="ph ph-clock-counter-clockwise text-base" aria-hidden="true"></i><span data-i18n="lap.restore_json">Restore Backup JSON</span>
+          </button>
+          <button type="button" onclick="openAutoCatRulesModal()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+            <i class="ph ph-magic-wand text-base" aria-hidden="true"></i><span data-i18n="lap.auto_rules">Aturan Auto-Kategori</span>
+          </button>
+        </div>
+      </details>
+
+      <details id="lapExportMenu" class="relative">
+        <summary class="release-summary list-none cursor-pointer min-h-11 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-colors select-none">
+          <i class="ph ph-export" aria-hidden="true"></i>
+          <span data-i18n="lap.export_menu">Ekspor &amp; Backup</span>
+          <i class="ph ph-caret-down text-xs opacity-80" aria-hidden="true"></i>
+        </summary>
+        <div class="absolute left-0 sm:left-auto sm:right-0 mt-2 w-52 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl p-1.5 z-30 space-y-1">
+          <button type="button" onclick="exportCSV()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 flex items-center gap-2">
+            <i class="ph ph-file-csv text-base text-emerald-600" aria-hidden="true"></i><span data-i18n="lap.export_csv">Ekspor CSV</span>
+          </button>
+          <button type="button" onclick="exportExcel()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-teal-50 dark:hover:bg-teal-500/10 flex items-center gap-2">
+            <i class="ph ph-file-xls text-base text-teal-600" aria-hidden="true"></i><span data-i18n="lap.export_excel">Ekspor Excel (.xls)</span>
+          </button>
+          <button type="button" onclick="exportPDF()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 flex items-center gap-2">
+            <i class="ph ph-file-pdf text-base text-rose-600" aria-hidden="true"></i><span data-i18n="lap.export">Ekspor PDF</span>
+          </button>
+          <button type="button" onclick="exportBackupJson()" class="w-full px-3 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2">
+            <i class="ph ph-database text-base text-brand" aria-hidden="true"></i><span data-i18n="lap.backup_json">Unduh Backup JSON</span>
+          </button>
+        </div>
+      </details>
+
+      <input id="lapRestoreJsonInput" type="file" accept=".json,application/json" class="hidden" onchange="handleRestoreJsonFile(event)" aria-label="Restore JSON">
+      <input id="lapCsvInput" type="file" accept=".csv,text/csv" class="hidden" data-i18n-aria-label="lap.import" aria-label="Impor CSV">
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 mb-5 transition-colors">
 
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
       <div class="sm:col-span-2 xl:col-span-1">
@@ -105,7 +111,7 @@
     </div>
   </div>
 
-  <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
     <p id="lapStatus" role="status" aria-live="polite" class="px-5 pt-4 text-xs text-slate-500 dark:text-slate-400"></p>
     <div class="overflow-x-auto">
       <table class="w-full text-left min-w-[840px]">

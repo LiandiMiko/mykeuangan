@@ -1,20 +1,22 @@
 <!-- ================= RIWAYAT PEMBARUAN ================= -->
-<div id="view-updates" class="view-section space-y-6 hide transition-all duration-300" data-latest-release="2026-11-20-v3.8" data-latest-version="v3.8">
+<div id="view-updates" class="view-section space-y-6 hide transition-all duration-300" data-latest-release="2026-11-20-v3.9" data-latest-version="v3.9">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-    <div>
-      <h2 id="updates-page-title" class="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
-        <i class="ph ph-megaphone-simple text-brand dark:text-brand-ink" aria-hidden="true"></i>
-        <span data-i18n="updates.title">Riwayat Pembaruan</span>
-      </h2>
-      <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuangan.</p>
+    <div class="flex items-start gap-3">
+      <div class="w-11 h-11 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
+        <i class="ph ph-megaphone-simple text-2xl" aria-hidden="true"></i>
+      </div>
+      <div>
+        <h2 id="updates-page-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="updates.title">Riwayat Pembaruan</h2>
+        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuangan.</p>
+      </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <span class="inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
+      <span class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
-        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Wave v3.8</strong></span>
+        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Wave v3.9</strong></span>
       </span>
       <button type="button" id="btnToggleAllReleases" onclick="toggleAllReleaseDetails()"
-              class="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
+              class="min-h-11 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
         <i class="ph ph-arrows-out-line-vertical text-sm" aria-hidden="true"></i>
         <span id="btnToggleAllReleasesText" data-i18n="updates.expand_all">Buka Semua</span>
       </button>
@@ -22,7 +24,7 @@
   </div>
 
   <!-- SEARCH & TOPIC FILTER -->
-  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-3">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-3">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div class="relative flex-1">
         <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true"></i>
@@ -30,9 +32,9 @@
                placeholder="Cari fitur, mis. kalender, telegram, emas..."
                data-i18n-placeholder="updates.search_placeholder"
                aria-label="Cari riwayat pembaruan"
-               class="w-full min-h-[44px] pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
+               class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
       </div>
-      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0" aria-live="polite">Menampilkan 9 rilis</p>
+      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0" aria-live="polite">Menampilkan 10 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
       <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')" class="min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-brand text-white shadow-xs" data-i18n="updates.filter_all">Semua</button>
@@ -46,13 +48,13 @@
   <!-- RELEASE LIST -->
   <section id="updatesList" class="space-y-4" aria-labelledby="updates-page-title">
     <!-- LATEST RELEASE (OPEN CARD) -->
-    <article data-release-card data-release-id="2026-11-20-v3.8" data-topics="security assets reports ai"
-             class="bg-white dark:bg-slate-900 rounded-2xl border border-brand/30 dark:border-brand/40 shadow-sm p-5 sm:p-6">
+    <article data-release-card data-release-id="2026-11-20-v3.9" data-topics="reports assets"
+             class="bg-white dark:bg-slate-900 rounded-3xl border border-brand/30 dark:border-brand/40 shadow-sm p-5 sm:p-6">
       <div class="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-6">
         <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
           <div class="flex flex-wrap items-center gap-1.5 mb-2">
             <span class="px-2 py-0.5 rounded-full bg-brand text-white text-[10px] font-extrabold uppercase tracking-wider" data-i18n="updates.badge_latest">Terbaru</span>
-            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.8</span>
+            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.9</span>
           </div>
           <time datetime="2026-11-20" class="block text-brand dark:text-brand-ink">
             <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink">20</span>
@@ -60,23 +62,19 @@
           </time>
         </div>
         <div class="min-w-0">
-          <h4 class="text-base font-bold text-slate-800 dark:text-white">Wave v3.5–v3.8: Mobile Bottom Nav, Quick-Add Kilat, #Tag &amp; Auto-Kategori, Bulk Laporan, Rekap Tahunan, Kalkulator Lokal &amp; AI Multi-Turn</h4>
+          <h4 class="text-base font-bold text-slate-800 dark:text-white">Wave v3.9: UI/UX Cohesion, Redesign Mobile Navbar &amp; Perbaikan 13 Ikon Phosphor</h4>
           <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile UX &amp; Catat Kilat</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Navigasi bawah 5 tab khusus HP (<code>#mobileBottomNav</code>), input kilat 1 baris ala Telegram (<code>"kopi 25rb bca #kantor"</code>) + template cepat 1-ketuk, dropdown rapi di Laporan, toast update PWA otomatis, dan <strong>Command Palette (Ctrl+K)</strong>.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile Bottom Nav</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menata ulang <code>#mobileBottomNav</code> menjadi grid 5 kolom simetris (<code>grid-cols-5</code>) dengan pill tab aktif, tombol tengah <strong>+ Catat</strong> berlogo crisp (<code>ph-bold ph-plus</code>) + ring border, popup aksi cepat berikon lengkap, dan auto-hide saat membuka form transaksi.</dd>
             </div>
             <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Fitur Pro &amp; Analitik</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Dukungan filter <code>#tag</code> lintas kategori di Histori &amp; Laporan, aturan <strong>Auto-Kategori</strong> kustom untuk Quick-Add &amp; impor bank CSV, aksi massal checkbox di Laporan, serta <strong>Rekap Tahunan 12 Siklus &amp; Perbandingan Periode</strong>.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Perbaikan 13 Ikon</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Memperbaiki 13 kelas ikon Phosphor v2.1.1 yang sebelumnya blank (<code>ph-*-bold</code> → <code>ph-bold ph-*</code>) di Bottom Nav, Quick-Add Dashboard, Dompet, Aset, Budgeting, Target, Rutin, Form Transaksi, dan Utang/Piutang, plus test regresi otomatis.</dd>
             </div>
             <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Kalkulator, AI &amp; Portofolio</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Kalkulator lokal (<strong>Lunas Utang Snowball/Avalanche</strong>, <strong>Bunga Majemuk</strong>, <strong>Cicilan vs Tunai</strong>), AI Chat multi-turn + cache analisis siklus aktif, <strong>Target Alokasi &amp; Rebalance</strong> portofolio, dan Web Notification opt-in.</dd>
-            </div>
-            <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Performa &amp; Kualitas</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Preconnect font/CDN, <code>defer</code> jsPDF, refactor modul JS bersih (<code>web/finance-pro.js</code>), serta skor kualitas kode <code>aislop</code> naik dari <code>67</code> ke <code>78/100</code>.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Keseragaman UI/UX</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan header atas mobile, ikon tile + tipografi judul di seluruh halaman, radius kartu (<code>rounded-3xl</code>) &amp; tombol (<code>rounded-xl</code>), padding form mobile, dropdown Laporan aman viewport, dan perbaikan CI test rekap tahunan &amp; impor CSV.</dd>
             </div>
           </dl>
         </div>
@@ -84,6 +82,42 @@
     </article>
 
     <!-- PREVIOUS RELEASES (COLLAPSIBLE ACCORDION) -->
+    <details data-release-card data-release-details data-topics="security assets reports ai"
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+          <div class="flex items-center gap-2 shrink-0">
+            <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.8</span>
+          </div>
+          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.5–v3.8: Mobile Bottom Nav, Quick-Add Kilat, #Tag &amp; Auto-Kategori, Bulk Laporan, Rekap Tahunan, Kalkulator Lokal &amp; AI Multi-Turn</h4>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+        </div>
+      </summary>
+      <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
+        <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile UX &amp; Catat Kilat</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Navigasi bawah 5 tab khusus HP (<code>#mobileBottomNav</code>), input kilat 1 baris ala Telegram (<code>"kopi 25rb bca #kantor"</code>) + template cepat 1-ketuk, dropdown rapi di Laporan, toast update PWA otomatis, dan <strong>Command Palette (Ctrl+K)</strong>.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Fitur Pro &amp; Analitik</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Dukungan filter <code>#tag</code> lintas kategori di Histori &amp; Laporan, aturan <strong>Auto-Kategori</strong> kustom untuk Quick-Add &amp; impor bank CSV, aksi massal checkbox di Laporan, serta <strong>Rekap Tahunan 12 Siklus &amp; Perbandingan Periode</strong>.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Kalkulator, AI &amp; Portofolio</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Kalkulator lokal (<strong>Lunas Utang Snowball/Avalanche</strong>, <strong>Bunga Majemuk</strong>, <strong>Cicilan vs Tunai</strong>), AI Chat multi-turn + cache analisis siklus aktif, <strong>Target Alokasi &amp; Rebalance</strong> portofolio, dan Web Notification opt-in.</dd>
+          </div>
+          <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Performa &amp; Kualitas</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Preconnect font/CDN, <code>defer</code> jsPDF, refactor modul JS bersih (<code>web/finance-pro.js</code>), serta skor kualitas kode <code>aislop</code> naik dari <code>67</code> ke <code>78/100</code>.</dd>
+          </div>
+        </dl>
+      </div>
+    </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
              class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">

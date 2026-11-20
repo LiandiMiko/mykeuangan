@@ -204,11 +204,15 @@
   }
 
   #mobileBottomNav {
-    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+    padding-bottom: max(0.45rem, env(safe-area-inset-bottom));
   }
   .mobile-nav-active {
     color: var(--color-brand-ink) !important;
-    font-weight: 800;
+    font-weight: 700;
+  }
+  .mobile-nav-active .mobile-nav-icon {
+    background-color: var(--color-brand-light);
+    color: var(--color-brand-ink) !important;
   }
   .mobile-nav-active i {
     color: var(--color-brand-ink) !important;

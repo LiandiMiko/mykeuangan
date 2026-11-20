@@ -64,7 +64,7 @@
       <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
     </span>
     <span class="flex items-center gap-1.5 shrink-0">
-      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold leading-none">v3.4</span>
+      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold leading-none">v3.9</span>
       <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
     </span>
   </button>
@@ -139,44 +139,44 @@
 
   <!-- ================= MAIN ================= -->
   <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-500">
-    <header class="bg-white dark:bg-slate-900 px-2.5 py-2.5 sm:p-4 lg:px-8 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between gap-1.5 sm:gap-3 sticky top-0 z-30 shadow-sm transition-colors">
-      <div class="flex min-w-0 items-center gap-1 sm:gap-3">
-        <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-8 h-9 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
+    <header class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-2.5 sm:px-6 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 flex flex-row items-center justify-between gap-2 sticky top-0 z-30 shadow-xs transition-colors">
+      <div class="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+        <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
           <i class="ph ph-list" aria-hidden="true"></i>
         </button>
-        <h2 class="min-w-0 truncate font-extrabold text-[13px] sm:text-lg text-slate-900 dark:text-white flex items-center gap-1.5 sm:gap-2.5 lg:hidden">
-          <span class="w-6 h-6 sm:w-8 sm:h-8 brand-gradient rounded-lg sm:rounded-xl inline-flex items-center justify-center shrink-0"><i class="ph-fill ph-wallet text-white text-xs sm:text-base" aria-hidden="true"></i></span>
-          <span class="truncate">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
+        <h2 class="min-w-0 flex items-center gap-2 lg:hidden">
+          <span class="w-8 h-8 brand-gradient rounded-xl inline-flex items-center justify-center shrink-0"><i class="ph-fill ph-wallet text-white text-base" aria-hidden="true"></i></span>
+          <span class="hidden min-[460px]:inline truncate font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
         </h2>
       </div>
-      <div class="flex items-center justify-end gap-0.5 sm:gap-2 ml-auto shrink-0">
-        <div class="relative w-[84px] sm:w-44">
+      <div class="flex items-center justify-end gap-1 sm:gap-2 ml-auto shrink-0">
+        <div class="relative w-[88px] min-[460px]:w-[96px] sm:w-40 lg:w-44">
           <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
           <input type="text" id="dashMonthPicker" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
-                 class="w-full h-9 sm:min-h-11 pl-6 sm:pl-9 pr-1 sm:pr-2 py-1 sm:py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-[11px] sm:text-sm text-slate-700 dark:text-slate-200 truncate"
+                 class="w-full h-9 sm:h-10 lg:h-11 pl-6 sm:pl-9 pr-1.5 sm:pr-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-[11px] sm:text-sm text-slate-700 dark:text-slate-200 truncate"
                  placeholder="Pilih Bulan">
-          <i class="ph ph-calendar absolute left-1.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-base" aria-hidden="true"></i>
+          <i class="ph ph-calendar absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-base" aria-hidden="true"></i>
         </div>
         <button onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
-                class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-sm sm:text-lg shrink-0">
+                class="w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
           <i class="ph ph-gear" aria-hidden="true"></i>
         </button>
         <button type="button" onclick="openCommandPalette()" aria-label="Pencarian cepat (Ctrl+K)" title="Perintah Cepat (Ctrl+K)"
-                class="hidden lg:inline-flex items-center gap-1.5 min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
+                class="hidden lg:inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
           <i class="ph ph-magnifying-glass text-base" aria-hidden="true"></i>
           <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold">Ctrl K</kbd>
         </button>
         <button id="notifBellBtn" type="button" onclick="openNotificationsModal()" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
-                class="relative w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
+                class="relative w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
           <i class="ph ph-bell" aria-hidden="true"></i>
           <span id="notifBadge" class="hide absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center leading-none">0</span>
         </button>
         <button id="toggleHideBtn" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
-                class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
+                class="w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
           <i id="eyeIcon" class="ph ph-eye" aria-hidden="true"></i>
         </button>
         <button onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
-                class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
+                class="w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
           <i class="ph ph-moon dark:hidden" aria-hidden="true"></i><i class="ph ph-sun hidden dark:block" aria-hidden="true"></i>
         </button>
       </div>
@@ -198,26 +198,37 @@
 
   <!-- Mobile Bottom Navigation Bar -->
   <nav id="mobileBottomNav" aria-label="Navigasi mobile"
-       class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-lg">
-    <button type="button" onclick="switchView('dashboard')" data-mobile-nav="dashboard" class="mobile-nav-active flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-      <i class="ph ph-squares-four text-xl" aria-hidden="true"></i>
-      <span data-i18n="nav.dashboard">Dashboard</span>
+       class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-1.5 pt-1.5 grid grid-cols-5 items-end shadow-[0_-4px_20px_-6px_rgba(15,23,42,0.12)]">
+    <button type="button" onclick="switchView('dashboard')" data-mobile-nav="dashboard" class="mobile-nav-tab mobile-nav-active min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+      <span class="mobile-nav-icon w-10 h-7 rounded-full flex items-center justify-center transition-colors">
+        <i class="ph ph-squares-four text-[20px]" aria-hidden="true"></i>
+      </span>
+      <span class="leading-none truncate max-w-full" data-i18n="nav.dashboard">Dashboard</span>
     </button>
-    <button type="button" onclick="switchView('histori')" data-mobile-nav="histori" class="flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-      <i class="ph ph-list-bullets text-xl" aria-hidden="true"></i>
-      <span data-i18n="nav.histori_short">Histori</span>
+    <button type="button" onclick="switchView('histori')" data-mobile-nav="histori" class="mobile-nav-tab min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+      <span class="mobile-nav-icon w-10 h-7 rounded-full flex items-center justify-center transition-colors">
+        <i class="ph ph-list-bullets text-[20px]" aria-hidden="true"></i>
+      </span>
+      <span class="leading-none truncate max-w-full" data-i18n="nav.histori_short">Histori</span>
     </button>
-    <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
-            class="w-12 h-12 -mt-4 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform shrink-0">
-      <i class="ph ph-plus-bold text-2xl" aria-hidden="true"></i>
+    <div class="flex flex-col items-center justify-end pb-0.5">
+      <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
+              class="w-12 h-12 -mt-6 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center ring-4 ring-white dark:ring-slate-900 shadow-lg active:scale-95 transition-transform">
+        <i class="ph-bold ph-plus text-xl leading-none" aria-hidden="true"></i>
+      </button>
+      <span class="text-[10px] font-bold text-brand dark:text-brand-ink leading-none mt-1" data-i18n="nav.add_short">Catat</span>
+    </div>
+    <button type="button" onclick="switchView('budgeting')" data-mobile-nav="budgeting" class="mobile-nav-tab min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+      <span class="mobile-nav-icon w-10 h-7 rounded-full flex items-center justify-center transition-colors">
+        <i class="ph ph-chart-pie-slice text-[20px]" aria-hidden="true"></i>
+      </span>
+      <span class="leading-none truncate max-w-full" data-i18n="nav.budgeting">Budget</span>
     </button>
-    <button type="button" onclick="switchView('budgeting')" data-mobile-nav="budgeting" class="flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-      <i class="ph ph-chart-pie-slice text-xl" aria-hidden="true"></i>
-      <span data-i18n="nav.budgeting">Budget</span>
-    </button>
-    <button type="button" onclick="switchView('aset')" data-mobile-nav="aset" class="flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-      <i class="ph ph-piggy-bank text-xl" aria-hidden="true"></i>
-      <span data-i18n="nav.aset_short">Aset</span>
+    <button type="button" onclick="switchView('aset')" data-mobile-nav="aset" class="mobile-nav-tab min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+      <span class="mobile-nav-icon w-10 h-7 rounded-full flex items-center justify-center transition-colors">
+        <i class="ph ph-piggy-bank text-[20px]" aria-hidden="true"></i>
+      </span>
+      <span class="leading-none truncate max-w-full" data-i18n="nav.aset_short">Aset</span>
     </button>
   </nav>
 

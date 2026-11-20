@@ -1443,18 +1443,26 @@
     const res = await Swal.fire({
       title: 'Catat Cepat',
       html: `
-        <div class="grid grid-cols-2 gap-2.5 text-xs font-bold">
-          <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center gap-1.5">
-            <i class="ph ph-minus-circle text-2xl"></i><span>Pengeluaran</span>
+        <div class="grid grid-cols-2 gap-3 text-xs font-bold">
+          <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+            <span class="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center"><i class="ph-bold ph-minus-circle text-xl" aria-hidden="true"></i></span>
+            <span>Pengeluaran</span>
+            <span class="text-[10px] font-medium opacity-75">Catat biaya harian</span>
           </button>
-          <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center gap-1.5">
-            <i class="ph ph-plus-circle text-2xl"></i><span>Pemasukan</span>
+          <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+            <span class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center"><i class="ph-bold ph-plus-circle text-xl" aria-hidden="true"></i></span>
+            <span>Pemasukan</span>
+            <span class="text-[10px] font-medium opacity-75">Gaji atau pendapatan</span>
           </button>
-          <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center gap-1.5">
-            <i class="ph ph-camera text-2xl"></i><span>Scan Struk AI</span>
+          <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+            <span class="w-10 h-10 rounded-xl bg-brand/15 flex items-center justify-center"><i class="ph-bold ph-camera text-xl" aria-hidden="true"></i></span>
+            <span>Scan Struk AI</span>
+            <span class="text-[10px] font-medium opacity-75">Foto nota belanja</span>
           </button>
-          <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-1.5">
-            <i class="ph ph-arrows-left-right text-2xl"></i><span>Transfer Dompet</span>
+          <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+            <span class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-700 flex items-center justify-center"><i class="ph-bold ph-arrows-left-right text-xl" aria-hidden="true"></i></span>
+            <span>Transfer Dompet</span>
+            <span class="text-[10px] font-medium opacity-75">Pindah antar saldo</span>
           </button>
         </div>`,
       showConfirmButton: false,

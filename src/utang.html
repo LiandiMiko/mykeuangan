@@ -1,37 +1,43 @@
 <!-- ================= UTANG / PIUTANG ================= -->
 <section id="view-utang" class="view-section hide fade-in">
-  <div class="flex items-center gap-3 mb-8">
-    <button onclick="switchView('dashboard')" class="w-10 h-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-      <i class="ph ph-arrow-left text-xl"></i>
+  <div class="mb-6 flex items-start gap-3">
+    <button type="button" onclick="switchView('dashboard')" aria-label="Kembali ke Dashboard" class="w-10 h-10 mt-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0">
+      <i class="ph ph-arrow-left text-xl" aria-hidden="true"></i>
     </button>
-    <h3 class="text-2xl font-bold text-slate-800 dark:text-white" data-i18n="utang.title">Detail Utang &amp; Piutang</h3>
+    <div class="w-11 h-11 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
+      <i class="ph ph-hand-coins text-2xl" aria-hidden="true"></i>
+    </div>
+    <div>
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="utang.title">Detail Utang &amp; Piutang</h2>
+      <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="utang.subtitle">Kelola daftar utang aplikasi, utang personal, dan piutang secara terstruktur.</p>
+    </div>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-800 flex flex-col">
       <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
         <h3 class="font-bold text-rose-500 flex items-center gap-2">
           <i class="ph ph-device-mobile text-xl"></i> <span data-i18n="utang.pinjol">Utang Pinjol / App</span>
         </h3>
-        <button type="button" onclick="manageDebtEntity('add', 'UtangApp')" aria-label="Tambah entitas utang pinjol atau aplikasi" title="Tambah Entitas Pinjol" class="min-h-11 min-w-11 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-lg flex items-center justify-center hover:bg-rose-100 transition-colors"><i class="ph ph-plus-bold" aria-hidden="true"></i></button>
+        <button type="button" onclick="manageDebtEntity('add', 'UtangApp')" aria-label="Tambah entitas utang pinjol atau aplikasi" title="Tambah Entitas Pinjol" class="min-h-11 min-w-11 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-xl flex items-center justify-center hover:bg-rose-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
       </div>
       <div id="list-utang-app" class="space-y-4 flex-1 overflow-y-auto"></div>
     </div>
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-800 flex flex-col">
       <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
         <h3 class="font-bold text-amber-500 flex items-center gap-2">
           <i class="ph ph-users text-xl"></i> <span data-i18n="utang.personal">Utang Personal</span>
         </h3>
-        <button type="button" onclick="manageDebtEntity('add', 'UtangPerson')" aria-label="Tambah entitas utang personal" title="Tambah Teman/Keluarga" class="min-h-11 min-w-11 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-lg flex items-center justify-center hover:bg-amber-100 transition-colors"><i class="ph ph-plus-bold" aria-hidden="true"></i></button>
+        <button type="button" onclick="manageDebtEntity('add', 'UtangPerson')" aria-label="Tambah entitas utang personal" title="Tambah Teman/Keluarga" class="min-h-11 min-w-11 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-xl flex items-center justify-center hover:bg-amber-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
       </div>
       <div id="list-utang-person" class="space-y-4 flex-1 overflow-y-auto"></div>
     </div>
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-800 flex flex-col">
       <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
         <h3 class="font-bold text-emerald-500 flex items-center gap-2">
           <i class="ph ph-hand-coins text-xl"></i> <span data-i18n="utang.piutang">Piutang (Mengutangi)</span>
         </h3>
-        <button type="button" onclick="manageDebtEntity('add', 'Piutang')" aria-label="Tambah entitas piutang" title="Tambah Peminjam" class="min-h-11 min-w-11 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-100 transition-colors"><i class="ph ph-plus-bold" aria-hidden="true"></i></button>
+        <button type="button" onclick="manageDebtEntity('add', 'Piutang')" aria-label="Tambah entitas piutang" title="Tambah Peminjam" class="min-h-11 min-w-11 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl flex items-center justify-center hover:bg-emerald-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
       </div>
       <div id="list-piutang" class="space-y-4 flex-1 overflow-y-auto"></div>
     </div>

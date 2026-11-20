@@ -5,13 +5,13 @@
       <i class="ph ph-sparkle text-2xl" aria-hidden="true"></i>
     </div>
     <div>
-      <h2 id="aiPageTitle" class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight" data-i18n="ai.page_title">Analisis Arus Keuangan AI</h2>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.page_subtitle">Evaluasi kesehatan arus kas, rasio tabungan, dan rekomendasi finansial berbasis Gemini AI sesuai permintaan.</p>
+      <h2 id="aiPageTitle" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="ai.page_title">Analisis Arus Keuangan AI</h2>
+      <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.page_subtitle">Evaluasi kesehatan arus kas, rasio tabungan, dan rekomendasi finansial berbasis Gemini AI sesuai permintaan.</p>
     </div>
   </div>
 
   <!-- AI CASHFLOW ANALYZER (ON-DEMAND) -->
-  <section id="ai-cashflow-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiCardTitle">
+  <section id="ai-cashflow-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiCardTitle">
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
@@ -36,7 +36,7 @@
   </section>
 
   <!-- AI FINANCIAL CHAT & SIMULATOR (ON-DEMAND) -->
-  <section id="ai-chat-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiChatTitle">
+  <section id="ai-chat-card" class="mb-8 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors" aria-labelledby="aiChatTitle">
     <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
       <div>
         <h3 id="aiChatTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -46,11 +46,11 @@
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" data-i18n="ai.chat_subtitle">Ajukan pertanyaan spesifik atau simulasi cicilan berbasis arus kas Anda saat ini (hanya berjalan saat tombol kirim ditekan).</p>
       </div>
       <div class="flex flex-wrap items-center gap-2 shrink-0">
-        <button type="button" onclick="openFinancialCalculatorsModal()" class="min-h-9 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-brand flex items-center gap-1.5">
+        <button type="button" onclick="openFinancialCalculatorsModal()" class="min-h-10 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-brand flex items-center gap-1.5">
           <i class="ph ph-calculator text-sm" aria-hidden="true"></i>
           <span data-i18n="ai.local_calc">Kalkulator Lokal</span>
         </button>
-        <button type="button" onclick="clearAiChatHistory()" class="min-h-9 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-rose-600 flex items-center gap-1.5">
+        <button type="button" onclick="clearAiChatHistory()" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-rose-600 flex items-center gap-1.5">
           <i class="ph ph-trash text-sm" aria-hidden="true"></i>
           <span data-i18n="ai.reset_chat">Reset Chat</span>
         </button>

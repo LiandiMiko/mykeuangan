@@ -8,6 +8,7 @@ const laporanHtml = fs.readFileSync('src/laporan.html', 'utf8');
 const historiHtml = fs.readFileSync('src/histori.html', 'utf8');
 const asetHtml = fs.readFileSync('src/aset.html', 'utf8');
 const aiHtml = fs.readFileSync('src/ai.html', 'utf8');
+const formHtml = fs.readFileSync('src/form.html', 'utf8');
 const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
 test('index includes features-v35, mobile bottom nav, command palette trigger, and SW toast hook', () => {
@@ -37,4 +38,20 @@ test('laporan, histori, aset, and ai views wire grouped menus, bulk actions, tag
   assert.match(asetHtml, /openFinancialCalculatorsModal\(\)/);
   assert.match(aiHtml, /openFinancialCalculatorsModal\(\)/);
   assert.match(aiHtml, /clearAiChatHistory\(\)/);
+});
+
+test('mobile bottom nav, responsive dropdowns, and Phosphor v2 icons use valid cohesive syntax', () => {
+  const invalidIconPattern = /\bph-[a-z0-9-]+-(bold|fill|duotone|light|thin)\b/;
+  const srcFiles = fs.readdirSync('src').filter((name) => name.endsWith('.html'));
+  srcFiles.forEach((name) => {
+    const html = fs.readFileSync(`src/${name}`, 'utf8');
+    assert.doesNotMatch(html, invalidIconPattern, `${name} contains invalid Phosphor icon weight suffix`);
+  });
+
+  const navMatch = indexHtml.match(/<nav id="mobileBottomNav"[\s\S]*?<\/nav>/);
+  assert.ok(navMatch, 'expected #mobileBottomNav markup');
+  assert.match(navMatch[0], /grid-cols-5/);
+  assert.match(navMatch[0], /id="mobileFabBtn"[\s\S]*?ph-bold ph-plus/);
+  assert.match(laporanHtml, /left-0 sm:left-auto sm:right-0/);
+  assert.match(formHtml, /id="tr_kategori"[^>]*min-w-0/);
 });

@@ -47,9 +47,13 @@
   }
 
   function renderMobileBottomNavState(viewId) {
+    const nav = document.getElementById('mobileBottomNav');
+    if (nav) nav.classList.toggle('hide', viewId === 'form-transaction');
     document.querySelectorAll('#mobileBottomNav [data-mobile-nav]').forEach((btn) => {
       const active = btn.getAttribute('data-mobile-nav') === viewId;
       btn.classList.toggle('mobile-nav-active', active);
+      if (active) btn.setAttribute('aria-current', 'page');
+      else btn.removeAttribute('aria-current');
     });
   }
 
