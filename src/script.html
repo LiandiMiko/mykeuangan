@@ -405,6 +405,7 @@
       }, 60);
     }
     if (id === 'admin') loadAdminData();
+    if (id === 'updates' && typeof markLatestReleaseSeen === 'function') markLatestReleaseSeen();
 
     if (window.innerWidth < 1024) {
       const sb = document.getElementById('sidebar');

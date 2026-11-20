@@ -57,6 +57,17 @@
   <button type="button" onclick="switchView('ai')" id="nav-ai" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-sparkle text-xl" aria-hidden="true"></i> <span data-i18n="nav.ai">Analisis AI</span>
   </button>
+  <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
+  <button type="button" onclick="switchView('updates')" id="nav-updates" class="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <span class="flex items-center gap-3 min-w-0">
+      <i class="ph ph-megaphone-simple text-xl shrink-0" aria-hidden="true"></i>
+      <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
+    </span>
+    <span class="flex items-center gap-1.5 shrink-0">
+      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold leading-none">v3.4</span>
+      <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
+    </span>
+  </button>
   <button type="button" onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-shield-check text-xl text-brand dark:text-brand-ink" aria-hidden="true"></i> <span data-i18n="nav.admin">Panel Admin</span>
   </button>
@@ -175,6 +186,7 @@
       <?!= include('laporan'); ?>
       <?!= include('budgeting'); ?>
       <?!= include('ai'); ?>
+      <?!= include('updates'); ?>
       <?!= include('admin'); ?>
     </div>
   </main>

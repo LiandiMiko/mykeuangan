@@ -54,6 +54,7 @@ mykeuangan/
 │   ├── Index.html          # App shell: layout, nav, modals
 │   ├── script.html         # Semua logika JS (1 file besar)
 │   ├── admin.html          # Admin panel UI (di-include ke Index)
+│   ├── updates.html        # Halaman Riwayat Pembaruan publik (di-include ke Index)
 │   ├── dashboard.html      # View: ringkasan utama (Arus Kas, Dompet, Utang/Piutang, Kalender)
 │   ├── aset.html           # View: Tabungan & Investasi (aset, grafik 30 hari & riwayat transfer)
 │   ├── histori.html        # View: histori transaksi pemasukan & pengeluaran per siklus
@@ -95,8 +96,10 @@ mykeuangan/
 │       └── 20261120000000_hardening_assets_profile_wallets.sql
 │
 ├── tests/
+│   ├── calendar-render.test.js   # Verifikasi grid & inisialisasi kalender
 │   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
-│   └── transaction-import.test.js # Parsing dan validasi impor CSV
+│   ├── transaction-import.test.js # Parsing dan validasi impor CSV
+│   └── updates-view.test.js     # Halaman pembaruan publik & pelacakan rilis baru
 │
 ├── scripts/
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
@@ -385,6 +388,7 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 - **RPC Atomik Aset Multi-Tipe, Profil & Dompet**: Migrasi `supabase/migrations/20261120000000_hardening_assets_profile_wallets.sql` menambahkan RPC `update_own_display_name(text)` untuk user non-admin, menyatukan update `unit_label`/`price_per_unit`/`buy_price` secara atomik pada `create_asset_with_expense`, `top_up_asset`, dan `liquidate_asset` untuk `Crypto`/`Emas`/`USD`/`Saham`, serta mengamankan `delete_wallet` agar saldo pembuka dan histori non-internal tetap terjaga.
 - **Kalender, Analitik, Cetak & Anti-Duplikasi Transaksi**: Menyinkronkan `kalenderYear`/`kalenderMonth` dengan perpindahan siklus periode, memisahkan arus kas bersih (`flowIn`/`flowOut`) dan hitungan filter di Kalender, memperbaiki `getDueRecurringBills`, memperbarui `last_run` lewat `api_markRecurringRun`, memformat nominal Rupiah pada notifikasi, menjaga `#recurringDueBanner` saat ganti bahasa, memperbaiki `topExpenses` (`category`/`amount`), `null` runway (`'—'`), dan container `@media print` pada *1-Page Statement*, memperbarui grafik `#netWorthChart` (skala sumbu-Y, delay render tab, tema), serta menyinkronkan multi-transaksi offline/Split Bill dan guard double-submit `#btnSubmitTrans`.
 - **Telegram Bot, PWA & Hygiene Kode**: Mengoreksi kategori `/utang` ke `UtangPerson` + upsert `entities`, menjadikan pairing OTP atomik (`DELETE ... RETURNING`), menyaring user aktif serta tanggal akhir bulan (`29..31`) di cron bot, mendeduplikasi logika AI Gemini dan utang piutang dengan fallback terstruktur, menambahkan Service Worker *Network-First* untuk HTML + cache versioning berbasis SHA-256 build ID di `web/sw.js` & `build.mjs`, serta menuntaskan 11 error `no-undef` (`sessionUser`/`sessionRole` → `window.*`) sehingga skor `aislop` naik dari `48/100` menjadi `67/100` (hanya menyisakan 1 error `security/hardcoded-secret` atas public client anon key pada file konfigurasi lokal gitignored `web/config.js`).
+- **Halaman Riwayat Pembaruan Publik (`src/updates.html`)**: Memindahkan catatan rilis dari panel admin ke halaman `#view-updates` yang dapat diakses semua pengguna di sidebar lengkap dengan pencarian kata kunci, filter topik, accordion rilis lama, titik indikator belum dibaca (`mk_last_seen_release`), serta info rilis di Pusat Notifikasi.
 
 ### 18 November 2026: Wave v3.3 (Batch Catat Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak & Filter Kalender)
 - **Batch Eksekusi Tagihan Rutin Jatuh Tempo**: Banner peringatan cerdas `#recurringDueBanner` di Dashboard mendeteksi seluruh tagihan rutin yang jatuh tempo pada siklus berjalan (`getDueRecurringBills`), dilengkapi tombol **`⚡ Catat Semua Sekaligus`** (`batchRecordRecurring`) dengan dialog konfirmasi sekali klik.
