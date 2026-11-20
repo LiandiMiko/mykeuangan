@@ -25,9 +25,11 @@ Status: Partial (Perbaikan markup UI/UX, 13 ikon Phosphor, test regresi statis, 
 - **Perbaikan 13 Ikon Phosphor & Penyeragaman View (`src/dashboard.html`, `src/aset.html`, `src/histori.html`, `src/budgeting.html`, `src/laporan.html`, `src/ai.html`, `src/form.html`, `src/utang.html`, `src/script.html`, `src/admin.html`, `src/updates.html`)**:
   - Mengganti seluruh `ph ph-*-bold` menjadi `ph-bold ph-*` (`ph-plus`, `ph-lightning`, `ph-check`, `ph-lock-key`).
   - Menyeragamkan tile ikon header (`w-11 h-11 rounded-2xl`), ukuran judul (`text-2xl sm:text-3xl font-extrabold tracking-tight`), border kartu (`rounded-3xl border-slate-200/80`), tinggi tombol (`min-h-11 rounded-xl`), padding mobile `src/form.html` + `min-w-0` di `#tr_kategori`, mengangkat header `src/laporan.html` ke luar kartu filter dengan dropdown `left-0 sm:left-auto sm:right-0`, serta merilis entri `Wave v3.9` di `src/updates.html`.
+- **Refactor Executive Bento Dashboard (`src/dashboard.html`, `src/script.html`, `src/features-v35.html`, `src/styles.html`)**:
+  - Memadatkan 7 seksi vertikal menjadi 3 zona (Hero Net Worth + strip 3 KPI Arus Kas, spotlight Quick-Add + `.no-scrollbar` template chips 1 baris, dan Bento grid `xl:grid-cols-12`: Kalender kiri 7 kolom + Dompet baris rapat & split compact Utang/Piutang kanan 5 kolom) dengan tetap mempertahankan seluruh ID DOM dan hook klik kartu dompet (`#wallet-panel > div` + `button[onclick^="editWallet("]`).
 - **Perbaikan CI Test Sebelumnya (`web/finance-pro.js`, `web/transaction-import.js`) & Regression Guard (`tests/pro-web-ui.test.js`)**:
   - `computeAnnualRecap`/`compareTwoPeriods` sudah memakai `computePeriodIncome` dan `resolveImportAutoCategory` mempertahankan kompatibilitas 3 argumen (`kategori: 'Lainnya'`).
-  - Menambahkan test regresi pada `tests/pro-web-ui.test.js` untuk melarang sintaks suffix invalid `ph-[a-z0-9-]+-(bold|fill|duotone|light|thin)` di seluruh `src/*.html` sekaligus memverifikasi `grid-cols-5`, `#mobileFabBtn`, `left-0 sm:left-auto sm:right-0`, dan `min-w-0` pada `#tr_kategori`.
+  - Menambahkan test regresi pada `tests/pro-web-ui.test.js` untuk melarang sintaks suffix invalid `ph-[a-z0-9-]+-(bold|fill|duotone|light|thin)` di seluruh `src/*.html` sekaligus memverifikasi `grid-cols-5`, `#mobileFabBtn`, `left-0 sm:left-auto sm:right-0`, `min-w-0` pada `#tr_kategori`, `xl:grid-cols-12`, dan `.no-scrollbar`.
 
 ## Verifikasi
 

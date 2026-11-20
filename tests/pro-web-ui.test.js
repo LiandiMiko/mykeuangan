@@ -54,4 +54,9 @@ test('mobile bottom nav, responsive dropdowns, and Phosphor v2 icons use valid c
   assert.match(navMatch[0], /id="mobileFabBtn"[\s\S]*?ph-bold ph-plus/);
   assert.match(laporanHtml, /left-0 sm:left-auto sm:right-0/);
   assert.match(formHtml, /id="tr_kategori"[^>]*min-w-0/);
+  assert.match(dashboardHtml, /xl:grid-cols-12/);
+  assert.match(dashboardHtml, /no-scrollbar/);
+  assert.match(dashboardHtml, /id="dash-saldo-aktif"/);
+  assert.match(dashboardHtml, /id="dash-cash-in"/);
+  assert.match(dashboardHtml, /id="dash-cash-out"/);
 });
