@@ -445,6 +445,10 @@
     });
   }
 
+  function formatIdrSimple(amount) {
+    return 'Rp ' + Math.round(Number(amount) || 0).toLocaleString('id-ID');
+  }
+
   function buildAppNotifications(data, period, payrollDay, todayStr) {
     const src = data && typeof data === 'object' ? data : {};
     const budgets = Array.isArray(src.budgets) ? src.budgets : [];
@@ -465,7 +469,7 @@
             id: 'budget:' + period + ':' + row.category,
             severity: isOver ? 'danger' : 'warning',
             title: isOver ? ('Budget terlampaui: ' + row.category) : ('Budget hampir habis: ' + row.category),
-            message: 'Terpakai ' + Math.round(row.percent) + '% (' + row.actual + ' / ' + row.plan + ').',
+            message: 'Terpakai ' + Math.round(row.percent) + '% (' + formatIdrSimple(row.actual) + ' / ' + formatIdrSimple(row.plan) + ').',
             actionType: 'view',
             actionPayload: { view: 'budgeting' }
           });
@@ -500,7 +504,7 @@
           severity: diffDays === 0 ? 'warning' : 'info',
           title: 'Jadwal rutin: ' + String(item.kategori || 'Transaksi'),
           message: (diffDays === 0 ? 'Jatuh tempo hari ini' : ('Jatuh tempo ' + diffDays + ' hari lagi')) +
-            ' (tgl ' + rawDay + ') · ' + (Number(item.nominal) || 0),
+            ' (tgl ' + rawDay + ') · ' + formatIdrSimple(item.nominal),
           actionType: 'recurring',
           actionPayload: { id: item.id || null }
         });
@@ -516,7 +520,7 @@
           title: calc.status === 'overdue'
             ? ('Target melewati tenggat: ' + String(goal.name || 'Target'))
             : ('Target mendekati tenggat: ' + String(goal.name || 'Target')),
-          message: 'Sisa ' + calc.remaining + (calc.daysLeft !== null ? ' (' + calc.daysLeft + ' hari)' : '') + '.',
+          message: 'Sisa ' + formatIdrSimple(calc.remaining) + (calc.daysLeft !== null ? ' (' + calc.daysLeft + ' hari)' : '') + '.',
           actionType: 'view',
           actionPayload: { view: 'budgeting' }
         });
@@ -1049,14 +1053,35 @@
   }
 
   function getDueRecurringBills(recurringList, transactions, todayStr, period, payrollDay) {
-    const todayDate = todayStr ? new Date(todayStr + 'T00:00:00Z') : new Date();
-    const todayDay = todayDate.getUTCDate();
-    const curDateStr = todayStr || todayDate.toISOString().slice(0, 10);
+    const curDateStr = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : formatDate(new Date());
+    const activePeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(period || ''))
+      ? String(period)
+      : curDateStr.slice(0, 7);
+    const payDay = Number(payrollDay) || 1;
+    const range = getPeriodRange(activePeriod, payDay);
+    const startYm = range.start.slice(0, 7);
+    const endYm = range.end.slice(0, 7);
+    const startDays = new Date(Date.UTC(Number(startYm.slice(0, 4)), Number(startYm.slice(5, 7)), 0)).getUTCDate();
+    const endDays = new Date(Date.UTC(Number(endYm.slice(0, 4)), Number(endYm.slice(5, 7)), 0)).getUTCDate();
+
+    const resolveDueDate = (rawDay) => {
+      const recDay = Math.max(1, Math.min(31, Math.trunc(Number(rawDay) || 1)));
+      if (payDay <= 1) {
+        return endYm + '-' + String(Math.min(recDay, endDays)).padStart(2, '0');
+      }
+      if (recDay >= payDay) {
+        return startYm + '-' + String(Math.min(recDay, startDays)).padStart(2, '0');
+      }
+      return endYm + '-' + String(Math.min(recDay, endDays)).padStart(2, '0');
+    };
+
     const activeList = (Array.isArray(recurringList) ? recurringList : [])
       .filter((r) => r && String(r.active) !== 'false' && r.active !== false);
 
     const txList = (Array.isArray(transactions) ? transactions : []).filter((t) =>
-      isInPeriod(t.tanggal, period, payrollDay)
+      isInPeriod(t.tanggal, activePeriod, payDay)
     );
 
     const dueBills = [];
@@ -1065,20 +1090,20 @@
     activeList.forEach((rec) => {
       const recNominal = Math.round(Number(rec.nominal) || 0);
       const recCat = String(rec.kategori || '').trim().toLowerCase();
-      const recDay = Number(rec.dayOfMonth) || 1;
+      const recDay = Math.max(1, Math.min(31, Math.trunc(Number(rec.dayOfMonth ?? rec.day_of_month) || 1)));
+      const lastRunDate = String(rec.lastRun ?? rec.last_run ?? '').slice(0, 10);
 
-      // Sudah dicatat siklus ini jika:
-      // 1. lastRun sudah sama dengan tanggal hari ini atau berada di periode siklus saat ini
-      const lastRunInPeriod = rec.lastRun && isInPeriod(rec.lastRun, period, payrollDay);
-      // 2. ATAU ada transaksi di periode siklus ini dengan kategori sama, nominal sama, dan tipe sama
+      // Sudah dicatat siklus ini jika lastRun berada dalam periode siklus atau ada transaksi yg cocok
+      const lastRunInPeriod = lastRunDate && isInPeriod(lastRunDate, activePeriod, payDay);
       const alreadyTransacted = lastRunInPeriod || txList.some((tx) =>
         tx.tipe === rec.tipe &&
         String(tx.kategori || '').trim().toLowerCase() === recCat &&
         Math.abs((Number(tx.nominal) || 0) - recNominal) <= 1
       );
 
-      // Jatuh tempo jika hari bulan saat ini >= dayOfMonth atau dalam siklus
-      const isDue = todayDay >= recDay || isInPeriod(curDateStr, period, payrollDay);
+      // Jatuh tempo hanya jika tanggal eksekusinya dalam siklus ini <= tanggal hari ini
+      const dueDate = resolveDueDate(recDay);
+      const isDue = dueDate >= range.start && dueDate <= range.end && dueDate <= curDateStr;
 
       if (!alreadyTransacted && isDue) {
         dueBills.push({
@@ -1087,7 +1112,8 @@
           kategori: rec.kategori,
           nominal: recNominal,
           keterangan: rec.keterangan || '',
-          dayOfMonth: recDay
+          dayOfMonth: recDay,
+          dueDate
         });
         totalDueAmount += recNominal;
       }
@@ -1104,15 +1130,27 @@
     const numCycles = Math.max(2, Math.min(12, Math.trunc(Number(count) || 6)));
     parsePeriod(currentPeriod);
     const src = data && typeof data === 'object' ? data : {};
-    const flowSeries = monthlyCashflowSeries(src.transactions, currentPeriod, payrollDay, numCycles);
+    const endRange = getPeriodRange(currentPeriod, payrollDay);
+    const allTransactions = Array.isArray(src.transactions) ? src.transactions : [];
+    const scopedTransactions = allTransactions.filter((t) =>
+      t && String(t.tanggal || '').slice(0, 10) <= endRange.end
+    );
+    const scopedTransfers = (Array.isArray(src.transfers) ? src.transfers : []).filter((x) =>
+      x && (!x.tanggal || String(x.tanggal).slice(0, 10) <= endRange.end)
+    );
+    const flowSeries = monthlyCashflowSeries(scopedTransactions, currentPeriod, payrollDay, numCycles);
 
-    // Hitung net worth siklus saat ini
-    const curPayload = buildAiCashflowPayload(src, currentPeriod, payrollDay);
+    // Hitung net worth hingga akhir siklus terpilih
+    const curPayload = buildAiCashflowPayload(
+      { ...src, transactions: scopedTransactions, transfers: scopedTransfers },
+      currentPeriod,
+      payrollDay
+    );
     const curNetWorth = curPayload.netWorth;
 
     // Rekonstruksi mundur berdasarkan net cashflow historis
     // netWorth(t-1) ~ netWorth(t) - netCashflow(t)
-    const points = new Array(flowSeries.length);
+    const points = Array.from({ length: flowSeries.length });
     let runningNetWorth = curNetWorth;
 
     for (let i = flowSeries.length - 1; i >= 0; i--) {

@@ -1,5 +1,6 @@
 // Menggabungkan src/*.html (pengganti <?!= include('x') ?> Apps Script)
 // + web/config.js + web/supabase-api.js  →  dist/index.html
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -50,13 +51,16 @@ if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?
 
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
+const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
 
-// Salin asset PWA (manifest, sw.js, icons) ke dist/
+// Salin asset PWA (manifest, sw.js dengan hash cache-busting, icons) ke dist/
 if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
   fs.copyFileSync(path.join(WEB, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 }
 if (fs.existsSync(path.join(WEB, 'sw.js'))) {
-  fs.copyFileSync(path.join(WEB, 'sw.js'), path.join(OUT, 'sw.js'));
+  const swSource = fs.readFileSync(path.join(WEB, 'sw.js'), 'utf8').replaceAll('__BUILD_ID__', buildId);
+  fs.writeFileSync(path.join(OUT, 'sw.js'), swSource);
+  console.log(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId})`);
 }
 const iconsSrc = path.join(WEB, 'icons');
 const iconsDst = path.join(OUT, 'icons');

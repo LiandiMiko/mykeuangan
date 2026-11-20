@@ -219,8 +219,84 @@ const savedMsg = (title: string, p: Tx) =>
   `${title}\n\n${p.tipe === 'Pemasukan' ? '🟢' : '🔴'} ${p.tipe}\n🏷️ ${esc(p.kategori)}\n💵 <b>${rp(p.nominal)}</b>\n📅 ${p.tanggal}` + (p.walletName ? `\n💳 ${esc(p.walletName)}` : '');
 
 /* ---------------- AI parser (Gemini) ---------------- */
-async function parseWithAI(c: Ctx, text: string): Promise<Tx & { keterangan: string }> {
+const TX_AI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    tipe: { type: 'STRING', enum: ['Pemasukan', 'Pengeluaran'] },
+    kategori: { type: 'STRING' },
+    nominal: { type: 'NUMBER' },
+    keterangan: { type: 'STRING' },
+    tanggal: { type: 'STRING' },
+  },
+  required: ['tipe', 'kategori', 'nominal', 'tanggal'],
+};
+
+const GEMINI_FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+
+async function callGeminiJson(parts: Any[], responseSchema: Any): Promise<Any> {
   if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
+  const candidates: string[] = [];
+  const addCandidate = (modelName: string) => {
+    const clean = String(modelName || '').replace(/^models\//, '').trim();
+    if (clean && !candidates.includes(clean)) candidates.push(clean);
+  };
+  [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS].forEach(addCandidate);
+
+  let lastErr = '';
+  for (let i = 0; i < candidates.length; i++) {
+    const model = candidates[i];
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema },
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j?.error || !r.ok) {
+      const msg = String(j?.error?.message || `HTTP ${r.status}`);
+      lastErr = msg;
+      for (const m of msg.matchAll(/models\/([a-z0-9._-]+)/gi)) {
+        addCandidate(m[1]);
+      }
+      if (r.status === 404 || /not found|no longer available|not supported/i.test(msg)) continue;
+      throw new Error('Gemini: ' + msg);
+    }
+    const rawText = j?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
+      const reason = j?.candidates?.[0]?.finishReason || j?.promptFeedback?.blockReason || 'Respons kosong';
+      throw new Error(`Gemini tidak mengembalikan hasil (${reason})`);
+    }
+    return JSON.parse(rawText);
+  }
+  throw new Error('Gemini: ' + (lastErr || 'Semua model AI gagal diakses'));
+}
+
+function buildParsedTx(
+  parsed: Any,
+  inc: string[],
+  exp: string[],
+  fallbackNote: string,
+  invalidAmtMsg: string,
+): Tx & { keterangan: string } {
+  const nominal = Math.round(Number(parsed?.nominal));
+  if (!nominal || nominal <= 0) throw new Error(invalidAmtMsg);
+  const tipe: 'Pemasukan' | 'Pengeluaran' = parsed?.tipe === 'Pemasukan' ? 'Pemasukan' : 'Pengeluaran';
+  const cats = tipe === 'Pemasukan' ? inc : exp;
+  const kategori = cats.includes(parsed?.kategori)
+    ? parsed.kategori
+    : (cats.includes('Lainnya') ? 'Lainnya' : String(parsed?.kategori || 'Lainnya'));
+  return {
+    tipe,
+    kategori,
+    nominal,
+    keterangan: String(parsed?.keterangan || fallbackNote),
+    tanggal: /^\d{4}-\d{2}-\d{2}$/.test(String(parsed?.tanggal || '')) ? parsed.tanggal : today(),
+  };
+}
+
+async function parseWithAI(c: Ctx, text: string): Promise<Tx & { keterangan: string }> {
   const inc = await getCategories(c.uid, 'pemasukan');
   const exp = await getCategories(c.uid, 'pengeluaran');
   const now = today();
@@ -243,41 +319,8 @@ OUTPUT: {"tipe":"Pengeluaran","kategori":"Makanan","nominal":25000,"keterangan":
 INPUT USER: ${JSON.stringify(text)}
 OUTPUT:`;
 
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            tipe: { type: 'STRING', enum: ['Pemasukan', 'Pengeluaran'] },
-            kategori: { type: 'STRING' },
-            nominal: { type: 'NUMBER' },
-            keterangan: { type: 'STRING' },
-            tanggal: { type: 'STRING' },
-          },
-          required: ['tipe', 'kategori', 'nominal', 'tanggal'],
-        },
-      },
-    }),
-  });
-  const j = await r.json();
-  if (j.error) throw new Error('Gemini: ' + j.error.message);
-  const p = JSON.parse(j.candidates[0].content.parts[0].text);
-
-  const nominal = Math.round(Number(p.nominal));
-  if (!nominal || nominal <= 0) throw new Error('Nominal tidak terbaca');
-  const cats = p.tipe === 'Pemasukan' ? inc : exp;
-  return {
-    tipe: p.tipe,
-    kategori: cats.includes(p.kategori) ? p.kategori : (cats.includes('Lainnya') ? 'Lainnya' : p.kategori),
-    nominal,
-    keterangan: p.keterangan || 'Via AI',
-    tanggal: /^\d{4}-\d{2}-\d{2}$/.test(p.tanggal) ? p.tanggal : now,
-  };
+  const parsed = await callGeminiJson([{ text: prompt }], TX_AI_SCHEMA);
+  return buildParsedTx(parsed, inc, exp, 'Via AI', 'Nominal tidak terbaca');
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -295,7 +338,6 @@ async function parseMediaWithAI(
   base64: string,
   caption: string,
 ): Promise<Tx & { keterangan: string }> {
-  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
   const inc = await getCategories(c.uid, 'pemasukan');
   const exp = await getCategories(c.uid, 'pengeluaran');
   const now = today();
@@ -312,40 +354,8 @@ ATURAN:
 5. "tanggal" format YYYY-MM-DD. Default: ${now}.
 ${caption ? 'CATATAN PENGIRIM: ' + JSON.stringify(caption) : ''}`;
 
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            tipe: { type: 'STRING', enum: ['Pemasukan', 'Pengeluaran'] },
-            kategori: { type: 'STRING' },
-            nominal: { type: 'NUMBER' },
-            keterangan: { type: 'STRING' },
-            tanggal: { type: 'STRING' },
-          },
-          required: ['tipe', 'kategori', 'nominal', 'tanggal'],
-        },
-      },
-    }),
-  });
-  const j = await r.json();
-  if (j.error) throw new Error('Gemini: ' + j.error.message);
-  const p = JSON.parse(j.candidates[0].content.parts[0].text);
-  const nominal = Math.round(Number(p.nominal));
-  if (!nominal || nominal <= 0) throw new Error('Nominal tidak terbaca dari media');
-  const cats = p.tipe === 'Pemasukan' ? inc : exp;
-  return {
-    tipe: p.tipe,
-    kategori: cats.includes(p.kategori) ? p.kategori : (cats.includes('Lainnya') ? 'Lainnya' : p.kategori),
-    nominal,
-    keterangan: p.keterangan || 'Via Media AI',
-    tanggal: /^\d{4}-\d{2}-\d{2}$/.test(p.tanggal) ? p.tanggal : now,
-  };
+  const parsed = await callGeminiJson([{ text: prompt }, { inlineData: { mimeType, data: base64 } }], TX_AI_SCHEMA);
+  return buildParsedTx(parsed, inc, exp, 'Via Media AI', 'Nominal tidak terbaca dari media');
 }
 
 async function handleMediaMessage(c: Ctx, msg: Any) {
@@ -521,80 +531,74 @@ async function handleTransfer(c: Ctx, arg: string) {
     `\n💳 <b>Saldo sekarang</b>\n${m.walletLines}`, mainKb());
 }
 
-async function handleUtang(c: Ctx, arg: string) {
+async function handleDebtCommand(c: Ctx, arg: string, kind: 'utang' | 'piutang') {
+  const isUtangCmd = kind === 'utang';
   const parts = arg.trim().split(/\s+/).filter(Boolean);
   const action = (parts[0] || '').toLowerCase();
-  if (parts.length < 3 || (action !== 'pinjam' && action !== 'bayar')) {
-    return send(c.chat,
-      '❌ <b>Format Perintah Utang:</b>\n' +
-      '• <code>/utang pinjam [Nama] [Nominal] [Catatan]</code> (terima pinjaman)\n' +
-      '• <code>/utang bayar [Nama] [Nominal] [Catatan]</code> (lunasi/cicil utang)\n\n' +
-      'Contoh:\n<code>/utang pinjam Budi 500rb</code>\n<code>/utang bayar Budi 200rb</code>', mainKb());
+  const isAddAction = isUtangCmd ? action === 'pinjam' : ['beri', 'pinjamkan'].includes(action);
+  const isPayAction = isUtangCmd ? action === 'bayar' : ['terima', 'kembali', 'lunas'].includes(action);
+
+  if (parts.length < 3 || (!isAddAction && !isPayAction)) {
+    const usage = isUtangCmd
+      ? '❌ <b>Format Perintah Utang:</b>\n' +
+        '• <code>/utang pinjam [Nama] [Nominal] [Catatan]</code> (terima pinjaman)\n' +
+        '• <code>/utang bayar [Nama] [Nominal] [Catatan]</code> (lunasi/cicil utang)\n\n' +
+        'Contoh:\n<code>/utang pinjam Budi 500rb</code>\n<code>/utang bayar Budi 200rb</code>'
+      : '❌ <b>Format Perintah Piutang:</b>\n' +
+        '• <code>/piutang beri [Nama] [Nominal] [Catatan]</code> (pinjamkan ke orang)\n' +
+        '• <code>/piutang terima [Nama] [Nominal] [Catatan]</code> (terima pengembalian)\n\n' +
+        'Contoh:\n<code>/piutang beri Andi 300rb</code>\n<code>/piutang terima Andi 150rb</code>';
+    return send(c.chat, usage, mainKb());
   }
+
   const person = parts[1];
   const nominal = parseNominal(parts[2]);
   if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.', mainKb());
   const notes = parts.slice(3).join(' ').trim();
-  const tipe = action === 'pinjam' ? 'Pemasukan' : 'Pengeluaran';
-  const kategori = `Utang - ${person}`;
+
+  const grp = isUtangCmd ? 'UtangPerson' : 'Piutang';
+  const { error: entErr } = await sb.from('entities').upsert(
+    { user_id: c.uid, grp, name: person },
+    { onConflict: 'user_id,grp,name', ignoreDuplicates: true },
+  );
+  if (entErr) console.warn('entities upsert', entErr.message);
+
+  const tipe: 'Pemasukan' | 'Pengeluaran' = (isUtangCmd ? isAddAction : isPayAction) ? 'Pemasukan' : 'Pengeluaran';
+  const kategori = `${grp} - ${person}`;
+  const defaultNote = isUtangCmd ? `Utang ${person} via Telegram` : `Piutang ${person} via Telegram`;
   const p: Tx = {
     tanggal: today(),
     tipe,
     kategori,
     nominal,
-    keterangan: notes ? `${notes} (via Telegram)` : `Utang ${person} via Telegram`
+    keterangan: notes ? `${notes} (via Telegram)` : defaultNote,
   };
   await saveTx(c, p);
+
   const m = await loadMoney(c.uid);
-  const icon = action === 'pinjam' ? '📥' : '📤';
-  const label = action === 'pinjam' ? 'Pinjaman Diterima (Utang Bertambah)' : 'Pembayaran Utang (Utang Berkurang)';
+  const icon = tipe === 'Pemasukan' ? '📥' : '📤';
+  const label = isUtangCmd
+    ? (isAddAction ? 'Pinjaman Diterima (Utang Bertambah)' : 'Pembayaran Utang (Utang Berkurang)')
+    : (isAddAction ? 'Pinjaman Diberikan (Piutang Bertambah)' : 'Piutang Diterima Kembali (Piutang Berkurang)');
+  const totalLabel = isUtangCmd ? 'Total Utang Tersisa' : 'Total Piutang Berjalan';
+  const totalAmt = isUtangCmd ? m.b.utang : m.b.piutang;
+
   await send(c.chat,
     `🤝 <b>${label}</b>\n\n` +
     `${icon} Nominal: <b>${rp(nominal)}</b>\n` +
     `👤 Pihak: <b>${esc(person)}</b>\n` +
     `📅 Tanggal: ${p.tanggal}\n` +
     (notes ? `📝 Catatan: ${esc(notes)}\n` : '') +
-    `\n💰 <b>Total Utang Tersisa:</b> <b>${rp(m.b.utang)}</b>\n` +
+    `\n💰 <b>${totalLabel}:</b> <b>${rp(totalAmt)}</b>\n` +
     `💼 Saldo Kas: <b>${rp(m.b.kas)}</b>`, mainKb());
 }
 
-async function handlePiutang(c: Ctx, arg: string) {
-  const parts = arg.trim().split(/\s+/).filter(Boolean);
-  const action = (parts[0] || '').toLowerCase();
-  const isGive = action === 'beri' || action === 'pinjamkan';
-  const isRecv = action === 'terima' || action === 'kembali' || action === 'lunas';
-  if (parts.length < 3 || (!isGive && !isRecv)) {
-    return send(c.chat,
-      '❌ <b>Format Perintah Piutang:</b>\n' +
-      '• <code>/piutang beri [Nama] [Nominal] [Catatan]</code> (pinjamkan ke orang)\n' +
-      '• <code>/piutang terima [Nama] [Nominal] [Catatan]</code> (terima pengembalian)\n\n' +
-      'Contoh:\n<code>/piutang beri Andi 300rb</code>\n<code>/piutang terima Andi 150rb</code>', mainKb());
-  }
-  const person = parts[1];
-  const nominal = parseNominal(parts[2]);
-  if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.', mainKb());
-  const notes = parts.slice(3).join(' ').trim();
-  const tipe = isGive ? 'Pengeluaran' : 'Pemasukan';
-  const kategori = `Piutang - ${person}`;
-  const p: Tx = {
-    tanggal: today(),
-    tipe,
-    kategori,
-    nominal,
-    keterangan: notes ? `${notes} (via Telegram)` : `Piutang ${person} via Telegram`
-  };
-  await saveTx(c, p);
-  const m = await loadMoney(c.uid);
-  const icon = isGive ? '📤' : '📥';
-  const label = isGive ? 'Pinjaman Diberikan (Piutang Bertambah)' : 'Piutang Diterima Kembali (Piutang Berkurang)';
-  await send(c.chat,
-    `🤝 <b>${label}</b>\n\n` +
-    `${icon} Nominal: <b>${rp(nominal)}</b>\n` +
-    `👤 Pihak: <b>${esc(person)}</b>\n` +
-    `📅 Tanggal: ${p.tanggal}\n` +
-    (notes ? `📝 Catatan: ${esc(notes)}\n` : '') +
-    `\n💰 <b>Total Piutang Berjalan:</b> <b>${rp(m.b.piutang)}</b>\n` +
-    `💼 Saldo Kas: <b>${rp(m.b.kas)}</b>`, mainKb());
+function handleUtang(c: Ctx, arg: string) {
+  return handleDebtCommand(c, arg, 'utang');
+}
+
+function handlePiutang(c: Ctx, arg: string) {
+  return handleDebtCommand(c, arg, 'piutang');
 }
 
 /* ---------------- Handler perintah ---------------- */
@@ -1356,15 +1360,28 @@ async function refreshPrices(uid: string) {
   return { updated, missing: [...missing] };
 }
 
+async function getActiveUserIds(): Promise<Set<string>> {
+  const { data, error } = await sb.from('profiles').select('id').eq('status', 'active');
+  if (error) throw error;
+  return new Set((data ?? []).map((p: { id: string }) => p.id));
+}
+
 // Transaksi berulang: jalan pada tanggal yang cocok (zona APP_TIMEZONE), maksimal sekali per hari
 async function runRecurring() {
   const t = today();
-  const day = Number(t.slice(8, 10));
-  const { data, error } = await sb.from('recurring').select('*').eq('active', true).eq('day_of_month', day);
+  const [yearStr, monthStr, dayStr] = t.split('-');
+  const day = Number(dayStr);
+  const lastDayOfMonth = new Date(Number(yearStr), Number(monthStr), 0).getDate();
+  const q = sb.from('recurring').select('*').eq('active', true);
+  const { data, error } = day === lastDayOfMonth
+    ? await q.gte('day_of_month', day)
+    : await q.eq('day_of_month', day);
   if (error) throw error;
+  const activeIds = await getActiveUserIds();
   const byUser = new Map<string, string[]>();
   let created = 0;
   for (const r of data ?? []) {
+    if (!activeIds.has(r.user_id)) continue;
     // "klaim" atomik: hanya satu eksekusi yang berhasil mengubah last_run hari ini
     const claim = await sb.from('recurring').update({ last_run: t }).eq('id', r.id)
       .or(`last_run.is.null,last_run.neq.${t}`).select('id');
@@ -1392,8 +1409,10 @@ async function runRecurring() {
 }
 
 async function dailyReminder() {
+  const activeIds = await getActiveUserIds();
   let sent = 0;
   for (const ch of await chatsOf()) {
+    if (!activeIds.has(ch.user_id)) continue;
     const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id']);
     const todayTx = trx.filter((x) => String(x.tanggal).slice(0, 10) === today());
     const st = streak(trx);
@@ -1419,8 +1438,10 @@ async function weeklyReport() {
   const d = new Date(end + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - 7);
   const start = d.toISOString().slice(0, 10);
+  const activeIds = await getActiveUserIds();
   let sent = 0;
   for (const ch of await chatsOf()) {
+    if (!activeIds.has(ch.user_id)) continue;
     const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id']);
     const weekTx = trx.filter((x) => { const t = String(x.tanggal).slice(0, 10); return t >= start && t <= end; });
     if (weekTx.length === 0) continue;
@@ -1449,8 +1470,9 @@ async function weeklyReport() {
 
 // Snapshot harian: segarkan harga dulu (bila gagal, tetap simpan nilai terakhir), lalu simpan snapshot
 async function snapshotAll() {
+  const activeIds = await getActiveUserIds();
   const { data } = await sb.from('assets').select('user_id');
-  const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))];
+  const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))].filter((uid) => activeIds.has(uid));
   let done = 0;
   for (const uid of users) {
     try { await refreshPrices(uid); } catch (e) { console.error('refreshPrices', e); }
@@ -1467,15 +1489,16 @@ async function handleJob(req: Request, job: string): Promise<Response> {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data } = token ? await sb.auth.getUser(token) : { data: null };
     uid = data?.user?.id ?? null;
-    if (!uid || job !== 'refresh_prices') return json({ error: 'forbidden' }, 403);
+    if (!uid || job !== 'refresh_prices' || !await isActiveUser(uid)) return json({ error: 'forbidden' }, 403);
   }
   try {
     switch (job) {
       case 'refresh_prices': {
         if (!uid) {
-          // Bila dipanggil cron tanpa JWT user spesifik, refresh semua user yang memiliki aset
+          // Bila dipanggil cron tanpa JWT user spesifik, refresh semua user aktif yang memiliki aset
+          const activeIds = await getActiveUserIds();
           const { data } = await sb.from('assets').select('user_id');
-          const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))];
+          const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))].filter((u) => activeIds.has(u));
           let done = 0;
           for (const u of users) {
             try { await refreshPrices(u); done++; } catch (e) { console.error('refreshPrices', u, e); }
@@ -1542,9 +1565,10 @@ Deno.serve(async (req) => {
 
       const otp = mPair[1];
       const { data: pair, error: pairError } = await sb.from('telegram_pairings')
-        .select('user_id, expires_at')
+        .delete()
         .eq('otp', otp)
         .gt('expires_at', new Date().toISOString())
+        .select('user_id, expires_at')
         .maybeSingle();
       if (pairError) throw pairError;
 
@@ -1558,11 +1582,11 @@ Deno.serve(async (req) => {
         return new Response('ok');
       }
 
-      await sb.from('telegram_chats').upsert(
+      const { error: upsertError } = await sb.from('telegram_chats').upsert(
         { chat_id: chat, user_id: pair.user_id, name: from.first_name || 'User' },
         { onConflict: 'chat_id' }
       );
-      await sb.from('telegram_pairings').delete().eq('otp', otp);
+      if (upsertError) throw upsertError;
 
       await send(chat, `🎉 <b>Selamat!</b> Akun Telegram Anda berhasil terhubung dengan MyKeuangan.\n\nKetik transaksi apa saja untuk mulai mencatat (contoh: <code>kopi 25rb</code>).`, mainKb());
       return new Response('ok');

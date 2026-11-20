@@ -380,11 +380,13 @@ test('projectGoalMilestone calculates months remaining and projected completion 
   assert.equal(completed.remaining, 0);
 });
 
-test('getDueRecurringBills finds active bills due this cycle and excludes already recorded ones', () => {
+test('getDueRecurringBills finds active bills due this cycle and excludes upcoming or recorded ones', () => {
   const recurring = [
     { id: 'r1', tipe: 'Pengeluaran', kategori: 'Listrik', nominal: 350000, dayOfMonth: 5, active: true },
-    { id: 'r2', tipe: 'Pengeluaran', kategori: 'Internet', nominal: 400000, dayOfMonth: 20, active: true },
-    { id: 'r3', tipe: 'Pengeluaran', kategori: 'Gym', nominal: 250000, dayOfMonth: 1, active: false }
+    { id: 'r2', tipe: 'Pengeluaran', kategori: 'Internet', nominal: 400000, dayOfMonth: 15, active: true },
+    { id: 'r3', tipe: 'Pengeluaran', kategori: 'Gym', nominal: 250000, dayOfMonth: 1, active: false },
+    { id: 'r4', tipe: 'Pengeluaran', kategori: 'Sewa', nominal: 1500000, dayOfMonth: 25, active: true },
+    { id: 'r5', tipe: 'Pengeluaran', kategori: 'Air', nominal: 100000, dayOfMonth: 2, lastRun: '2026-11-02', active: true }
   ];
   const transactions = [
     { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Listrik', nominal: 350000 }
@@ -393,7 +395,17 @@ test('getDueRecurringBills finds active bills due this cycle and excludes alread
   const due = getDueRecurringBills(recurring, transactions, '2026-11-18', '2026-11', 1);
   assert.equal(due.count, 1);
   assert.equal(due.dueBills[0].id, 'r2');
+  assert.equal(due.dueBills[0].dueDate, '2026-11-15');
   assert.equal(due.totalDueAmount, 400000);
+
+  // Split payroll cycle (2026-10-28 .. 2026-11-27): day 29 belongs to 2026-10-29 (due by Nov 18)
+  const splitDue = getDueRecurringBills([
+    { id: 's1', tipe: 'Pengeluaran', kategori: 'BPJS', nominal: 150000, dayOfMonth: 29, active: true },
+    { id: 's2', tipe: 'Pengeluaran', kategori: 'Cloud', nominal: 200000, dayOfMonth: 24, active: true }
+  ], [], '2026-11-18', '2026-11', 28);
+  assert.equal(splitDue.count, 1);
+  assert.equal(splitDue.dueBills[0].id, 's1');
+  assert.equal(splitDue.dueBills[0].dueDate, '2026-10-29');
 });
 
 test('computeNetWorthSeries and compileOnePageFinancialStatement reconstruct history and statement', () => {
@@ -404,9 +416,15 @@ test('computeNetWorthSeries and compileOnePageFinancialStatement reconstruct his
       { tanggal: '2026-10-05', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 10000000 },
       { tanggal: '2026-10-10', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 3000000 },
       { tanggal: '2026-11-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 10000000 },
-      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 4000000 }
+      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 4000000 },
+      { tanggal: '2026-12-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 9000000 }
     ]
   };
+
+  // Viewing 2026-10 must exclude 2026-11 and 2026-12 transactions from historical net worth
+  const pastSeries = computeNetWorthSeries(sample, '2026-10', 1, 2);
+  assert.equal(pastSeries[1].period, '2026-10');
+  assert.equal(pastSeries[1].estimatedNetWorth, 10000000 + 7000000 + 5000000);
 
   const series = computeNetWorthSeries(sample, '2026-11', 1, 2);
   assert.equal(series.length, 2);
@@ -418,5 +436,7 @@ test('computeNetWorthSeries and compileOnePageFinancialStatement reconstruct his
   assert.equal(stmt.incomeTotal, 10000000);
   assert.equal(stmt.expenseTotal, 4000000);
   assert.equal(stmt.netCashflow, 6000000);
+  assert.equal(stmt.topExpenses[0].category, 'Makan');
+  assert.equal(stmt.topExpenses[0].amount, 4000000);
   assert.equal(typeof stmt.ratios.savingsRatePct, 'number');
 });

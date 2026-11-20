@@ -175,4 +175,26 @@
   .dark-swal { background: #1e293b !important; color: #f8fafc !important; }
   .dark-swal .swal2-title, .dark-swal .swal2-html-container { color: #f8fafc !important; }
   .dark-swal .swal2-input, .dark-swal .swal2-select { background: #0f172a !important; color: white !important; border-color: #334155 !important; }
+
+  #mkPrintStatementRoot { display: none; }
+  @media print {
+    @page { margin: 12mm; }
+    body.mk-printing-statement {
+      background: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body.mk-printing-statement > *:not(#mkPrintStatementRoot) {
+      display: none !important;
+    }
+    body.mk-printing-statement > #mkPrintStatementRoot {
+      display: block !important;
+      width: 100% !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+  }
 </style>

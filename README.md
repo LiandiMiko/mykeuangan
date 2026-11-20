@@ -91,7 +91,8 @@ mykeuangan/
 │       ├── 20261115040200_application_hardening.sql # Active account and transactional safeguards
 │       ├── 20261116000000_financial_goals_and_transaction_search.sql
 │       ├── 20261117000000_wallets_asset_purchases.sql
-│       └── 20261118000000_comprehensive_upgrade.sql
+│       ├── 20261118000000_comprehensive_upgrade.sql
+│       └── 20261120000000_hardening_assets_profile_wallets.sql
 │
 ├── tests/
 │   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
@@ -221,7 +222,18 @@ Migrasi ini menambahkan:
 - RPC `rename_category_with_transactions()`, `delete_category()`, `delete_wallet()`, `liquidate_asset()`, `contribute_to_goal()`
 - Pembaruan `search_user_transactions()` dengan filter opsional `p_wallet_id`
 
+#### Step 10 — Hardening Aset Multi-Tipe, Profil Display Name & Hapus Dompet
+```sql
+-- Jalankan isi file: supabase/migrations/20261120000000_hardening_assets_profile_wallets.sql
+```
+
+Migrasi ini menambahkan/memperbarui:
+- RPC `public.update_own_display_name(text)` agar seluruh pengguna (non-admin sekalipun) dapat mengubah nama tampilan profil dengan aman
+- Pembaruan atomik `create_asset_with_expense()`, `top_up_asset()`, dan `liquidate_asset()` untuk mendukung `Crypto`, `Emas`, `USD`, `Saham`, `Cash`, dan `Other` beserta `unit_label`, `price_per_unit`, dan `buy_price` dalam satu transaksi database
+- Hardening `delete_wallet()` untuk mempertahankan saldo awal serta riwayat transaksi/transfer non-internal saat dompet dihapus
+
 > Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi baru setelah migrasi hardening.
+> **Rotasi Rahasia Cron**: Bila sebelumnya menggunakan nilai contoh di `supabase/schedule.sql`, wajib rotasi `CRON_SECRET` di Supabase Edge Function Secrets dan perbarui job `pg_cron` memakai placeholder `<PROJECT_REF>` serta secret acak minimal 32 karakter.
 
 ### Impor transaksi CSV
 
@@ -367,6 +379,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 20 November 2026: Wave v3.4 (Security Hardening, Atomic Asset/Wallet RPCs, Telegram Bot, Print Statement, Calendar & PWA Cache Busting)
+- **Hardening Keamanan & Privasi**: Menghapus rahasia cron dan URL produksi hardcoded di `supabase/schedule.sql` (wajib rotasi `CRON_SECRET`), membersihkan seluruh key sensitif (`mk_gemini_*`, PIN Lock, antrean offline, IndexedDB `mykeuangan_offline_db`) saat `logout()`, meng-upgrade PIN Lock ke PBKDF2-SHA256 tersalt, menangkal HTML XSS pada judul dialog SweetAlert2, menetralkan formula injection (`=`, `+`, `-`, `@`, tab) pada ekspor CSV & Excel, dan menjaga `exportPDF()` tetap menampilkan nominal asli saat mode *Hide Nominal* aktif.
+- **RPC Atomik Aset Multi-Tipe, Profil & Dompet**: Migrasi `supabase/migrations/20261120000000_hardening_assets_profile_wallets.sql` menambahkan RPC `update_own_display_name(text)` untuk user non-admin, menyatukan update `unit_label`/`price_per_unit`/`buy_price` secara atomik pada `create_asset_with_expense`, `top_up_asset`, dan `liquidate_asset` untuk `Crypto`/`Emas`/`USD`/`Saham`, serta mengamankan `delete_wallet` agar saldo pembuka dan histori non-internal tetap terjaga.
+- **Kalender, Analitik, Cetak & Anti-Duplikasi Transaksi**: Menyinkronkan `kalenderYear`/`kalenderMonth` dengan perpindahan siklus periode, memisahkan arus kas bersih (`flowIn`/`flowOut`) dan hitungan filter di Kalender, memperbaiki `getDueRecurringBills`, memperbarui `last_run` lewat `api_markRecurringRun`, memformat nominal Rupiah pada notifikasi, menjaga `#recurringDueBanner` saat ganti bahasa, memperbaiki `topExpenses` (`category`/`amount`), `null` runway (`'—'`), dan container `@media print` pada *1-Page Statement*, memperbarui grafik `#netWorthChart` (skala sumbu-Y, delay render tab, tema), serta menyinkronkan multi-transaksi offline/Split Bill dan guard double-submit `#btnSubmitTrans`.
+- **Telegram Bot, PWA & Hygiene Kode**: Mengoreksi kategori `/utang` ke `UtangPerson` + upsert `entities`, menjadikan pairing OTP atomik (`DELETE ... RETURNING`), menyaring user aktif serta tanggal akhir bulan (`29..31`) di cron bot, mendeduplikasi logika AI Gemini dan utang piutang dengan fallback terstruktur, menambahkan Service Worker *Network-First* untuk HTML + cache versioning berbasis SHA-256 build ID di `web/sw.js` & `build.mjs`, serta menuntaskan 11 error `no-undef` (`sessionUser`/`sessionRole` → `window.*`) sehingga skor `aislop` naik dari `48/100` menjadi `67/100` (hanya menyisakan 1 error `security/hardcoded-secret` atas public client anon key pada file konfigurasi lokal gitignored `web/config.js`).
 
 ### 18 November 2026: Wave v3.3 (Batch Catat Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak & Filter Kalender)
 - **Batch Eksekusi Tagihan Rutin Jatuh Tempo**: Banner peringatan cerdas `#recurringDueBanner` di Dashboard mendeteksi seluruh tagihan rutin yang jatuh tempo pada siklus berjalan (`getDueRecurringBills`), dilengkapi tombol **`⚡ Catat Semua Sekaligus`** (`batchRecordRecurring`) dengan dialog konfirmasi sekali klik.

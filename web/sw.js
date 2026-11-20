@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mykeuangan-v4';
+const CACHE_NAME = 'mykeuangan-__BUILD_ID__';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -36,7 +36,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-While-Revalidate untuk asset frontend statis
+  // Network-First untuk dokumen HTML / navigasi agar update terbaru langsung aktif saat online
+  const accept = event.request.headers.get('accept') || '';
+  const isHtmlRequest = event.request.mode === 'navigate'
+    || accept.includes('text/html')
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('/index.html');
+
+  if (isHtmlRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkRes) => {
+          if (networkRes && networkRes.status === 200) {
+            const clone = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkRes;
+        })
+        .catch(() => caches.match(event.request).then((hit) => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate untuk asset frontend statis non-HTML
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)

@@ -17,8 +17,8 @@
     payrollDay: 28
   };
 
-  let sessionUser = 'User';
-  let sessionRole = 'User';
+  var sessionUser = 'User';
+  var sessionRole = 'User';
   let fpTanggal = null;
   let fpMonth = null;
   let isDataReady = false;
@@ -110,12 +110,21 @@
 
   async function saveCurrentPeriod(period) {
     const previousPeriod = DB.currentPeriod;
+    const prevCalYear = typeof kalenderYear !== 'undefined' ? kalenderYear : null;
+    const prevCalMonth = typeof kalenderMonth !== 'undefined' ? kalenderMonth : null;
     DB.currentPeriod = period;
+    const periodMatch = /^(\d{4})-(\d{2})$/.exec(String(period || ''));
+    if (periodMatch) {
+      kalenderYear = Number(periodMatch[1]);
+      kalenderMonth = Number(periodMatch[2]);
+    }
     renderAll();
     try {
       await callServer('api_savePeriod', period);
     } catch (error) {
       DB.currentPeriod = previousPeriod;
+      if (prevCalYear !== null) kalenderYear = prevCalYear;
+      if (prevCalMonth !== null) kalenderMonth = prevCalMonth;
       if (fpMonth) fpMonth.setDate(previousPeriod, false);
       renderAll();
       showActionError(error);
@@ -239,14 +248,16 @@
       if (dEl) dEl.innerText = 'Dashboard Keuangan ' + sessionUser;
       console.log('[INIT] loaded', DB.transactions.length, 'transactions,', DB.snapshots.length, 'snapshots, period:', DB.currentPeriod);
 
-      // 🆕 Auto-refresh harga crypto (kalau ada)
-      const hasCrypto = (DB.assets || []).some(a => String(a.type).toLowerCase() === 'crypto');
-      if (hasCrypto) {
-        console.log('[INIT] Auto-refresh crypto prices...');
+      // 🆕 Auto-refresh harga pasar (Crypto, Emas, USD) bila dimiliki
+      const hasMarketAsset = (DB.assets || []).some(a =>
+        ['crypto', 'emas', 'usd'].includes(String(a.type || '').toLowerCase())
+      );
+      if (hasMarketAsset) {
+        console.log('[INIT] Auto-refresh market asset prices...');
         try {
           const updated = await callServer('api_refreshPrices');
           DB.assets = updated.assets || DB.assets;
-          console.log('[INIT] ✅ Crypto prices updated');
+          console.log('[INIT] ✅ Market asset prices updated');
         } catch (err) {
           console.warn('[INIT] ⚠️ Auto-refresh gagal:', err);
         }
@@ -949,9 +960,23 @@
     const byDay = {};
     txs.forEach(t => {
       const day = Number(String(t.tanggal).slice(8, 10));
-      if (!byDay[day]) byDay[day] = { inAmt: 0, outAmt: 0, count: 0 };
-      if (t.tipe === 'Pemasukan') byDay[day].inAmt += Number(t.nominal) || 0;
-      else byDay[day].outAmt += Number(t.nominal) || 0;
+      if (!byDay[day]) {
+        byDay[day] = { inAmt: 0, outAmt: 0, flowIn: 0, flowOut: 0, inCount: 0, outCount: 0, count: 0 };
+      }
+      const amt = Number(t.nominal) || 0;
+      const cat = String(t.kategori || '');
+      const isDebt = typeof isDebtCategory === 'function'
+        ? isDebtCategory(cat)
+        : (cat.startsWith('Utang') || cat.startsWith('Piutang'));
+      if (t.tipe === 'Pemasukan') {
+        byDay[day].inAmt += amt;
+        if (!isDebt) byDay[day].flowIn += amt;
+        byDay[day].inCount++;
+      } else {
+        byDay[day].outAmt += amt;
+        if (!isDebt) byDay[day].flowOut += amt;
+        byDay[day].outCount++;
+      }
       byDay[day].count++;
     });
 
@@ -978,8 +1003,6 @@
     let firstDayOfWeek = firstDay.getDay();
     firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
-    grid.innerHTML = '';
-
     const emptyCellClass = 'min-h-[80px] sm:min-h-[90px] border-b border-r border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40';
 
     for (let i = 0; i < firstDayOfWeek; i++) {
@@ -996,15 +1019,16 @@
 
     for (let d = 1; d <= daysInMonth; d++) {
       const isToday = isCurrentMonthView && d === todayDate;
-      const data = byDay[d] || { inAmt: 0, outAmt: 0, count: 0 };
-      totalIn += data.inAmt;
-      totalOut += data.outAmt;
+      const data = byDay[d] || { inAmt: 0, outAmt: 0, flowIn: 0, flowOut: 0, inCount: 0, outCount: 0, count: 0 };
+      totalIn += data.flowIn;
+      totalOut += data.flowOut;
       const net = data.inAmt - data.outAmt;
       const mode = window.calendarFilter || 'all';
       const showIn = mode === 'all' || mode === 'in';
       const showOut = mode === 'all' || mode === 'out';
       const activeAmt = mode === 'out' ? data.outAmt : (mode === 'in' ? data.inAmt : (data.inAmt > 0 || data.outAmt > 0));
       const hasData = Boolean(activeAmt);
+      const visibleCount = mode === 'out' ? data.outCount : (mode === 'in' ? data.inCount : data.count);
 
       let bgClass = 'bg-white dark:bg-slate-900';
       if (hasData) {
@@ -1020,15 +1044,18 @@
       cell.type = 'button';
       cell.className = 'text-left align-top min-h-[80px] sm:min-h-[90px] p-1.5 sm:p-2 border-b border-r border-slate-100 dark:border-slate-800/60 relative transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/60 focus-visible:ring-2 focus-visible:ring-brand ' + bgClass;
       if (isToday) cell.classList.add('ring-2', 'ring-inset', 'ring-brand');
-      cell.title = hasData ? (data.count + ' transaksi · Net: ' + formatRupiah(net)) : ('Lihat atau tambah transaksi ' + dateStr);
-      cell.setAttribute('aria-label', dateStr + (hasData ? (', ' + data.count + ' transaksi') : ''));
+      const summaryLabel = mode === 'out'
+        ? ('Keluar: ' + formatRupiah(data.outAmt))
+        : (mode === 'in' ? ('Masuk: ' + formatRupiah(data.inAmt)) : ('Net: ' + formatRupiah(net)));
+      cell.title = hasData ? (visibleCount + ' transaksi · ' + summaryLabel) : ('Lihat atau tambah transaksi ' + dateStr);
+      cell.setAttribute('aria-label', dateStr + (hasData ? (', ' + visibleCount + ' transaksi') : ''));
       cell.addEventListener('click', () => openCalendarDayModal(dateStr));
 
       let html = '<div class="flex items-center justify-between mb-1">';
       html += '<span class="text-[11px] sm:text-xs font-bold ' +
         (isToday ? 'text-brand dark:text-brand-ink' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
       if (hasData) {
-        html += '<span class="text-[8px] font-bold text-slate-400 dark:text-slate-500">' + data.count + 'x</span>';
+        html += '<span class="text-[8px] font-bold text-slate-400 dark:text-slate-500">' + visibleCount + 'x</span>';
       }
       html += '</div>';
 
@@ -1216,121 +1243,10 @@
     }).join('');
   }
 
-  function addManualAssetUI() {
-    Swal.fire({
-      title: 'Tambah Aset',
-      html: `
-      <select id="asset-type" class="swal2-input" style="background:#f1f5f9;color:#0f172a;">
-        <option value="Crypto">🪙 Crypto</option>
-        <option value="Cash">💵 Cash / Tabungan</option>
-        <option value="Other">📦 Lainnya</option>
-      </select>
-      <input id="asset-name" class="swal2-input" placeholder="Nama aset (mis. Bitcoin)">
-      <input id="asset-symbol" class="swal2-input" placeholder="Symbol crypto (BTC, ONDO, TAO)" style="display:none;">
-      <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input" placeholder="Jumlah coin (mis. 0.05)" style="display:none;">
-      <input id="asset-buyprice" type="number" class="swal2-input" placeholder="Harga beli rata-rata (Rp) — opsional" style="display:none;">
-      <input id="asset-value" type="number" class="swal2-input" placeholder="Nilai (Rp)">
-      <label for="asset-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana (opsional)</label>
-      <select id="asset-wallet" class="swal2-input">
-        <option value="">Catat sebagai aset manual</option>
-        ${walletOptions('')}
-      </select>
-      <p style="font-size:12px;color:#64748b;margin:6px 4px">Jika dompet dipilih, pembelian masuk ke pengeluaran kategori Investasi.</p>
-    `,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
-      customClass: { popup: getSwalClass() },
-      didOpen: () => {
-        const typeSelect = document.getElementById('asset-type');
-        const symbolInput = document.getElementById('asset-symbol');
-        const qtyInput = document.getElementById('asset-quantity');
-        const buyInput = document.getElementById('asset-buyprice');
-        const valInput = document.getElementById('asset-value');
-
-        function toggleFields() {
-          const isCrypto = typeSelect.value === 'Crypto';
-          symbolInput.style.display = isCrypto ? 'block' : 'none';
-          qtyInput.style.display = isCrypto ? 'block' : 'none';
-          buyInput.style.display = isCrypto ? 'block' : 'none';
-          valInput.style.display = isCrypto ? 'none' : 'block';
-        }
-        typeSelect.addEventListener('change', toggleFields);
-        toggleFields();
-      },
-      preConfirm: () => {
-        const type = document.getElementById('asset-type').value;
-        const name = document.getElementById('asset-name').value.trim();
-
-        if (!name) {
-          Swal.showValidationMessage('Isi nama aset');
-          return false;
-        }
-
-        if (type === 'Crypto') {
-          const symbol = document.getElementById('asset-symbol').value.trim().toUpperCase();
-          const quantity = parseFloat(document.getElementById('asset-quantity').value);
-          const buyPrice = parseFloat(document.getElementById('asset-buyprice').value) || 0;
-          const walletId = document.getElementById('asset-wallet').value;
-
-          if (!symbol) {
-            Swal.showValidationMessage('Isi symbol crypto');
-            return false;
-          }
-          if (!quantity || quantity <= 0) {
-            Swal.showValidationMessage('Isi jumlah coin');
-            return false;
-          }
-          if (buyPrice < 0 || (walletId && buyPrice <= 0)) {
-            Swal.showValidationMessage('Isi harga beli di atas nol untuk mencatat sumber dana');
-            return false;
-          }
-
-          return { name, type, symbol, quantity, buyPrice, value: 0, walletId, tanggal: localToday() };
-        } else {
-          const value = parseFloat(document.getElementById('asset-value').value);
-          if (!value || value <= 0) {
-            Swal.showValidationMessage('Isi nilai aset');
-            return false;
-          }
-          return {
-            name, type, symbol: '', quantity: 0, buyPrice: 0, value,
-            walletId: document.getElementById('asset-wallet').value,
-            tanggal: localToday()
-          };
-        }
-      }
-    }).then(async res => {
-      if (res.isConfirmed && res.value) {
-        try {
-          const data = await callServer('api_addAssetV2', res.value);
-          await refreshFromServer(data);
-          // Langsung refresh harga kalau crypto
-          if (res.value.type === 'Crypto') {
-            try {
-              const data2 = await callServer('api_refreshPrices');
-              await refreshFromServer(data2);
-            } catch (e) {
-              Swal.fire({
-                icon: 'warning',
-                title: 'Aset tersimpan',
-                text: 'Pembelian tercatat, tetapi harga crypto belum diperbarui: ' + String(e.message || e),
-                customClass: { popup: getSwalClass() }
-              });
-            }
-          }
-        } catch (e) {
-          Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
-        }
-      }
-    });
-  }
-
   /* 🆕 Refresh harga manual */
   async function refreshAssetPrices() {
     Swal.fire({
-      title: 'Refresh harga crypto...',
+      title: 'Refresh harga aset...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
       customClass: { popup: getSwalClass() }
@@ -1487,7 +1403,7 @@
   async function manageDebtEntity(action, group, oldName = '') {
     if (action === 'delete') {
       Swal.fire({
-        title: `Hapus ${oldName}?`,
+        title: `Hapus ${escapeHtmlJS(oldName)}?`,
         text: 'Catatan transaksi lama tidak akan terhapus.',
         icon: 'warning',
         showCancelButton: true,
@@ -1955,7 +1871,7 @@
       : '';
 
     const { value: formVals } = await Swal.fire({
-      title: title,
+      title: escapeHtmlJS(title),
       html: `
       <input id="swal-nom" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="number" placeholder="Nominal Rp">
       <input id="swal-ket" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="text" placeholder="Catatan Opsional">
@@ -2144,6 +2060,8 @@
 
   async function submitTransaction(e) {
     e.preventDefault();
+    const submitBtn = document.getElementById('btnSubmitTrans');
+    if (submitBtn && submitBtn.disabled) return;
     const rowId = document.getElementById('tr_row').value;
 
     let tanggal = document.getElementById('tr_tanggal').value;
@@ -2172,6 +2090,13 @@
         customClass: { popup: getSwalClass() }
       });
       return;
+    }
+
+    const origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+      submitBtn.textContent = 'Menyimpan...';
     }
 
     const txMonth = cycleOfDate(p.tanggal);   // siklus gaji, bukan bulan kalender
@@ -2213,6 +2138,12 @@
         text: String(err && err.message ? err.message : err),
         customClass: { popup: getSwalClass() }
       });
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+        submitBtn.innerHTML = origBtnHtml;
+      }
     }
   }
 
@@ -2527,7 +2458,8 @@
 
   function csvEscapeCell(val) {
     const s = String(val == null ? '' : val);
-    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    const safe = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+    return /[",\r\n]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
   }
 
   function exportCSV() {
@@ -2605,7 +2537,7 @@
     doc.setTextColor(5, 150, 105);
     doc.text("TOTAL PEMASUKAN", 18, 54);
     doc.setFontSize(12);
-    doc.text(formatRupiah(totalMasuk).replace(',00', ''), 18, 62);
+    doc.text(_origFormatRupiah(totalMasuk).replace(',00', ''), 18, 62);
 
     doc.setFillColor(255, 241, 242);
     doc.roundedRect(74, 46, 56, 22, 3, 3, 'F');
@@ -2613,7 +2545,7 @@
     doc.setTextColor(225, 29, 72);
     doc.text("TOTAL PENGELUARAN", 78, 54);
     doc.setFontSize(12);
-    doc.text(formatRupiah(totalKeluar).replace(',00', ''), 78, 62);
+    doc.text(_origFormatRupiah(totalKeluar).replace(',00', ''), 78, 62);
 
     const isSurplus = selisih >= 0;
     doc.setFillColor(isSurplus ? 239 : 255, isSurplus ? 246 : 241, isSurplus ? 255 : 242);
@@ -2622,14 +2554,14 @@
     doc.setTextColor(isSurplus ? 37 : 225, isSurplus ? 99 : 29, isSurplus ? 235 : 72);
     doc.text("SURPLUS / DEFISIT", 138, 54);
     doc.setFontSize(12);
-    doc.text(`${isSurplus ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}`, 138, 62);
+    doc.text(`${isSurplus ? '+' : ''}${_origFormatRupiah(selisih).replace(',00', '')}`, 138, 62);
 
     doc.autoTable({
       startY: 76,
       head: [['Tanggal', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Nominal']],
       body: txs.map(r => [
         r.tanggal, r.tipe, r.kategori, walletName(r.walletId), r.keterangan || '-',
-        formatRupiah(r.nominal).replace(',00', '')
+        _origFormatRupiah(r.nominal).replace(',00', '')
       ]),
       theme: 'grid',
       headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', halign: 'center' },
@@ -2754,7 +2686,7 @@
 
   async function editBudgetInline(id, kategori, currentJumlah) {
     const { value: newJumlah } = await Swal.fire({
-      title: '✏️ ' + kategori,
+      title: '✏️ ' + escapeHtmlJS(kategori),
       input: 'number',
       inputValue: currentJumlah,
       inputAttributes: { min: 0, step: 1000 },
@@ -2797,8 +2729,6 @@
     const analysis = insights.period;
     const summary = document.getElementById('budgetSummary');
     const insightContainer = document.getElementById('budgetInsights');
-    const categories = document.getElementById('budgetAnalysisCategories');
-    const trendContainer = document.getElementById('budgetTrend');
     const differenceClass = (amount) => amount >= 0
       ? 'text-emerald-600 dark:text-emerald-400'
       : 'text-rose-600 dark:text-rose-400';
@@ -2855,57 +2785,6 @@
           <p class="text-sm sm:text-lg font-black ${differenceClass(analysis.remaining)} truncate">${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00', '')}</p>
         </div>
       </div>
-    `;
-    }
-
-    if (categories) {
-      categories.innerHTML = analysis.rows.length ? `
-      <table class="w-full text-left text-xs">
-        <thead class="text-slate-500 bg-slate-50 dark:bg-slate-800/50">
-          <tr>
-            <th scope="col" class="p-3 font-semibold">${t('budget.kategori')}</th>
-            <th scope="col" class="p-3 font-semibold text-right">${t('budget.plan')}</th>
-            <th scope="col" class="p-3 font-semibold text-right">${t('budget.actual')}</th>
-            <th scope="col" class="p-3 font-semibold text-right">${t('budget.selisih')}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-          ${analysis.rows.map((row) => `
-            <tr>
-              <th scope="row" class="p-3 font-medium text-slate-700 dark:text-slate-200">${escapeHtmlJS(row.category)}</th>
-              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(row.plan).replace(',00', '')}</td>
-              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(row.actual).replace(',00', '')}</td>
-              <td class="p-3 text-right whitespace-nowrap font-semibold ${differenceClass(row.remaining)}">${row.remaining >= 0 ? '+' : ''}${formatRupiah(row.remaining).replace(',00', '')}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    ` : `<p class="p-5 text-sm text-slate-500">${t('budget.no_activity')}</p>`;
-    }
-
-    if (trendContainer) {
-      const trend = FinanceAnalysis.monthlyTrend(DB.budgets, DB.transactions, period, DB.payrollDay, 6);
-      trendContainer.innerHTML = `
-      <table class="w-full text-left text-xs">
-        <thead class="text-slate-500 bg-slate-50 dark:bg-slate-800/50">
-          <tr>
-            <th scope="col" class="p-3 font-semibold">${t('budget.month')}</th>
-            <th scope="col" class="p-3 font-semibold text-right">${t('budget.plan')}</th>
-            <th scope="col" class="p-3 font-semibold text-right">${t('budget.expense')}</th>
-            <th scope="col" class="p-3 font-semibold text-right">${t('budget.selisih')}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-          ${trend.map((month) => `
-            <tr class="${month.period === period ? 'bg-brand/5 font-semibold' : ''}">
-              <th scope="row" class="p-3 whitespace-nowrap text-slate-700 dark:text-slate-200">${escapeHtmlJS(getMonthName(Number(month.period.slice(5, 7)) - 1))} ${month.period.slice(0, 4)}</th>
-              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(month.budgetTotal).replace(',00', '')}</td>
-              <td class="p-3 text-right whitespace-nowrap">${formatRupiah(month.actualTotal).replace(',00', '')}</td>
-              <td class="p-3 text-right whitespace-nowrap ${differenceClass(month.remaining)}">${month.remaining >= 0 ? '+' : ''}${formatRupiah(month.remaining).replace(',00', '')}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
     `;
     }
   }

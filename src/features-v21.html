@@ -113,12 +113,17 @@
 
     isFlushingOffline = true;
     let synced = 0;
-    let lastPayload = null;
+    const addedTransactions = [];
+    let latestPeriod = '';
     try {
       for (const item of queue) {
         try {
           const payload = Object.assign({}, item.payload);
-          lastPayload = await window._rawCallServer('api_addTransaction', payload);
+          const res = await window._rawCallServer('api_addTransaction', payload);
+          if (res && res.transaction) addedTransactions.push(res.transaction);
+          if (res && res.currentPeriod && (!latestPeriod || res.currentPeriod > latestPeriod)) {
+            latestPeriod = res.currentPeriod;
+          }
           await removeOfflineQueueItem(item.localId);
           if (typeof DB !== 'undefined' && Array.isArray(DB.transactions)) {
             DB.transactions = DB.transactions.filter((tx) => tx.id !== item.localId);
@@ -128,8 +133,11 @@
           if (isNetworkOfflineError(err)) break;
         }
       }
-      if (synced > 0 && lastPayload && typeof refreshFromServer === 'function') {
-        await refreshFromServer(lastPayload);
+      if (synced > 0 && typeof refreshFromServer === 'function') {
+        await refreshFromServer({
+          addedTransactions,
+          ...(latestPeriod ? { currentPeriod: latestPeriod } : {})
+        });
       }
       if (synced > 0 && !silent && typeof Swal !== 'undefined') {
         Swal.fire({
@@ -597,7 +605,13 @@
         walletId: (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || ''
       };
       const data = await callServer('api_addTransaction', payload);
-      await refreshFromServer(data);
+      let recData = null;
+      if (item.id) {
+        try {
+          recData = await callServer('api_markRecurringRun', [item.id], todayStr);
+        } catch (_) {}
+      }
+      await refreshFromServer({ ...(data || {}), ...(recData || {}) });
       Swal.fire({
         icon: 'success',
         title: 'Jadwal rutin dicatat!',
@@ -660,14 +674,18 @@
       Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
       return;
     }
+    const safeExcelCell = (val) => {
+      const s = String(val == null ? '' : val);
+      return escapeHtmlJS(/^[=+\-@\t\r]/.test(s) ? ("'" + s) : s);
+    };
     const rowsHtml = txs.map((r) => `
       <tr>
-        <td>${escapeHtmlJS(r.tanggal)}</td>
-        <td>${escapeHtmlJS(r.tipe)}</td>
-        <td>${escapeHtmlJS(r.kategori)}</td>
+        <td>${safeExcelCell(r.tanggal)}</td>
+        <td>${safeExcelCell(r.tipe)}</td>
+        <td>${safeExcelCell(r.kategori)}</td>
         <td>${Number(r.nominal) || 0}</td>
-        <td>${escapeHtmlJS(r.keterangan || '')}</td>
-        <td>${escapeHtmlJS(walletName(r.walletId))}</td>
+        <td>${safeExcelCell(r.keterangan || '')}</td>
+        <td>${safeExcelCell(walletName(r.walletId))}</td>
       </tr>`).join('');
 
     const tableDoc = `
@@ -1148,10 +1166,46 @@
     URL.revokeObjectURL(url);
   };
 
-  async function hashPin(pin) {
-    const data = new TextEncoder().encode('mkpin:' + String(pin));
-    const buf = await crypto.subtle.digest('SHA-256', data);
+  function createPinSalt() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function derivePinHash(pin, saltHex) {
+    const enc = new TextEncoder();
+    if (window.crypto && window.crypto.subtle && typeof window.crypto.subtle.deriveBits === 'function') {
+      const keyMat = await crypto.subtle.importKey('raw', enc.encode(String(pin)), 'PBKDF2', false, ['deriveBits']);
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt: enc.encode(String(saltHex || '')), iterations: 100000, hash: 'SHA-256' },
+        keyMat,
+        256
+      );
+      return 'pbkdf2$' + Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(String(saltHex || '') + ':' + String(pin)));
     return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function hashPin(pin) {
+    const salt = createPinSalt();
+    localStorage.setItem('mk_app_pin_salt', salt);
+    return derivePinHash(pin, salt);
+  }
+
+  async function verifyPinMatches(pin, savedHash) {
+    if (String(savedHash).startsWith('pbkdf2$')) {
+      const salt = localStorage.getItem('mk_app_pin_salt') || '';
+      return (await derivePinHash(pin, salt)) === savedHash;
+    }
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('mkpin:' + String(pin)));
+    const legacyHex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    if (legacyHex === savedHash) {
+      const newHash = await hashPin(pin);
+      localStorage.setItem('mk_app_pin_hash', newHash);
+      return true;
+    }
+    return false;
   }
 
   window.openAccountSettingsModal = async function () {
@@ -1182,6 +1236,7 @@
         if (clr) {
           clr.addEventListener('click', () => {
             localStorage.removeItem('mk_app_pin_hash');
+            localStorage.removeItem('mk_app_pin_salt');
             sessionStorage.removeItem('mk_pin_unlocked');
             Swal.fire({ icon: 'info', title: 'PIN aplikasi dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
           });
@@ -1251,8 +1306,8 @@
           if (typeof window.logout === 'function') window.logout();
           return;
         }
-        const hashed = await hashPin(String(res.value || '').trim());
-        if (hashed === savedHash) {
+        const ok = await verifyPinMatches(String(res.value || '').trim(), savedHash);
+        if (ok) {
           sessionStorage.setItem('mk_pin_unlocked', '1');
           break;
         }
@@ -1359,12 +1414,15 @@
           }
 
           const myPortion = totalNominal - friendShare;
+          const submitBtn = document.getElementById('btnSubmitTrans');
+          if (submitBtn && submitBtn.disabled) return;
+          if (submitBtn) submitBtn.disabled = true;
           try {
             if (!((DB.entities && DB.entities.Piutang) || []).includes(person)) {
               const entData = await callServer('api_addEntity', 'Piutang', person);
               if (entData && entData.entities) DB.entities = entData.entities;
             }
-            await callServer('api_addTransaction', {
+            const data1 = await callServer('api_addTransaction', {
               tanggal, tipe: 'Pengeluaran', kategori, nominal: myPortion,
               keterangan: (note ? note + ' ' : '') + '[Split Bill dengan ' + person + ']', walletId
             });
@@ -1372,12 +1430,17 @@
               tanggal, tipe: 'Pengeluaran', kategori: 'Piutang - ' + person, nominal: friendShare,
               keterangan: 'Patungan: ' + (note || kategori), walletId
             });
+            const addedTransactions = [data1 && data1.transaction, data2 && data2.transaction].filter(Boolean);
+            const mergedPayload = { addedTransactions };
             const txMonth = cycleOfDate(tanggal);
             if (txMonth !== DB.currentPeriod) {
               await callServer('api_savePeriod', txMonth);
-              data2.currentPeriod = txMonth;
+              mergedPayload.currentPeriod = txMonth;
+              if (typeof fpMonth !== 'undefined' && fpMonth) {
+                try { fpMonth.setDate(txMonth, false); } catch (_) {}
+              }
             }
-            await refreshFromServer(data2);
+            await refreshFromServer(mergedPayload);
             Swal.fire({
               icon: 'success',
               title: 'Split Bill Tercatat!',
@@ -1389,6 +1452,8 @@
             switchView('dashboard');
           } catch (err) {
             if (typeof showActionError === 'function') showActionError(err);
+          } finally {
+            if (submitBtn) submitBtn.disabled = false;
           }
           return;
         }
@@ -1515,7 +1580,7 @@
         } else if (id === 'aset') {
           renderFinancialRatios();
           renderAssetAllocation();
-          renderNetWorthChart();
+          setTimeout(() => { renderNetWorthChart(); }, 60);
         } else if (id === 'dashboard') {
           checkAndRenderDueRecurringBanner();
         } else if (id === 'histori') {
@@ -1547,6 +1612,7 @@
         window._origSetTheme(t);
         if (typeof isDataReady !== 'undefined' && isDataReady) {
           try { renderBudgetCharts(); } catch (_) {}
+          try { renderNetWorthChart(); } catch (_) {}
         }
       };
     }
@@ -1885,7 +1951,7 @@
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h4 class="text-sm font-extrabold text-slate-800 dark:text-white" data-i18n="dash.recurring_due">${due.count} Tagihan Rutin Jatuh Tempo</h4>
+                <h4 class="text-sm font-extrabold text-slate-800 dark:text-white">${due.count} <span data-i18n="dash.recurring_due">${escapeHtmlJS(t('dash.recurring_due'))}</span></h4>
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 dark:bg-amber-500/30 text-amber-800 dark:text-amber-300">Siap Catat</span>
               </div>
               <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">Total tagihan: <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> pada siklus ini dan belum tercatat.</p>
@@ -1935,19 +2001,27 @@
         </div>`;
     }).join('');
 
+    const walletSelectHtml = (typeof walletOptions === 'function' && (DB.wallets || []).length)
+      ? `<div class="mt-3 text-left"><label for="batch-rec-wallet" class="block text-xs font-bold text-slate-500 mb-1">Dompet pencatatan</label><select id="batch-rec-wallet" class="swal2-input" style="margin:0;width:100%">${walletOptions('')}</select></div>`
+      : '';
+
     const res = await Swal.fire({
       title: 'Catat Semua Tagihan Jatuh Tempo?',
       html: `
         <p class="text-xs text-slate-600 dark:text-slate-300 mb-3 text-left">
           Terdapat <strong>${due.count} tagihan</strong> dengan total <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> yang akan langsung dicatat sebagai transaksi hari ini (${todayStr}).
         </p>
-        <div class="space-y-1.5 max-h-52 overflow-y-auto text-left mb-2">${itemsHtml}</div>`,
+        <div class="space-y-1.5 max-h-52 overflow-y-auto text-left mb-2">${itemsHtml}</div>
+        ${walletSelectHtml}`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: '⚡ Ya, Catat Semua',
       cancelButtonText: 'Batal',
       confirmButtonColor: '#f59e0b',
-      customClass: { popup: getSwalClass() }
+      customClass: { popup: getSwalClass() },
+      preConfirm: () => ({
+        walletId: (document.getElementById('batch-rec-wallet') || {}).value || (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || ''
+      })
     });
     if (!res.isConfirmed) return;
 
@@ -1960,8 +2034,10 @@
     });
 
     try {
-      const defaultWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
-      let lastResult = null;
+      const targetWalletId = (res.value && res.value.walletId) || (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+      const addedTransactions = [];
+      const recordedIds = [];
+      let latestPeriod = '';
       for (const bill of due.dueBills) {
         const payload = {
           tanggal: todayStr,
@@ -1969,16 +2045,28 @@
           kategori: bill.kategori,
           nominal: Number(bill.nominal) || 0,
           keterangan: (bill.keterangan ? bill.keterangan + ' ' : '') + '(rutin)',
-          walletId: defaultWalletId
+          walletId: targetWalletId
         };
-        lastResult = await callServer('api_addTransaction', payload);
+        const txRes = await callServer('api_addTransaction', payload);
+        if (txRes && txRes.transaction) addedTransactions.push(txRes.transaction);
+        if (txRes && txRes.currentPeriod && (!latestPeriod || txRes.currentPeriod > latestPeriod)) {
+          latestPeriod = txRes.currentPeriod;
+        }
+        if (bill.id) recordedIds.push(bill.id);
       }
 
-      if (lastResult) {
-        await refreshFromServer(lastResult);
-      } else if (typeof renderAll === 'function') {
-        renderAll();
+      let recRes = null;
+      if (recordedIds.length) {
+        try {
+          recRes = await callServer('api_markRecurringRun', recordedIds, todayStr);
+        } catch (_) {}
       }
+
+      await refreshFromServer({
+        addedTransactions,
+        ...(latestPeriod ? { currentPeriod: latestPeriod } : {}),
+        ...(recRes && recRes.recurring ? { recurring: recRes.recurring } : {})
+      });
 
       Swal.fire({
         icon: 'success',
@@ -2062,11 +2150,7 @@
             ticks: {
               color: textColor,
               font: { size: 10 },
-              callback: (val) => {
-                if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + ' jt';
-                if (Math.abs(val) >= 1e3) return (val / 1e3).toFixed(0) + ' rb';
-                return val;
-              }
+              callback: (val) => (typeof formatShortIDR === 'function' ? formatShortIDR(val) : val)
             }
           }
         }
@@ -2082,71 +2166,90 @@
 
     const st = FinanceAnalysis.compileOnePageFinancialStatement(DB, DB.currentPeriod, DB.payrollDay);
     const dateRangeLabel = `${st.range.start} s/d ${st.range.end}`;
+    const runwayText = st.ratios.emergencyRunwayMonths !== null ? `${st.ratios.emergencyRunwayMonths} Bulan` : '—';
 
-    const topExpHtml = (st.topExpenses || []).map((e, idx) => `
-      <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800 text-xs">
-        <span class="text-slate-600 dark:text-slate-300">${idx + 1}. ${escapeHtmlJS(e.kategori)}</span>
-        <span class="font-extrabold text-slate-800 dark:text-white">${formatRupiah(e.total).replace(',00', '')} (${e.sharePct}%)</span>
-      </div>`).join('') || '<p class="text-xs text-slate-400 py-1">Belum ada pengeluaran.</p>';
+    const buildStatementHtml = (fmtFn, forPrint) => {
+      const cardStyle = forPrint
+        ? 'padding:12px;border-radius:12px;border:1px solid #cbd5e1;background:#f8fafc;'
+        : '';
+      const cardClass = forPrint ? '' : 'p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800';
+      const innerCardStyle = forPrint
+        ? 'padding:8px;border-radius:8px;border:1px solid #e2e8f0;background:#ffffff;'
+        : '';
+      const innerCardClass = forPrint ? '' : 'p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800';
+      const rowBorder = forPrint ? 'border-bottom:1px solid #e2e8f0;padding:5px 0;font-size:12px;display:flex;justify-content:space-between;' : '';
+      const rowClass = forPrint ? '' : 'flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800 text-xs';
 
-    const modalHtml = `
-      <div id="printStatementArea" class="text-left space-y-4 print:p-0">
-        <div class="border-b border-slate-200 dark:border-slate-700 pb-3">
-          <div class="flex items-center justify-between">
-            <h3 class="text-base font-black text-slate-900 dark:text-white uppercase tracking-wide">Ringkasan Finansial Eksekutif</h3>
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase">1-Page Statement</span>
+      const topExpHtml = (st.topExpenses || []).map((e, idx) => {
+        const catName = e.category || 'Lainnya';
+        const catAmt = e.amount ?? 0;
+        return `
+          <div class="${rowClass}" ${forPrint ? `style="${rowBorder}"` : ''}>
+            <span class="${forPrint ? '' : 'text-slate-600 dark:text-slate-300'}">${idx + 1}. ${escapeHtmlJS(catName)}</span>
+            <span class="${forPrint ? '' : 'font-extrabold text-slate-800 dark:text-white'}" style="${forPrint ? 'font-weight:800;' : ''}">${fmtFn(catAmt)} (${e.sharePct}%)</span>
+          </div>`;
+      }).join('') || '<p style="font-size:12px;color:#64748b;padding:4px 0;">Belum ada pengeluaran.</p>';
+
+      return `
+        <div class="text-left space-y-4">
+          <div style="${forPrint ? 'border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:12px;' : ''}" class="${forPrint ? '' : 'border-b border-slate-200 dark:border-slate-700 pb-3'}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <h3 style="${forPrint ? 'margin:0;font-size:16px;font-weight:900;text-transform:uppercase;color:#0f172a;' : ''}" class="${forPrint ? '' : 'text-base font-black text-slate-900 dark:text-white uppercase tracking-wide'}">Ringkasan Finansial Eksekutif</h3>
+              <span style="${forPrint ? 'font-size:10px;font-weight:700;padding:3px 8px;border:1px solid #4f46e5;border-radius:999px;color:#4f46e5;text-transform:uppercase;' : ''}" class="${forPrint ? '' : 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase'}">1-Page Statement</span>
+            </div>
+            <p style="${forPrint ? 'margin:4px 0 0;font-size:12px;color:#475569;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500 dark:text-slate-400 mt-0.5'}">Pengguna: <strong>${escapeHtmlJS(sessionUser || 'User')}</strong> · Siklus: <strong>${escapeHtmlJS(st.period)}</strong> (${escapeHtmlJS(dateRangeLabel)})</p>
           </div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Siklus: <strong>${escapeHtmlJS(st.period)}</strong> (${dateRangeLabel})</p>
-        </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kekayaan Bersih (Net Worth)</span>
-            <p class="text-lg font-black text-slate-900 dark:text-white mt-0.5">${formatRupiah(st.netWorth).replace(',00', '')}</p>
-            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
-              <div class="flex justify-between"><span>Kas Dompet:</span> <strong>${formatRupiah(st.walletsTotal).replace(',00', '')}</strong></div>
-              <div class="flex justify-between"><span>Investasi/Aset:</span> <strong>${formatRupiah(st.assetsTotal).replace(',00', '')}</strong></div>
-              <div class="flex justify-between"><span>Piutang:</span> <strong>${formatRupiah(st.piutangTotal).replace(',00', '')}</strong></div>
-              <div class="flex justify-between"><span>Utang:</span> <strong class="text-rose-500">-${formatRupiah(st.utangTotal).replace(',00', '')}</strong></div>
+          <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}">
+            <div class="${cardClass}" style="${cardStyle}">
+              <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400'}">Kekayaan Bersih (Net Worth)</span>
+              <p style="${forPrint ? 'margin:4px 0 8px;font-size:18px;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'text-lg font-black text-slate-900 dark:text-white mt-0.5'}">${fmtFn(st.netWorth)}</p>
+              <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
+                <div style="display:flex;justify-content:space-between;"><span>Kas Dompet:</span> <strong>${fmtFn(st.walletsTotal)}</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>Investasi/Aset:</span> <strong>${fmtFn(st.assetsTotal)}</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>Piutang:</span> <strong>${fmtFn(st.piutangTotal)}</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>Utang:</span> <strong style="color:#e11d48;">-${fmtFn(st.utangTotal)}</strong></div>
+              </div>
+            </div>
+
+            <div class="${cardClass}" style="${cardStyle}">
+              <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400'}">Arus Kas Siklus Berjalan</span>
+              <p style="${forPrint ? `margin:4px 0 8px;font-size:18px;font-weight:900;color:${st.netCashflow >= 0 ? '#059669' : '#e11d48'};` : ''}" class="${forPrint ? '' : `text-lg font-black ${st.netCashflow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} mt-0.5`}">${st.netCashflow >= 0 ? '+' : ''}${fmtFn(st.netCashflow)}</p>
+              <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
+                <div style="display:flex;justify-content:space-between;"><span>Pemasukan:</span> <strong style="color:#059669;">${fmtFn(st.incomeTotal)}</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>Pengeluaran:</span> <strong style="color:#e11d48;">${fmtFn(st.expenseTotal)}</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>Savings Rate:</span> <strong>${st.savingsRate}%</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>Biaya Rutin (Fixed):</span> <strong>${st.fixedCostRatioPct}%</strong></div>
+              </div>
             </div>
           </div>
 
-          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Arus Kas Siklus Berjalan</span>
-            <p class="text-lg font-black ${st.netCashflow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} mt-0.5">${st.netCashflow >= 0 ? '+' : ''}${formatRupiah(st.netCashflow).replace(',00', '')}</p>
-            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
-              <div class="flex justify-between"><span>Pemasukan:</span> <strong class="text-emerald-600">${formatRupiah(st.incomeTotal).replace(',00', '')}</strong></div>
-              <div class="flex justify-between"><span>Pengeluaran:</span> <strong class="text-rose-600">${formatRupiah(st.expenseTotal).replace(',00', '')}</strong></div>
-              <div class="flex justify-between"><span>Savings Rate:</span> <strong>${st.savingsRate}%</strong></div>
-              <div class="flex justify-between"><span>Biaya Rutin (Fixed):</span> <strong>${st.fixedCostRatioPct}%</strong></div>
+          <div class="${cardClass}" style="${forPrint ? cardStyle + 'margin-bottom:12px;' : ''}">
+            <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block'}">Metrik Kesehatan Finansial</span>
+            <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-2 gap-2 text-xs'}">
+              <div class="${innerCardClass}" style="${innerCardStyle}">
+                <span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Runway Dana Darurat</span>
+                <p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p>
+                <span style="${forPrint ? 'font-size:10px;font-weight:700;color:#4f46e5;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span>
+              </div>
+              <div class="${innerCardClass}" style="${innerCardStyle}">
+                <span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Rasio Utang / Aset</span>
+                <p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${st.ratios.debtToAssetPct}%</p>
+                <span style="${forPrint ? `font-size:10px;font-weight:700;color:${st.ratios.debtToAssetPct <= 30 ? '#059669' : '#d97706'};` : ''}" class="${forPrint ? '' : `text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}`}">${escapeHtmlJS(st.ratios.debtStatus)}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Metrik Kesehatan Finansial</span>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-              <span class="text-[10px] text-slate-400">Runway Dana Darurat</span>
-              <p class="font-black text-slate-800 dark:text-white mt-0.5">${st.ratios.emergencyRunwayMonths} Bulan</p>
-              <span class="text-[10px] font-bold text-brand">${escapeHtmlJS(st.ratios.runwayStatus)}</span>
-            </div>
-            <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-              <span class="text-[10px] text-slate-400">Rasio Utang / Aset</span>
-              <p class="font-black text-slate-800 dark:text-white mt-0.5">${st.ratios.debtToAssetPct}%</p>
-              <span class="text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}">${escapeHtmlJS(st.ratios.debtStatus)}</span>
-            </div>
+          <div class="${cardClass}" style="${cardStyle}">
+            <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block'}">Pengeluaran Terbesar Periode Ini</span>
+            <div class="space-y-0.5">${topExpHtml}</div>
           </div>
-        </div>
+        </div>`;
+    };
 
-        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block">Pengeluaran Terbesar Periode Ini</span>
-          <div class="space-y-0.5">${topExpHtml}</div>
-        </div>
-      </div>`;
-
+    const fmtPreview = (n) => formatRupiah(n).replace(',00', '');
     Swal.fire({
-      html: modalHtml,
+      html: `<div id="printStatementArea">${buildStatementHtml(fmtPreview, false)}</div>`,
       width: '540px',
       showCancelButton: true,
       confirmButtonText: '🖨️ Cetak / Print',
@@ -2154,9 +2257,24 @@
       confirmButtonColor: '#4f46e5',
       customClass: { popup: getSwalClass() }
     }).then((result) => {
-      if (result.isConfirmed) {
-        window.print();
+      if (!result.isConfirmed) return;
+      const fmtPrint = (n) => (typeof _origFormatRupiah === 'function' ? _origFormatRupiah(n) : formatRupiah(n)).replace(',00', '');
+      let root = document.getElementById('mkPrintStatementRoot');
+      if (!root) {
+        root = document.createElement('div');
+        root.id = 'mkPrintStatementRoot';
+        document.body.appendChild(root);
       }
+      root.innerHTML = `<div style="font-family:Inter,system-ui,sans-serif;padding:8px;color:#0f172a;background:#fff;">${buildStatementHtml(fmtPrint, true)}</div>`;
+      document.body.classList.add('mk-printing-statement');
+      const cleanup = () => {
+        document.body.classList.remove('mk-printing-statement');
+        root.innerHTML = '';
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
+      setTimeout(() => { window.print(); }, 60);
+      setTimeout(cleanup, 15000);
     });
   };
 

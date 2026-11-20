@@ -29,9 +29,9 @@
     const user = session && session.user;
     const email = (user && user.email) || '';
     try {
-      sessionUser = email.split('@')[0] || 'User';
+      window.sessionUser = email.split('@')[0] || 'User';
       const uEl = document.getElementById('ui-username');
-      if (uEl) uEl.textContent = sessionUser;
+      if (uEl) uEl.textContent = window.sessionUser;
 
       // Ambil profil & role pengguna dari public.profiles
       if (user && user.id) {
@@ -46,13 +46,13 @@
             return;
           }
           if (prof.display_name) {
-            sessionUser = prof.display_name;
-            if (uEl) uEl.textContent = sessionUser;
+            window.sessionUser = prof.display_name;
+            if (uEl) uEl.textContent = window.sessionUser;
           }
-          sessionRole = prof.role || 'user';
+          window.sessionRole = prof.role || 'user';
           const rEl = document.getElementById('ui-role');
-          if (rEl) rEl.textContent = sessionRole.toUpperCase();
-          if (sessionRole === 'admin') {
+          if (rEl) rEl.textContent = window.sessionRole.toUpperCase();
+          if (window.sessionRole === 'admin') {
             const admNav = document.getElementById('nav-admin');
             if (admNav) admNav.style.display = 'flex';
           }
@@ -286,6 +286,19 @@
     try {
       await sb.auth.signOut();
     } finally {
+      [
+        'mk_gemini_api_key',
+        'mk_gemini_model',
+        'mk_app_pin_hash',
+        'mk_app_pin_salt',
+        'mk_offline_tx_queue_v1'
+      ].forEach((k) => {
+        try { localStorage.removeItem(k); } catch (_) {}
+      });
+      try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) {}
+      if ('indexedDB' in window) {
+        try { window.indexedDB.deleteDatabase('mykeuangan_offline_db'); } catch (_) {}
+      }
       if ('caches' in window) {
         try {
           const keys = await caches.keys();
@@ -851,29 +864,32 @@
       if (d.walletId) {
         const name = String(d.name || '').trim();
         const type = String(d.type || 'Other');
+        const typeLower = type.toLowerCase();
         const quantity = num(d.quantity);
         const buyPrice = num(d.buyPrice);
-        const amount = type === 'Crypto' ? quantity * buyPrice : num(d.value);
+        const amount = typeLower === 'crypto' ? quantity * buyPrice : num(d.value);
         const date = String(d.tanggal || ymd(new Date())).slice(0, 10);
         if (!name || !Number.isFinite(amount) || amount <= 0) {
           throw new Error('Nama aset dan nominal pembelian harus valid.');
         }
-        if (type === 'Crypto' && (quantity <= 0 || buyPrice <= 0)) {
+        if (typeLower === 'crypto' && (quantity <= 0 || buyPrice <= 0)) {
           throw new Error('Isi jumlah aset dan harga beli untuk mencatat sumber dana.');
         }
-        const needMetaSync = (type === 'Emas' || type === 'USD') && quantity > 0;
-        let preIds = null;
-        if (needMetaSync) {
-          const preRes = await sb.from('assets').select('id');
-          fail(preRes.error);
-          preIds = new Set((preRes.data || []).map((row) => row.id));
+        if ((typeLower === 'emas' || typeLower === 'usd') && quantity <= 0) {
+          throw new Error(typeLower === 'emas' ? 'Isi berat emas (gram).' : 'Isi jumlah nominal USD.');
         }
+        const defaultSym = typeLower === 'emas' ? 'XAU' : (typeLower === 'usd' ? 'USD' : '');
+        const symbol = String(d.symbol || defaultSym).toUpperCase();
+        const resolvedBuyPrice = buyPrice > 0
+          ? buyPrice
+          : ((typeLower === 'emas' || typeLower === 'usd') && quantity > 0 ? Number((amount / quantity).toFixed(4)) : 0);
+
         const { data: transactions, error } = await sb.rpc('create_asset_with_expense', {
           p_name: name,
           p_type: type,
-          p_symbol: String(d.symbol || '').toUpperCase(),
+          p_symbol: symbol,
           p_quantity: quantity,
-          p_buy_price: buyPrice,
+          p_buy_price: resolvedBuyPrice,
           p_amount: amount,
           p_wallet_id: d.walletId,
           p_date: date
@@ -881,19 +897,6 @@
         fail(error);
         if (!transactions || !transactions.length) {
           throw new Error('Pembelian aset tidak mengembalikan catatan transaksi.');
-        }
-        if (needMetaSync && preIds) {
-          const postRes = await sb.from('assets').select('id');
-          fail(postRes.error);
-          const created = (postRes.data || []).find((row) => !preIds.has(row.id));
-          if (created) {
-            const { error: metaErr } = await sb.from('assets').update({
-              symbol: String(d.symbol || (type === 'Emas' ? 'XAU' : 'USD')).toUpperCase(),
-              quantity,
-              buy_price: buyPrice > 0 ? buyPrice : Number((amount / quantity).toFixed(4))
-            }).eq('id', created.id);
-            fail(metaErr);
-          }
         }
         const [assetsRes, catsRes, currentPeriod] = await Promise.all([
           fetchAssetsOnly(),
@@ -932,12 +935,6 @@
           (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0))) {
         throw new Error('Nominal atau jumlah pencairan aset tidak valid.');
       }
-      const { data: assetBefore, error: preErr } = await sb
-        .from('assets')
-        .select('id, type, value, quantity, buy_price')
-        .eq('id', id)
-        .maybeSingle();
-      fail(preErr);
       const { data: transactions, error } = await sb.rpc('liquidate_asset', {
         p_asset_id: id,
         p_amount: amount,
@@ -946,22 +943,6 @@
         p_date: date
       });
       fail(error);
-      const typeLower = String((assetBefore && assetBefore.type) || '').toLowerCase();
-      if ((typeLower === 'emas' || typeLower === 'usd') && assetBefore && Number(assetBefore.quantity) > 0) {
-        const oldQty = Number(assetBefore.quantity) || 0;
-        const oldVal = Number(assetBefore.value) || 0;
-        const remainingVal = Math.max(0, oldVal - amount);
-        if (remainingVal > 0) {
-          const soldQty = (quantity && quantity > 0)
-            ? Math.min(oldQty, quantity)
-            : (oldVal > 0 ? Math.min(oldQty, oldQty * (amount / oldVal)) : 0);
-          const remainingQty = Math.max(0, Number((oldQty - soldQty).toFixed(6)));
-          const { error: qtyErr } = await sb.from('assets')
-            .update({ quantity: remainingQty })
-            .eq('id', id);
-          fail(qtyErr);
-        }
-      }
       const assetsRes = await fetchAssetsOnly();
       if (d && d.walletId && transactions && transactions.length) {
         const [catsRes, currentPeriod] = await Promise.all([
@@ -1063,6 +1044,14 @@
       fail(error);
       return fetchRecurringOnly();
     },
+    async api_markRecurringRun(ids, dateStr) {
+      const cleanIds = (Array.isArray(ids) ? ids : [ids]).map((x) => String(x || '').trim()).filter(Boolean);
+      const runDate = String(dateStr || ymd(new Date())).slice(0, 10);
+      if (!cleanIds.length || !/^\d{4}-\d{2}-\d{2}$/.test(runDate)) return fetchRecurringOnly();
+      const { error } = await sb.from('recurring').update({ last_run: runDate }).in('id', cleanIds);
+      fail(error);
+      return fetchRecurringOnly();
+    },
 
     /* ---------- Dompet, transfer, tarik tunai ---------- */
     async api_addWallet(d) {
@@ -1147,12 +1136,6 @@
           (quantity !== null && (!Number.isFinite(quantity) || quantity < 0))) {
         throw new Error('Nominal, harga, atau jumlah aset tidak valid.');
       }
-      const { data: assetBefore, error: preErr } = await sb
-        .from('assets')
-        .select('id, type, value, quantity, buy_price')
-        .eq('id', id)
-        .maybeSingle();
-      fail(preErr);
       const { error } = await sb.rpc('top_up_asset', {
         p_asset_id: id,
         p_amount: amount,
@@ -1162,27 +1145,6 @@
         p_date: date
       });
       fail(error);
-      const typeLower = String((assetBefore && assetBefore.type) || '').toLowerCase();
-      if ((typeLower === 'emas' || typeLower === 'usd') && assetBefore) {
-        const oldQty = Number(assetBefore.quantity) || 0;
-        const oldVal = Number(assetBefore.value) || 0;
-        const oldBuyPrice = Number(assetBefore.buy_price) || 0;
-        const unitPrice = (price && price > 0)
-          ? price
-          : (oldQty > 0 && oldVal > 0 ? oldVal / oldQty : (oldBuyPrice > 0 ? oldBuyPrice : 0));
-        const addedQty = (quantity && quantity > 0)
-          ? quantity
-          : (unitPrice > 0 ? amount / unitPrice : 0);
-        if (addedQty > 0) {
-          const newQty = Number((oldQty + addedQty).toFixed(6));
-          const oldCost = oldQty > 0 && oldBuyPrice > 0 ? oldQty * oldBuyPrice : oldVal;
-          const newBuyPrice = Number(((oldCost + amount) / newQty).toFixed(4));
-          const { error: updErr } = await sb.from('assets')
-            .update({ quantity: newQty, buy_price: newBuyPrice })
-            .eq('id', id);
-          fail(updErr);
-        }
-      }
       return d.walletId
         ? { ...(await fetchAssetsOnly()), ...(await fetchWalletsAndTransfers()) }
         : fetchAssetsOnly();
@@ -1214,7 +1176,7 @@
     },
     /* ---------- Admin Panel & User Management ---------- */
     async api_getAdminData() {
-      if (sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
+      if (window.sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (!authData.user) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
@@ -1251,7 +1213,7 @@
       };
     },
     async api_setUserStatus(userId, status) {
-      if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (authData.user && authData.user.id === userId && status !== 'active') {
@@ -1262,7 +1224,7 @@
       return true;
     },
     async api_setUserRole(userId, role) {
-      if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (authData.user && authData.user.id === userId && role !== 'admin') {
@@ -1284,18 +1246,13 @@
       if (name.length < 2) {
         throw new Error('Nama tampilan minimal 2 karakter.');
       }
-      const { data: authData, error: authErr } = await sb.auth.getUser();
-      fail(authErr);
-      if (!authData || !authData.user) throw new Error('Sesi login tidak valid.');
-      const { error } = await sb.from('profiles')
-        .update({ display_name: name, updated_at: new Date().toISOString() })
-        .eq('id', authData.user.id);
+      const { data, error } = await sb.rpc('update_own_display_name', { p_display_name: name });
       fail(error);
-      window.sessionUser = name;
-      return { displayName: name };
+      window.sessionUser = data || name;
+      return { displayName: window.sessionUser };
     },
     async api_adminSetPassword(userId, password) {
-      if (sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
         throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
       }
