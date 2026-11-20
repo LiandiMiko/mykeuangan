@@ -10,7 +10,6 @@ const OUT = 'dist';
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const SUPABASE_JS_FALLBACK = 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const VENDOR = path.join('web', 'vendor', 'supabase.js');
-const alias = { scripts: 'script' };
 
 const WEB_MODULES = [
   'finance-analysis-core.js',
@@ -20,6 +19,37 @@ const WEB_MODULES = [
   'finance-analysis.js',
   'finance-pro.js',
   'transaction-import.js'
+];
+
+const UI_CORE_MODULES = [
+  'ui-state.js',
+  'ui-shell.js',
+  'ui-dashboard.js',
+  'ui-calendar.js',
+  'ui-assets.js',
+  'ui-asset-ops.js',
+  'ui-debts.js',
+  'ui-wallets.js',
+  'ui-form.js',
+  'ui-reports.js',
+  'ui-export.js',
+  'ui-budget.js',
+  'ui-recurring.js',
+  'ui-admin.js',
+  'ui-ai.js'
+];
+
+const UI_FEATURES_MODULES = [
+  'ui-feat-offline.js',
+  'ui-feat-ai.js',
+  'ui-feat-charts.js',
+  'ui-feat-updates.js',
+  'ui-feat-modals.js',
+  'ui-feat-analytics.js',
+  'ui-feat-backup.js',
+  'ui-feat-account.js',
+  'ui-feat-recurring.js',
+  'ui-feat-hooks.js'
 ];
 
 const SUPABASE_MODULES = [
@@ -33,7 +63,7 @@ const SUPABASE_MODULES = [
 ];
 
 function read(name) {
-  const file = path.join(SRC, (alias[name] || name) + '.html');
+  const file = path.join(SRC, name + '.html');
   if (!fs.existsSync(file)) {
     throw new Error(`File ${file} tidak ditemukan.`);
   }
@@ -66,8 +96,11 @@ if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placehold
 let html = read('Index');
 html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
   if (name === 'scripts') {
-    return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${read(name)}\n` +
+    return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${readInlineScripts(UI_CORE_MODULES)}\n` +
       `<script>\n${config}\n</script>\n${readInlineScripts(SUPABASE_MODULES)}`;
+  }
+  if (name === 'features-v21') {
+    return readInlineScripts(UI_FEATURES_MODULES);
   }
   return read(name);
 });
@@ -75,9 +108,14 @@ html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
 const tailwindVendorPath = path.join(WEB, 'vendor', 'tailwind.min.css');
 if (fs.existsSync(tailwindVendorPath)) {
   const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
+  const playCdnRegex = /<script[^>]*src="https:\/\/cdn\.tailwindcss\.com"[^>]*><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i;
+  if (!playCdnRegex.test(html)) {
+    throw new Error('Play CDN Tailwind block tidak ditemukan di src/styles.html untuk diganti CSS statis.');
+  }
+  html = html.replace(playCdnRegex, `<style>\n${compiledTailwind}\n</style>`);
   html = html.replace(
-    /<script src="https:\/\/cdn\.tailwindcss\.com"><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i,
-    `<style>\n${compiledTailwind}\n</style>`
+    /(<meta\s+http-equiv="Content-Security-Policy"\s+content="[^"]*?)(\s*'unsafe-eval')([^"]*?)(\s+https:\/\/cdn\.tailwindcss\.com)([^"]*")/i,
+    '$1$3$5'
   );
 }
 if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?>) yang belum diganti.');

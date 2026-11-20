@@ -3,7 +3,7 @@ import {
   esc, rp, today, sleep, safeHtml, getCategories, isFlow, loadCore,
   inPeriod, getTemp, setTemp, send, mainKb,
 } from './core.ts';
-import { getWallets, walletByKind, detectWalletKind } from './wallets.ts';
+import { getWallets, matchWalletFromText } from './wallets.ts';
 
 const TX_AI_SCHEMA = {
   type: 'OBJECT',
@@ -16,7 +16,7 @@ const TX_AI_SCHEMA = {
   },
   required: ['tipe', 'kategori', 'nominal', 'tanggal'],
 };
-const GEMINI_FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+const GEMINI_FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
 export async function callGeminiJson(parts: Any[], responseSchema: Any): Promise<Any> {
   if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
@@ -129,7 +129,7 @@ export async function handleMediaMessage(c: Ctx, msg: Any) {
   const base64 = bytesToBase64(new Uint8Array(await fileRes.arrayBuffer()));
   const caption = String(msg.caption || '').trim();
   const p = await parseMediaWithAI(c, photo ? 'image/jpeg' : (voice?.mime_type || 'audio/ogg'), base64, caption);
-  const w = walletByKind(await getWallets(c.uid), detectWalletKind(caption + ' ' + p.keterangan) ?? 'bank');
+  const w = matchWalletFromText(await getWallets(c.uid), caption + ' ' + p.keterangan);
   const pend = { ...p, originalText: caption || '[Media AI]', wallet_id: w?.id ?? null, walletName: w?.name ?? '' };
   await setTemp(c.chat, 'pending', pend);
   await confirmPreview(c.chat, pend);
@@ -141,22 +141,41 @@ async function askInsight(sum: { period: string; totalIn: number; totalOut: numb
 - Pemasukan: ${rp(sum.totalIn)}, Pengeluaran: ${rp(sum.totalOut)}, Saldo bersih: ${rp(sum.totalIn - sum.totalOut)}, Transaksi: ${sum.n}.
 - Breakdown:\n${sum.top || 'Belum ada'}
 Format: Bahasa Indonesia santai profesional, HTML Telegram (<b>, <i>, <code>), max 200 kata, bullet •.`;
-  for (let attempt = 0; ; attempt++) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_INSIGHT_MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } } }),
-    });
-    const j = await r.json();
-    if (j.error) {
-      const msg = String(j.error.message || '');
-      if (attempt < 3 && /high demand|overloaded/i.test(msg)) { await sleep(2 ** attempt * 1000); continue; }
-      throw new Error('Gemini: ' + msg);
+
+  const candidates: string[] = [];
+  const addCandidate = (modelName: string) => {
+    const clean = String(modelName || '').replace(/^models\//, '').trim();
+    if (clean && !candidates.includes(clean)) candidates.push(clean);
+  };
+  [GEMINI_INSIGHT_MODEL, ...GEMINI_FALLBACK_MODELS].forEach(addCandidate);
+
+  let lastErr = '';
+  for (let i = 0; i < candidates.length; i++) {
+    const model = candidates[i];
+    const generationConfig: Record<string, unknown> = { temperature: 0.7, maxOutputTokens: 2048 };
+    if (/^gemini-(2\.5|3)/i.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+
+    for (let attempt = 0; ; attempt++) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j?.error || !r.ok) {
+        const msg = String(j?.error?.message || `HTTP ${r.status}`);
+        lastErr = msg;
+        for (const m of msg.matchAll(/models\/([a-z0-9._-]+)/gi)) addCandidate(m[1]);
+        if (attempt < 2 && /high demand|overloaded|503/i.test(msg)) { await sleep(2 ** attempt * 1000); continue; }
+        if (r.status === 404 || /not found|no longer available|not supported|deprecated/i.test(msg)) break;
+        throw new Error('Gemini: ' + msg);
+      }
+      const text: string = j?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!text) throw new Error('Gemini: respons kosong');
+      return text.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').replace(/^\*\s+/gm, '• ').trim();
     }
-    const text: string = j.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    if (!text) throw new Error('Gemini: respons kosong');
-    return text.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').replace(/^\*\s+/gm, '• ').trim();
   }
+  throw new Error('Gemini: ' + (lastErr || 'Semua model AI gagal diakses'));
 }
 
 export async function handleInsight(c: Ctx) {

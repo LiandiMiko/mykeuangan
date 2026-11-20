@@ -2,7 +2,8 @@ const CACHE_NAME = 'mykeuangan-__BUILD_ID__';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './manifest.webmanifest'
+  './manifest.webmanifest',
+  './icons/icon-192.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -39,7 +40,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  if (url.hostname.includes('supabase.co') || url.hostname.includes('googleapis.com')) {
+  if (url.hostname.includes('supabase.co') || url.hostname === 'generativelanguage.googleapis.com') {
     return;
   }
 
@@ -74,7 +75,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkRes;
         })
-        .catch(() => cached);
+        .catch(() => cached || new Response('', { status: 503, statusText: 'Offline' }));
 
       return cached || fetchPromise;
     })

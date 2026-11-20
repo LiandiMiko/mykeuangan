@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const indexHtml = fs.readFileSync('src/Index.html', 'utf8');
 const updatesHtml = fs.readFileSync('src/updates.html', 'utf8');
 const adminHtml = fs.readFileSync('src/admin.html', 'utf8');
-const scriptHtml = fs.readFileSync('src/script.html', 'utf8');
+const shellJs = fs.readFileSync('web/ui-shell.js', 'utf8');
 
 test('public updates view is included and accessible in sidebar for all users', () => {
   assert.match(indexHtml, /include\('updates'\)/);
@@ -32,6 +32,6 @@ test('admin panel links to public updates page without duplicating release cards
 });
 
 test('switching to updates view marks latest release as seen', () => {
-  assert.match(scriptHtml, /if \(id === 'updates'/);
-  assert.match(scriptHtml, /markLatestReleaseSeen\(/);
+  assert.match(shellJs, /if \(id === 'updates'/);
+  assert.match(shellJs, /markLatestReleaseSeen\(/);
 });

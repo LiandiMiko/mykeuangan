@@ -1,0 +1,249 @@
+/* global DB, Chart, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, showActionError */
+/* ============================================================
+   ASSETS & 30-DAY PORTFOLIO CHART
+   ============================================================ */
+(function (root) {
+  'use strict';
+
+  let portfolioChartInstance = null;
+
+  function buildPortfolioDatasets(snapshots, brandColor) {
+    return [
+      {
+        label: 'Total',
+        data: snapshots.map((s) => s.total),
+        borderColor: brandColor,
+        backgroundColor: brandColor + '20',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      },
+      {
+        label: 'Crypto',
+        data: snapshots.map((s) => s.crypto),
+        borderColor: '#f59e0b',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        tension: 0.3,
+        pointRadius: 2
+      },
+      {
+        label: 'Cash',
+        data: snapshots.map((s) => s.cash),
+        borderColor: '#10b981',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        tension: 0.3,
+        pointRadius: 2
+      }
+    ];
+  }
+
+  function buildPortfolioChartOptions(isDark, textColor, gridColor) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: textColor,
+            font: { family: 'Inter', size: 11, weight: '600' },
+            padding: 15,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: isDark ? '#1e293b' : '#0f172a',
+          titleColor: '#fff',
+          bodyColor: '#cbd5e1',
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: {
+            label: (context) => context.dataset.label + ': ' + formatRupiah(context.parsed.y || 0)
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: gridColor, drawBorder: false },
+          ticks: { color: textColor, font: { family: 'Inter', size: 10 }, maxRotation: 0, autoSkipPadding: 20 }
+        },
+        y: {
+          grid: { color: gridColor, drawBorder: false },
+          ticks: { color: textColor, font: { family: 'Inter', size: 10 }, callback: (value) => formatShortIDR(value) }
+        }
+      }
+    };
+  }
+
+  function buildPortfolioChartConfig(snapshots) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const labels = snapshots.map((s) => {
+      const d = new Date(s.tanggal + 'T00:00:00');
+      return d.getDate() + ' ' + months[d.getMonth()];
+    });
+    const style = getComputedStyle(document.documentElement);
+    const brandColor = style.getPropertyValue('--color-brand').trim() || '#7c3aed';
+    const isDark = document.documentElement.classList.contains('dark');
+    const gridColor = isDark ? 'rgba(148,163,184,0.15)' : 'rgba(148,163,184,0.2)';
+    const textColor = isDark ? '#cbd5e1' : '#475569';
+
+    return {
+      type: 'line',
+      data: {
+        labels,
+        datasets: buildPortfolioDatasets(snapshots, brandColor)
+      },
+      options: buildPortfolioChartOptions(isDark, textColor, gridColor)
+    };
+  }
+
+  function renderPortfolioChart() {
+    const canvas = document.getElementById('portfolioChart');
+    if (!canvas) return;
+    const snapshots = DB.snapshots || [];
+    const placeholder = document.getElementById('portfolioChartPlaceholder');
+
+    if (snapshots.length < 2) {
+      canvas.style.display = 'none';
+      if (placeholder) placeholder.style.display = 'block';
+      return;
+    }
+
+    canvas.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+
+    if (portfolioChartInstance) {
+      portfolioChartInstance.destroy();
+      portfolioChartInstance = null;
+    }
+    portfolioChartInstance = new Chart(canvas.getContext('2d'), buildPortfolioChartConfig(snapshots));
+  }
+
+  function resolveAssetPresentation(a, typeLower, qty) {
+    const isCrypto = typeLower === 'crypto';
+    const isEmas = typeLower === 'emas';
+    const isUsd = typeLower === 'usd';
+    const isSaham = typeLower === 'saham';
+
+    const iconName = isCrypto ? 'currency-btc'
+      : isUsd ? 'currency-dollar'
+        : isSaham ? 'chart-line-up'
+          : (typeLower === 'cash' ? 'bank' : 'coins');
+    const iconColor = (isCrypto || isEmas) ? 'text-amber-500'
+      : (typeLower === 'cash' || isUsd ? 'text-emerald-500' : 'text-brand dark:text-brand-ink');
+    const iconBG = (isCrypto || isEmas) ? 'bg-amber-50 dark:bg-amber-500/10'
+      : (typeLower === 'cash' || isUsd ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand/10');
+
+    let meta = `<span class="text-[10px] text-slate-400">${escapeHtmlJS(a.type)}</span>`;
+    if (isCrypto) meta = `<span class="text-[10px] text-slate-400">${qty} ${escapeHtmlJS(a.symbol)} · Crypto</span>`;
+    else if (isEmas) meta = `<span class="text-[10px] text-slate-400">${qty} gram · Emas</span>`;
+    else if (isUsd) meta = `<span class="text-[10px] text-slate-400">$${qty.toLocaleString('id-ID')} USD · Valas</span>`;
+    else if (isSaham) meta = `<span class="text-[10px] text-slate-400">${a.symbol ? escapeHtmlJS(a.symbol) + ' · ' : ''}Saham / Reksa Dana</span>`;
+
+    return { iconName, iconColor, iconBG, meta, hasUnitPnl: isCrypto || isEmas || isUsd };
+  }
+
+  function buildAssetRowHtml(a) {
+    const typeLower = String(a.type).toLowerCase();
+    const qty = Number(a.quantity || 0);
+    const value = Number(a.value || 0);
+    const buyTotal = qty * Number(a.buyPrice || 0);
+    const pnl = buyTotal > 0 ? (value - buyTotal) : 0;
+    const pnlPct = buyTotal > 0 ? (pnl / buyTotal * 100) : 0;
+    const ui = resolveAssetPresentation(a, typeLower, qty);
+    const pnlHtml = ui.hasUnitPnl && buyTotal > 0
+      ? `<div class="text-[10px] font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00', '')} (${pnlPct.toFixed(1)}%)</div>`
+      : '';
+    const safeName = escapeHtmlJS(a.name);
+    const idAttr = escapeAttrJS(a.id);
+
+    return `
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl ${ui.iconBG} ${ui.iconColor} flex items-center justify-center">
+            <i class="ph ph-${ui.iconName} text-lg"></i>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800 dark:text-white text-sm">${safeName}</p>
+            ${ui.meta}
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-right">
+          <div>
+            <p class="font-black ${ui.iconColor}">${formatRupiah(value)}</p>
+            ${pnlHtml}
+          </div>
+          <div class="flex items-center gap-1 opacity-100 sm:opacity-75 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+            <button type="button" onclick="topUpAsset('${idAttr}')" aria-label="Tambah nilai aset ${safeName}" title="Tambah nilai aset" class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all">
+              <i class="ph-bold ph-plus text-sm" aria-hidden="true"></i>
+            </button>
+            <button type="button" onclick="withdrawAsset('${idAttr}')" aria-label="Cairkan atau jual aset ${safeName}" title="Cairkan / Jual ke Dompet" class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-all">
+              <i class="ph ph-hand-coins text-sm" aria-hidden="true"></i>
+            </button>
+            <button type="button" onclick="deleteAsset('${idAttr}')" aria-label="Hapus aset ${safeName}" title="Hapus aset" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all">
+              <i class="ph ph-trash text-sm" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderAssets() {
+    const container = document.getElementById('list-manual-assets');
+    if (!container) return;
+    if (!DB.assets || DB.assets.length === 0) {
+      renderHtml(container, '<p class="p-6 text-center text-xs text-slate-400 col-span-full">Belum ada aset. Klik "Tambah Aset".</p>');
+      return;
+    }
+    renderHtml(container, DB.assets.map(buildAssetRowHtml).join(''));
+  }
+
+  async function refreshAssetPrices() {
+    Swal.fire({
+      title: 'Refresh harga aset...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+      customClass: { popup: getSwalClass() }
+    });
+    try {
+      const data = await callServer('api_refreshPrices');
+      await refreshFromServer(data);
+      Swal.fire({ icon: 'success', title: 'Harga diupdate!', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Gagal refresh', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+    }
+  }
+
+  function deleteAsset(id) {
+    Swal.fire({
+      title: 'Hapus aset?',
+      text: 'Data aset akan dihapus.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      customClass: { popup: getSwalClass() }
+    }).then(async (r) => {
+      if (!r.isConfirmed) return;
+      try {
+        await refreshFromServer(await callServer('api_deleteAsset', id));
+      } catch (e) {
+        showActionError(e);
+      }
+    });
+  }
+
+  Object.assign(root, {
+    renderPortfolioChart,
+    renderAssets,
+    refreshAssetPrices,
+    deleteAsset
+  });
+})(typeof window !== 'undefined' ? window : globalThis);

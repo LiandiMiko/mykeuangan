@@ -8,13 +8,28 @@ export async function getWallets(uid: string): Promise<Wallet[]> {
   return rows.map((r) => ({ ...r, opening_balance: Number(r.opening_balance) || 0 }));
 }
 
-export const walletByKind = (ws: Wallet[], kind: 'bank' | 'cash'): Wallet | undefined =>
+export const walletByKind = (ws: Wallet[], kind: 'bank' | 'cash' | 'ewallet'): Wallet | undefined =>
   ws.find((w) => w.kind === kind) ?? ws[0];
 
-export function detectWalletKind(text: string): 'bank' | 'cash' | null {
+export function detectWalletKind(text: string): 'bank' | 'cash' | 'ewallet' | null {
   if (/\b(cash|tunai)\b/i.test(text)) return 'cash';
-  if (/\b(bca|m-?banking|debit|qris|transfer)\b/i.test(text)) return 'bank';
+  if (/\b(gopay|ovo|dana|shopeepay|spay|linkaja|e-?wallet|ewallet)\b/i.test(text)) return 'ewallet';
+  if (/\b(bca|m-?banking|debit|qris|transfer|mandiri|bri|bni|seabank|jago|blu)\b/i.test(text)) return 'bank';
   return null;
+}
+
+export function matchWalletFromText(ws: Wallet[], text: string): Wallet | undefined {
+  if (!ws.length) return undefined;
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  for (const w of ws) {
+    const fullLower = String(w.name || '').trim().toLowerCase();
+    const shortWord = fullLower.split(/[\s(/]+/)[0];
+    if (words.some((tok) => tok.length >= 2 && (tok === fullLower || tok === shortWord))) {
+      return w;
+    }
+  }
+  const kind = detectWalletKind(text);
+  return kind ? walletByKind(ws, kind) : ws[0];
 }
 
 export function walletBalancesBot(ws: Wallet[], trx: Any[], transfers: Any[]): Map<string, number> {

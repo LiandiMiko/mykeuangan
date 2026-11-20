@@ -4,7 +4,7 @@ import {
   isFlow, streak, streakEmoji, setTemp, getTemp, delTemp, saveTx, savedMsg,
   send, mainKb, kategoriKb, statusKb,
 } from './core.ts';
-import { getWallets, walletByKind, loadMoney } from './wallets.ts';
+import { getWallets, matchWalletFromText, loadMoney } from './wallets.ts';
 import { parseWithAI, confirmPreview } from './ai.ts';
 import { checkBudgetAlert } from './planning.ts';
 
@@ -69,13 +69,12 @@ export async function handleTambah(c: Ctx, arg: string) {
   if (parts.length < 3) return send(c.chat, '❌ Format: <code>/tambah [Pemasukan|Pengeluaran] [Kategori] [Nominal]</code>');
   const tipe = (parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase()) as Tx['tipe'];
   if (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') return send(c.chat, '❌ Tipe harus Pemasukan atau Pengeluaran.');
-  let walletKind: 'bank' | 'cash' = 'bank';
-  const lastTok = parts[parts.length - 1].toLowerCase();
-  if (lastTok === 'cash' || lastTok === 'tunai') { walletKind = 'cash'; parts.pop(); }
-  else if (lastTok === 'bca' || lastTok === 'bank') { parts.pop(); }
+  const ws = await getWallets(c.uid);
+  const lastTok = parts[parts.length - 1];
+  const trailingHint = parseNominal(lastTok) <= 0 ? parts.pop()! : '';
   const nominal = parts.length >= 3 ? parseNominal(parts[parts.length - 1]) : 0;
   if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.');
-  const w = walletByKind(await getWallets(c.uid), walletKind);
+  const w = trailingHint ? matchWalletFromText(ws, trailingHint) : ws[0];
   const p: Tx = { tanggal: today(), tipe, kategori: parts.slice(1, -1).join(' '), nominal, keterangan: 'Via Telegram', wallet_id: w?.id ?? null, walletName: w?.name };
   await saveTx(c, p);
   await send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
@@ -85,7 +84,7 @@ export async function handleTambah(c: Ctx, arg: string) {
 export async function handleFreeText(c: Ctx, text: string) {
   try {
     const p = await parseWithAI(c, text);
-    const w = walletByKind(await getWallets(c.uid), /\b(cash|tunai)\b/i.test(text) ? 'cash' : 'bank');
+    const w = matchWalletFromText(await getWallets(c.uid), text);
     const pend = { ...p, originalText: text, wallet_id: w?.id ?? null, walletName: w?.name ?? '' };
     await setTemp(c.chat, 'pending', pend);
     await confirmPreview(c.chat, pend);

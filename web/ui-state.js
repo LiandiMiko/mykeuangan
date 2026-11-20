@@ -1,0 +1,293 @@
+/* global FinanceAnalysis, Swal, t, getMonthShort, renderAll, updateDashboardTitle */
+/* ============================================================
+   STATE & CORE HELPERS
+   ============================================================ */
+(function (root) {
+  'use strict';
+
+  root.DB = {
+    transactions: [],
+    categories: { pemasukan: [], pengeluaran: [] },
+    entities: { UtangApp: [], UtangPerson: [], Piutang: [] },
+    assets: [],
+    budgets: [],
+    snapshots: [],
+    wallets: [],
+    transfers: [],
+    goals: [],
+    recurring: [],
+    currentPeriod: new Date().toISOString().slice(0, 7),
+    payrollDay: 28
+  };
+
+  root.sessionUser = 'User';
+  root.sessionRole = 'User';
+  root.fpTanggal = null;
+  root.fpMonth = null;
+  root.isDataReady = false;
+  root.hideNominal = localStorage.getItem('hideNominal') === '1';
+
+  const laporanState = {
+    page: 0,
+    pageSize: 20,
+    total: 0,
+    period: '',
+    requestId: 0,
+    dirty: true,
+    rows: []
+  };
+  root.laporanState = laporanState;
+
+  /* Helper sanitasi HTML & JS string di dalam atribut HTML (mis. onclick="fn('${escapeAttrJS(v)}')") */
+  function escapeHtmlJS(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function escapeAttrJS(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* Merender markup ter-sanitasi tanpa assignment innerHTML langsung */
+  function renderHtml(el, html) {
+    if (!el) return;
+    const markup = html == null ? '' : String(html);
+    if (!markup) {
+      el.textContent = '';
+      return;
+    }
+    const tag = String(el.tagName || '').toUpperCase();
+    const isTableSection = tag === 'TBODY' || tag === 'THEAD' || tag === 'TFOOT';
+    const wrapped = isTableSection
+      ? `<table><tbody>${markup}</tbody></table>`
+      : tag === 'TABLE'
+        ? `<table>${markup}</table>`
+        : markup;
+    const doc = new DOMParser().parseFromString(wrapped, 'text/html');
+    doc.querySelectorAll('script').forEach((node) => node.remove());
+    const container = isTableSection
+      ? doc.body.querySelector('tbody')
+      : tag === 'TABLE'
+        ? doc.body.querySelector('table')
+        : doc.body;
+    if (container) el.replaceChildren(...Array.from(container.childNodes));
+  }
+
+  function renderSelectOptions(selectEl, items, defaultLabel, selectedValue) {
+    if (!selectEl) return;
+    const nodes = [];
+    if (defaultLabel != null) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = String(defaultLabel);
+      nodes.push(opt);
+    }
+    (items || []).forEach((item) => {
+      const val = typeof item === 'object' && item !== null ? String(item.value ?? '') : String(item);
+      const lbl = typeof item === 'object' && item !== null ? String(item.label ?? val) : String(item);
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = lbl;
+      if (selectedValue !== undefined && val === String(selectedValue)) opt.selected = true;
+      nodes.push(opt);
+    });
+    selectEl.replaceChildren(...nodes);
+  }
+
+  const _origFormatRupiah = (a) => new Intl.NumberFormat('id-ID', {
+    style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+  }).format(a || 0);
+
+  const formatRupiah = (a) => {
+    if (root.hideNominal) return 'Rp ••••••';
+    return _origFormatRupiah(a);
+  };
+
+  function updateEyeIcon() {
+    const icon = document.getElementById('eyeIcon');
+    if (icon) {
+      icon.className = root.hideNominal ? 'ph ph-eye-slash' : 'ph ph-eye';
+    }
+    const btn = document.getElementById('toggleHideBtn');
+    if (btn) {
+      btn.title = root.hideNominal ? t('header.show_nominal') : t('header.hide_nominal');
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-pressed', String(Boolean(root.hideNominal)));
+    }
+  }
+
+  function toggleHideNominal() {
+    root.hideNominal = !root.hideNominal;
+    localStorage.setItem('hideNominal', root.hideNominal ? '1' : '0');
+    updateEyeIcon();
+    if (typeof renderAll === 'function' && root.isDataReady) renderAll();
+  }
+
+  const getSwalClass = () => document.documentElement.classList.contains('dark') ? 'dark-swal' : '';
+
+  function showActionError(error) {
+    console.error(error);
+    Swal.fire({
+      icon: 'error',
+      title: t('alert.failed'),
+      text: String((error && error.message) || error),
+      customClass: { popup: getSwalClass() }
+    });
+  }
+
+  function updateDashboardTitleFn() {
+    const dEl = document.getElementById('dashTitle');
+    if (!dEl) return;
+    const hasName = typeof root.sessionUser === 'string' && root.sessionUser.trim() && root.sessionUser !== 'User';
+    if (hasName) {
+      const base = typeof t === 'function' ? t('dash.subtitle') : 'Dashboard Keuangan';
+      dEl.textContent = `${base} ${root.sessionUser}`;
+    } else {
+      dEl.textContent = typeof t === 'function' ? t('dash.title') : 'Ringkasan Finansial';
+    }
+  }
+
+  function getPeriodRange(periodStr, payrollDay) {
+    return FinanceAnalysis.getPeriodRange(periodStr, payrollDay);
+  }
+
+  function isInPeriod(tanggal, periodStr) {
+    return FinanceAnalysis.isInPeriod(tanggal, periodStr, root.DB.payrollDay);
+  }
+
+  async function saveCurrentPeriod(period) {
+    const previousPeriod = root.DB.currentPeriod;
+    const prevCalYear = typeof root.kalenderYear !== 'undefined' ? root.kalenderYear : null;
+    const prevCalMonth = typeof root.kalenderMonth !== 'undefined' ? root.kalenderMonth : null;
+    root.DB.currentPeriod = period;
+    const periodMatch = /^(\d{4})-(\d{2})$/.exec(String(period || ''));
+    if (periodMatch) {
+      root.kalenderYear = Number(periodMatch[1]);
+      root.kalenderMonth = Number(periodMatch[2]);
+    }
+    renderAll();
+    try {
+      await root.callServer('api_savePeriod', period);
+    } catch (error) {
+      root.DB.currentPeriod = previousPeriod;
+      if (prevCalYear !== null) root.kalenderYear = prevCalYear;
+      if (prevCalMonth !== null) root.kalenderMonth = prevCalMonth;
+      if (root.fpMonth) root.fpMonth.setDate(previousPeriod, false);
+      renderAll();
+      showActionError(error);
+    }
+  }
+
+  function shiftCurrentPeriod(offset) {
+    const period = FinanceAnalysis.shiftPeriod(root.DB.currentPeriod, offset);
+    if (root.fpMonth) root.fpMonth.setDate(period, false);
+    saveCurrentPeriod(period);
+  }
+
+  function getPeriodLabel(periodStr, payrollDay) {
+    const range = getPeriodRange(periodStr, payrollDay);
+    const s = new Date(range.start + 'T00:00:00');
+    const e = new Date(range.end + 'T00:00:00');
+    return s.getDate() + ' ' + getMonthShort(s.getMonth()) + ' - ' +
+      e.getDate() + ' ' + getMonthShort(e.getMonth()) + ' ' + e.getFullYear();
+  }
+
+  function defaultCallServer() {
+    return Promise.reject(new Error(
+      'Koneksi ke Supabase belum siap (supabase-api.js / supabase-js gagal dimuat). ' +
+      'Muat ulang halaman (Ctrl+F5), cek koneksi/ad-blocker, lalu lihat F12 → Console.'
+    ));
+  }
+
+  function mergeUpdatedTransactions(payload) {
+    const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+    if (has('transactions') || payload.transaction || payload.addedTransactions ||
+      payload.deletedTransactionId || payload.renamedTransactionCategory) {
+      laporanState.dirty = true;
+    }
+    if (has('transactions')) root.DB.transactions = payload.transactions || [];
+    if (payload.transaction) {
+      const index = root.DB.transactions.findIndex((item) => item.id === payload.transaction.id);
+      if (index === -1) root.DB.transactions.push(payload.transaction);
+      else root.DB.transactions[index] = payload.transaction;
+    }
+    if (payload.addedTransactions) {
+      payload.addedTransactions.forEach((transaction) => {
+        const index = root.DB.transactions.findIndex((item) => item.id === transaction.id);
+        if (index === -1) root.DB.transactions.push(transaction);
+        else root.DB.transactions[index] = transaction;
+      });
+    }
+    if (payload.deletedTransactionId) {
+      root.DB.transactions = root.DB.transactions.filter((item) => item.id !== payload.deletedTransactionId);
+    }
+    if (payload.renamedTransactionCategory) {
+      root.DB.transactions.forEach((item) => {
+        if (item.kategori === payload.renamedTransactionCategory.from &&
+          (!payload.renamedTransactionCategory.tipe || item.tipe === payload.renamedTransactionCategory.tipe)) {
+          item.kategori = payload.renamedTransactionCategory.to;
+        }
+      });
+    }
+  }
+
+  async function refreshFromServer(payload) {
+    if (payload) {
+      const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+      mergeUpdatedTransactions(payload);
+      if (has('categories')) root.DB.categories = payload.categories || { pemasukan: [], pengeluaran: [] };
+      if (has('entities')) root.DB.entities = payload.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
+      if (has('assets')) root.DB.assets = payload.assets || [];
+      if (has('budgets')) root.DB.budgets = payload.budgets || [];
+      if (has('snapshots')) root.DB.snapshots = payload.snapshots || [];
+      if (payload.currentPeriod) root.DB.currentPeriod = payload.currentPeriod;
+      if (payload.payrollDay) root.DB.payrollDay = payload.payrollDay;
+      if (has('wallets')) root.DB.wallets = payload.wallets || [];
+      if (has('transfers')) root.DB.transfers = payload.transfers || [];
+      if (has('goals')) root.DB.goals = payload.goals || [];
+      if (payload.goal) {
+        const index = root.DB.goals.findIndex((item) => item.id === payload.goal.id);
+        if (index === -1) root.DB.goals.push(payload.goal);
+        else root.DB.goals[index] = payload.goal;
+      }
+      if (payload.deletedGoalId) root.DB.goals = root.DB.goals.filter((goal) => goal.id !== payload.deletedGoalId);
+      if (has('recurring')) root.DB.recurring = payload.recurring || [];
+    }
+    if (typeof updateDashboardTitle === 'function') updateDashboardTitle();
+    renderAll();
+  }
+
+  Object.assign(root, {
+    escapeHtmlJS,
+    escapeAttrJS,
+    renderHtml,
+    renderSelectOptions,
+    _origFormatRupiah,
+    formatRupiah,
+    toggleHideNominal,
+    updateEyeIcon,
+    getSwalClass,
+    showActionError,
+    updateDashboardTitle: updateDashboardTitleFn,
+    getPeriodRange,
+    isInPeriod,
+    saveCurrentPeriod,
+    shiftCurrentPeriod,
+    getPeriodLabel,
+    callServer: defaultCallServer,
+    refreshFromServer
+  });
+})(typeof window !== 'undefined' ? window : globalThis);

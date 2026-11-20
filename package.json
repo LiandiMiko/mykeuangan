@@ -1,0 +1,12 @@
+{
+  "name": "mykeuangan",
+  "version": "3.11.0",
+  "private": true,
+  "description": "MyKeuanganGuech — Personal Finance SaaS & PWA powered by Vanilla JS and Supabase",
+  "scripts": {
+    "test": "node --test",
+    "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i web/tailwind-input.css -o web/vendor/tailwind.min.css --minify",
+    "build": "node build.mjs",
+    "build:prod": "npm run test && npm run build:css && npm run build"
+  }
+}

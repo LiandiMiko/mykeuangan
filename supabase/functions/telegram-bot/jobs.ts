@@ -2,6 +2,7 @@ import {
   Any, CRON_SECRET, CG_KEY, sb, esc, rp, today, safeEqual, fetchAll,
   isActiveUser, isFlow, syncPeriod, streak, streakEmoji, send, mainKb,
 } from './core.ts';
+import { getWallets } from './wallets.ts';
 
 export const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') || '*',
@@ -110,13 +111,21 @@ async function runRecurring() {
   const activeIds = await getActiveUserIds();
   const byUser = new Map<string, string[]>();
   let created = 0;
+  const defaultWalletCache = new Map<string, string | null>();
   for (const r of data ?? []) {
     if (!activeIds.has(r.user_id)) continue;
     const claim = await sb.from('recurring').update({ last_run: t }).eq('id', r.id).or(`last_run.is.null,last_run.neq.${t}`).select('id');
     if (claim.error) throw claim.error;
     if (!claim.data || claim.data.length === 0) continue;
+    if (!defaultWalletCache.has(r.user_id)) {
+      const ws = await getWallets(r.user_id);
+      defaultWalletCache.set(r.user_id, ws[0]?.id ?? null);
+    }
+    const cleanNote = String(r.keterangan || '').trim();
     const ins = await sb.from('transactions').insert({
-      user_id: r.user_id, tanggal: t, tipe: r.tipe, kategori: r.kategori, nominal: r.nominal, keterangan: `${r.keterangan || ''} (recurring)`, source: 'recurring',
+      user_id: r.user_id, tanggal: t, tipe: r.tipe, kategori: r.kategori, nominal: r.nominal,
+      keterangan: cleanNote ? `${cleanNote} (recurring)` : 'Recurring', source: 'recurring',
+      wallet_id: defaultWalletCache.get(r.user_id) ?? null,
     });
     if (ins.error) { await sb.from('recurring').update({ last_run: r.last_run }).eq('id', r.id); console.error('recurring insert', ins.error); continue; }
     await syncPeriod(r.user_id, t);

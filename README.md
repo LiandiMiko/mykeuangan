@@ -52,7 +52,6 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
 mykeuangan/
 ├── src/                    # Source frontend (HTML templates)
 │   ├── Index.html          # App shell: layout, nav, modals
-│   ├── script.html         # Semua logika JS (1 file besar)
 │   ├── admin.html          # Admin panel UI (di-include ke Index)
 │   ├── updates.html        # Halaman Riwayat Pembaruan publik (di-include ke Index)
 │   ├── dashboard.html      # View: ringkasan utama (Arus Kas, Dompet, Utang/Piutang, Kalender)
@@ -62,17 +61,13 @@ mykeuangan/
 │   ├── form.html           # View: tambah transaksi
 │   ├── laporan.html        # View: laporan keuangan
 │   ├── budgeting.html      # View: anggaran kategori, target keuangan & transaksi rutin
-│   ├── features-v21.html   # Modul JS lanjutan: OCR struk, AI chat, chart budget, offline sync
 │   ├── features-v35.html   # Modul JS pro: Quick-Add, Command Palette, Tag, Bulk, Kalkulator & Rebalance
+│   ├── styles.html         # Tema CSS, CDN ter-pin & fallback Tailwind config
 │   ├── utang.html          # View: utang/piutang
 │   └── i18n.html           # Terjemahan (ID/EN)
 │
-├── web/                    # Static web assets
+├── web/                    # Static web assets & modular JS
 │   ├── config.js           # ⚠️ Supabase URL + Anon Key (lihat catatan keamanan)
-│   ├── supabase-api.js     # Auth, CRUD, Admin API wrapper
-│   ├── finance-analysis.js # Perhitungan siklus dan analisis budget
-│   ├── finance-pro.js      # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator lokal
-│   ├── transaction-import.js # Parser dan validasi impor CSV
 │   ├── manifest.webmanifest # PWA manifest
 │   ├── tailwind-input.css   # Entry CSS untuk kompilasi statis Tailwind CSS
 │   ├── sw.js                # Service Worker (Network-First + SKIP_WAITING & cache busting)
@@ -80,6 +75,8 @@ mykeuangan/
 │   ├── finance-pro.js       # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator
 │   ├── transaction-import.js# Parser dan validasi impor CSV
 │   ├── supabase-*.js        # Core, Auth UI, Records, Planning, Portfolio, Admin & callServer
+│   ├── ui-*.js              # 15 modul UI inti hasil modularisasi script.html
+│   ├── ui-feat-*.js         # 10 modul fitur PWA/offline/charts/modals hasil modularisasi features-v21
 │   └── icons/               # PWA icons (192px, 512px, maskable)
 │
 ├── db/
@@ -114,6 +111,7 @@ mykeuangan/
 ├── scripts/
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
 │
+├── package.json            # Skrip npm standar (`test`, `build:css`, `build`, `build:prod`)
 ├── tailwind.config.js      # Konfigurasi build Tailwind CSS statis
 ├── build.mjs               # Build script: src/* + web/*.js → dist/index.html
 └── .github/
@@ -281,6 +279,7 @@ supabase link --project-ref <PROJECT_REF>
 supabase secrets set TELEGRAM_BOT_TOKEN=<token_dari_@BotFather>
 supabase secrets set CRON_SECRET=<random_string_panjang_min_32_char>
 supabase secrets set GEMINI_API_KEY=<api_key_gemini>
+supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io
 
 # Deploy edge function (--no-verify-jwt agar bot bisa akses tanpa auth header)
 supabase functions deploy telegram-bot --no-verify-jwt
@@ -393,6 +392,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 20 November 2026: Wave v3.11 (Forensic Hardening P0–P2, Full Frontend Modularization 25 Modul UI & Bot Upgrade)
+- **Fix Produksi Static Tailwind & Keamanan (`web/ui-budget.js`, `web/ui-state.js`, `src/features-v35.html`, `build.mjs`)**: Menghilangkan kelas dinamis status warna di Budgeting ke lookup kelas statis penuh, memperkuat `escapeAttrJS()` untuk menetralkan HTML entity (`&#39;`) serta newline sebelum render atribut event handler, mengganti pemakaian `escapeAttrJS` pada atribut HTML biasa ke `escapeHtmlJS`, memusatkan rendering HTML ke `renderHtml()` (`DOMParser` + penghapusan `<script>`) dan `<option>` ke `renderSelectOptions()` DOM murni (skor `aislop` naik ke `93/100`, `0 warning`), memperkuat guardrail regex Play CDN + memangkas `'unsafe-eval'` dari CSP hasil build `dist/index.html`.
+- **Modularisasi Frontend Total (`web/ui-*.js`, `web/ui-feat-*.js`, `package.json`)**: Memecah `src/script.html` & `src/features-v21.html` menjadi **25 modul fokus (`15 web/ui-*.js` + `10 web/ui-feat-*.js`)** di bawah 330 baris agar seluruh kode JavaScript klien tercakup lint statis `aislop`, menghapus duplikat dead code `openNotificationsModal`, serta menambahkan `package.json`.
+- **Performa Startup, PWA Offline & i18n (`web/ui-shell.js`, `web/sw.js`, `src/styles.html`, `src/i18n.html`)**: Memindahkan auto-refresh harga pasar ke background non-blocking ber-cooldown 10 menit + sinkronisasi snapshot, mempersempit bypass Service Worker ke `generativelanguage.googleapis.com` agar Google Fonts ikut ter-cache offline (plus precache `icon-192.png` & respons offline `503`), memindahkan font Inter ke `<link>` + menyamakan `boxShadow.xs` pada fallback `styles.html`, serta memperbaiki `updateDashboardTitle()` agar bahasa EN tetap sinkron.
+- **Upgrade Telegram Bot & Test Suite (`supabase/functions/telegram-bot/*.ts`, `tests/i18n-build.test.js`)**: Menambahkan loop fallback model + safe `.json()` parsing pada `/insight` dengan default `gemini-2.5-flash` di bot & web, menambahkan pencocokan dompet pintar `matchWalletFromText` (`ewallet` & nama dompet kustom), membuka `/recurring add` untuk tanggal `1..31`, memperbaiki laporan `/budget copy` (`rows.length`), merapikan note/wallet default cron recurring, serta memperluas guard regresi di `tests/`.
 
 ### 20 November 2026: Wave v3.10 (Production-Grade Modularization, Static Tailwind CI, Mobile Laporan Cards, Auth Redesign, Security & PWA Polish)
 - **Modularisasi Total Codebase (`web/finance-analysis*.js`, `web/supabase-*.js`, `supabase/functions/telegram-bot/*.ts`)**: Memecah seluruh file besar (>1.100 baris) menjadi modul-modul fokus di bawah 320 baris beserta perbaikan bug latensi `this.finishAssetWalletMutation` di modul portofolio—menghilangkan seluruh peringatan `complexity/file-too-large`.
@@ -537,7 +542,7 @@ Prioritas berikutnya:
 | Backend | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
 | Runtime | Deno (Edge Functions) |
 | Build | Node.js (`build.mjs` — no bundler) |
-| AI | Google Gemini 3.8 Flash (auto-fallback) |
+| AI | Google Gemini 2.5 Flash (auto-fallback) |
 | Bot | Telegram Bot API |
 | Hosting | GitHub Pages + Supabase Cloud |
 

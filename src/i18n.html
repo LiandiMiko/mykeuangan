@@ -745,6 +745,8 @@ function applyTranslations() {
     const val = t(key);
     if (val) el.setAttribute('aria-label', val);
   });
+
+  if (typeof updateDashboardTitle === 'function') updateDashboardTitle();
 }
 
 /* ============================================================

@@ -208,7 +208,11 @@
           if (!input) return;
           const showing = input.type === 'text';
           input.type = showing ? 'password' : 'text';
-          btn.innerHTML = `<i class="ph ph-${showing ? 'eye' : 'eye-slash'}" aria-hidden="true" style="font-size:17px"></i>`;
+          const icon = document.createElement('i');
+          icon.className = `ph ph-${showing ? 'eye' : 'eye-slash'}`;
+          icon.setAttribute('aria-hidden', 'true');
+          icon.style.fontSize = '17px';
+          btn.replaceChildren(icon);
         };
       });
       [['#mkRegisterLink', 'register'], ['#mkLoginLink', 'login'], ['#mkForgotLink', 'forgot']].forEach(([sel, nextMode]) => {
@@ -242,7 +246,7 @@
 
     function renderForm() {
       const content = buildAuthModeFields(mode, theme);
-      el.innerHTML = `
+      const markup = `
         <div style="background:${theme.cardBg};padding:28px 24px;border-radius:24px;width:min(92vw,400px);box-shadow:0 25px 60px -15px rgba(15,23,42,${theme.isDark ? '0.65' : '0.18'});border:1px solid ${theme.inputBorder}">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid ${theme.inputBorder}">
             <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--color-brand,#4f46e5) 0%,var(--color-brand-accent,#6366f1) 100%);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 10px 24px -10px rgb(var(--color-brand-rgb,79 70 229)/0.6)">
@@ -258,6 +262,9 @@
             <p id="mkErr" role="status" aria-live="polite" style="margin:2px 0 0;color:#ef4444;font-size:12px;min-height:1em;text-align:center"></p>
           </form>
         </div>`;
+      const doc = new DOMParser().parseFromString(markup, 'text/html');
+      doc.querySelectorAll('script').forEach((node) => node.remove());
+      el.replaceChildren(...Array.from(doc.body.childNodes));
       bindFormEvents();
     }
 

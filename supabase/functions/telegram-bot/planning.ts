@@ -74,7 +74,9 @@ async function copyBudget(c: Ctx) {
     const { error } = await sb.from('budgets').insert(rows);
     if (error) throw error;
   }
-  await send(c.chat, `✅ <b>Budget di-copy!</b>\n\n📋 Dari: ${periodLabel(prev, pd)}\n📌 Ke: ${periodLabel(period, pd)}\n\n${source.length} kategori di-copy.`, mainKb());
+  await send(c.chat, rows.length
+    ? `✅ <b>Budget di-copy!</b>\n\n📋 Dari: ${periodLabel(prev, pd)}\n📌 Ke: ${periodLabel(period, pd)}\n\n${rows.length} kategori di-copy.`
+    : `ℹ️ Seluruh budget dari ${periodLabel(prev, pd)} sudah ada di bulan ini.`, mainKb());
 }
 
 export async function handleBudget(c: Ctx, arg: string) {
@@ -135,8 +137,8 @@ export async function handleRecurring(c: Ctx, arg: string) {
     const tipe = (parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase()) as Tx['tipe'];
     const day = parseInt(parts[parts.length - 1], 10);
     const nominal = parseNominal(parts[parts.length - 2]);
-    if ((tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !day || day < 1 || day > 28 || nominal <= 0) {
-      return send(c.chat, '❌ Tipe, tanggal (1-28), atau nominal tidak valid.', mainKb());
+    if ((tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !day || day < 1 || day > 31 || nominal <= 0) {
+      return send(c.chat, '❌ Tipe, tanggal (1-31), atau nominal tidak valid.', mainKb());
     }
     const kategori = parts.slice(2, -2).join(' ');
     const { error } = await sb.from('recurring').insert({ user_id: c.uid, tipe, kategori, nominal, keterangan: 'Auto via Telegram', day_of_month: day, active: true });
