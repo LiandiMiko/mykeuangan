@@ -179,6 +179,15 @@
       .slice(0, limit);
   }
 
+  function computePeriodIncome(transactions, period, payrollDay, analysisLib) {
+    return (Array.isArray(transactions) ? transactions : []).reduce((total, tx) => {
+      const cat = String((tx && tx.kategori) || '');
+      if (!tx || tx.tipe !== 'Pemasukan' || cat.startsWith('Utang') || cat.startsWith('Piutang')) return total;
+      if (!analysisLib.isInPeriod(tx.tanggal, period, payrollDay)) return total;
+      return total + (Number(tx.nominal) || 0);
+    }, 0);
+  }
+
   function computeAnnualRecap(transactions, budgets, year, payrollDay, analysisLib) {
     const targetYear = String(year || new Date().getFullYear()).slice(0, 4);
     const months = [];
@@ -190,15 +199,16 @@
     for (let m = 1; m <= 12; m += 1) {
       const period = `${targetYear}-${String(m).padStart(2, '0')}`;
       const sum = analysisLib.summarizePeriod(budgets || [], transactions || [], period, payrollDay);
-      const net = sum.incomeTotal - sum.actualTotal;
-      totalIncome += sum.incomeTotal;
+      const income = computePeriodIncome(transactions, period, payrollDay, analysisLib);
+      const net = income - sum.actualTotal;
+      totalIncome += income;
       totalExpense += sum.actualTotal;
       sum.rows.forEach((r) => {
         if (r.actual > 0) catTotals.set(r.category, (catTotals.get(r.category) || 0) + r.actual);
       });
       const periodTxCount = (transactions || []).filter((t) => analysisLib.isInPeriod(t.tanggal, period, payrollDay)).length;
       txCount += periodTxCount;
-      months.push({ period, income: sum.incomeTotal, expense: sum.actualTotal, net, txCount: periodTxCount });
+      months.push({ period, income, expense: sum.actualTotal, net, txCount: periodTxCount });
     }
 
     const activeMonths = months.filter((m) => m.income > 0 || m.expense > 0);
@@ -234,6 +244,8 @@
   function compareTwoPeriods(transactions, budgets, periodA, periodB, payrollDay, analysisLib) {
     const sumA = analysisLib.summarizePeriod(budgets || [], transactions || [], periodA, payrollDay);
     const sumB = analysisLib.summarizePeriod(budgets || [], transactions || [], periodB, payrollDay);
+    const incomeA = computePeriodIncome(transactions, periodA, payrollDay, analysisLib);
+    const incomeB = computePeriodIncome(transactions, periodB, payrollDay, analysisLib);
     const mapA = new Map(sumA.rows.map((r) => [r.category, r.actual]));
     const mapB = new Map(sumB.rows.map((r) => [r.category, r.actual]));
     const cats = Array.from(new Set([...mapA.keys(), ...mapB.keys()]));
@@ -250,12 +262,12 @@
     return {
       periodA,
       periodB,
-      incomeA: sumA.incomeTotal,
-      incomeB: sumB.incomeTotal,
+      incomeA,
+      incomeB,
       expenseA: sumA.actualTotal,
       expenseB: sumB.actualTotal,
-      netA: sumA.incomeTotal - sumA.actualTotal,
-      netB: sumB.incomeTotal - sumB.actualTotal,
+      netA: incomeA - sumA.actualTotal,
+      netB: incomeB - sumB.actualTotal,
       categories
     };
   }

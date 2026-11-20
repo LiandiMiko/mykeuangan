@@ -144,7 +144,9 @@
   }
 
   function resolveImportAutoCategory(description, tipe, options) {
-    const opts = options && typeof options === 'object' ? options : {};
+    if (!options || typeof options !== 'object') return '';
+    if (!options.autoCategorize && !options.autoCategoryRules && !options.categories) return '';
+    const opts = options;
     let fp = root && root.FinancePro ? root.FinancePro : null;
     if (!fp && typeof require === 'function') {
       try {
