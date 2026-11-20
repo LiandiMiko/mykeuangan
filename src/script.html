@@ -2314,7 +2314,7 @@
     if (pageStatus) pageStatus.textContent = '';
     if (previous) previous.disabled = true;
     if (next) next.disabled = true;
-    tbody.innerHTML = `<tr><td colspan="7" class="px-8 py-16 text-center text-slate-500">${escapeHtmlJS(t('lap.loading'))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="px-8 py-16 text-center text-slate-500">${escapeHtmlJS(t('lap.loading'))}</td></tr>`;
 
     try {
       const result = await callServer('api_searchTransactions', filters);
@@ -2334,7 +2334,7 @@
       if (requestId !== laporanState.requestId) return;
       laporanState.dirty = true;
       if (status) status.textContent = String(error.message || error);
-      tbody.innerHTML = `<tr><td colspan="7" class="px-8 py-12 text-center">
+      tbody.innerHTML = `<tr><td colspan="8" class="px-8 py-12 text-center">
       <p class="text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>
       <button type="button" onclick="retryReportLoad()" class="min-h-[44px] px-4 rounded-xl bg-brand text-white font-semibold">${escapeHtmlJS(t('lap.retry'))}</button>
     </td></tr>`;
@@ -2344,8 +2344,12 @@
   function renderReportRows(txs) {
     const tbody = document.getElementById('table-laporan');
     if (!tbody) return;
+    const selectAllEl = document.getElementById('lapSelectAll');
+    if (selectAllEl) selectAllEl.checked = false;
+
     if (!txs.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="px-8 py-16 text-center text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.no_results'))}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="px-8 py-16 text-center text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.no_results'))}</td></tr>`;
+      if (typeof updateReportBulkBar === 'function') updateReportBulkBar();
       return;
     }
 
@@ -2359,6 +2363,7 @@
 
       return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <td class="px-4 py-4"><input type="checkbox" class="lap-row-check w-4 h-4 rounded accent-brand" value="${escapeAttrJS(r.id)}" onchange="updateReportBulkBar()" aria-label="Pilih transaksi"></td>
         <td class="px-6 py-4 whitespace-nowrap">${escapeHtmlJS(r.tanggal)}</td>
         <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[10px] font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span></td>
         <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${escapeHtmlJS(r.kategori)}</td>
@@ -2372,6 +2377,7 @@
       </tr>
     `;
     }).join('');
+    if (typeof updateReportBulkBar === 'function') updateReportBulkBar();
   }
 
   function downloadTransactionTemplate() {
@@ -2395,7 +2401,11 @@
       const text = await file.text();
       const parsedRows = TransactionImport.parseRows(text);
       if (parsedRows.length > 501) throw new Error(t('lap.import_limit'));
-      const result = TransactionImport.parseTransactionCsv(text, DB.transactions, DB.wallets);
+      const importOptions = {
+        autoCategoryRules: typeof getAutoCategoryRules === 'function' ? getAutoCategoryRules() : [],
+        categories: DB.categories
+      };
+      const result = TransactionImport.parseTransactionCsv(text, DB.transactions, DB.wallets, importOptions);
       const preview = result.rows.slice(0, 5).map((item) => {
         const rowText = `${item.transaction.tanggal} · ${item.transaction.kategori} · ${Number.isFinite(item.transaction.nominal) ? formatRupiah(item.transaction.nominal) : '-'}`;
         const issue = item.errors.length ? item.errors.join(' ') :
@@ -3619,6 +3629,7 @@
 
       const parsed = FinanceAnalysis.parseGeminiCashflowResponse(rawText);
       renderAiCashflowResult(parsed, payload);
+      if (typeof saveAiAnalysisCache === 'function') saveAiAnalysisCache(parsed, payload);
     } catch (err) {
       console.error('runAiCashflowAnalysis error:', err);
       box.innerHTML = `

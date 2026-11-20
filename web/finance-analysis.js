@@ -139,28 +139,14 @@
     return value.startsWith('Utang') || value.startsWith('Piutang');
   }
 
-  function buildAiCashflowPayload(data, period, payrollDay) {
-    const src = data && typeof data === 'object' ? data : {};
-    const transactions = Array.isArray(src.transactions) ? src.transactions : [];
-    const wallets = Array.isArray(src.wallets) ? src.wallets : [];
-    const transfers = Array.isArray(src.transfers) ? src.transfers : [];
-    const assets = Array.isArray(src.assets) ? src.assets : [];
-    const budgets = Array.isArray(src.budgets) ? src.budgets : [];
-    const goals = Array.isArray(src.goals) ? src.goals : [];
-    const recurring = Array.isArray(src.recurring) ? src.recurring : [];
-
-    const range = getPeriodRange(period, payrollDay);
-    const previousPeriod = shiftPeriod(period, -1);
-    const insights = periodInsights(budgets, transactions, period, payrollDay);
-
+  function aggregateWalletAndPeriodFlows(transactions, wallets, transfers, period, payrollDay) {
     let incomeTotal = 0;
     let expenseTotal = 0;
-    const incomeByCat = new Map();
-    const expenseByCat = new Map();
-
     let saldoKasFallback = 0;
     let utangTotal = 0;
     let piutangTotal = 0;
+    const incomeByCat = new Map();
+    const expenseByCat = new Map();
     const walletBal = new Map();
     wallets.forEach((w) => { walletBal.set(w.id, Number(w.openingBalance) || 0); });
     const defaultWalletId = wallets.length ? wallets[0].id : null;
@@ -170,33 +156,21 @@
       const amount = Number(t.nominal) || 0;
       const isPiutang = cat.startsWith('Piutang');
       const isUtang = !isPiutang && cat.startsWith('Utang');
-
       let cashDelta = 0;
       if (isPiutang) {
-        if (t.tipe === 'Pengeluaran') {
-          piutangTotal += amount;
-          cashDelta = -amount;
-        } else {
-          piutangTotal -= amount;
-          cashDelta = amount;
-        }
+        piutangTotal += t.tipe === 'Pengeluaran' ? amount : -amount;
+        cashDelta = t.tipe === 'Pengeluaran' ? -amount : amount;
       } else if (isUtang) {
-        if (t.tipe === 'Pemasukan') {
-          utangTotal += amount;
-        } else {
-          utangTotal -= amount;
-          cashDelta = -amount;
-        }
+        utangTotal += t.tipe === 'Pemasukan' ? amount : -amount;
+        if (t.tipe !== 'Pemasukan') cashDelta = -amount;
       } else {
         cashDelta = t.tipe === 'Pemasukan' ? amount : -amount;
       }
       saldoKasFallback += cashDelta;
-
       if (defaultWalletId !== null) {
         const wid = t.walletId && walletBal.has(t.walletId) ? t.walletId : defaultWalletId;
         walletBal.set(wid, (walletBal.get(wid) || 0) + cashDelta);
       }
-
       if (!isDebtCategory(cat) && isInPeriod(t.tanggal, period, payrollDay)) {
         if (t.tipe === 'Pemasukan') {
           incomeTotal += amount;
@@ -211,17 +185,30 @@
     transfers.forEach((x) => {
       const n = Number(x.nominal) || 0;
       const f = Number(x.fee) || 0;
-      if (x.fromWallet && walletBal.has(x.fromWallet)) {
-        walletBal.set(x.fromWallet, walletBal.get(x.fromWallet) - (n + f));
-      }
-      if (x.toWallet && walletBal.has(x.toWallet)) {
-        walletBal.set(x.toWallet, walletBal.get(x.toWallet) + n);
-      }
+      if (x.fromWallet && walletBal.has(x.fromWallet)) walletBal.set(x.fromWallet, walletBal.get(x.fromWallet) - (n + f));
+      if (x.toWallet && walletBal.has(x.toWallet)) walletBal.set(x.toWallet, walletBal.get(x.toWallet) + n);
     });
 
-    const walletsTotal = wallets.length
-      ? Array.from(walletBal.values()).reduce((sum, val) => sum + val, 0)
-      : saldoKasFallback;
+    const walletsTotal = wallets.length ? Array.from(walletBal.values()).reduce((s, v) => s + v, 0) : saldoKasFallback;
+    return { incomeTotal, expenseTotal, incomeByCat, expenseByCat, walletsTotal, utangTotal, piutangTotal };
+  }
+
+  function buildAiCashflowPayload(data, period, payrollDay) {
+    const src = data && typeof data === 'object' ? data : {};
+    const transactions = Array.isArray(src.transactions) ? src.transactions : [];
+    const wallets = Array.isArray(src.wallets) ? src.wallets : [];
+    const transfers = Array.isArray(src.transfers) ? src.transfers : [];
+    const assets = Array.isArray(src.assets) ? src.assets : [];
+    const budgets = Array.isArray(src.budgets) ? src.budgets : [];
+    const goals = Array.isArray(src.goals) ? src.goals : [];
+    const recurring = Array.isArray(src.recurring) ? src.recurring : [];
+
+    const range = getPeriodRange(period, payrollDay);
+    const previousPeriod = shiftPeriod(period, -1);
+    const insights = periodInsights(budgets, transactions, period, payrollDay);
+    const flows = aggregateWalletAndPeriodFlows(transactions, wallets, transfers, period, payrollDay);
+    const { incomeTotal, expenseTotal, incomeByCat, expenseByCat, walletsTotal, utangTotal, piutangTotal } = flows;
+
     const assetsTotal = assets.reduce((sum, a) => sum + (Number(a.value) || 0), 0);
     const netWorth = walletsTotal + assetsTotal + piutangTotal - utangTotal;
     const netCashflow = incomeTotal - expenseTotal;
@@ -235,7 +222,6 @@
         amount,
         sharePct: expenseTotal > 0 ? Number(((amount / expenseTotal) * 100).toFixed(1)) : 0
       }));
-
     const topIncomes = Array.from(incomeByCat.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 3)
@@ -244,14 +230,9 @@
     const activeGoals = goals.filter((g) => Number(g.targetAmount) > 0);
     const totalTarget = activeGoals.reduce((sum, g) => sum + (Number(g.targetAmount) || 0), 0);
     const totalSaved = activeGoals.reduce((sum, g) => sum + (Number(g.currentAmount) || 0), 0);
-
     const activeRecurring = recurring.filter((r) => String(r.active) !== 'false' && r.active !== false);
-    const recIncome = activeRecurring
-      .filter((r) => r.tipe === 'Pemasukan')
-      .reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
-    const recExpense = activeRecurring
-      .filter((r) => r.tipe === 'Pengeluaran')
-      .reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
+    const recIncome = activeRecurring.filter((r) => r.tipe === 'Pemasukan').reduce((s, r) => s + (Number(r.nominal) || 0), 0);
+    const recExpense = activeRecurring.filter((r) => r.tipe === 'Pengeluaran').reduce((s, r) => s + (Number(r.nominal) || 0), 0);
 
     return {
       period,
@@ -449,40 +430,34 @@
     return 'Rp ' + Math.round(Number(amount) || 0).toLocaleString('id-ID');
   }
 
-  function buildAppNotifications(data, period, payrollDay, todayStr) {
-    const src = data && typeof data === 'object' ? data : {};
-    const budgets = Array.isArray(src.budgets) ? src.budgets : [];
-    const transactions = Array.isArray(src.transactions) ? src.transactions : [];
-    const recurring = Array.isArray(src.recurring) ? src.recurring : [];
-    const goals = Array.isArray(src.goals) ? src.goals : [];
-    const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
-      ? String(todayStr).slice(0, 10)
-      : formatDate(new Date());
-    const notifications = [];
+  function collectBudgetAlerts(budgets, transactions, period, payrollDay) {
+    if (!/^\d{4}-\d{2}$/.test(String(period || ''))) return [];
+    const alerts = [];
+    const summary = summarizePeriod(budgets, transactions, period, payrollDay);
+    summary.rows.forEach((row) => {
+      if (row.plan > 0 && row.percent !== null && row.percent >= 80) {
+        const isOver = row.percent > 100;
+        alerts.push({
+          id: 'budget:' + period + ':' + row.category,
+          severity: isOver ? 'danger' : 'warning',
+          title: isOver ? ('Budget terlampaui: ' + row.category) : ('Budget hampir habis: ' + row.category),
+          message: 'Terpakai ' + Math.round(row.percent) + '% (' + formatIdrSimple(row.actual) + ' / ' + formatIdrSimple(row.plan) + ').',
+          actionType: 'view',
+          actionPayload: { view: 'budgeting' }
+        });
+      }
+    });
+    return alerts;
+  }
 
-    if (/^\d{4}-\d{2}$/.test(String(period || ''))) {
-      const summary = summarizePeriod(budgets, transactions, period, payrollDay);
-      summary.rows.forEach((row) => {
-        if (row.plan > 0 && row.percent !== null && row.percent >= 80) {
-          const isOver = row.percent > 100;
-          notifications.push({
-            id: 'budget:' + period + ':' + row.category,
-            severity: isOver ? 'danger' : 'warning',
-            title: isOver ? ('Budget terlampaui: ' + row.category) : ('Budget hampir habis: ' + row.category),
-            message: 'Terpakai ' + Math.round(row.percent) + '% (' + formatIdrSimple(row.actual) + ' / ' + formatIdrSimple(row.plan) + ').',
-            actionType: 'view',
-            actionPayload: { view: 'budgeting' }
-          });
-        }
-      });
-    }
-
+  function collectRecurringAlerts(recurring, baseDate) {
     const baseDateObj = new Date(baseDate + 'T00:00:00Z');
     const year = baseDateObj.getUTCFullYear();
     const month = baseDateObj.getUTCMonth();
     const todayDay = baseDateObj.getUTCDate();
     const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
     const daysInNextMonth = new Date(Date.UTC(year, month + 2, 0)).getUTCDate();
+    const alerts = [];
 
     recurring.forEach((item) => {
       if (item.active === false || String(item.active) === 'false') return;
@@ -493,13 +468,9 @@
 
       const clampedThisMonth = Math.min(rawDay, daysInMonth);
       let diffDays = clampedThisMonth - todayDay;
-      if (diffDays < 0) {
-        const clampedNextMonth = Math.min(rawDay, daysInNextMonth);
-        diffDays = (daysInMonth - todayDay) + clampedNextMonth;
-      }
-
+      if (diffDays < 0) diffDays = (daysInMonth - todayDay) + Math.min(rawDay, daysInNextMonth);
       if (diffDays >= 0 && diffDays <= 3) {
-        notifications.push({
+        alerts.push({
           id: 'recurring:' + (item.id || item.kategori + ':' + rawDay),
           severity: diffDays === 0 ? 'warning' : 'info',
           title: 'Jadwal rutin: ' + String(item.kategori || 'Transaksi'),
@@ -510,11 +481,15 @@
         });
       }
     });
+    return alerts;
+  }
 
+  function collectGoalAlerts(goals, baseDate) {
+    const alerts = [];
     goals.forEach((goal) => {
       const calc = calculateGoalMonthlySaving(goal.currentAmount, goal.targetAmount, goal.targetDate, baseDate);
       if (calc.status === 'overdue' || calc.status === 'urgent') {
-        notifications.push({
+        alerts.push({
           id: 'goal:' + (goal.id || goal.name),
           severity: calc.status === 'overdue' ? 'danger' : 'warning',
           title: calc.status === 'overdue'
@@ -526,6 +501,24 @@
         });
       }
     });
+    return alerts;
+  }
+
+  function buildAppNotifications(data, period, payrollDay, todayStr) {
+    const src = data && typeof data === 'object' ? data : {};
+    const budgets = Array.isArray(src.budgets) ? src.budgets : [];
+    const transactions = Array.isArray(src.transactions) ? src.transactions : [];
+    const recurring = Array.isArray(src.recurring) ? src.recurring : [];
+    const goals = Array.isArray(src.goals) ? src.goals : [];
+    const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : formatDate(new Date());
+
+    const notifications = [
+      ...collectBudgetAlerts(budgets, transactions, period, payrollDay),
+      ...collectRecurringAlerts(recurring, baseDate),
+      ...collectGoalAlerts(goals, baseDate)
+    ];
 
     const pendingOffline = Math.max(0, Math.trunc(Number(src.offlineQueueCount) || 0));
     if (pendingOffline > 0) {
@@ -870,139 +863,108 @@
     };
   }
 
+  function filterNewBackupTransactions(rawTx, existingTxList) {
+    const txSig = (t) => `${String(t.tanggal || '').slice(0, 10)}|${String(t.tipe || '').trim()}|${String(t.kategori || '').trim().toLowerCase()}|${Math.round(Number(t.nominal) || 0)}|${String(t.keterangan || '').trim().toLowerCase()}`;
+    const seen = new Set(existingTxList.map(txSig));
+    const added = [];
+    let skipped = 0;
+
+    (rawTx || []).forEach((t) => {
+      if (!t || typeof t !== 'object') { skipped += 1; return; }
+      const tanggal = String(t.tanggal || '').slice(0, 10);
+      const tipe = String(t.tipe || '').trim();
+      const kategori = String(t.kategori || '').trim();
+      const nominal = Number(t.nominal);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !kategori || !Number.isFinite(nominal) || nominal <= 0) {
+        skipped += 1;
+        return;
+      }
+      const item = { tanggal, tipe, kategori, nominal, keterangan: String(t.keterangan || '').trim(), walletId: t.walletId ? String(t.walletId) : '' };
+      const sig = txSig(item);
+      if (seen.has(sig)) { skipped += 1; return; }
+      seen.add(sig);
+      added.push(item);
+    });
+    return { added, skipped };
+  }
+
+  function filterNewBackupBudgets(rawBudgets, existingBudgets) {
+    const budgetSig = (b) => `${String(b.bulan || '').slice(0, 7)}|${String(b.kategori || '').trim().toLowerCase()}`;
+    const seen = new Set((Array.isArray(existingBudgets) ? existingBudgets : []).map(budgetSig));
+    const added = [];
+    let skipped = 0;
+
+    (rawBudgets || []).forEach((b) => {
+      if (!b || typeof b !== 'object') { skipped += 1; return; }
+      const bulan = String(b.bulan || '').slice(0, 7);
+      const kategori = String(b.kategori || '').trim();
+      const jumlah = Number(b.jumlah);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bulan) || !kategori || !Number.isFinite(jumlah) || jumlah < 0) {
+        skipped += 1;
+        return;
+      }
+      const item = { bulan, kategori, jumlah };
+      const sig = budgetSig(item);
+      if (seen.has(sig)) { skipped += 1; return; }
+      seen.add(sig);
+      added.push(item);
+    });
+    return { added, skipped };
+  }
+
+  function filterNewBackupGoals(rawGoals, existingGoals) {
+    const goalSig = (g) => `${String(g.name || '').trim().toLowerCase()}|${Math.round(Number(g.targetAmount) || 0)}`;
+    const seen = new Set((Array.isArray(existingGoals) ? existingGoals : []).map(goalSig));
+    const added = [];
+    let skipped = 0;
+
+    (rawGoals || []).forEach((g) => {
+      if (!g || typeof g !== 'object') { skipped += 1; return; }
+      const name = String(g.name || '').trim();
+      const targetAmount = Number(g.targetAmount);
+      const currentAmount = Number(g.currentAmount) || 0;
+      const targetDate = String(g.targetDate || '').slice(0, 10);
+      if (!name || !Number.isFinite(targetAmount) || targetAmount <= 0) { skipped += 1; return; }
+      const item = { name: name.slice(0, 80), targetAmount, currentAmount: Math.max(0, currentAmount), targetDate: /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : '' };
+      const sig = goalSig(item);
+      if (seen.has(sig)) { skipped += 1; return; }
+      seen.add(sig);
+      added.push(item);
+    });
+    return { added, skipped };
+  }
+
   function prepareBackupRestorePayload(backupObj, existingData) {
     const empty = {
       valid: false,
-      newTransactions: [],
-      skippedTransactions: 0,
-      newBudgets: [],
-      skippedBudgets: 0,
-      newGoals: [],
-      skippedGoals: 0
+      newTransactions: [], skippedTransactions: 0,
+      newBudgets: [], skippedBudgets: 0,
+      newGoals: [], skippedGoals: 0
     };
     if (!backupObj || typeof backupObj !== 'object') return empty;
 
     const src = (backupObj.data && typeof backupObj.data === 'object') ? backupObj.data : backupObj;
-    const rawTx = Array.isArray(src.transactions)
-      ? src.transactions
-      : (Array.isArray(src.transaksi) ? src.transaksi : null);
+    const rawTx = Array.isArray(src.transactions) ? src.transactions : (Array.isArray(src.transaksi) ? src.transaksi : null);
     const rawBudgets = Array.isArray(src.budgets) ? src.budgets : null;
     const rawGoals = Array.isArray(src.goals) ? src.goals : null;
-
     if (!rawTx && !rawBudgets && !rawGoals) return empty;
 
     const existing = existingData && typeof existingData === 'object' ? existingData : {};
     const existingTxList = Array.isArray(existing.transactions)
       ? existing.transactions
       : (Array.isArray(existing.transaksi) ? existing.transaksi : []);
-
-    const txSig = (t) => {
-      const tanggal = String(t.tanggal || '').slice(0, 10);
-      const tipe = String(t.tipe || '').trim();
-      const kategori = String(t.kategori || '').trim().toLowerCase();
-      const nominal = Math.round(Number(t.nominal) || 0);
-      const keterangan = String(t.keterangan || '').trim().toLowerCase();
-      return `${tanggal}|${tipe}|${kategori}|${nominal}|${keterangan}`;
-    };
-
-    const seenTx = new Set(existingTxList.map(txSig));
-    const newTransactions = [];
-    let skippedTransactions = 0;
-
-    (rawTx || []).forEach((t) => {
-      if (!t || typeof t !== 'object') {
-        skippedTransactions += 1;
-        return;
-      }
-      const tanggal = String(t.tanggal || '').slice(0, 10);
-      const tipe = String(t.tipe || '').trim();
-      const kategori = String(t.kategori || '').trim();
-      const nominal = Number(t.nominal);
-      const keterangan = String(t.keterangan || '').trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) ||
-          (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') ||
-          !kategori || !Number.isFinite(nominal) || nominal <= 0) {
-        skippedTransactions += 1;
-        return;
-      }
-      const item = { tanggal, tipe, kategori, nominal, keterangan, walletId: t.walletId ? String(t.walletId) : '' };
-      const sig = txSig(item);
-      if (seenTx.has(sig)) {
-        skippedTransactions += 1;
-        return;
-      }
-      seenTx.add(sig);
-      newTransactions.push(item);
-    });
-
-    const budgetSig = (b) => `${String(b.bulan || '').slice(0, 7)}|${String(b.kategori || '').trim().toLowerCase()}`;
-    const seenBudgets = new Set((Array.isArray(existing.budgets) ? existing.budgets : []).map(budgetSig));
-    const newBudgets = [];
-    let skippedBudgets = 0;
-
-    (rawBudgets || []).forEach((b) => {
-      if (!b || typeof b !== 'object') {
-        skippedBudgets += 1;
-        return;
-      }
-      const bulan = String(b.bulan || '').slice(0, 7);
-      const kategori = String(b.kategori || '').trim();
-      const jumlah = Number(b.jumlah);
-      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bulan) || !kategori || !Number.isFinite(jumlah) || jumlah < 0) {
-        skippedBudgets += 1;
-        return;
-      }
-      const item = { bulan, kategori, jumlah };
-      const sig = budgetSig(item);
-      if (seenBudgets.has(sig)) {
-        skippedBudgets += 1;
-        return;
-      }
-      seenBudgets.add(sig);
-      newBudgets.push(item);
-    });
-
-    const goalSig = (g) => `${String(g.name || '').trim().toLowerCase()}|${Math.round(Number(g.targetAmount) || 0)}`;
-    const seenGoals = new Set((Array.isArray(existing.goals) ? existing.goals : []).map(goalSig));
-    const newGoals = [];
-    let skippedGoals = 0;
-
-    (rawGoals || []).forEach((g) => {
-      if (!g || typeof g !== 'object') {
-        skippedGoals += 1;
-        return;
-      }
-      const name = String(g.name || '').trim();
-      const targetAmount = Number(g.targetAmount);
-      const currentAmount = Number(g.currentAmount) || 0;
-      const targetDate = String(g.targetDate || '').slice(0, 10);
-      if (!name || !Number.isFinite(targetAmount) || targetAmount <= 0) {
-        skippedGoals += 1;
-        return;
-      }
-      const item = {
-        name: name.slice(0, 80),
-        targetAmount,
-        currentAmount: Math.max(0, currentAmount),
-        targetDate: /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : ''
-      };
-      const sig = goalSig(item);
-      if (seenGoals.has(sig)) {
-        skippedGoals += 1;
-        return;
-      }
-      seenGoals.add(sig);
-      newGoals.push(item);
-    });
+    const txRes = filterNewBackupTransactions(rawTx, existingTxList);
+    const budgetRes = filterNewBackupBudgets(rawBudgets, existing.budgets);
+    const goalRes = filterNewBackupGoals(rawGoals, existing.goals);
 
     return {
       valid: true,
-      newTransactions,
-      skippedTransactions,
-      newBudgets,
-      skippedBudgets,
-      newGoals,
-      skippedGoals
+      newTransactions: txRes.added,
+      skippedTransactions: txRes.skipped,
+      newBudgets: budgetRes.added,
+      skippedBudgets: budgetRes.skipped,
+      newGoals: goalRes.added,
+      skippedGoals: goalRes.skipped
     };
   }
 

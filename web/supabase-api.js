@@ -102,6 +102,86 @@
     if (document.visibilityState === 'visible') refreshActiveSession();
   }, 60000);
 
+  function buildAuthModeFields(mode, theme) {
+    const { textMain, textMuted, field, fieldLabel, passInputGroup } = theme;
+    if (mode === 'login') {
+      return `
+          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Masuk ke Akun</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Kelola finansial dan portofolio Anda</p>
+          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
+          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+          <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
+          ${passInputGroup('mkPass', 'Kata Sandi', 'current-password', 0)}
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <a href="#" id="mkForgotLink" style="color:#3b82f6;text-decoration:none">Lupa kata sandi?</a>
+          </div>
+          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Masuk</button>
+          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
+            Belum punya akun? <a href="#" id="mkRegisterLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Daftar sekarang</a>
+          </p>
+        `;
+    }
+    if (mode === 'register') {
+      return `
+          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Daftar Akun Baru</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Gratis dan instan untuk kelola keuangan</p>
+          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
+          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+          <label for="mkPass" style="${fieldLabel}">Kata Sandi (min. 8 karakter)</label>
+          ${passInputGroup('mkPass', 'Minimal 8 karakter', 'new-password', 8)}
+          <label for="mkPassConfirm" style="${fieldLabel}">Ulangi Kata Sandi</label>
+          ${passInputGroup('mkPassConfirm', 'Ulangi Kata Sandi', 'new-password', 8)}
+          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Daftar Akun</button>
+          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
+            Sudah punya akun? <a href="#" id="mkLoginLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Masuk di sini</a>
+          </p>
+        `;
+    }
+    return `
+          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Reset Kata Sandi</h2>
+          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Masukkan email untuk menerima link reset</p>
+          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
+          <input id="mkEmail" type="email" placeholder="Alamat Email Anda" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Kirim Link Reset</button>
+          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
+            Kembali ke <a href="#" id="mkLoginLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Halaman Masuk</a>
+          </p>
+        `;
+  }
+
+  async function executeAuthSubmit(submitMode, el, errEl) {
+    const email = el.querySelector('#mkEmail').value.trim();
+    if (submitMode === 'login') {
+      const pass = el.querySelector('#mkPass').value;
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (error) { errEl.textContent = 'Gagal masuk: ' + error.message; return; }
+      el.remove();
+      finishLogin(data.session);
+    } else if (submitMode === 'register') {
+      const pass = el.querySelector('#mkPass').value;
+      const passConfirm = el.querySelector('#mkPassConfirm').value;
+      if (pass.length < 8 || pass.length > 128) {
+        errEl.textContent = 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+        return;
+      }
+      if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
+      const { data, error } = await sb.auth.signUp({ email, password: pass });
+      if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
+      if (data.session) {
+        el.remove();
+        finishLogin(data.session);
+      } else {
+        errEl.style.color = '#10b981';
+        errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
+      }
+    } else if (submitMode === 'forgot') {
+      const { error } = await sb.auth.resetPasswordForEmail(email);
+      if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
+      errEl.style.color = '#10b981';
+      errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
+    }
+  }
+
   function showLogin() {
     const isDark = localStorage.getItem('mode') === 'dark' || document.documentElement.classList.contains('dark');
     const el = document.createElement('div');
@@ -126,53 +206,10 @@
         <button type="button" data-toggle-pass="${id}" aria-label="Tampilkan atau sembunyikan kata sandi" style="${toggleBtnStyle}">Lihat</button>
       </div>
     `;
+    const theme = { textMain, textMuted, field, fieldLabel, passInputGroup };
 
     function renderForm() {
-      let content = '';
-      if (mode === 'login') {
-        content = `
-          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Masuk ke Akun</h2>
-          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Kelola finansial dan portofolio Anda</p>
-          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
-          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-          <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
-          ${passInputGroup('mkPass', 'Kata Sandi', 'current-password', 0)}
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
-            <a href="#" id="mkForgotLink" style="color:#3b82f6;text-decoration:none">Lupa kata sandi?</a>
-          </div>
-          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Masuk</button>
-          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
-            Belum punya akun? <a href="#" id="mkRegisterLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Daftar sekarang</a>
-          </p>
-        `;
-      } else if (mode === 'register') {
-        content = `
-          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Daftar Akun Baru</h2>
-          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Gratis dan instan untuk kelola keuangan</p>
-          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
-          <input id="mkEmail" type="email" placeholder="Alamat Email" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-          <label for="mkPass" style="${fieldLabel}">Kata Sandi (min. 8 karakter)</label>
-          ${passInputGroup('mkPass', 'Minimal 8 karakter', 'new-password', 8)}
-          <label for="mkPassConfirm" style="${fieldLabel}">Ulangi Kata Sandi</label>
-          ${passInputGroup('mkPassConfirm', 'Ulangi Kata Sandi', 'new-password', 8)}
-          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#10b981;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Daftar Akun</button>
-          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
-            Sudah punya akun? <a href="#" id="mkLoginLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Masuk di sini</a>
-          </p>
-        `;
-      } else if (mode === 'forgot') {
-        content = `
-          <h2 style="margin:0 0 4px;font-size:20px;color:${textMain};font-weight:800">Reset Kata Sandi</h2>
-          <p style="margin:0 0 12px;font-size:13px;color:${textMuted}">Masukkan email untuk menerima link reset</p>
-          <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
-          <input id="mkEmail" type="email" placeholder="Alamat Email Anda" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-          <button type="submit" id="mkSubmitBtn" style="padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:4px">Kirim Link Reset</button>
-          <p style="margin:12px 0 0;font-size:13px;color:${textMuted};text-align:center">
-            Kembali ke <a href="#" id="mkLoginLink" style="color:#3b82f6;font-weight:700;text-decoration:none">Halaman Masuk</a>
-          </p>
-        `;
-      }
-
+      const content = buildAuthModeFields(mode, theme);
       el.innerHTML = `
         <div style="background:${cardBg};padding:32px 28px;border-radius:20px;width:min(92vw,370px);box-shadow:0 25px 50px -12px rgba(0,0,0,0.45);border:1px solid ${isDark ? '#334155' : 'transparent'}">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
@@ -195,81 +232,48 @@
           btn.textContent = showing ? 'Lihat' : 'Tutup';
         };
       });
+      const bindModeLink = (sel, nextMode) => {
+        const node = el.querySelector(sel);
+        if (node) node.onclick = (ev) => { ev.preventDefault(); if (!isSubmitting) { mode = nextMode; renderForm(); } };
+      };
+      bindModeLink('#mkRegisterLink', 'register');
+      bindModeLink('#mkLoginLink', 'login');
+      bindModeLink('#mkForgotLink', 'forgot');
 
-      const regLink = el.querySelector('#mkRegisterLink');
-      if (regLink) regLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'register'; renderForm(); } };
-      const logLink = el.querySelector('#mkLoginLink');
-      if (logLink) logLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'login'; renderForm(); } };
-      const forLink = el.querySelector('#mkForgotLink');
-      if (forLink) forLink.onclick = (e) => { e.preventDefault(); if (!isSubmitting) { mode = 'forgot'; renderForm(); } };
+      el.querySelector('#mkAuthForm').onsubmit = async (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        isSubmitting = true;
+        const errEl = el.querySelector('#mkErr');
+        const submitBtn = el.querySelector('#mkSubmitBtn');
+        const submitLabel = submitBtn.textContent;
+        const submitMode = mode;
+        errEl.textContent = '';
+        errEl.style.color = '#ef4444';
+        submitBtn.disabled = true;
+        submitBtn.setAttribute('aria-busy', 'true');
+        submitBtn.style.cursor = 'not-allowed';
+        submitBtn.style.opacity = '0.7';
+        submitBtn.textContent = 'Memproses...';
 
-      el.querySelector('#mkAuthForm').onsubmit = handleAuthSubmit;
-    }
-
-    async function handleAuthSubmit(e) {
-      e.preventDefault();
-      if (isSubmitting) return;
-
-      isSubmitting = true;
-      const errEl = el.querySelector('#mkErr');
-      const submitBtn = el.querySelector('#mkSubmitBtn');
-      const submitLabel = submitBtn.textContent;
-      const submitMode = mode;
-      errEl.textContent = '';
-      errEl.style.color = '#ef4444';
-      submitBtn.disabled = true;
-      submitBtn.setAttribute('aria-busy', 'true');
-      submitBtn.style.cursor = 'not-allowed';
-      submitBtn.style.opacity = '0.7';
-      submitBtn.textContent = 'Memproses...';
-
-      try {
-        const email = el.querySelector('#mkEmail').value.trim();
-
-        if (submitMode === 'login') {
-          const pass = el.querySelector('#mkPass').value;
-          const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-          if (error) { errEl.textContent = 'Gagal masuk: ' + error.message; return; }
-          el.remove();
-          finishLogin(data.session);
-        } else if (submitMode === 'register') {
-          const pass = el.querySelector('#mkPass').value;
-          const passConfirm = el.querySelector('#mkPassConfirm').value;
-          if (pass.length < 8 || pass.length > 128) {
-            errEl.textContent = 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
-            return;
+        try {
+          await executeAuthSubmit(submitMode, el, errEl);
+        } catch (error) {
+          const action = submitMode === 'register' ? 'Pendaftaran gagal: ' :
+            (submitMode === 'forgot' ? 'Gagal kirim reset: ' : 'Gagal masuk: ');
+          errEl.textContent = action + (error.message || String(error));
+        } finally {
+          isSubmitting = false;
+          const currentSubmitBtn = el.querySelector('#mkSubmitBtn');
+          if (currentSubmitBtn) {
+            currentSubmitBtn.disabled = false;
+            currentSubmitBtn.removeAttribute('aria-busy');
+            currentSubmitBtn.style.cursor = 'pointer';
+            currentSubmitBtn.style.opacity = '';
+            currentSubmitBtn.textContent = submitLabel;
           }
-          if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
-          const { data, error } = await sb.auth.signUp({ email, password: pass });
-          if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
-          if (data.session) {
-            el.remove();
-            finishLogin(data.session);
-          } else {
-            errEl.style.color = '#10b981';
-            errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
-          }
-        } else if (submitMode === 'forgot') {
-          const { error } = await sb.auth.resetPasswordForEmail(email);
-          if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
-          errEl.style.color = '#10b981';
-          errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
         }
-      } catch (error) {
-        const action = submitMode === 'register' ? 'Pendaftaran gagal: ' :
-          (submitMode === 'forgot' ? 'Gagal kirim reset: ' : 'Gagal masuk: ');
-        errEl.textContent = action + (error.message || String(error));
-      } finally {
-        isSubmitting = false;
-        const currentSubmitBtn = el.querySelector('#mkSubmitBtn');
-        if (currentSubmitBtn) {
-          currentSubmitBtn.disabled = false;
-          currentSubmitBtn.removeAttribute('aria-busy');
-          currentSubmitBtn.style.cursor = 'pointer';
-          currentSubmitBtn.style.opacity = '';
-          currentSubmitBtn.textContent = submitLabel;
-        }
-      }
+      };
     }
 
     document.body.appendChild(el);
@@ -291,13 +295,27 @@
         'mk_gemini_model',
         'mk_app_pin_hash',
         'mk_app_pin_salt',
-        'mk_offline_tx_queue_v1'
+        'mk_offline_tx_queue_v1',
+        'mk_ai_analysis_cache_v1',
+        'mk_ai_chat_history_v1'
       ].forEach((k) => {
-        try { localStorage.removeItem(k); } catch (_) {}
+        try {
+          localStorage.removeItem(k);
+        } catch (_) {
+          // Ignore unavailable storage during logout cleanup
+        }
       });
-      try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) {}
+      try {
+        sessionStorage.removeItem('mk_pin_unlocked');
+      } catch (_) {
+        // Ignore unavailable sessionStorage
+      }
       if ('indexedDB' in window) {
-        try { window.indexedDB.deleteDatabase('mykeuangan_offline_db'); } catch (_) {}
+        try {
+          window.indexedDB.deleteDatabase('mykeuangan_offline_db');
+        } catch (_) {
+          // Ignore IndexedDB cleanup restrictions
+        }
       }
       if ('caches' in window) {
         try {
@@ -360,40 +378,17 @@
   }
 
   /* ---------------- getInitialData ---------------- */
-  async function getInitialData(options) {
-    const includeTransactions = !options || options.includeTransactions !== false;
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-    const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers, goalRows] = await Promise.all([
-      includeTransactions
-        ? fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id'])
-        : Promise.resolve([]),
-      fetchAll('categories', 'tipe,name', ['tipe', 'name']),
-      fetchAll('entities', 'grp,name', ['grp', 'name']),
-      fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']),
-      fetchAll('budgets', 'id,kategori,bulan,jumlah', ['bulan', 'kategori']),
-      fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active', ['id']),
-      getSettings(),
-      sb.from('portfolio_snapshots')
-        .select('tanggal,total_value,crypto_value,cash_value,other_value')
-        .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true }),
-      fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']),
-      fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id']),
-      fetchAll('financial_goals', 'id,name,target_amount,current_amount,target_date,created_at', ['created_at', 'id'])
-    ]);
-    fail(snapRes.error);
-
-    // Pertama kali dipakai: buat dompet standar BCA + Cash
-    let wallets = walletsRaw;
-    if (wallets.length === 0) {
-      const { error: wErr } = await sb.from('wallets').insert([
-        { name: 'BCA (m-banking)', kind: 'bank', sort: 1 },
-        { name: 'Cash', kind: 'cash', sort: 2 }
-      ]);
-      fail(wErr);
-      wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
+  function parseDebtDueDatesSetting(rawValue) {
+    try {
+      const parsed = JSON.parse(rawValue || '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) {
+      return {};
     }
+  }
 
-    const payrollDay = Number(settings.payrollDay) || 1;
+  function formatInitialDataPayload(raw, includeTransactions, payrollDay) {
+    const { trx, cats, ents, assets, budgets, recurring, settings, snapData, wallets, transfers, goalRows } = raw;
     return {
       ...(includeTransactions ? {
         transactions: trx.map((t) => ({
@@ -401,9 +396,7 @@
           nominal: num(t.nominal), keterangan: t.keterangan || '', walletId: t.wallet_id || ''
         }))
       } : {}),
-      wallets: wallets.map((w) => ({
-        id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort
-      })),
+      wallets: wallets.map((w) => ({ id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort })),
       transfers: transfers.map((x) => ({
         id: x.id, tanggal: x.tanggal, kind: x.kind, fromWallet: x.from_wallet || '', toWallet: x.to_wallet || '',
         nominal: num(x.nominal), fee: num(x.fee), keterangan: x.keterangan || ''
@@ -423,13 +416,10 @@
       })),
       budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah) })),
       goals: goalRows.map((goal) => ({
-        id: goal.id,
-        name: goal.name,
-        targetAmount: num(goal.target_amount),
-        currentAmount: num(goal.current_amount),
-        targetDate: goal.target_date || ''
+        id: goal.id, name: goal.name, targetAmount: num(goal.target_amount),
+        currentAmount: num(goal.current_amount), targetDate: goal.target_date || ''
       })),
-      snapshots: snapRes.data.map((s) => ({
+      snapshots: snapData.map((s) => ({
         tanggal: s.tanggal, total: num(s.total_value), crypto: num(s.crypto_value),
         cash: num(s.cash_value), other: num(s.other_value)
       })),
@@ -438,17 +428,47 @@
         keterangan: r.keterangan || '', dayOfMonth: r.day_of_month,
         lastRun: r.last_run || '', active: String(r.active)
       })),
-      debtDueDates: (() => {
-        try {
-          const parsed = JSON.parse(settings.debtDueDates || '{}');
-          return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-        } catch (_) {
-          return {};
-        }
-      })(),
+      debtDueDates: parseDebtDueDatesSetting(settings.debtDueDates),
       currentPeriod: settings.currentPeriod || cycleFor(ymd(new Date()), payrollDay),
       payrollDay
     };
+  }
+
+  async function getInitialData(options) {
+    const includeTransactions = !options || options.includeTransactions !== false;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers, goalRows] = await Promise.all([
+      includeTransactions ? fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id']) : Promise.resolve([]),
+      fetchAll('categories', 'tipe,name', ['tipe', 'name']),
+      fetchAll('entities', 'grp,name', ['grp', 'name']),
+      fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']),
+      fetchAll('budgets', 'id,kategori,bulan,jumlah', ['bulan', 'kategori']),
+      fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active', ['id']),
+      getSettings(),
+      sb.from('portfolio_snapshots').select('tanggal,total_value,crypto_value,cash_value,other_value').gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true }),
+      fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']),
+      fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id']),
+      fetchAll('financial_goals', 'id,name,target_amount,current_amount,target_date,created_at', ['created_at', 'id'])
+    ]);
+    fail(snapRes.error);
+
+    let wallets = walletsRaw;
+    if (wallets.length === 0) {
+      const { error: wErr } = await sb.from('wallets').insert([
+        { name: 'BCA (m-banking)', kind: 'bank', sort: 1 },
+        { name: 'Cash', kind: 'cash', sort: 2 }
+      ]);
+      fail(wErr);
+      wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
+    }
+
+    const payrollDay = Number(settings.payrollDay) || 1;
+    return formatInitialDataPayload(
+      { trx, cats, ents, assets, budgets, recurring, settings, snapData: snapRes.data, wallets, transfers, goalRows },
+      includeTransactions,
+      payrollDay
+    );
   }
 
   /* ---------------- Handler per fungsi server lama ---------------- */
@@ -859,6 +879,22 @@
       return fetchEntitiesOnly();
     },
 
+    async finishAssetWalletMutation(assetsRes, transactions, walletId, date) {
+      if (walletId && transactions && transactions.length) {
+        const [catsRes, currentPeriod] = await Promise.all([
+          fetchCategoriesOnly(),
+          syncPeriod(date)
+        ]);
+        return {
+          ...assetsRes,
+          ...catsRes,
+          transaction: trxFromRow(transactions[0]),
+          ...(currentPeriod ? { currentPeriod } : {})
+        };
+      }
+      return assetsRes;
+    },
+
     async api_addAssetV2(d) {
       if (!d || typeof d !== 'object') throw new Error('Data aset tidak valid.');
       if (d.walletId) {
@@ -898,17 +934,7 @@
         if (!transactions || !transactions.length) {
           throw new Error('Pembelian aset tidak mengembalikan catatan transaksi.');
         }
-        const [assetsRes, catsRes, currentPeriod] = await Promise.all([
-          fetchAssetsOnly(),
-          fetchCategoriesOnly(),
-          syncPeriod(date)
-        ]);
-        return {
-          ...assetsRes,
-          ...catsRes,
-          transaction: trxFromRow(transactions[0]),
-          ...(currentPeriod ? { currentPeriod } : {})
-        };
+        return this.finishAssetWalletMutation(await fetchAssetsOnly(), transactions, d.walletId, date);
       }
 
       const { error } = await sb.from('assets').insert({
@@ -943,20 +969,7 @@
         p_date: date
       });
       fail(error);
-      const assetsRes = await fetchAssetsOnly();
-      if (d && d.walletId && transactions && transactions.length) {
-        const [catsRes, currentPeriod] = await Promise.all([
-          fetchCategoriesOnly(),
-          syncPeriod(date)
-        ]);
-        return {
-          ...assetsRes,
-          ...catsRes,
-          transaction: trxFromRow(transactions[0]),
-          ...(currentPeriod ? { currentPeriod } : {})
-        };
-      }
-      return assetsRes;
+      return this.finishAssetWalletMutation(await fetchAssetsOnly(), transactions, d && d.walletId, date);
     },
 
     async api_saveBudget(kategori, bulan, jumlah) {

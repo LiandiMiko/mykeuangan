@@ -28,7 +28,9 @@ const config = fs.readFileSync(cfgFile, 'utf8');
 if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placeholder GANTI-… — isi URL dan anon key Supabase dulu.');
 const api = fs.readFileSync(path.join(WEB, 'supabase-api.js'), 'utf8');
 const financeAnalysis = fs.readFileSync(path.join(WEB, 'finance-analysis.js'), 'utf8');
+const financePro = fs.readFileSync(path.join(WEB, 'finance-pro.js'), 'utf8');
 const transactionImport = fs.readFileSync(path.join(WEB, 'transaction-import.js'), 'utf8');
+const tailwindVendorPath = path.join(WEB, 'vendor', 'tailwind.min.css');
 
 let html = read('Index');
 html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
@@ -42,11 +44,18 @@ html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
       lib = `<script src="${SUPABASE_JS}"></script>\n` +
             `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}"><\\/script>')</script>`;
     }
-    return `${lib}\n<script>\n${financeAnalysis}\n</script>\n<script>\n${transactionImport}\n</script>\n${read(name)}\n` +
+    return `${lib}\n<script>\n${financeAnalysis}\n</script>\n<script>\n${financePro}\n</script>\n<script>\n${transactionImport}\n</script>\n${read(name)}\n` +
            `<script>\n${config}\n</script>\n<script>\n${api}\n</script>`;
   }
   return read(name);
 });
+if (fs.existsSync(tailwindVendorPath)) {
+  const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
+  html = html.replace(
+    /<script src="https:\/\/cdn\.tailwindcss\.com"><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i,
+    `<style>\n${compiledTailwind}\n</style>`
+  );
+}
 if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?>) yang belum diganti.');
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -60,7 +69,7 @@ if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
 if (fs.existsSync(path.join(WEB, 'sw.js'))) {
   const swSource = fs.readFileSync(path.join(WEB, 'sw.js'), 'utf8').replaceAll('__BUILD_ID__', buildId);
   fs.writeFileSync(path.join(OUT, 'sw.js'), swSource);
-  console.log(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId})`);
+  process.stdout.write(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId})\n`);
 }
 const iconsSrc = path.join(WEB, 'icons');
 const iconsDst = path.join(OUT, 'icons');
@@ -71,5 +80,5 @@ if (fs.existsSync(iconsSrc)) {
   }
 }
 
-console.log(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB)`);
-console.log(`✅ PWA assets synced to ${OUT}/`);
+process.stdout.write(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB)\n`);
+process.stdout.write(`✅ PWA assets synced to ${OUT}/\n`);

@@ -63,6 +63,7 @@ mykeuangan/
 │   ├── laporan.html        # View: laporan keuangan
 │   ├── budgeting.html      # View: anggaran kategori, target keuangan & transaksi rutin
 │   ├── features-v21.html   # Modul JS lanjutan: OCR struk, AI chat, chart budget, offline sync
+│   ├── features-v35.html   # Modul JS pro: Quick-Add, Command Palette, Tag, Bulk, Kalkulator & Rebalance
 │   ├── utang.html          # View: utang/piutang
 │   └── i18n.html           # Terjemahan (ID/EN)
 │
@@ -70,6 +71,7 @@ mykeuangan/
 │   ├── config.js           # ⚠️ Supabase URL + Anon Key (lihat catatan keamanan)
 │   ├── supabase-api.js     # Auth, CRUD, Admin API wrapper
 │   ├── finance-analysis.js # Perhitungan siklus dan analisis budget
+│   ├── finance-pro.js      # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator lokal
 │   ├── transaction-import.js # Parser dan validasi impor CSV
 │   ├── manifest.webmanifest # PWA manifest
 │   ├── sw.js               # Service Worker (Stale-While-Revalidate + Network-First)
@@ -98,6 +100,8 @@ mykeuangan/
 ├── tests/
 │   ├── calendar-render.test.js   # Verifikasi grid & inisialisasi kalender
 │   ├── finance-analysis.test.js # Siklus, insight budget, dan progres target
+│   ├── finance-pro.test.js      # Quick-Add, #tag, auto-kategori, rekap tahunan & kalkulator lokal
+│   ├── pro-web-ui.test.js       # Verifikasi bottom nav, toolbar laporan & modal fitur pro
 │   ├── transaction-import.test.js # Parsing dan validasi impor CSV
 │   └── updates-view.test.js     # Halaman pembaruan publik & pelacakan rilis baru
 │
@@ -383,6 +387,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 20 November 2026: Wave v3.5–v3.8 (Mobile Bottom Nav, Quick-Add Kilat, #Tag & Auto-Kategori, Bulk Actions, Rekap Tahunan, Kalkulator Lokal, AI Chat Multi-Turn, Rebalancing & Refactor)
+- **Mobile-First UX & Catat Kilat (v3.5)**: Menambahkan Bottom Navigation Bar 5-tab khusus layar kecil (`#mobileBottomNav`), input Quick-Add 1 baris ala Telegram (`parseQuickTxInput`) + template transaksi cepat (`buildFrequentTemplates` & pin manual), merapikan 8 tombol Laporan menjadi dropdown **Impor & Aturan** (`#lapImportMenu`) dan **Ekspor & Backup** (`#lapExportMenu`), toast update PWA otomatis, serta **Command Palette (`Ctrl+K`)**.
+- **Fitur Pro Lintas Siklus (v3.6)**: Sistem `#Tag` + filter chip di Histori & Laporan (`#historiTagBar`, `#lapTagBar`), aturan **Auto-Kategori** kustom (`openAutoCatRulesModal`) yang terintegrasi ke Quick-Add dan impor CSV BCA/Mandiri (`TransactionImport.parseTransactionCsv`), checkbox aksi massal Laporan (`#lapBulkBar`), **Rekap Tahunan 12 Siklus & Perbandingan Periode**, serta modal **Kalkulator Finansial Lokal** (*Pelunasan Utang Snowball/Avalanche*, *Bunga Majemuk*, dan *Cicilan vs Tunai*).
+- **AI Multi-Turn, Rebalancing Portofolio & Notifikasi Browser (v3.7)**: Mengupgrade **AI Financial Chat** ke percakapan berlanjut multi-turn + cache analisis siklus aktif (`mk_ai_analysis_cache_v1` & `mk_ai_chat_history_v1` ikut dibersihkan saat logout), menambahkan **Target Alokasi & Rebalance Portofolio** (`openRebalanceTargetsModal`), dan pengingat **Web Notification Opt-In**.
+- **Performa, Arsitektur & Kualitas Kode (v3.8)**: Menambahkan `<link rel="preconnect">`, `defer` pada `jspdf`, jalur opsional CSS Tailwind terkompilasi lokal (`web/vendor/tailwind.min.css`), memecah fungsi panjang di `web/finance-analysis.js`, `web/supabase-api.js`, & `web/transaction-import.js`, memusatkan logika Pro di `web/finance-pro.js`, menambah suite `tests/finance-pro.test.js` & `tests/pro-web-ui.test.js`, serta menaikkan skor `aislop` menjadi **78/100** (**3 warning tersisa**, nol defect/empty/duplicate/long-function).
+
 ### 20 November 2026: Wave v3.4 (Security Hardening, Atomic Asset/Wallet RPCs, Telegram Bot, Print Statement, Calendar & PWA Cache Busting)
 - **Hardening Keamanan & Privasi**: Menghapus rahasia cron dan URL produksi hardcoded di `supabase/schedule.sql` (wajib rotasi `CRON_SECRET`), membersihkan seluruh key sensitif (`mk_gemini_*`, PIN Lock, antrean offline, IndexedDB `mykeuangan_offline_db`) saat `logout()`, meng-upgrade PIN Lock ke PBKDF2-SHA256 tersalt, menangkal HTML XSS pada judul dialog SweetAlert2, menetralkan formula injection (`=`, `+`, `-`, `@`, tab) pada ekspor CSV & Excel, dan menjaga `exportPDF()` tetap menampilkan nominal asli saat mode *Hide Nominal* aktif.
 - **RPC Atomik Aset Multi-Tipe, Profil & Dompet**: Migrasi `supabase/migrations/20261120000000_hardening_assets_profile_wallets.sql` menambahkan RPC `update_own_display_name(text)` untuk user non-admin, menyatukan update `unit_label`/`price_per_unit`/`buy_price` secara atomik pada `create_asset_with_expense`, `top_up_asset`, dan `liquidate_asset` untuk `Crypto`/`Emas`/`USD`/`Saham`, serta mengamankan `delete_wallet` agar saldo pembuka dan histori non-internal tetap terjaga.
@@ -494,7 +504,7 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 Lihat [PWA_MULTIUSER_ROADMAP.md](./PWA_MULTIUSER_ROADMAP.md) untuk rencana pengembangan lengkap.
 
 Prioritas berikutnya:
-- [ ] Notifikasi push via FCM (Web Push API)
+- [x] Pengingat Web Notification opt-in (browser desktop & PWA)
 - [x] Multi-currency USD, Emas & Bank CSV import
 - [x] Ekspor laporan ke Excel (.xls) & Scan Struk Gemini Vision
 

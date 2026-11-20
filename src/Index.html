@@ -161,6 +161,11 @@
                 class="w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-sm sm:text-lg shrink-0">
           <i class="ph ph-gear" aria-hidden="true"></i>
         </button>
+        <button type="button" onclick="openCommandPalette()" aria-label="Pencarian cepat (Ctrl+K)" title="Perintah Cepat (Ctrl+K)"
+                class="hidden lg:inline-flex items-center gap-1.5 min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
+          <i class="ph ph-magnifying-glass text-base" aria-hidden="true"></i>
+          <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold">Ctrl K</kbd>
+        </button>
         <button id="notifBellBtn" type="button" onclick="openNotificationsModal()" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
                 class="relative w-7 h-8 sm:min-h-11 sm:min-w-11 flex items-center justify-center rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-sm sm:text-xl shrink-0">
           <i class="ph ph-bell" aria-hidden="true"></i>
@@ -177,7 +182,7 @@
       </div>
     </header>
 
-    <div class="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full relative">
+    <div class="p-4 sm:p-6 md:p-8 pb-24 lg:pb-8 max-w-7xl mx-auto w-full relative">
       <?!= include('dashboard'); ?>
       <?!= include('aset'); ?>
       <?!= include('histori'); ?>
@@ -191,21 +196,51 @@
     </div>
   </main>
 
-  <!-- Mobile Floating Action Button (Quick Add) -->
-  <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
-          class="lg:hidden fixed right-4 bottom-5 z-30 w-14 h-14 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center shadow-xl active:scale-95 transition-transform">
-    <i class="ph ph-plus-bold text-2xl" aria-hidden="true"></i>
-  </button>
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav id="mobileBottomNav" aria-label="Navigasi mobile"
+       class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-lg">
+    <button type="button" onclick="switchView('dashboard')" data-mobile-nav="dashboard" class="mobile-nav-active flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+      <i class="ph ph-squares-four text-xl" aria-hidden="true"></i>
+      <span data-i18n="nav.dashboard">Dashboard</span>
+    </button>
+    <button type="button" onclick="switchView('histori')" data-mobile-nav="histori" class="flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+      <i class="ph ph-list-bullets text-xl" aria-hidden="true"></i>
+      <span data-i18n="nav.histori_short">Histori</span>
+    </button>
+    <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
+            class="w-12 h-12 -mt-4 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform shrink-0">
+      <i class="ph ph-plus-bold text-2xl" aria-hidden="true"></i>
+    </button>
+    <button type="button" onclick="switchView('budgeting')" data-mobile-nav="budgeting" class="flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+      <i class="ph ph-chart-pie-slice text-xl" aria-hidden="true"></i>
+      <span data-i18n="nav.budgeting">Budget</span>
+    </button>
+    <button type="button" onclick="switchView('aset')" data-mobile-nav="aset" class="flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+      <i class="ph ph-piggy-bank text-xl" aria-hidden="true"></i>
+      <span data-i18n="nav.aset_short">Aset</span>
+    </button>
+  </nav>
 
   <!-- Sidebar Overlay for Mobile -->
   <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
   <?!= include('scripts'); ?>
   <?!= include('features-v21'); ?>
+  <?!= include('features-v35'); ?>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          reg.addEventListener('updatefound', () => {
+            const worker = reg.installing;
+            if (!worker) return;
+            worker.addEventListener('statechange', () => {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller && typeof window.showPwaUpdateToast === 'function') {
+                window.showPwaUpdateToast(reg);
+              }
+            });
+          });
+        }).catch(err => {
           console.warn('PWA ServiceWorker error:', err);
         });
       });

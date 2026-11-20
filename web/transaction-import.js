@@ -143,101 +143,107 @@
     ].join('\u001f');
   }
 
-  function parseTransactionCsv(text, existingTransactions, wallets) {
-    const rows = parseRows(text);
-    if (rows.length < 1) throw new Error('File CSV kosong.');
+  function resolveImportAutoCategory(description, tipe, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    let fp = root && root.FinancePro ? root.FinancePro : null;
+    if (!fp && typeof require === 'function') {
+      try {
+        fp = require('./finance-pro.js');
+      } catch (_) {
+        return '';
+      }
+    }
+    if (fp && typeof fp.applyAutoCategoryRules === 'function') {
+      return fp.applyAutoCategoryRules(description, tipe, opts.autoCategoryRules, opts.categories);
+    }
+    return '';
+  }
 
-    const headers = rows[0].map((header) => header.trim().toLocaleLowerCase());
+  function resolveCsvColumns(headers) {
     const indexes = new Map();
     headers.forEach((header, index) => {
       if (header && indexes.has(header)) throw new Error('Kolom CSV duplikat: ' + header);
       if (header) indexes.set(header, index);
     });
-
-    const pickColumn = (candidates) => {
-      for (const name of candidates) {
-        if (indexes.has(name)) return indexes.get(name);
-      }
-      return undefined;
+    const pick = (candidates) => candidates.map((n) => indexes.get(n)).find((v) => v !== undefined);
+    const cols = {
+      dateCol: pick(['tanggal', 'date', 'tgl', 'posting date', 'transaction date']),
+      typeCol: pick(['tipe', 'type', 'db/cr', 'mutasi tipe', 'jenis']),
+      catCol: pick(['kategori', 'category']),
+      amountCol: pick(['nominal', 'amount', 'mutasi', 'jumlah']),
+      debitCol: pick(['debit', 'debet']),
+      creditCol: pick(['kredit', 'credit']),
+      descCol: pick(['keterangan', 'catatan', 'description', 'uraian', 'berita']),
+      walletCol: pick(['dompet', 'nama_dompet', 'wallet'])
     };
-
-    const dateCol = pickColumn(['tanggal', 'date', 'tgl', 'posting date', 'transaction date']);
-    const typeCol = pickColumn(['tipe', 'type', 'db/cr', 'mutasi tipe', 'jenis']);
-    const catCol = pickColumn(['kategori', 'category']);
-    const amountCol = pickColumn(['nominal', 'amount', 'mutasi', 'jumlah']);
-    const debitCol = pickColumn(['debit', 'debet']);
-    const creditCol = pickColumn(['kredit', 'credit']);
-    const descCol = pickColumn(['keterangan', 'catatan', 'description', 'uraian', 'berita']);
-    const walletCol = pickColumn(['dompet', 'nama_dompet', 'wallet']);
-
-    const isBankMutation = debitCol !== undefined || creditCol !== undefined ||
+    const isBankMutation = cols.debitCol !== undefined || cols.creditCol !== undefined ||
       indexes.has('db/cr') || indexes.has('mutasi') || indexes.has('uraian') || indexes.has('berita');
-
-    if (dateCol === undefined) throw new Error('Kolom wajib tidak ditemukan: tanggal');
-    if (amountCol === undefined && debitCol === undefined && creditCol === undefined) {
+    if (cols.dateCol === undefined) throw new Error('Kolom wajib tidak ditemukan: tanggal');
+    if (cols.amountCol === undefined && cols.debitCol === undefined && cols.creditCol === undefined) {
       throw new Error('Kolom wajib tidak ditemukan: nominal');
     }
-    if (!isBankMutation) {
-      if (typeCol === undefined) throw new Error('Kolom wajib tidak ditemukan: tipe');
-      if (catCol === undefined) throw new Error('Kolom wajib tidak ditemukan: kategori');
+    if (!isBankMutation && cols.typeCol === undefined) throw new Error('Kolom wajib tidak ditemukan: tipe');
+    if (!isBankMutation && cols.catCol === undefined) throw new Error('Kolom wajib tidak ditemukan: kategori');
+    return { ...cols, isBankMutation };
+  }
+
+  function parseCsvDataRow(cells, index, ctx) {
+    const readIdx = (colIdx) => (colIdx === undefined ? '' : String(cells[colIdx] || '').trim());
+    const { cols, walletByName, defaultWalletId, knownTransactions, fileTransactions, options } = ctx;
+    const line = index + 2;
+    const errors = [];
+    const date = normalizeDateString(readIdx(cols.dateCol));
+    const { amount, tipe } = parseAmountAndDirection(
+      readIdx(cols.amountCol), readIdx(cols.typeCol), readIdx(cols.debitCol), readIdx(cols.creditCol)
+    );
+    const desc = readIdx(cols.descCol);
+    const rawCat = readIdx(cols.catCol);
+    const autoCat = !rawCat && cols.isBankMutation ? resolveImportAutoCategory(desc, tipe, options) : '';
+    const category = rawCat || autoCat || (cols.isBankMutation ? 'Lainnya' : '');
+    const transaction = { tanggal: date, tipe, kategori: category, nominal: amount, keterangan: desc };
+
+    if (!date) errors.push('Tanggal tidak valid (gunakan YYYY-MM-DD atau DD/MM/YYYY).');
+    if (!transaction.tipe) errors.push('Tipe harus Pemasukan/CR atau Pengeluaran/DB.');
+    if (!category) errors.push('Kategori wajib diisi.');
+    if (!Number.isFinite(amount) || amount <= 0) errors.push('Nominal harus berupa angka lebih dari 0.');
+
+    const walletName = readIdx(cols.walletCol);
+    if (walletName) {
+      const wallet = walletByName.get(walletName.toLocaleLowerCase());
+      if (!wallet) errors.push('Dompet tidak ditemukan: ' + walletName);
+      else transaction.walletId = String(wallet.id || '');
+    } else {
+      transaction.walletId = defaultWalletId;
     }
 
+    let duplicate = false;
+    if (errors.length === 0) {
+      const key = fingerprint(transaction);
+      duplicate = knownTransactions.has(key) || fileTransactions.has(key);
+      fileTransactions.add(key);
+    }
+    return { line, transaction, errors, duplicate };
+  }
+
+  function parseTransactionCsv(text, existingTransactions, wallets, options) {
+    const rows = parseRows(text);
+    if (rows.length < 1) throw new Error('File CSV kosong.');
+    const headers = rows[0].map((header) => header.trim().toLocaleLowerCase());
+    const cols = resolveCsvColumns(headers);
+
     const walletList = wallets || [];
-    const walletByName = new Map(walletList.map((wallet) => [
-      String(wallet.name || '').trim().toLocaleLowerCase(),
-      wallet
-    ]));
-    const defaultWalletId = walletList.length ? String(walletList[0].id || '') : '';
-    const knownTransactions = new Set((existingTransactions || []).map(fingerprint));
-    const fileTransactions = new Set();
+    const walletByName = new Map(walletList.map((w) => [String(w.name || '').trim().toLocaleLowerCase(), w]));
+    const ctx = {
+      cols,
+      walletByName,
+      defaultWalletId: walletList.length ? String(walletList[0].id || '') : '',
+      knownTransactions: new Set((existingTransactions || []).map(fingerprint)),
+      fileTransactions: new Set(),
+      options: options || {}
+    };
 
-    const parsedRows = rows.slice(1).map((cells, index) => {
-      const readIdx = (colIdx) => (colIdx === undefined ? '' : String(cells[colIdx] || '').trim());
-      const line = index + 2;
-      const errors = [];
-      const date = normalizeDateString(readIdx(dateCol));
-      const { amount, tipe } = parseAmountAndDirection(
-        readIdx(amountCol),
-        readIdx(typeCol),
-        readIdx(debitCol),
-        readIdx(creditCol)
-      );
-      const rawCat = readIdx(catCol);
-      const category = rawCat || (isBankMutation ? 'Lainnya' : '');
-      const transaction = {
-        tanggal: date,
-        tipe,
-        kategori: category,
-        nominal: amount,
-        keterangan: readIdx(descCol)
-      };
-
-      if (!date) errors.push('Tanggal tidak valid (gunakan YYYY-MM-DD atau DD/MM/YYYY).');
-      if (!transaction.tipe) errors.push('Tipe harus Pemasukan/CR atau Pengeluaran/DB.');
-      if (!category) errors.push('Kategori wajib diisi.');
-      if (!Number.isFinite(amount) || amount <= 0) errors.push('Nominal harus berupa angka lebih dari 0.');
-
-      const walletName = readIdx(walletCol);
-      if (walletName) {
-        const wallet = walletByName.get(walletName.toLocaleLowerCase());
-        if (!wallet) errors.push('Dompet tidak ditemukan: ' + walletName);
-        else transaction.walletId = String(wallet.id || '');
-      } else {
-        transaction.walletId = defaultWalletId;
-      }
-
-      let duplicate = false;
-      if (errors.length === 0) {
-        const key = fingerprint(transaction);
-        duplicate = knownTransactions.has(key) || fileTransactions.has(key);
-        fileTransactions.add(key);
-      }
-      return { line, transaction, errors, duplicate };
-    });
-
-    const valid = parsedRows
-      .filter((item) => item.errors.length === 0 && !item.duplicate)
-      .map((item) => item.transaction);
+    const parsedRows = rows.slice(1).map((cells, index) => parseCsvDataRow(cells, index, ctx));
+    const valid = parsedRows.filter((item) => item.errors.length === 0 && !item.duplicate).map((item) => item.transaction);
     return {
       rows: parsedRows,
       valid,

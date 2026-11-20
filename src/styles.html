@@ -1,4 +1,7 @@
-<!-- Tailwind -->
+<!-- Preconnect & Libs (pinned versions) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -28,8 +31,8 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/id.js"></script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <style>
@@ -198,5 +201,22 @@
       padding: 0 !important;
       margin: 0 !important;
     }
+  }
+
+  #mobileBottomNav {
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+  }
+  .mobile-nav-active {
+    color: var(--color-brand-ink) !important;
+    font-weight: 800;
+  }
+  .mobile-nav-active i {
+    color: var(--color-brand-ink) !important;
+  }
+  #mkCommandPalette {
+    backdrop-filter: blur(6px);
+  }
+  #pwaUpdateToast {
+    animation: fadeIn 0.25s ease forwards;
   }
 </style>

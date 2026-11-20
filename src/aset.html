@@ -11,8 +11,11 @@
       </div>
     </div>
     <div class="flex flex-wrap gap-2">
-      <button type="button" onclick="refreshAssetPrices()" title="Refresh Harga Crypto, Emas & USD" class="min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand dark:hover:text-brand-ink rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
-        <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> <span>Refresh Harga</span>
+      <button type="button" onclick="openFinancialCalculatorsModal()" title="Simulasi Utang, Bunga Majemuk &amp; Cicilan" class="min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand dark:hover:text-brand-ink rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
+        <i class="ph ph-calculator" aria-hidden="true"></i> <span data-i18n="aset.calculators">Kalkulator Finansial</span>
+      </button>
+      <button type="button" onclick="refreshAssetPrices()" title="Refresh Harga Crypto, Emas &amp; USD" class="min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand dark:hover:text-brand-ink rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
+        <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> <span data-i18n="aset.refresh_prices">Refresh Harga</span>
       </button>
       <button type="button" onclick="addManualAssetUI()" class="min-h-11 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2">
         <i class="ph ph-plus-bold" aria-hidden="true"></i> <span data-i18n="dash.btn_add_aset">Tambah Aset</span>
@@ -44,7 +47,7 @@
         </p>
         <p class="text-[10px] text-slate-400 mt-0.5">Tren nilai portfolio 30 hari terakhir</p>
       </div>
-      <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-bold uppercase tracking-wider">30 Hari</span>
+      <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-bold uppercase tracking-wider" data-i18n="aset.days_30">30 Hari</span>
     </div>
     <div class="p-5" style="height: 280px; position: relative;">
       <canvas id="portfolioChart"></canvas>
@@ -68,7 +71,7 @@
         </p>
         <p class="text-[10px] text-slate-400 mt-0.5">Evolusi kekayaan bersih (kas + investasi + piutang − utang) 6 siklus</p>
       </div>
-      <span class="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider">6 Siklus</span>
+      <span class="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider" data-i18n="aset.cycles_6">6 Siklus</span>
     </div>
     <div class="p-5" style="height: 260px; position: relative;">
       <canvas id="netWorthChart"></canvas>

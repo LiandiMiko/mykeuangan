@@ -1,0 +1,1099 @@
+<script>
+/* ============================================================
+   FEATURES v3.5–v3.8 — WEB/PWA PRO ENHANCEMENTS
+   - Mobile Bottom Nav sync + PWA Update Toast
+   - 1-Line Quick Add + Frequent & Pinned Templates
+   - Command Palette (Ctrl+K / Cmd+K)
+   - #Tag Filtering, Auto-Category Rules, Laporan Bulk Actions
+   - Annual Recap & 2-Period Comparison Modal
+   - Local Financial Calculators (Debt Payoff, Compound, Cash vs Installment)
+   - Multi-Turn AI Chat + Cached AI Cashflow Analysis
+   - Portfolio Target Allocation & Rebalancing
+   - Opt-In Browser Notifications
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const QUICK_TEMPLATES_KEY = 'mk_quick_templates_v1';
+  const AUTOCAT_RULES_KEY = 'mk_autocat_rules_v1';
+  const REBALANCE_TARGETS_KEY = 'mk_rebalance_targets_v1';
+  const AI_CHAT_HISTORY_KEY = 'mk_ai_chat_history_v1';
+  const AI_ANALYSIS_CACHE_KEY = 'mk_ai_analysis_cache_v1';
+  const BROWSER_NOTIF_KEY = 'mk_browser_notif_enabled';
+  const BROWSER_NOTIF_DATE_KEY = 'mk_browser_notif_last_date';
+
+  let cachedQuickTemplates = [];
+  let cachedCmdItems = [];
+
+  function safeReadJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function safeWriteJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (_) {
+      // Ignore quota / private browsing errors
+    }
+  }
+
+  function swalOpt(extra) {
+    return Object.assign({ customClass: { popup: typeof getSwalClass === 'function' ? getSwalClass() : '' } }, extra || {});
+  }
+
+  function renderMobileBottomNavState(viewId) {
+    document.querySelectorAll('#mobileBottomNav [data-mobile-nav]').forEach((btn) => {
+      const active = btn.getAttribute('data-mobile-nav') === viewId;
+      btn.classList.toggle('mobile-nav-active', active);
+    });
+  }
+
+  /* ---------------- 1. Quick-Add & Templates ---------------- */
+  window.getAutoCategoryRules = function () {
+    const saved = safeReadJson(AUTOCAT_RULES_KEY, []);
+    return Array.isArray(saved) ? saved : [];
+  };
+
+  window.previewQuickAdd = function () {
+    const input = document.getElementById('quickAddInput');
+    const preview = document.getElementById('quickAddPreview');
+    if (!input || !preview || typeof FinancePro === 'undefined' || typeof DB === 'undefined') return;
+    const text = String(input.value || '').trim();
+    if (!text) {
+      preview.classList.add('hide');
+      preview.textContent = '';
+      return;
+    }
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const parsed = FinancePro.parseQuickTxInput(text, DB.categories, DB.wallets, window.getAutoCategoryRules(), todayStr);
+    preview.classList.remove('hide');
+    if (!parsed.valid) {
+      preview.innerHTML = '<span class="text-amber-600 dark:text-amber-400">Ketik nominal agar siap dicatat (contoh: kopi 25rb bca)</span>';
+      return;
+    }
+    const badgeCls = parsed.tipe === 'Pemasukan'
+      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+      : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300';
+    const tagsHtml = parsed.tags.map((tg) => `<span class="px-1.5 py-0.5 rounded bg-brand/10 text-brand dark:text-brand-ink">${escapeHtmlJS(tg)}</span>`).join(' ');
+    preview.innerHTML = `
+      <span class="px-2 py-0.5 rounded-full ${badgeCls} font-bold mr-1">${escapeHtmlJS(parsed.tipe)}</span>
+      <strong class="text-slate-800 dark:text-white mr-1">${escapeHtmlJS(formatRupiah(parsed.nominal).replace(',00', ''))}</strong>
+      · <span>${escapeHtmlJS(parsed.kategori)}</span>
+      ${parsed.walletName ? ` · <span>${escapeHtmlJS(parsed.walletName)}</span>` : ''}
+      · <span class="italic">${escapeHtmlJS(parsed.keterangan)}</span> ${tagsHtml}
+    `;
+  };
+
+  async function saveQuickTransactionObject(txPayload) {
+    const txMonth = typeof cycleOfDate === 'function' ? cycleOfDate(txPayload.tanggal) : DB.currentPeriod;
+    const needSwitch = txMonth && txMonth !== DB.currentPeriod;
+    const data = await callServer('api_addTransaction', txPayload);
+    if (needSwitch) {
+      await callServer('api_savePeriod', txMonth);
+      if (data) data.currentPeriod = txMonth;
+      if (typeof fpMonth !== 'undefined' && fpMonth) {
+        try { fpMonth.setDate(txMonth, false); } catch (_) { /* ignore flatpickr sync */ }
+      }
+    }
+    await refreshFromServer(data);
+  }
+
+  window.submitQuickAdd = async function (e) {
+    if (e) e.preventDefault();
+    const input = document.getElementById('quickAddInput');
+    const btn = document.getElementById('btnQuickAddSubmit');
+    if (!input || typeof FinancePro === 'undefined' || (btn && btn.disabled)) return;
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const parsed = FinancePro.parseQuickTxInput(input.value, DB.categories, DB.wallets, window.getAutoCategoryRules(), todayStr);
+    if (!parsed.valid) {
+      Swal.fire(swalOpt({ icon: 'warning', title: 'Format belum lengkap', text: 'Sertakan nominal dan keterangan singkat, contoh: kopi 25rb bca' }));
+      return;
+    }
+    if (btn) btn.disabled = true;
+    try {
+      await saveQuickTransactionObject({
+        tanggal: parsed.tanggal,
+        tipe: parsed.tipe,
+        kategori: parsed.kategori,
+        nominal: parsed.nominal,
+        keterangan: parsed.keterangan,
+        walletId: parsed.walletId
+      });
+      input.value = '';
+      window.previewQuickAdd();
+      Swal.fire(swalOpt({
+        icon: 'success',
+        title: 'Tercatat!',
+        text: `${parsed.kategori} · ${formatRupiah(parsed.nominal).replace(',00', '')}`,
+        timer: 1300,
+        showConfirmButton: false
+      }));
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  function getMergedQuickTemplates() {
+    const pinnedRaw = safeReadJson(QUICK_TEMPLATES_KEY, []);
+    const pinned = Array.isArray(pinnedRaw) ? pinnedRaw.map((p) => Object.assign({}, p, { pinned: true })) : [];
+    const mined = typeof FinancePro !== 'undefined' && typeof DB !== 'undefined'
+      ? FinancePro.buildFrequentTemplates(DB.transactions || [], 6)
+      : [];
+    const seen = new Set(pinned.map((p) => `${p.tipe}|${String(p.kategori).toLowerCase()}|${p.nominal}`));
+    const merged = [...pinned];
+    mined.forEach((m) => {
+      const sig = `${m.tipe}|${String(m.kategori).toLowerCase()}|${m.nominal}`;
+      if (!seen.has(sig) && merged.length < 7) {
+        seen.add(sig);
+        merged.push(m);
+      }
+    });
+    return merged;
+  }
+
+  window.renderQuickTemplates = function () {
+    const container = document.getElementById('quickTemplateChips');
+    if (!container || typeof isDataReady === 'undefined' || !isDataReady) return;
+    cachedQuickTemplates = getMergedQuickTemplates();
+    if (!cachedQuickTemplates.length) {
+      container.innerHTML = '<span class="text-[11px] text-slate-400">Template otomatis muncul setelah beberapa transaksi.</span>';
+      return;
+    }
+    container.innerHTML = cachedQuickTemplates.map((tpl, idx) => {
+      const icon = tpl.pinned ? '📌 ' : '⚡ ';
+      const tone = tpl.tipe === 'Pemasukan'
+        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200/70 dark:border-emerald-900/40'
+        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700';
+      return `<button type="button" onclick="applyQuickTemplate(${idx})" class="px-2.5 py-1 rounded-full border text-[11px] font-bold hover:border-brand transition-colors ${tone}">${icon}${escapeHtmlJS(tpl.label)} · ${escapeHtmlJS(formatShortIDR(tpl.nominal))}</button>`;
+    }).join('');
+  };
+
+  window.applyQuickTemplate = async function (idx) {
+    const tpl = cachedQuickTemplates[idx];
+    if (!tpl) return;
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const defaultWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+    try {
+      await saveQuickTransactionObject({
+        tanggal: todayStr,
+        tipe: tpl.tipe || 'Pengeluaran',
+        kategori: tpl.kategori || 'Lainnya',
+        nominal: Number(tpl.nominal) || 0,
+        keterangan: tpl.keterangan || tpl.label,
+        walletId: tpl.walletId || defaultWalletId
+      });
+      Swal.fire(swalOpt({
+        icon: 'success',
+        title: 'Template dicatat!',
+        text: `${tpl.kategori} · ${formatRupiah(tpl.nominal).replace(',00', '')}`,
+        timer: 1300,
+        showConfirmButton: false
+      }));
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  };
+
+  window.openQuickTemplatesModal = async function () {
+    const pinned = safeReadJson(QUICK_TEMPLATES_KEY, []);
+    const cats = [...(DB.categories?.pengeluaran || []), ...(DB.categories?.pemasukan || [])];
+    const catOpts = Array.from(new Set(cats)).map((c) => `<option value="${escapeAttrJS(c)}">${escapeHtmlJS(c)}</option>`).join('');
+    const listHtml = pinned.length
+      ? pinned.map((p, i) => `
+          <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
+            <span class="truncate font-semibold">${escapeHtmlJS(p.label)} · ${escapeHtmlJS(formatRupiah(p.nominal).replace(',00', ''))}</span>
+            <button type="button" data-del-tpl="${i}" class="px-2 py-1 rounded bg-rose-500/10 text-rose-600 font-bold">Hapus</button>
+          </div>`).join('')
+      : '<p class="text-xs text-slate-400">Belum ada template yang disematkan.</p>';
+
+    const res = await Swal.fire(swalOpt({
+      title: 'Template Transaksi Cepat',
+      width: 520,
+      html: `
+        <div class="text-left space-y-3">
+          <div id="tplSavedList" class="space-y-1.5 max-h-36 overflow-y-auto">${listHtml}</div>
+          <div class="border-t border-slate-200 dark:border-slate-700 pt-3 grid grid-cols-2 gap-2 text-xs">
+            <input id="tpl-label" class="swal2-input col-span-2" style="margin:0;width:100%" placeholder="Nama singkat (mis. Kopi Pagi)">
+            <select id="tpl-tipe" class="swal2-select" style="margin:0;width:100%">
+              <option value="Pengeluaran">Pengeluaran</option>
+              <option value="Pemasukan">Pemasukan</option>
+            </select>
+            <select id="tpl-cat" class="swal2-select" style="margin:0;width:100%">${catOpts}</select>
+            <input id="tpl-amt" type="number" min="1" class="swal2-input col-span-2" style="margin:0;width:100%" placeholder="Nominal (Rp)">
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Tambah Template',
+      cancelButtonText: t('btn.tutup'),
+      didOpen: () => {
+        document.querySelectorAll('[data-del-tpl]').forEach((b) => {
+          b.onclick = () => {
+            const idx = Number(b.getAttribute('data-del-tpl'));
+            const next = pinned.filter((_, i) => i !== idx);
+            safeWriteJson(QUICK_TEMPLATES_KEY, next);
+            window.renderQuickTemplates();
+            Swal.close();
+            window.openQuickTemplatesModal();
+          };
+        });
+      },
+      preConfirm: () => {
+        const label = String(document.getElementById('tpl-label').value || '').trim();
+        const tipe = document.getElementById('tpl-tipe').value;
+        const kategori = document.getElementById('tpl-cat').value || 'Lainnya';
+        const nominal = Number(document.getElementById('tpl-amt').value);
+        if (!label || !Number.isFinite(nominal) || nominal <= 0) {
+          Swal.showValidationMessage('Isi nama template dan nominal di atas 0.');
+          return false;
+        }
+        return { label, tipe, kategori, nominal, keterangan: label, walletId: (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '' };
+      }
+    }));
+
+    if (res.isConfirmed && res.value) {
+      pinned.push(res.value);
+      safeWriteJson(QUICK_TEMPLATES_KEY, pinned);
+      window.renderQuickTemplates();
+    }
+  };
+
+  /* ---------------- 2. PWA Update Toast ---------------- */
+  window.showPwaUpdateToast = function (reg) {
+    if (document.getElementById('pwaUpdateToast')) return;
+    const toast = document.createElement('div');
+    toast.id = 'pwaUpdateToast';
+    toast.className = 'fixed bottom-20 lg:bottom-6 right-4 z-50 max-w-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center gap-3 border border-slate-700 dark:border-slate-200';
+    toast.innerHTML = `
+      <i class="ph ph-sparkle text-xl text-brand-ink dark:text-brand shrink-0" aria-hidden="true"></i>
+      <div class="min-w-0 flex-1 text-xs">
+        <p class="font-bold">Pembaruan tersedia</p>
+        <p class="opacity-80 text-[11px]">Muat ulang untuk memakai versi terbaru.</p>
+      </div>
+      <button type="button" id="pwaReloadBtn" class="px-3 py-1.5 rounded-xl bg-brand text-white text-[11px] font-bold shrink-0">Muat Ulang</button>
+      <button type="button" id="pwaDismissBtn" aria-label="Tutup" class="p-1 opacity-70 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
+    `;
+    document.body.appendChild(toast);
+    document.getElementById('pwaReloadBtn').onclick = () => {
+      if (reg && reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      window.location.reload();
+    };
+    document.getElementById('pwaDismissBtn').onclick = () => toast.remove();
+  };
+
+  /* ---------------- 3. Command Palette (Ctrl+K / Cmd+K) ---------------- */
+  function buildCommandItems() {
+    const items = [
+      { label: 'Dashboard', hint: 'Halaman utama', icon: 'ph-squares-four', run: () => switchView('dashboard') },
+      { label: 'Tabungan & Investasi', hint: 'Aset, rasio & Net Worth', icon: 'ph-piggy-bank', run: () => switchView('aset') },
+      { label: 'Histori Transaksi', hint: 'Daftar siklus', icon: 'ph-list-bullets', run: () => switchView('histori') },
+      { label: 'Budgeting, Target & Rutin', hint: 'Anggaran & jadwal', icon: 'ph-chart-pie-slice', run: () => switchView('budgeting') },
+      { label: 'Laporan & Ekspor', hint: 'Filter, CSV, Excel, PDF', icon: 'ph-file-pdf', run: () => switchView('laporan') },
+      { label: 'Analisis AI Gemini', hint: 'Skor & chat AI', icon: 'ph-sparkle', run: () => switchView('ai') },
+      { label: 'Riwayat Pembaruan', hint: 'Catatan rilis', icon: 'ph-megaphone-simple', run: () => switchView('updates') },
+      { label: 'Utang & Piutang', hint: 'Kelola pihak & jatuh tempo', icon: 'ph-hand-coins', run: () => switchView('utang') },
+      { label: '+ Catat Pengeluaran', hint: 'Form transaksi', icon: 'ph-minus-circle', run: () => openForm('Pengeluaran') },
+      { label: '+ Catat Pemasukan', hint: 'Form transaksi', icon: 'ph-plus-circle', run: () => openForm('Pemasukan') },
+      { label: 'Scan Struk (AI OCR)', hint: 'Ambil transaksi dari struk', icon: 'ph-camera', run: () => typeof triggerReceiptOcr === 'function' && triggerReceiptOcr() },
+      { label: 'Rekap Tahunan & Perbandingan', hint: 'Annual Wrapped 12 siklus', icon: 'ph-calendar-blank', run: () => window.openAnnualRecapModal() },
+      { label: 'Kalkulator Finansial', hint: 'Snowball/Avalanche, Compound, Cicilan', icon: 'ph-calculator', run: () => window.openFinancialCalculatorsModal() },
+      { label: 'Aturan Auto-Kategori CSV', hint: 'Kata kunci otomatis', icon: 'ph-magic-wand', run: () => window.openAutoCatRulesModal() },
+      { label: 'Target Rebalance Portofolio', hint: 'Porsi ideal aset', icon: 'ph-scales', run: () => window.openRebalanceTargetsModal() },
+      { label: 'Toggle Notifikasi Browser', hint: 'Pengingat opt-in', icon: 'ph-bell-ringing', run: () => window.toggleBrowserNotifications() },
+      { label: 'Ganti Tema Gelap / Terang', hint: 'Tampilan', icon: 'ph-moon', run: () => toggleDarkMode() },
+      { label: 'Ganti Bahasa (ID / EN)', hint: 'Bahasa', icon: 'ph-translate', run: () => setLang(typeof currentLang !== 'undefined' && currentLang === 'id' ? 'en' : 'id') }
+    ];
+    if (window.sessionRole === 'admin') {
+      items.push({ label: 'Panel Admin', hint: 'Kelola pengguna', icon: 'ph-shield-check', run: () => switchView('admin') });
+    }
+    return items;
+  }
+
+  window.closeCommandPalette = function () {
+    const el = document.getElementById('mkCommandPalette');
+    if (el) el.remove();
+  };
+
+  window.filterCommandPalette = function () {
+    const input = document.getElementById('mkCmdInput');
+    const listEl = document.getElementById('mkCmdList');
+    if (!input || !listEl) return;
+    const q = String(input.value || '').trim().toLowerCase();
+    const matched = cachedCmdItems.filter((it) => !q || `${it.label} ${it.hint}`.toLowerCase().includes(q));
+    if (!matched.length) {
+      listEl.innerHTML = '<p class="p-4 text-xs text-slate-400 text-center">Tidak ditemukan perintah yang cocok.</p>';
+      return;
+    }
+    listEl.innerHTML = matched.slice(0, 14).map((it, idx) => `
+      <button type="button" data-cmd-idx="${idx}"
+              class="w-full px-3.5 py-2.5 rounded-xl text-left flex items-center justify-between gap-2 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
+        <span class="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+          <i class="ph ${escapeAttrJS(it.icon)} text-base text-brand dark:text-brand-ink" aria-hidden="true"></i>
+          <span>${escapeHtmlJS(it.label)}</span>
+        </span>
+        <span class="text-[11px] text-slate-400">${escapeHtmlJS(it.hint)}</span>
+      </button>
+    `).join('');
+    listEl.querySelectorAll('[data-cmd-idx]').forEach((btn) => {
+      const idx = Number(btn.getAttribute('data-cmd-idx'));
+      btn.onclick = () => {
+        window.closeCommandPalette();
+        matched[idx].run();
+      };
+    });
+  };
+
+  window.openCommandPalette = function () {
+    if (document.getElementById('mkCommandPalette')) {
+      window.closeCommandPalette();
+      return;
+    }
+    cachedCmdItems = buildCommandItems();
+    const wrap = document.createElement('div');
+    wrap.id = 'mkCommandPalette';
+    wrap.className = 'fixed inset-0 z-50 bg-slate-950/55 flex items-start justify-center pt-16 px-4';
+    wrap.innerHTML = `
+      <div class="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+        <div class="p-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
+          <i class="ph ph-magnifying-glass text-lg text-brand dark:text-brand-ink" aria-hidden="true"></i>
+          <input id="mkCmdInput" type="search" autocomplete="off" placeholder="Ketik halaman, aksi, kalkulator, tema..."
+                 class="flex-1 bg-transparent outline-none text-sm text-slate-800 dark:text-white">
+          <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500">ESC</kbd>
+        </div>
+        <div id="mkCmdList" class="p-2 max-h-80 overflow-y-auto space-y-0.5"></div>
+      </div>
+    `;
+    wrap.onclick = (e) => { if (e.target === wrap) window.closeCommandPalette(); };
+    document.body.appendChild(wrap);
+    const input = document.getElementById('mkCmdInput');
+    input.oninput = window.filterCommandPalette;
+    window.filterCommandPalette();
+    input.focus();
+  };
+
+  /* ---------------- 4. #Tag Bars & Auto-Category Rules ---------------- */
+  window.applyTagFilter = function (target, tag) {
+    if (target === 'histori') {
+      const el = document.getElementById('historiSearch');
+      if (el) {
+        el.value = el.value.trim() === tag ? '' : tag;
+        if (typeof filterHistoriView === 'function') filterHistoriView();
+      }
+      return;
+    }
+    const lapEl = document.getElementById('lapSearch');
+    if (lapEl) {
+      lapEl.value = lapEl.value.trim() === tag ? '' : tag;
+      lapEl.dispatchEvent(new Event('input'));
+    }
+  };
+
+  window.renderTagBars = function () {
+    if (typeof FinancePro === 'undefined' || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const cycleTags = FinancePro.summarizeTags(DB.transactions || [], DB.currentPeriod, DB.payrollDay, FinanceAnalysis);
+    const allTags = FinancePro.summarizeTags(DB.transactions || [], '', DB.payrollDay, FinanceAnalysis);
+
+    const fillBar = (elId, target, items) => {
+      const bar = document.getElementById(elId);
+      if (!bar) return;
+      if (!items.length) {
+        bar.classList.add('hide');
+        bar.innerHTML = '';
+        return;
+      }
+      bar.classList.remove('hide');
+      bar.innerHTML = '<span class="text-[11px] font-bold text-slate-400 mr-1">Tag:</span>' +
+        items.slice(0, 10).map((it) => `
+          <button type="button" onclick="applyTagFilter('${escapeAttrJS(target)}', '${escapeAttrJS(it.tag)}')"
+                  class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-bold hover:bg-brand/20 transition-colors">
+            ${escapeHtmlJS(it.tag)} <span class="opacity-75">(${it.count} · ${escapeHtmlJS(formatShortIDR(it.expense || it.income))})</span>
+          </button>
+        `).join('');
+    };
+
+    fillBar('historiTagBar', 'histori', cycleTags);
+    fillBar('lapTagBar', 'laporan', allTags);
+  };
+
+  window.openAutoCatRulesModal = async function () {
+    const custom = window.getAutoCategoryRules();
+    const allCats = Array.from(new Set([...(DB.categories?.pengeluaran || []), ...(DB.categories?.pemasukan || [])]));
+    const catOpts = allCats.map((c) => `<option value="${escapeAttrJS(c)}">${escapeHtmlJS(c)}</option>`).join('');
+    const customHtml = custom.length
+      ? custom.map((r, i) => `
+          <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
+            <span class="truncate"><code>${escapeHtmlJS(r.keyword)}</code> → <strong>${escapeHtmlJS(r.category)}</strong> (${escapeHtmlJS(r.tipe)})</span>
+            <button type="button" data-del-rule="${i}" class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 font-bold">Hapus</button>
+          </div>`).join('')
+      : '<p class="text-xs text-slate-400">Belum ada aturan kustom (aturan bawaan tetap aktif).</p>';
+
+    const res = await Swal.fire(swalOpt({
+      title: 'Aturan Auto-Kategori (CSV & Kilat)',
+      width: 540,
+      html: `
+        <div class="text-left space-y-3">
+          <p class="text-xs text-slate-500 dark:text-slate-400">Kata kunci dipisahkan dengan <code>|</code> (mis. <code>boba|kopi kenangan</code>).</p>
+          <div class="space-y-1.5 max-h-36 overflow-y-auto">${customHtml}</div>
+          <div class="border-t border-slate-200 dark:border-slate-700 pt-3 grid grid-cols-2 gap-2 text-xs">
+            <input id="rule-kw" class="swal2-input col-span-2" style="margin:0;width:100%" placeholder="Kata kunci (mis. shopee|tokped)">
+            <select id="rule-tipe" class="swal2-select" style="margin:0;width:100%">
+              <option value="Pengeluaran">Pengeluaran</option>
+              <option value="Pemasukan">Pemasukan</option>
+            </select>
+            <select id="rule-cat" class="swal2-select" style="margin:0;width:100%">${catOpts}</select>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Simpan Aturan',
+      cancelButtonText: t('btn.tutup'),
+      didOpen: () => {
+        document.querySelectorAll('[data-del-rule]').forEach((b) => {
+          b.onclick = () => {
+            const idx = Number(b.getAttribute('data-del-rule'));
+            safeWriteJson(AUTOCAT_RULES_KEY, custom.filter((_, i) => i !== idx));
+            Swal.close();
+            window.openAutoCatRulesModal();
+          };
+        });
+      },
+      preConfirm: () => {
+        const keyword = String(document.getElementById('rule-kw').value || '').trim().toLowerCase();
+        const tipe = document.getElementById('rule-tipe').value;
+        const category = document.getElementById('rule-cat').value || 'Lainnya';
+        if (!keyword) {
+          Swal.showValidationMessage('Isi kata kunci aturan terlebih dahulu.');
+          return false;
+        }
+        return { keyword, tipe, category };
+      }
+    }));
+
+    if (res.isConfirmed && res.value) {
+      custom.unshift(res.value);
+      safeWriteJson(AUTOCAT_RULES_KEY, custom);
+      Swal.fire(swalOpt({ icon: 'success', title: 'Aturan ditambahkan', timer: 1100, showConfirmButton: false }));
+    }
+  };
+
+  /* ---------------- 5. Laporan Bulk Actions ---------------- */
+  function getCheckedReportIds() {
+    return Array.from(document.querySelectorAll('.lap-row-check:checked')).map((el) => el.value);
+  }
+
+  window.toggleSelectAllReport = function (checked) {
+    document.querySelectorAll('.lap-row-check').forEach((el) => { el.checked = Boolean(checked); });
+    window.updateReportBulkBar();
+  };
+
+  window.updateReportBulkBar = function () {
+    const bar = document.getElementById('lapBulkBar');
+    const countEl = document.getElementById('lapBulkCount');
+    if (!bar || !countEl) return;
+    const count = getCheckedReportIds().length;
+    countEl.textContent = String(count);
+    bar.classList.toggle('hide', count === 0);
+  };
+
+  async function runBulkTransactionUpdate(buildPatch) {
+    const ids = getCheckedReportIds();
+    if (!ids.length) return;
+    const txMap = new Map((DB.transactions || []).map((t) => [String(t.id), t]));
+    Swal.fire(swalOpt({ title: 'Memperbarui transaksi...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }));
+    let merged = {};
+    try {
+      for (const id of ids) {
+        const orig = txMap.get(String(id));
+        if (!orig) continue;
+        const nextPayload = Object.assign({
+          tanggal: orig.tanggal,
+          tipe: orig.tipe,
+          kategori: orig.kategori,
+          nominal: orig.nominal,
+          keterangan: orig.keterangan || '',
+          walletId: orig.walletId || ''
+        }, buildPatch(orig));
+        merged = await callServer('api_updateTransaction', id, nextPayload);
+      }
+      await refreshFromServer(merged);
+      Swal.fire(swalOpt({ icon: 'success', title: `${ids.length} transaksi diperbarui`, timer: 1300, showConfirmButton: false }));
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  }
+
+  window.bulkEditReportCategory = async function () {
+    const ids = getCheckedReportIds();
+    if (!ids.length) return;
+    const cats = Array.from(new Set([...(DB.categories?.pengeluaran || []), ...(DB.categories?.pemasukan || [])]));
+    const inputOptions = {};
+    cats.forEach((c) => { inputOptions[c] = c; });
+    const res = await Swal.fire(swalOpt({
+      title: `Ubah kategori (${ids.length} transaksi)`,
+      input: 'select',
+      inputOptions,
+      showCancelButton: true,
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal')
+    }));
+    if (res.isConfirmed && res.value) {
+      await runBulkTransactionUpdate(() => ({ kategori: res.value }));
+    }
+  };
+
+  window.bulkEditReportWallet = async function () {
+    const ids = getCheckedReportIds();
+    if (!ids.length) return;
+    const inputOptions = {};
+    (DB.wallets || []).forEach((w) => { inputOptions[w.id] = w.name; });
+    const res = await Swal.fire(swalOpt({
+      title: `Pindah dompet (${ids.length} transaksi)`,
+      input: 'select',
+      inputOptions,
+      showCancelButton: true,
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal')
+    }));
+    if (res.isConfirmed && res.value) {
+      await runBulkTransactionUpdate(() => ({ walletId: res.value }));
+    }
+  };
+
+  window.bulkDeleteReportRows = async function () {
+    const ids = getCheckedReportIds();
+    if (!ids.length) return;
+    const conf = await Swal.fire(swalOpt({
+      icon: 'warning',
+      title: `Hapus ${ids.length} transaksi?`,
+      text: 'Data yang dihapus tidak bisa dikembalikan.',
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      confirmButtonText: t('btn.ya_hapus'),
+      cancelButtonText: t('btn.batal')
+    }));
+    if (!conf.isConfirmed) return;
+    Swal.fire(swalOpt({ title: 'Menghapus transaksi...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }));
+    let merged = {};
+    try {
+      for (const id of ids) {
+        merged = await callServer('api_deleteTransaction', id);
+      }
+      await refreshFromServer(merged);
+      Swal.fire(swalOpt({ icon: 'success', title: `${ids.length} transaksi dihapus`, timer: 1300, showConfirmButton: false }));
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
+  };
+
+  /* ---------------- 6. Annual Recap & Period Comparison ---------------- */
+  window.renderAnnualRecapBody = function (year) {
+    const box = document.getElementById('annualRecapBody');
+    if (!box || typeof FinancePro === 'undefined') return;
+    const recap = FinancePro.computeAnnualRecap(DB.transactions || [], DB.budgets || [], year, DB.payrollDay, FinanceAnalysis);
+    const fmt = (n) => formatRupiah(n).replace(',00', '');
+    const monthRows = recap.months.map((m) => `
+      <tr class="border-b border-slate-100 dark:border-slate-800 text-xs">
+        <td class="py-1.5 font-semibold">${escapeHtmlJS(m.period)}</td>
+        <td class="py-1.5 text-right text-emerald-600">+${escapeHtmlJS(formatShortIDR(m.income))}</td>
+        <td class="py-1.5 text-right text-rose-600">-${escapeHtmlJS(formatShortIDR(m.expense))}</td>
+        <td class="py-1.5 text-right font-bold">${m.net >= 0 ? '+' : '-'}${escapeHtmlJS(formatShortIDR(Math.abs(m.net)))}</td>
+      </tr>
+    `).join('');
+    box.innerHTML = `
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs mb-3">
+        <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[10px] text-slate-500">Masuk ${escapeHtmlJS(recap.year)}</p><p class="font-black text-emerald-600">${escapeHtmlJS(fmt(recap.totalIncome))}</p></div>
+        <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[10px] text-slate-500">Keluar ${escapeHtmlJS(recap.year)}</p><p class="font-black text-rose-600">${escapeHtmlJS(fmt(recap.totalExpense))}</p></div>
+        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[10px] text-slate-500">Tabungan Bersih</p><p class="font-black text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(recap.netSavings))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[10px] text-slate-500">Savings Rate</p><p class="font-black">${recap.savingsRatePct}%</p></div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+          <p class="font-bold mb-2">Rekap 12 Siklus</p>
+          <div class="max-h-52 overflow-y-auto"><table class="w-full"><tbody>${monthRows}</tbody></table></div>
+        </div>
+        <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+          <p class="font-bold">Top Pengeluaran ${escapeHtmlJS(recap.year)}</p>
+          ${recap.topCategories.map((c) => `<div class="flex justify-between"><span>${escapeHtmlJS(c.category)}</span><strong>${escapeHtmlJS(fmt(c.amount))} (${c.sharePct}%)</strong></div>`).join('') || '<p class="text-slate-400">Belum ada pengeluaran.</p>'}
+          ${recap.bestSavingMonth ? `<p class="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">🏆 Paling hemat: <strong>${escapeHtmlJS(recap.bestSavingMonth.period)}</strong></p>` : ''}
+        </div>
+      </div>
+    `;
+  };
+
+  window.renderPeriodCompareBody = function () {
+    const pA = (document.getElementById('cmpPeriodA') || {}).value;
+    const pB = (document.getElementById('cmpPeriodB') || {}).value;
+    const box = document.getElementById('annualRecapBody');
+    if (!box || !pA || !pB || typeof FinancePro === 'undefined') return;
+    const cmp = FinancePro.compareTwoPeriods(DB.transactions || [], DB.budgets || [], pA, pB, DB.payrollDay, FinanceAnalysis);
+    const fmt = (n) => formatRupiah(n).replace(',00', '');
+    box.innerHTML = `
+      <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[10px] text-slate-400">${escapeHtmlJS(pA)} Keluar</p><p class="font-black">${escapeHtmlJS(fmt(cmp.expenseA))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[10px] text-slate-400">${escapeHtmlJS(pB)} Keluar</p><p class="font-black">${escapeHtmlJS(fmt(cmp.expenseB))}</p></div>
+        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[10px] text-slate-400">Selisih Keluar</p><p class="font-black">${cmp.expenseB - cmp.expenseA >= 0 ? '+' : '-'}${escapeHtmlJS(fmt(Math.abs(cmp.expenseB - cmp.expenseA)))}</p></div>
+      </div>
+      <div class="max-h-56 overflow-y-auto space-y-1.5 text-xs">
+        ${cmp.categories.map((r) => `
+          <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60">
+            <span class="font-semibold truncate">${escapeHtmlJS(r.category)}</span>
+            <span class="shrink-0">${escapeHtmlJS(formatShortIDR(r.amountA))} → <strong>${escapeHtmlJS(formatShortIDR(r.amountB))}</strong> <span class="${r.delta > 0 ? 'text-rose-500' : 'text-emerald-500'}">(${r.delta >= 0 ? '+' : ''}${escapeHtmlJS(formatShortIDR(r.delta))})</span></span>
+          </div>`).join('') || '<p class="text-slate-400">Tidak ada transaksi untuk dibandingkan.</p>'}
+      </div>
+    `;
+  };
+
+  window.openAnnualRecapModal = async function () {
+    const curPeriod = DB.currentPeriod || new Date().toISOString().slice(0, 7);
+    const curYear = curPeriod.slice(0, 4);
+    const prevPeriod = typeof FinanceAnalysis !== 'undefined' ? FinanceAnalysis.shiftPeriod(curPeriod, -1) : curPeriod;
+    const years = Array.from(new Set([curYear, ...(DB.transactions || []).map((t) => String(t.tanggal || '').slice(0, 4)).filter((y) => /^\d{4}$/.test(y))])).sort().reverse();
+
+    await Swal.fire(swalOpt({
+      title: 'Rekap Tahunan & Perbandingan',
+      width: 680,
+      html: `
+        <div class="text-left space-y-3">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <select id="recapYearSel" class="swal2-select" style="margin:0;height:36px;padding:4px 8px" onchange="renderAnnualRecapBody(this.value)">
+              ${years.map((y) => `<option value="${escapeAttrJS(y)}" ${y === curYear ? 'selected' : ''}>Tahun ${escapeHtmlJS(y)}</option>`).join('')}
+            </select>
+            <span class="text-slate-400">atau bandingkan:</span>
+            <input id="cmpPeriodA" type="month" value="${escapeAttrJS(prevPeriod)}" class="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+            <span>vs</span>
+            <input id="cmpPeriodB" type="month" value="${escapeAttrJS(curPeriod)}" class="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+            <button type="button" onclick="renderPeriodCompareBody()" class="px-3 py-1.5 rounded-lg bg-brand text-white font-bold">Bandingkan</button>
+          </div>
+          <div id="annualRecapBody"></div>
+        </div>
+      `,
+      confirmButtonText: t('btn.tutup'),
+      didOpen: () => window.renderAnnualRecapBody(curYear)
+    }));
+  };
+
+  /* ---------------- 7. Interactive Financial Calculators ---------------- */
+  function extractUserDebtItems() {
+    const balMap = {};
+    (DB.transactions || []).forEach((tr) => {
+      const cat = String(tr.kategori || '');
+      if (cat.startsWith('UtangApp - ') || cat.startsWith('UtangPerson - ')) {
+        balMap[cat] = (balMap[cat] || 0) + (tr.tipe === 'Pemasukan' ? Number(tr.nominal) || 0 : -(Number(tr.nominal) || 0));
+      }
+    });
+    return Object.entries(balMap)
+      .filter(([, bal]) => bal > 0)
+      .map(([name, balance]) => ({ name: name.replace(/^Utang(App|Person) - /, ''), balance, annualRatePct: 12, minPayment: 0 }));
+  }
+
+  window.openFinancialCalculatorsModal = async function () {
+    const userDebts = extractUserDebtItems();
+    const totalUserDebt = userDebts.reduce((s, d) => s + d.balance, 0);
+
+    await Swal.fire(swalOpt({
+      title: 'Kalkulator Finansial Lokal',
+      width: 640,
+      html: `
+        <div class="text-left space-y-3 text-xs">
+          <div class="flex flex-wrap gap-1.5" id="calcTabs">
+            <button type="button" data-calc-tab="debt" class="px-3 py-1.5 rounded-xl bg-brand text-white font-bold">Lunas Utang</button>
+            <button type="button" data-calc-tab="compound" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold">Bunga Majemuk</button>
+            <button type="button" data-calc-tab="installment" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold">Cicilan vs Tunai</button>
+          </div>
+          <div id="calcPane"></div>
+        </div>
+      `,
+      confirmButtonText: t('btn.tutup'),
+      didOpen: () => {
+        const pane = document.getElementById('calcPane');
+        const fmt = (n) => formatRupiah(n).replace(',00', '');
+        const renderDebt = () => {
+          const base = userDebts.length ? userDebts : [{ name: 'Contoh Utang', balance: 5000000, annualRatePct: 15, minPayment: 300000 }];
+          pane.innerHTML = `
+            <p class="text-slate-500 mb-2">Terdeteksi <strong>${userDebts.length}</strong> utang aktif (${escapeHtmlJS(fmt(totalUserDebt))}).</p>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <input id="calc-extra" type="number" min="0" value="500000" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Ekstra bayar/bln">
+              <button type="button" id="btnRunDebtCalc" class="px-3 py-2 rounded-lg bg-brand text-white font-bold">Bandingkan Strategi</button>
+            </div>
+            <div id="debtCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60"></div>
+          `;
+          const run = () => {
+            const extra = Number(document.getElementById('calc-extra').value) || 0;
+            const snow = FinancePro.simulateDebtPayoff(base, extra, 'snowball');
+            const aval = FinancePro.simulateDebtPayoff(base, extra, 'avalanche');
+            document.getElementById('debtCalcOut').innerHTML = `
+              <p><strong>Snowball</strong> (terkecil dulu): <strong>${snow.months} bln</strong> · Total ${escapeHtmlJS(fmt(snow.totalPaid))}</p>
+              <p class="mt-1"><strong>Avalanche</strong> (bunga/saldo terbesar dulu): <strong>${aval.months} bln</strong> · Total ${escapeHtmlJS(fmt(aval.totalPaid))}</p>
+            `;
+          };
+          document.getElementById('btnRunDebtCalc').onclick = run;
+          run();
+        };
+        const renderCompound = () => {
+          pane.innerHTML = `
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+              <input id="cmp-init" type="number" value="5000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Modal awal">
+              <input id="cmp-mon" type="number" value="1000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Setor/bln">
+              <input id="cmp-rate" type="number" step="0.5" value="8" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Return %/th">
+              <input id="cmp-yrs" type="number" min="1" max="40" value="5" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Tahun">
+            </div>
+            <div id="compCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60"></div>
+          `;
+          const run = () => {
+            const res = FinancePro.simulateCompoundGrowth(
+              document.getElementById('cmp-init').value, document.getElementById('cmp-mon').value,
+              document.getElementById('cmp-rate').value, document.getElementById('cmp-yrs').value
+            );
+            document.getElementById('compCalcOut').innerHTML = `
+              <p>Nilai Akhir: <strong class="text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(res.finalValue))}</strong></p>
+              <p class="mt-1">Total Setoran: ${escapeHtmlJS(fmt(res.totalContributed))} · Imbal Hasil: <strong class="text-emerald-600">+${escapeHtmlJS(fmt(res.totalGain))}</strong></p>
+            `;
+          };
+          ['cmp-init', 'cmp-mon', 'cmp-rate', 'cmp-yrs'].forEach((id) => { document.getElementById(id).oninput = run; });
+          run();
+        };
+        const renderInst = () => {
+          pane.innerHTML = `
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+              <input id="ins-cash" type="number" value="10000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Harga Tunai">
+              <input id="ins-dp" type="number" value="2000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="DP">
+              <input id="ins-mon" type="number" value="850000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Cicilan/bln">
+              <input id="ins-cnt" type="number" min="1" value="12" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Tenor (bln)">
+            </div>
+            <div id="instCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60"></div>
+          `;
+          const run = () => {
+            const res = FinancePro.simulateInstallmentVsCash(
+              document.getElementById('ins-cash').value, document.getElementById('ins-dp').value,
+              document.getElementById('ins-mon').value, document.getElementById('ins-cnt').value
+            );
+            document.getElementById('instCalcOut').innerHTML = `
+              <p>Total Cicilan: <strong>${escapeHtmlJS(fmt(res.totalInstallment))}</strong> vs Tunai <strong>${escapeHtmlJS(fmt(res.cashPrice))}</strong></p>
+              <p class="mt-1">Selisih Biaya: <strong class="text-rose-600">+${escapeHtmlJS(fmt(res.extraCost))} (${res.effectiveMarkupPct}%)</strong></p>
+            `;
+          };
+          ['ins-cash', 'ins-dp', 'ins-mon', 'ins-cnt'].forEach((id) => { document.getElementById(id).oninput = run; });
+          run();
+        };
+
+        document.querySelectorAll('[data-calc-tab]').forEach((btn) => {
+          btn.onclick = () => {
+            document.querySelectorAll('[data-calc-tab]').forEach((b) => {
+              const on = b === btn;
+              b.className = `px-3 py-1.5 rounded-xl font-bold ${on ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800'}`;
+            });
+            const tab = btn.getAttribute('data-calc-tab');
+            if (tab === 'compound') renderCompound();
+            else if (tab === 'installment') renderInst();
+            else renderDebt();
+          };
+        });
+        renderDebt();
+      }
+    }));
+  };
+
+  /* ---------------- 8. Multi-Turn AI Chat & Cached AI Analysis ---------------- */
+  function renderAiChatThread(history) {
+    const out = document.getElementById('aiChatResult');
+    if (!out) return;
+    if (!history.length) {
+      out.classList.add('hide');
+      out.innerHTML = '';
+      return;
+    }
+    out.classList.remove('hide');
+    out.innerHTML = `<div class="space-y-3 max-h-96 overflow-y-auto pr-1">${history.map((msg) => {
+      const isUser = msg.role === 'user';
+      const formatted = escapeHtmlJS(msg.text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+      return `
+        <div class="${isUser ? 'bg-brand/10 border-brand/20 ml-6' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 mr-6'} p-3 rounded-2xl border text-xs sm:text-sm">
+          <p class="text-[10px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}</p>
+          <div class="leading-relaxed">${formatted}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  window.clearAiChatHistory = function () {
+    try { localStorage.removeItem(AI_CHAT_HISTORY_KEY); } catch (_) { /* ignore */ }
+    renderAiChatThread([]);
+  };
+
+  window.saveAiAnalysisCache = function (parsed, payload) {
+    if (!parsed || !payload || !payload.period) return;
+    safeWriteJson(AI_ANALYSIS_CACHE_KEY, { period: payload.period, savedAt: new Date().toISOString(), parsed, payload });
+  };
+
+  window.restoreAiAnalysisCache = function () {
+    const box = document.getElementById('aiAnalysisResult');
+    if (!box || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const cached = safeReadJson(AI_ANALYSIS_CACHE_KEY, null);
+    if (cached && cached.period === DB.currentPeriod && box.innerHTML.trim() === '' && typeof renderAiCashflowResult === 'function') {
+      box.classList.remove('hide');
+      renderAiCashflowResult(cached.parsed, cached.payload);
+    }
+    const hist = safeReadJson(AI_CHAT_HISTORY_KEY, []);
+    if (Array.isArray(hist) && hist.length) {
+      const out = document.getElementById('aiChatResult');
+      if (out && out.innerHTML.trim() === '') renderAiChatThread(hist);
+    }
+  };
+
+  window.runAiFinancialChat = async function () {
+    const input = document.getElementById('aiChatInput');
+    const out = document.getElementById('aiChatResult');
+    const btn = document.getElementById('btnAskAiChat');
+    const question = ((input && input.value) || '').trim();
+    if (!question) { if (input) input.focus(); return; }
+
+    let apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
+    if (!apiKey && typeof configureGeminiApiKey === 'function') {
+      apiKey = await configureGeminiApiKey();
+      if (!apiKey) return;
+    }
+
+    const hist = safeReadJson(AI_CHAT_HISTORY_KEY, []);
+    const history = Array.isArray(hist) ? hist : [];
+    const recentTurns = history.slice(-4).map((m) => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n');
+    const contextPrompt = recentTurns ? `${recentTurns}\nPertanyaan lanjutan: ${question}` : question;
+
+    if (btn) btn.disabled = true;
+    history.push({ role: 'user', text: question });
+    renderAiChatThread(history);
+    if (input) input.value = '';
+    if (out) {
+      const loader = document.createElement('p');
+      loader.className = 'text-xs text-slate-400 mt-2 animate-pulse';
+      loader.textContent = 'Gemini sedang menyusun jawaban...';
+      out.appendChild(loader);
+    }
+
+    try {
+      const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
+      const prompt = FinanceAnalysis.buildAiFinancialChatPrompt(payload, contextPrompt, currentLang);
+      const { json } = await callGeminiApi(apiKey, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.35 } });
+      const answer = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
+      if (!answer) throw new Error('Gemini tidak mengembalikan jawaban.');
+      history.push({ role: 'assistant', text: answer });
+      const trimmed = history.slice(-12);
+      safeWriteJson(AI_CHAT_HISTORY_KEY, trimmed);
+      renderAiChatThread(trimmed);
+    } catch (err) {
+      history.pop();
+      safeWriteJson(AI_CHAT_HISTORY_KEY, history);
+      renderAiChatThread(history);
+      Swal.fire(swalOpt({ icon: 'error', title: 'Gagal meminta jawaban AI', text: String((err && err.message) || err) }));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  /* ---------------- 9. Portfolio Target Allocation & Rebalancing ---------------- */
+  window.openRebalanceTargetsModal = async function () {
+    const defaults = { 'Kas & Likuid': 25, Emas: 25, 'Valas USD': 15, 'Saham & Lainnya': 20, Crypto: 15 };
+    const saved = safeReadJson(REBALANCE_TARGETS_KEY, defaults) || defaults;
+    const keys = Object.keys(defaults);
+
+    const res = await Swal.fire(swalOpt({
+      title: 'Target Alokasi & Rebalance',
+      width: 480,
+      html: `
+        <div class="text-left space-y-2.5 text-xs">
+          <p class="text-slate-500">Atur target persentase portofolio (total harus 100%).</p>
+          ${keys.map((k) => `
+            <div class="flex items-center justify-between gap-2">
+              <label class="font-bold">${escapeHtmlJS(k)}</label>
+              <input data-reb-key="${escapeAttrJS(k)}" type="number" min="0" max="100" value="${Number(saved[k]) || 0}"
+                     class="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-right">
+            </div>`).join('')}
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
+      preConfirm: () => {
+        const next = {};
+        let sum = 0;
+        document.querySelectorAll('[data-reb-key]').forEach((inp) => {
+          const val = Math.max(0, Number(inp.value) || 0);
+          next[inp.getAttribute('data-reb-key')] = val;
+          sum += val;
+        });
+        if (Math.round(sum) !== 100) {
+          Swal.showValidationMessage(`Total harus 100% (saat ini ${sum}%).`);
+          return false;
+        }
+        return next;
+      }
+    }));
+
+    if (res.isConfirmed && res.value) {
+      safeWriteJson(REBALANCE_TARGETS_KEY, res.value);
+      window.renderAssetAllocation();
+    }
+  };
+
+  const origRenderAlloc = window.renderAssetAllocation;
+  window.renderAssetAllocation = function () {
+    if (typeof origRenderAlloc === 'function') origRenderAlloc();
+    const panel = document.getElementById('assetAllocationPanel');
+    if (!panel || typeof FinancePro === 'undefined' || typeof isDataReady === 'undefined' || !isDataReady) return;
+    const card = panel.firstElementChild;
+    if (!card) return;
+    const saved = safeReadJson(REBALANCE_TARGETS_KEY, null);
+    const wb = typeof walletBalances === 'function' ? walletBalances() : null;
+    const alloc = FinanceAnalysis.computeAssetAllocation({
+      wallets: DB.wallets || [],
+      assets: DB.assets || [],
+      transactions: DB.transactions || [],
+      transfers: DB.transfers || [],
+      walletBalances: wb
+    });
+    const rebalance = saved && alloc.total > 0 ? FinancePro.computePortfolioRebalance(alloc.segments, saved) : null;
+
+    const strip = document.createElement('div');
+    strip.className = 'mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs';
+    strip.innerHTML = `
+      <div class="flex flex-wrap items-center gap-1.5">
+        ${rebalance ? rebalance.rows.map((r) => `
+          <span class="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+            <strong>${escapeHtmlJS(r.label)}</strong>: ${r.currentPct}% → ${r.targetPct}%
+            (<span class="${r.action === 'Tambah' ? 'text-emerald-600' : r.action === 'Kurangi' ? 'text-rose-600' : 'text-slate-400'} font-bold">${escapeHtmlJS(r.action)}${r.action !== 'Seimbang' ? ' ' + escapeHtmlJS(formatShortIDR(Math.abs(r.deltaAmount))) : ''}</span>)
+          </span>`).join('') : '<span class="text-slate-400">Belum ada target alokasi rebalancing.</span>'}
+      </div>
+      <button type="button" onclick="openRebalanceTargetsModal()" class="px-3 py-1.5 rounded-xl bg-brand/10 text-brand dark:text-brand-ink font-bold hover:bg-brand/20">Atur Target</button>
+    `;
+    card.appendChild(strip);
+  };
+
+  /* ---------------- 10. Opt-In Browser Notifications ---------------- */
+  window.toggleBrowserNotifications = async function () {
+    if (!('Notification' in window)) {
+      Swal.fire(swalOpt({ icon: 'info', title: 'Tidak didukung', text: 'Browser ini tidak mendukung Web Notification API.' }));
+      return;
+    }
+    const enabled = localStorage.getItem(BROWSER_NOTIF_KEY) === '1';
+    if (enabled) {
+      localStorage.setItem(BROWSER_NOTIF_KEY, '0');
+      Swal.fire(swalOpt({ icon: 'info', title: 'Notifikasi browser dimatikan', timer: 1200, showConfirmButton: false }));
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      Swal.fire(swalOpt({ icon: 'warning', title: 'Izin ditolak', text: 'Aktifkan izin notifikasi di pengaturan browser.' }));
+      return;
+    }
+    localStorage.setItem(BROWSER_NOTIF_KEY, '1');
+    localStorage.removeItem(BROWSER_NOTIF_DATE_KEY);
+    window.maybeNotifyBrowserSummary();
+    Swal.fire(swalOpt({ icon: 'success', title: 'Pengingat browser aktif!', timer: 1300, showConfirmButton: false }));
+  };
+
+  window.openNotificationsModal = async function () {
+    const list = typeof window.getCurrentNotifications === 'function' ? window.getCurrentNotifications() : [];
+    const browserOn = localStorage.getItem(BROWSER_NOTIF_KEY) === '1' && ('Notification' in window) && Notification.permission === 'granted';
+    const sevStyle = {
+      danger: 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300',
+      warning: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300',
+      info: 'border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+    };
+    const rows = list.length ? list.map((n) => {
+      let actionBtn = '';
+      if (n.actionType === 'view' && n.actionPayload && n.actionPayload.view) {
+        actionBtn = `<button type="button" onclick="Swal.close();switchView('${escapeAttrJS(n.actionPayload.view)}')" class="mt-2 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">Lihat</button>`;
+      } else if (n.actionType === 'recurring' && n.actionPayload && n.actionPayload.id) {
+        actionBtn = `<button type="button" onclick="recordRecurringFromNotif('${escapeAttrJS(n.actionPayload.id)}')" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Catat Sekarang</button>`;
+      } else if (n.actionType === 'sync_offline') {
+        actionBtn = `<button type="button" onclick="Swal.close();flushOfflineQueue(false)" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Sinkronisasi</button>`;
+      }
+      return `
+        <div class="p-3 rounded-xl border text-left ${sevStyle[n.severity] || sevStyle.info}">
+          <p class="font-bold text-xs">${escapeHtmlJS(n.title)}</p>
+          <p class="text-[11px] opacity-90 mt-0.5">${escapeHtmlJS(n.message)}</p>
+          ${actionBtn}
+        </div>`;
+    }).join('') : `<p class="text-xs text-slate-400 py-4 text-center">${escapeHtmlJS(t('notif.empty'))}</p>`;
+
+    await Swal.fire(swalOpt({
+      title: t('notif.title'),
+      html: `
+        <div class="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs">
+          <span>Notifikasi Browser: <strong>${browserOn ? 'Aktif' : 'Nonaktif'}</strong></span>
+          <button type="button" onclick="toggleBrowserNotifications()" class="px-2.5 py-1 rounded-lg ${browserOn ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand text-white'} font-bold">${browserOn ? 'Matikan' : 'Aktifkan'}</button>
+        </div>
+        <div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">${rows}</div>
+      `,
+      confirmButtonText: t('btn.tutup')
+    }));
+  };
+
+  window.maybeNotifyBrowserSummary = function () {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (localStorage.getItem(BROWSER_NOTIF_KEY) !== '1' || typeof window.getCurrentNotifications !== 'function') return;
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(BROWSER_NOTIF_DATE_KEY) === todayStr) return;
+    const important = window.getCurrentNotifications().filter((n) => n.severity === 'danger' || n.severity === 'warning');
+    if (!important.length) return;
+    localStorage.setItem(BROWSER_NOTIF_DATE_KEY, todayStr);
+    try {
+      new Notification(`MyKeuangan: ${important.length} Pengingat Hari Ini`, {
+        body: `${important[0].title} — ${important[0].message}`,
+        icon: 'icons/icon-192.png'
+      });
+    } catch (_) {
+      // Ignore Notification constructor errors in restricted WebViews
+    }
+  };
+
+  /* ---------------- 11. Hooks & Listeners ---------------- */
+  function installProHooks() {
+    if (typeof window.switchView === 'function' && !window._proSwitchViewHooked) {
+      window._proSwitchViewHooked = true;
+      const prevSwitch = window.switchView;
+      window.switchView = function (id) {
+        prevSwitch(id);
+        renderMobileBottomNavState(id);
+        if (id === 'ai') window.restoreAiAnalysisCache();
+      };
+    }
+    if (typeof window.renderAll === 'function' && !window._proRenderAllHooked) {
+      window._proRenderAllHooked = true;
+      const prevRenderAll = window.renderAll;
+      window.renderAll = function () {
+        prevRenderAll();
+        window.renderQuickTemplates();
+        window.renderTagBars();
+        window.restoreAiAnalysisCache();
+        window.maybeNotifyBrowserSummary();
+      };
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    ['lapImportMenu', 'lapExportMenu'].forEach((id) => {
+      const det = document.getElementById(id);
+      if (det && det.open && !det.contains(e.target)) det.open = false;
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'k') {
+      e.preventDefault();
+      window.openCommandPalette();
+    } else if (e.key === 'Escape') {
+      window.closeCommandPalette();
+    }
+  });
+
+  installProHooks();
+  document.addEventListener('DOMContentLoaded', installProHooks);
+})();
+</script>
