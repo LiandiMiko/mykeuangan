@@ -60,8 +60,8 @@ mykeuangan/
 │   ├── ai.html             # View: analisis arus keuangan AI Gemini (on-demand)
 │   ├── form.html           # View: tambah transaksi
 │   ├── laporan.html        # View: laporan keuangan
-│   ├── budgeting.html      # View: anggaran kategori, target keuangan & transaksi rutin
-│   ├── features-v35.html   # Modul JS pro: Quick-Add, Command Palette, Tag, Bulk, Kalkulator & Rebalance
+│   ├── budgeting.html      # View: anggaran kategori, burn rate forecast, target & transaksi rutin
+│   ├── features-v35.html   # Stub referensi fitur pro (modular di web/ui-pro-*.js)
 │   ├── styles.html         # Tema CSS, CDN ter-pin & fallback Tailwind config
 │   ├── utang.html          # View: utang/piutang
 │   └── i18n.html           # Terjemahan (ID/EN)
@@ -71,12 +71,13 @@ mykeuangan/
 │   ├── manifest.webmanifest # PWA manifest
 │   ├── tailwind-input.css   # Entry CSS untuk kompilasi statis Tailwind CSS
 │   ├── sw.js                # Service Worker (Network-First + SKIP_WAITING & cache busting)
-│   ├── finance-analysis*.js # Analisis siklus, AI prompt, portofolio & backup ter-modular
+│   ├── finance-analysis*.js # Analisis siklus, burn rate forecast, AI prompt, portofolio & backup
 │   ├── finance-pro.js       # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator
 │   ├── transaction-import.js# Parser dan validasi impor CSV
-│   ├── supabase-*.js        # Core, Auth UI, Records, Planning, Portfolio, Admin & callServer
+│   ├── supabase-*.js        # Core, Auth UI (i18n), Records, Planning, Portfolio, Admin & callServer
 │   ├── ui-*.js              # 15 modul UI inti hasil modularisasi script.html
 │   ├── ui-feat-*.js         # 10 modul fitur PWA/offline/charts/modals hasil modularisasi features-v21
+│   ├── ui-pro-*.js          # 5 modul pro hasil modularisasi features-v35 (quick, palette, reports, insights, hooks)
 │   └── icons/               # PWA icons (192px, 512px, maskable)
 │
 ├── db/
@@ -109,9 +110,10 @@ mykeuangan/
 │   └── updates-view.test.js       # Halaman pembaruan publik & pelacakan rilis baru
 │
 ├── scripts/
+│   ├── check-syntax.mjs    # Verifikasi syntax seluruh web/*.js & build scripts
 │   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
 │
-├── package.json            # Skrip npm standar (`test`, `build:css`, `build`, `build:prod`)
+├── package.json            # Skrip npm standar (`check`, `dev`, `test`, `build:css`, `build`, `build:prod`)
 ├── tailwind.config.js      # Konfigurasi build Tailwind CSS statis
 ├── build.mjs               # Build script: src/* + web/*.js → dist/index.html
 └── .github/
@@ -279,7 +281,7 @@ supabase link --project-ref <PROJECT_REF>
 supabase secrets set TELEGRAM_BOT_TOKEN=<token_dari_@BotFather>
 supabase secrets set CRON_SECRET=<random_string_panjang_min_32_char>
 supabase secrets set GEMINI_API_KEY=<api_key_gemini>
-supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io
+supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,http://localhost:4173
 
 # Deploy edge function (--no-verify-jwt agar bot bisa akses tanpa auth header)
 supabase functions deploy telegram-bot --no-verify-jwt
@@ -392,6 +394,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 21 November 2026: Wave v3.12 (Modularisasi 100% Frontend, Input Nominal IDR, Undo Delete, Burn Rate Forecast & Multi-Origin CORS)
+- **Fix Sinkronisasi Bulk Laporan & Ketahanan Startup (`web/ui-pro-reports.js`, `web/ui-state.js`, `web/ui-shell.js`, `web/ui-feat-offline.js`)**: Memperbaiki bug aksi massal Laporan (`addedTransactions` & `deletedTransactionIds` agar seluruh baris ter-update seketika di state lokal), mengganti spinner startup dengan Skeleton Shimmer Dashboard + banner **Muat Ulang Data** saat gagal muat awal (mencegah `Rp 0` palsu), serta menambahkan pill status jaringan `#networkStatusPill` (`Offline` / `Sync (N)`).
+- **Modularisasi Total `features-v35.html` → 5 Modul `web/ui-pro-*.js` (`build.mjs`, `web/ui-pro-*.js`)**: Memecah ~1.143 baris JS pro terakhir dari HTML ke `ui-pro-quick.js`, `ui-pro-palette.js`, `ui-pro-reports.js`, `ui-pro-insights.js`, dan `ui-pro-hooks.js` (kini **30 modul UI** penuh bebas `.innerHTML`), membersihkan cache AI saat pindah periode & duplikasi strip rebalance, serta menghapus seluruh `alert()` native di `supabase-core.js` / `supabase-auth.js`.
+- **UX Transaksi & Analitik Fintech (`src/form.html`, `src/budgeting.html`, `web/ui-form.js`, `web/ui-budget.js`, `web/finance-analysis-backup.js`)**: Input nominal ribuan otomatis (`1.500.000`) + tombol chip cepat (`+25rb`–`+500rb` & `Reset`), toast **Batalkan (Undo)** 6 detik pasca hapus transaksi, **Burn Rate & Proyeksi Akhir Siklus** (`computeCycleForecast`), layar Auth dwibahasa ID/EN + indikator kekuatan kata sandi, aksesibilitas (`skip_main`, `aria-current`, `prefers-reduced-motion`), multi-origin `ALLOWED_ORIGIN` + `Vary: Origin` di Edge Functions, serta `scripts/check-syntax.mjs` + `npm run check` / `npm run dev`.
 
 ### 20 November 2026: Wave v3.11 (Forensic Hardening P0–P2, Full Frontend Modularization 25 Modul UI & Bot Upgrade)
 - **Fix Produksi Static Tailwind & Keamanan (`web/ui-budget.js`, `web/ui-state.js`, `src/features-v35.html`, `build.mjs`)**: Menghilangkan kelas dinamis status warna di Budgeting ke lookup kelas statis penuh, memperkuat `escapeAttrJS()` untuk menetralkan HTML entity (`&#39;`) serta newline sebelum render atribut event handler, mengganti pemakaian `escapeAttrJS` pada atribut HTML biasa ke `escapeHtmlJS`, memusatkan rendering HTML ke `renderHtml()` (`DOMParser` + penghapusan `<script>`) dan `<option>` ke `renderSelectOptions()` DOM murni (skor `aislop` naik ke `93/100`, `0 warning`), memperkuat guardrail regex Play CDN + memangkas `'unsafe-eval'` dari CSP hasil build `dist/index.html`.

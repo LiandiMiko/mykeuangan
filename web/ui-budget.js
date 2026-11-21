@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, isInPeriod, getPeriodLabel, editTransaction, t */
+/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, parseFormattedNominal, localToday, getSwalClass, showActionError, isInPeriod, getPeriodLabel, editTransaction, t */
 /* ============================================================
    BUDGETING & ANALYSIS
    ============================================================ */
@@ -9,7 +9,7 @@
 
   async function saveBudget() {
     const kategori = document.getElementById('budgetKategori').value;
-    const jumlah = parseInt(document.getElementById('budgetJumlah').value, 10);
+    const jumlah = Math.round(parseFormattedNominal(document.getElementById('budgetJumlah').value));
     if (!kategori || !jumlah || jumlah <= 0) {
       Swal.fire({
         icon: 'warning',
@@ -99,7 +99,53 @@
     renderBudgeting();
   }
 
+  function renderBudgetForecastCard(period) {
+    const el = document.getElementById('budgetForecastCard');
+    if (!el || typeof FinanceAnalysis.computeCycleForecast !== 'function') return;
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const fc = FinanceAnalysis.computeCycleForecast(DB.transactions, DB.budgets, period, DB.payrollDay, todayStr);
+    const BADGES = {
+      over: { label: 'Berisiko Overbudget', cls: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300' },
+      warning: { label: 'Mendekati Batas', cls: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' },
+      safe: { label: 'Jalur Aman', cls: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' },
+      completed: { label: 'Siklus Selesai', cls: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300' },
+      upcoming: { label: 'Belum Dimulai', cls: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' },
+      active: { label: 'Siklus Aktif', cls: 'bg-brand/10 text-brand dark:text-brand-ink' }
+    };
+    const badge = BADGES[fc.status] || BADGES.active;
+    const fmt = (v) => formatRupiah(v).replace(',00', '');
+    renderHtml(el, `
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Burn Rate &amp; Proyeksi Akhir Siklus</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Hari ke-${fc.elapsedDays} dari ${fc.totalDays} · ${fc.remainingDays} hari tersisa</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${badge.cls}">${badge.label}</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Burn Rate Harian</p>
+            <p class="text-sm sm:text-base font-black text-slate-800 dark:text-white mt-0.5 tabular-nums">${fmt(fc.dailyBurnRate)}/hr</p>
+          </div>
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Proyeksi Keluar</p>
+            <p class="text-sm sm:text-base font-black ${fc.status === 'over' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'} mt-0.5 tabular-nums">${fmt(fc.projectedExpense)}</p>
+          </div>
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Batas Aman Harian</p>
+            <p class="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">${fc.dailySafeAllowance !== null ? fmt(fc.dailySafeAllowance) + '/hr' : '—'}</p>
+          </div>
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Estimasi Sisa Budget</p>
+            <p class="text-sm sm:text-base font-black ${fc.projectedVariance !== null && fc.projectedVariance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'} mt-0.5 tabular-nums">${fc.projectedVariance !== null ? (fc.projectedVariance >= 0 ? '+' : '-') + fmt(Math.abs(fc.projectedVariance)) : '—'}</p>
+          </div>
+        </div>
+      </div>`);
+  }
+
   function renderBudgetAnalysis(period) {
+    renderBudgetForecastCard(period);
     const insights = FinanceAnalysis.periodInsights(DB.budgets, DB.transactions, period, DB.payrollDay);
     const analysis = insights.period;
     const summary = document.getElementById('budgetSummary');

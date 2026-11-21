@@ -201,7 +201,53 @@
     return { dueBills, count: dueBills.length, totalDueAmount };
   }
 
-  const backupApi = { prepareBackupRestorePayload, projectGoalMilestone, getDueRecurringBills };
+  function parseIsoDayMs(isoDate) {
+    const [y, m, d] = String(isoDate).slice(0, 10).split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  }
+
+  function computeCycleForecast(transactions, budgets, period, payrollDay, todayStr) {
+    const activePeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(period || ''))
+      ? String(period)
+      : core.formatDate(new Date()).slice(0, 7);
+    const curDate = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ''))
+      ? String(todayStr).slice(0, 10)
+      : core.formatDate(new Date());
+    const range = core.getPeriodRange(activePeriod, payrollDay);
+    const summary = core.summarizePeriod(budgets, transactions, activePeriod, payrollDay);
+    const dayMs = 86400000;
+    const totalDays = Math.max(1, Math.round((parseIsoDayMs(range.end) - parseIsoDayMs(range.start)) / dayMs) + 1);
+    const isUpcoming = curDate < range.start;
+    const isCompleted = curDate > range.end;
+    const isCurrentCycle = !isUpcoming && !isCompleted;
+    const elapsedDays = isUpcoming
+      ? 0
+      : (isCompleted ? totalDays : Math.max(1, Math.round((parseIsoDayMs(curDate) - parseIsoDayMs(range.start)) / dayMs) + 1));
+    const remainingDays = Math.max(0, totalDays - elapsedDays);
+    const actualExpense = summary.actualTotal;
+    const budgetTotal = summary.budgetTotal;
+    const dailyBurnRate = elapsedDays > 0 ? Math.round(actualExpense / elapsedDays) : 0;
+    const projectedExpense = isCurrentCycle ? Math.round(dailyBurnRate * totalDays) : actualExpense;
+    const remainingBudget = budgetTotal > 0 ? budgetTotal - actualExpense : null;
+    const dailySafeAllowance = (budgetTotal > 0 && remainingDays > 0)
+      ? Math.max(0, Math.floor(remainingBudget / remainingDays))
+      : null;
+    const projectedVariance = budgetTotal > 0 ? budgetTotal - projectedExpense : null;
+    let status = 'active';
+    if (isUpcoming) status = 'upcoming';
+    else if (isCompleted) status = 'completed';
+    else if (budgetTotal > 0) {
+      status = projectedExpense > budgetTotal ? 'over' : (projectedExpense >= budgetTotal * 0.85 ? 'warning' : 'safe');
+    }
+
+    return {
+      period: activePeriod, range, totalDays, elapsedDays, remainingDays, isCurrentCycle,
+      actualExpense, budgetTotal, dailyBurnRate, projectedExpense,
+      remainingBudget, dailySafeAllowance, projectedVariance, status
+    };
+  }
+
+  const backupApi = { prepareBackupRestorePayload, projectGoalMilestone, getDueRecurringBills, computeCycleForecast };
   root.FinanceAnalysisBackup = backupApi;
   if (typeof module !== 'undefined' && module.exports) module.exports = backupApi;
 })(typeof window !== 'undefined' ? window : globalThis);

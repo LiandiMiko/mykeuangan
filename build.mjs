@@ -52,6 +52,14 @@ const UI_FEATURES_MODULES = [
   'ui-feat-hooks.js'
 ];
 
+const UI_PRO_MODULES = [
+  'ui-pro-quick.js',
+  'ui-pro-palette.js',
+  'ui-pro-reports.js',
+  'ui-pro-insights.js',
+  'ui-pro-hooks.js'
+];
+
 const SUPABASE_MODULES = [
   'supabase-core.js',
   'supabase-auth.js',
@@ -101,6 +109,9 @@ html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
   }
   if (name === 'features-v21') {
     return readInlineScripts(UI_FEATURES_MODULES);
+  }
+  if (name === 'features-v35') {
+    return readInlineScripts(UI_PRO_MODULES);
   }
   return read(name);
 });

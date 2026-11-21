@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, cycleOfDate, switchView, openForm, toggleHideNominal, openWalletDetailModal, openDebtDetailModal, renderBudgetCharts, renderBudgetAnomalyBanner, renderFinancialRatios, renderAssetAllocation, renderNetWorthChart, checkAndRenderDueRecurringBanner, filterHistoriView, refreshNotificationBell */
+/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, parseFormattedNominal, getSwalClass, showActionError, cycleOfDate, switchView, openForm, toggleHideNominal, openWalletDetailModal, openDebtDetailModal, renderBudgetCharts, renderBudgetAnomalyBanner, renderFinancialRatios, renderAssetAllocation, renderNetWorthChart, checkAndRenderDueRecurringBanner, filterHistoriView, refreshNotificationBell */
 /* ============================================================
    FEATURES — HOOK ORCHESTRATION, SPLIT BILL & GLOBAL SHORTCUTS
    ============================================================ */
@@ -13,8 +13,8 @@
     }
     return {
       tanggal,
-      totalNominal: parseFloat((document.getElementById('tr_nominal') || {}).value),
-      friendShare: parseFloat((document.getElementById('tr_split_amount') || {}).value),
+      totalNominal: parseFormattedNominal((document.getElementById('tr_nominal') || {}).value),
+      friendShare: parseFormattedNominal((document.getElementById('tr_split_amount') || {}).value),
       person: ((document.getElementById('tr_split_person') || {}).value || '').trim(),
       kategori: (document.getElementById('tr_kategori') || {}).value,
       note: ((document.getElementById('tr_keterangan') || {}).value || '').trim(),

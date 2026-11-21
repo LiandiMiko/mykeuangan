@@ -1,4 +1,4 @@
-/* global DB, Chart, flatpickr, monthSelectPlugin, Swal, callServer, getSwalClass, updateEyeIcon, updateAiKeyStatusUI, bindReportControls, saveCurrentPeriod, updateDashboardTitle, renderDashboard, renderWallets, renderRecurring, renderLaporan, renderDebtLists, renderKalender, renderBudgeting, renderPortfolioChart, loadAdminData, markLatestReleaseSeen */
+/* global DB, Chart, flatpickr, monthSelectPlugin, escapeHtmlJS, renderHtml, callServer, updateEyeIcon, updateAiKeyStatusUI, bindReportControls, saveCurrentPeriod, updateDashboardTitle, renderDashboard, renderWallets, renderRecurring, renderLaporan, renderDebtLists, renderKalender, renderBudgeting, renderPortfolioChart, loadAdminData, markLatestReleaseSeen */
 /* ============================================================
    INIT, THEME, NAVIGATION & RENDER ORCHESTRATION
    ============================================================ */
@@ -133,12 +133,14 @@
     document.querySelectorAll('.nav-btn').forEach((btn) => {
       btn.classList.remove('active-nav', 'bg-brand-light', 'text-brand', 'dark:bg-slate-800', 'dark:text-white');
       btn.classList.add('text-slate-500', 'dark:text-slate-400');
+      btn.removeAttribute('aria-current');
     });
 
     const nav = document.getElementById('nav-' + (id.includes('utang') ? 'dashboard' : id));
     if (nav) {
       nav.classList.remove('text-slate-500', 'dark:text-slate-400');
       nav.classList.add('active-nav');
+      nav.setAttribute('aria-current', 'page');
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -170,6 +172,72 @@
     try { updateAiKeyStatusUI(); } catch (e) { console.error('updateAiKeyStatusUI err:', e); }
   }
 
+  let controlsInitialized = false;
+
+  function applyLoadedInitialData(data) {
+    DB.transactions = data.transactions || [];
+    DB.categories = data.categories || { pemasukan: [], pengeluaran: [] };
+    DB.entities = data.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
+    DB.assets = data.assets || [];
+    DB.budgets = data.budgets || [];
+    DB.currentPeriod = data.currentPeriod || DB.currentPeriod;
+    DB.payrollDay = data.payrollDay || 1;
+    DB.snapshots = data.snapshots || [];
+    DB.wallets = data.wallets || [];
+    DB.transfers = data.transfers || [];
+    DB.goals = data.goals || [];
+    DB.recurring = data.recurring || [];
+    const uEl = document.getElementById('ui-username');
+    const rEl = document.getElementById('ui-role');
+    if (uEl) uEl.innerText = root.sessionUser;
+    if (rEl) rEl.innerText = root.sessionRole;
+    updateDashboardTitle();
+  }
+
+  function showLoadFailureBanner(err) {
+    const banner = document.getElementById('appLoadErrorBanner');
+    if (!banner) return;
+    banner.classList.remove('hide');
+    renderHtml(banner, `
+      <div role="alert" class="rounded-3xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-extrabold text-rose-700 dark:text-rose-300">Gagal memuat data keuangan dari Supabase</p>
+          <p class="text-xs text-rose-600/90 dark:text-rose-400 mt-1">${escapeHtmlJS(String((err && err.message) || err))}</p>
+        </div>
+        <button type="button" onclick="retryInitialAppLoad()" class="min-h-11 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0">
+          Muat Ulang Data
+        </button>
+      </div>
+    `);
+  }
+
+  async function loadInitialAppData() {
+    const banner = document.getElementById('appLoadErrorBanner');
+    try {
+      const data = await callServer('getInitialData');
+      applyLoadedInitialData(data);
+      if (banner) {
+        banner.classList.add('hide');
+        banner.textContent = '';
+      }
+      root.isDataReady = true;
+      if (!controlsInitialized) {
+        initPickersAndControls();
+        controlsInitialized = true;
+      }
+      switchView('dashboard');
+      renderAll();
+      refreshMarketPricesInBackground();
+    } catch (e) {
+      root.isDataReady = false;
+      console.error('[INIT] error:', e);
+      showLoadFailureBanner(e);
+    } finally {
+      const loader = document.getElementById('appLoader');
+      if (loader) loader.classList.add('hide');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
     if (localStorage.getItem('mode') === 'dark') {
       document.documentElement.classList.add('dark');
@@ -182,41 +250,7 @@
     if (rEl) rEl.innerText = root.sessionRole;
     updateDashboardTitle();
 
-    try {
-      const data = await callServer('getInitialData');
-      DB.transactions = data.transactions || [];
-      DB.categories = data.categories || { pemasukan: [], pengeluaran: [] };
-      DB.entities = data.entities || { UtangApp: [], UtangPerson: [], Piutang: [] };
-      DB.assets = data.assets || [];
-      DB.budgets = data.budgets || [];
-      DB.currentPeriod = data.currentPeriod || DB.currentPeriod;
-      DB.payrollDay = data.payrollDay || 1;
-      DB.snapshots = data.snapshots || [];
-      DB.wallets = data.wallets || [];
-      DB.transfers = data.transfers || [];
-      DB.goals = data.goals || [];
-      DB.recurring = data.recurring || [];
-      if (uEl) uEl.innerText = root.sessionUser;
-      if (rEl) rEl.innerText = root.sessionRole;
-      updateDashboardTitle();
-    } catch (e) {
-      console.error('[INIT] error:', e);
-      Swal.fire({
-        icon: 'error', title: 'Gagal memuat data',
-        text: String(e.message || e),
-        customClass: { popup: getSwalClass() }
-      });
-    }
-
-    root.isDataReady = true;
-    initPickersAndControls();
-
-    const loader = document.getElementById('appLoader');
-    if (loader) loader.classList.add('hide');
-
-    switchView('dashboard');
-    renderAll();
-    refreshMarketPricesInBackground();
+    await loadInitialAppData();
   });
 
   Object.assign(root, {
@@ -225,6 +259,7 @@
     toggleSidebar,
     switchView,
     renderAll,
-    refreshMarketPricesInBackground
+    refreshMarketPricesInBackground,
+    retryInitialAppLoad: loadInitialAppData
   });
 })(typeof window !== 'undefined' ? window : globalThis);

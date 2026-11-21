@@ -25,7 +25,8 @@ const {
   projectGoalMilestone,
   getDueRecurringBills,
   computeNetWorthSeries,
-  compileOnePageFinancialStatement
+  compileOnePageFinancialStatement,
+  computeCycleForecast
 } = require('../web/finance-analysis.js');
 
 test('payroll cycle spans month and year boundaries', () => {
@@ -439,4 +440,42 @@ test('computeNetWorthSeries and compileOnePageFinancialStatement reconstruct his
   assert.equal(stmt.topExpenses[0].category, 'Makan');
   assert.equal(stmt.topExpenses[0].amount, 4000000);
   assert.equal(typeof stmt.ratios.savingsRatePct, 'number');
+});
+
+test('computeCycleForecast estimates burn rate, safe daily allowance, and end-of-cycle status', () => {
+  const budgets = [{ bulan: '2026-11', kategori: 'Makan', jumlah: 3000000 }];
+  const txs = [
+    { tanggal: '2026-11-01', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 600000 },
+    { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Transport', nominal: 400000 },
+    { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'UtangPerson - Andi', nominal: 900000 }
+  ];
+
+  // Mid-cycle on 2026-11-15 (15 elapsed of 30 days): burn 66.667/day -> projected 2.000.000 (< 85% -> safe)
+  const safeForecast = computeCycleForecast(txs, budgets, '2026-11', 1, '2026-11-15');
+  assert.equal(safeForecast.totalDays, 30);
+  assert.equal(safeForecast.elapsedDays, 15);
+  assert.equal(safeForecast.remainingDays, 15);
+  assert.equal(safeForecast.actualExpense, 1000000);
+  assert.equal(safeForecast.projectedExpense, 2000010);
+  assert.equal(safeForecast.status, 'safe');
+
+  // Mid-cycle on 2026-11-10 (10 elapsed of 30 days): burn 100k/day -> projected 3.000.000 (warning)
+  const warnForecast = computeCycleForecast(txs, budgets, '2026-11', 1, '2026-11-10');
+  assert.equal(warnForecast.dailyBurnRate, 100000);
+  assert.equal(warnForecast.projectedExpense, 3000000);
+  assert.equal(warnForecast.dailySafeAllowance, 100000);
+  assert.equal(warnForecast.status, 'warning');
+
+  // Early high burn -> over budget projection
+  const overForecast = computeCycleForecast(txs, budgets, '2026-11', 1, '2026-11-05');
+  assert.equal(overForecast.elapsedDays, 5);
+  assert.equal(overForecast.dailyBurnRate, 200000);
+  assert.equal(overForecast.projectedExpense, 6000000);
+  assert.equal(overForecast.status, 'over');
+
+  // Completed cycle with custom payrollDay = 28 (2026-10-28 .. 2026-11-27)
+  const doneForecast = computeCycleForecast(txs, budgets, '2026-11', 28, '2026-12-01');
+  assert.equal(doneForecast.status, 'completed');
+  assert.equal(doneForecast.remainingDays, 0);
+  assert.equal(doneForecast.projectedExpense, 1000000);
 });

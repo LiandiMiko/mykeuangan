@@ -1,12 +1,38 @@
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderSelectOptions, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t */
 /* ============================================================
    TRANSACTION FORM & CATEGORY MANAGEMENT
    ============================================================ */
 (function (root) {
   'use strict';
 
+  function bindNominalFormatters() {
+    ['tr_nominal', 'tr_split_amount', 'budgetJumlah'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.fmtBound === '1') return;
+      el.dataset.fmtBound = '1';
+      el.addEventListener('input', () => { el.value = formatNominalInputValue(el.value); });
+    });
+  }
+
+  function addQuickNominalAmount(delta) {
+    const input = document.getElementById('tr_nominal');
+    if (!input) return;
+    const current = parseFormattedNominal(input.value);
+    const next = (Number.isFinite(current) && current > 0 ? current : 0) + (Number(delta) || 0);
+    input.value = next > 0 ? formatNominalInputValue(next) : '';
+  }
+
+  function resetQuickNominalAmount() {
+    const input = document.getElementById('tr_nominal');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+
   function openForm(action) {
     switchView('form-transaction');
+    bindNominalFormatters();
     document.getElementById('formTransaction').reset();
     document.getElementById('tr_row').value = '';
     const tipeKey = action === 'Pemasukan' ? 'form.pemasukan' : 'form.pengeluaran';
@@ -158,7 +184,7 @@
       tanggal,
       tipe: document.getElementById('tr_tipe').value,
       kategori: document.getElementById('tr_kategori').value,
-      nominal: parseFloat(document.getElementById('tr_nominal').value),
+      nominal: parseFormattedNominal(document.getElementById('tr_nominal').value),
       keterangan: document.getElementById('tr_keterangan').value,
       walletId: (document.getElementById('tr_wallet') || {}).value || ''
     };
@@ -233,7 +259,7 @@
     document.getElementById('tr_action').value = 'Edit';
     document.getElementById('tr_row').value = tx.id;
     document.getElementById('tr_kategori').value = tx.kategori;
-    document.getElementById('tr_nominal').value = tx.nominal;
+    document.getElementById('tr_nominal').value = formatNominalInputValue(tx.nominal);
     document.getElementById('tr_keterangan').value = tx.keterangan || '';
     fillWalletSelect('tr_wallet', tx.walletId);
     if (root.fpTanggal) {
@@ -243,7 +269,43 @@
     if (inputTgl) inputTgl.value = tx.tanggal;
   }
 
+  function showUndoDeleteToast(txSnapshot) {
+    if (!txSnapshot) return;
+    document.getElementById('mkUndoToast')?.remove();
+    const toast = document.createElement('div');
+    toast.id = 'mkUndoToast';
+    toast.setAttribute('role', 'status');
+    toast.className = 'fixed bottom-20 lg:bottom-6 left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center justify-between gap-3 border border-slate-700 dark:border-slate-200';
+    renderHtml(toast, `
+      <span class="text-xs font-semibold truncate">Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})</span>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" id="btnUndoDeleteTx" class="px-3 py-1.5 rounded-xl bg-brand text-white text-[11px] font-bold">Batalkan</button>
+        <button type="button" id="btnDismissUndoTx" aria-label="Tutup" class="p-1 opacity-75 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
+      </div>
+    `);
+    document.body.appendChild(toast);
+    const timer = root.setTimeout(() => toast.remove(), 6000);
+    document.getElementById('btnDismissUndoTx').onclick = () => { root.clearTimeout(timer); toast.remove(); };
+    document.getElementById('btnUndoDeleteTx').onclick = async () => {
+      root.clearTimeout(timer);
+      toast.remove();
+      try {
+        await refreshFromServer(await callServer('api_addTransaction', {
+          tanggal: txSnapshot.tanggal,
+          tipe: txSnapshot.tipe,
+          kategori: txSnapshot.kategori,
+          nominal: Number(txSnapshot.nominal) || 0,
+          keterangan: txSnapshot.keterangan || '',
+          walletId: txSnapshot.walletId || ''
+        }));
+      } catch (err) {
+        showActionError(err);
+      }
+    };
+  }
+
   function deleteTransaction(id) {
+    const targetTx = (DB.transactions || []).find((x) => String(x.id) === String(id));
     Swal.fire({
       title: 'Hapus Data?',
       text: 'Data tidak bisa dikembalikan!',
@@ -256,14 +318,19 @@
       if (!r.isConfirmed) return;
       try {
         await refreshFromServer(await callServer('api_deleteTransaction', id));
+        if (targetTx) showUndoDeleteToast(targetTx);
       } catch (e) {
         showActionError(e);
       }
     });
   }
 
+  document.addEventListener('DOMContentLoaded', bindNominalFormatters);
+
   Object.assign(root, {
     openForm,
+    addQuickNominalAmount,
+    resetQuickNominalAmount,
     promptAddCategory,
     syncFormCategorySelect,
     openManageCategoriesModal,

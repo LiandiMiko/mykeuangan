@@ -9,7 +9,8 @@ const historiHtml = fs.readFileSync('src/histori.html', 'utf8');
 const asetHtml = fs.readFileSync('src/aset.html', 'utf8');
 const aiHtml = fs.readFileSync('src/ai.html', 'utf8');
 const formHtml = fs.readFileSync('src/form.html', 'utf8');
-const featuresV35Html = fs.readFileSync('src/features-v35.html', 'utf8');
+const budgetingHtml = fs.readFileSync('src/budgeting.html', 'utf8');
+const uiProPaletteJs = fs.readFileSync('web/ui-pro-palette.js', 'utf8');
 const stylesHtml = fs.readFileSync('src/styles.html', 'utf8');
 const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
@@ -63,7 +64,11 @@ test('mobile bottom nav, responsive dropdowns, and Phosphor v2 icons use valid c
   assert.match(dashboardHtml, /id="dash-cash-out"/);
   assert.match(laporanHtml, /id="list-laporan-mobile"/);
   assert.match(laporanHtml, /id="lapSelectAllMobile"/);
-  assert.match(featuresV35Html, /ArrowDown/);
-  assert.match(featuresV35Html, /Enter/);
+  assert.match(indexHtml, /id="networkStatusPill"/);
+  assert.match(indexHtml, /a11y\.skip_main/);
+  assert.match(formHtml, /addQuickNominalAmount\(/);
+  assert.match(budgetingHtml, /id="budgetForecastCard"/);
+  assert.match(uiProPaletteJs, /ArrowDown/);
+  assert.match(uiProPaletteJs, /Enter/);
   assert.match(stylesHtml, /crossorigin="anonymous"/);
 });

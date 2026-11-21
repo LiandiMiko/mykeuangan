@@ -14,12 +14,25 @@
 </head>
 
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans min-h-screen flex transition-colors duration-300 overflow-x-hidden">
+  <a href="#mainContent" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[120] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-brand focus:text-white focus:font-bold focus:text-xs shadow-lg" data-i18n="a11y.skip_main">Loncat ke konten utama</a>
 
-  <!-- Loading Overlay -->
-  <div id="appLoader" class="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-    <div class="text-center">
-      <div class="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p class="text-sm font-semibold text-slate-500">Memuat data...</p>
+  <!-- Loading Skeleton Overlay -->
+  <div id="appLoader" class="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 p-4 sm:p-8 overflow-hidden" aria-label="Memuat aplikasi" role="status">
+    <div class="max-w-6xl mx-auto space-y-5 animate-pulse">
+      <div class="flex items-center justify-between gap-4">
+        <div class="h-10 w-44 rounded-2xl bg-slate-200 dark:bg-slate-800"></div>
+        <div class="flex gap-2">
+          <div class="h-10 w-24 rounded-xl bg-slate-200 dark:bg-slate-800"></div>
+          <div class="h-10 w-10 rounded-xl bg-slate-200 dark:bg-slate-800"></div>
+          <div class="h-10 w-10 rounded-xl bg-slate-200 dark:bg-slate-800"></div>
+        </div>
+      </div>
+      <div class="h-44 rounded-3xl bg-slate-200 dark:bg-slate-800"></div>
+      <div class="h-20 rounded-3xl bg-slate-200 dark:bg-slate-800"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div class="lg:col-span-7 h-72 rounded-3xl bg-slate-200 dark:bg-slate-800"></div>
+        <div class="lg:col-span-5 h-72 rounded-3xl bg-slate-200 dark:bg-slate-800"></div>
+      </div>
     </div>
   </div>
 
@@ -66,7 +79,7 @@
       <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
     </span>
     <span class="flex items-center gap-1.5 shrink-0">
-      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold leading-none">v3.11</span>
+      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold leading-none">v3.12</span>
       <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
     </span>
   </button>
@@ -168,6 +181,9 @@
           <i class="ph ph-magnifying-glass text-base" aria-hidden="true"></i>
           <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold">Ctrl K</kbd>
         </button>
+        <button id="networkStatusPill" type="button" onclick="flushOfflineQueue(false)" aria-label="Status jaringan dan antrean offline"
+                class="hide inline-flex items-center gap-1 h-9 sm:h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0">
+        </button>
         <button id="notifBellBtn" type="button" onclick="openNotificationsModal()" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
                 class="relative w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
           <i class="ph ph-bell" aria-hidden="true"></i>
@@ -185,6 +201,7 @@
     </header>
 
     <div class="p-4 sm:p-6 md:p-8 pb-24 lg:pb-8 max-w-7xl mx-auto w-full relative">
+      <div id="appLoadErrorBanner" class="hide mb-5"></div>
       <?!= include('dashboard'); ?>
       <?!= include('aset'); ?>
       <?!= include('histori'); ?>

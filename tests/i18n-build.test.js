@@ -75,10 +75,11 @@ test('security headers, modular UI build wiring, package.json, and static Tailwi
   assert.match(deployYml, /tailwindcss@3\.4\.17/);
   assert.match(buildMjs, /UI_CORE_MODULES/);
   assert.match(buildMjs, /UI_FEATURES_MODULES/);
+  assert.match(buildMjs, /UI_PRO_MODULES/);
   assert.match(buildMjs, /unsafe-eval/);
 
-  const modArrays = [...buildMjs.matchAll(/const (?:WEB|UI_CORE|UI_FEATURES|SUPABASE)_MODULES = \[([\s\S]*?)\];/g)];
-  assert.equal(modArrays.length, 4, 'build.mjs must define all 4 module arrays');
+  const modArrays = [...buildMjs.matchAll(/const (?:WEB|UI_CORE|UI_FEATURES|UI_PRO|SUPABASE)_MODULES = \[([\s\S]*?)\];/g)];
+  assert.equal(modArrays.length, 5, 'build.mjs must define all 5 module arrays');
   modArrays.forEach((m) => {
     for (const fileMatch of m[1].matchAll(/'([^']+\.js)'/g)) {
       assert.ok(fs.existsSync(path.join('web', fileMatch[1])), `Missing module web/${fileMatch[1]}`);
@@ -86,11 +87,14 @@ test('security headers, modular UI build wiring, package.json, and static Tailwi
   });
 
   assert.ok(pkg.scripts && pkg.scripts.test, 'package.json must define test script');
+  assert.ok(pkg.scripts.check, 'package.json must define check script');
   assert.ok(pkg.scripts['build:css'], 'package.json must define build:css script');
   assert.ok(pkg.scripts.build, 'package.json must define build script');
+  assert.ok(fs.existsSync('scripts/check-syntax.mjs'), 'scripts/check-syntax.mjs must exist');
+  assert.match(fs.readFileSync('src/styles.html', 'utf8'), /prefers-reduced-motion/);
 });
 
-test('no dynamic Tailwind utility interpolation exists and escapeAttrJS neutralizes HTML entities and newlines', () => {
+test('no dynamic Tailwind utility interpolation exists and escapeAttrJS neutralizes HTML entities and newlines', async () => {
   const dynTailwind = /\b(?:bg|text|border|ring|from|to)-\$\{/;
   fs.readdirSync('src').filter((n) => n.endsWith('.html')).forEach((name) => {
     assert.doesNotMatch(fs.readFileSync(`src/${name}`, 'utf8'), dynTailwind, `Dynamic Tailwind class in src/${name}`);
@@ -103,6 +107,8 @@ test('no dynamic Tailwind utility interpolation exists and escapeAttrJS neutrali
   const windowObj = {};
   const sandbox = {
     window: windowObj,
+    renderAll: () => {},
+    updateDashboardTitle: () => {},
     localStorage: { getItem: () => '0', setItem: () => {} },
     document: { documentElement: { classList: { contains: () => false } } }
   };
@@ -117,6 +123,16 @@ test('no dynamic Tailwind utility interpolation exists and escapeAttrJS neutrali
   const escapedTag = windowObj.escapeAttrJS(tagPayload);
   assert.ok(!escapedTag.includes('<') && !escapedTag.includes('>') && !escapedTag.includes('\n') && !escapedTag.includes('\r'));
   assert.ok(escapedTag.includes("\\'"));
+
+  assert.equal(windowObj.formatNominalInputValue(1500000), '1.500.000');
+  assert.equal(windowObj.formatNominalInputValue('250000'), '250.000');
+  assert.equal(windowObj.parseFormattedNominal('1.500.000'), 1500000);
+  assert.equal(windowObj.parseFormattedNominal('Rp 1.250.000'), 1250000);
+  assert.ok(Number.isNaN(windowObj.parseFormattedNominal('')));
+
+  windowObj.DB.transactions = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
+  await windowObj.refreshFromServer({ deletedTransactionIds: ['t1', 't3'] });
+  assert.deepEqual(windowObj.DB.transactions.map((x) => x.id), ['t2']);
 });
 
 test('telegram bot supports insight fallback, smart wallet matching, accurate copy count, and days 1..31', () => {
@@ -130,4 +146,21 @@ test('telegram bot supports insight fallback, smart wallet matching, accurate co
   assert.match(botPlanning, /day\s*>\s*31/);
   assert.match(botPlanning, /rows\.length.*kategori di-copy/);
   assert.match(botWallets, /export function matchWalletFromText/);
+});
+
+test('edge functions support multi-origin CORS, bulk sync removes all IDs, and auth avoids native alert', () => {
+  const adminEdge = fs.readFileSync('supabase/functions/admin-password/index.ts', 'utf8');
+  const botJobs = fs.readFileSync('supabase/functions/telegram-bot/jobs.ts', 'utf8');
+  const proReports = fs.readFileSync('web/ui-pro-reports.js', 'utf8');
+  const supabaseAuth = fs.readFileSync('web/supabase-auth.js', 'utf8');
+  const supabaseCore = fs.readFileSync('web/supabase-core.js', 'utf8');
+
+  assert.match(adminEdge, /function buildCorsHeaders/);
+  assert.match(adminEdge, /'Vary'/);
+  assert.match(botJobs, /export function buildCorsHeaders/);
+  assert.match(botJobs, /'Vary'/);
+  assert.match(proReports, /addedTransactions/);
+  assert.match(proReports, /deletedTransactionIds/);
+  assert.doesNotMatch(supabaseAuth, /\balert\(/);
+  assert.doesNotMatch(supabaseCore, /\balert\(/);
 });

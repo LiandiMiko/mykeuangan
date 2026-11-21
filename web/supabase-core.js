@@ -2,13 +2,55 @@
 (function () {
   'use strict';
 
+  function showCoreNotice(title, msg, options) {
+    const opts = options || {};
+    if (opts.preferSwal !== false && window.Swal && typeof window.Swal.fire === 'function') {
+      const dark = document.documentElement.classList.contains('dark');
+      return window.Swal.fire({
+        icon: opts.icon || 'error',
+        title,
+        text: msg,
+        customClass: { popup: dark ? 'dark-swal' : '' }
+      });
+    }
+    return new Promise((resolve) => {
+      const render = () => {
+        const wrap = document.createElement('div');
+        wrap.setAttribute('role', 'alertdialog');
+        wrap.setAttribute('aria-modal', 'true');
+        wrap.style.cssText = 'position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,0.8);font-family:Inter,system-ui,sans-serif;';
+        const card = document.createElement('div');
+        card.style.cssText = 'max-width:400px;width:100%;background:#fff;color:#0f172a;padding:22px;border-radius:20px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.3);';
+        const h = document.createElement('h2');
+        h.style.cssText = 'margin:0 0 8px;font-size:17px;font-weight:800;color:#e11d48;';
+        h.textContent = title;
+        const p = document.createElement('p');
+        p.style.cssText = 'margin:0;font-size:13px;line-height:1.5;color:#475569;';
+        p.textContent = msg;
+        card.append(h, p);
+        if (opts.closable) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = 'OK';
+          btn.style.cssText = 'margin-top:16px;padding:9px 20px;border:0;border-radius:10px;background:#4f46e5;color:#fff;font-weight:700;cursor:pointer;';
+          btn.onclick = () => { wrap.remove(); resolve(); };
+          card.appendChild(btn);
+        }
+        wrap.appendChild(card);
+        document.body.appendChild(wrap);
+      };
+      if (document.body) render();
+      else document.addEventListener('DOMContentLoaded', render, { once: true });
+    });
+  }
+
   if (!window.supabase || !window.supabase.createClient) {
-    alert('Library Supabase gagal dimuat (jaringan atau ad-blocker memblokir CDN). Muat ulang halaman dengan Ctrl+F5.');
+    showCoreNotice('Jaringan / Library Bermasalah', 'Library Supabase gagal dimuat (jaringan atau ad-blocker memblokir CDN). Muat ulang halaman dengan Ctrl+F5.', { preferSwal: false });
     return;
   }
   const cfg = window.APP_CONFIG || {};
   if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
-    alert('web/config.js belum diisi (SUPABASE_URL & SUPABASE_ANON_KEY).');
+    showCoreNotice('Konfigurasi Belum Diisi', 'web/config.js belum diisi (SUPABASE_URL & SUPABASE_ANON_KEY).', { preferSwal: false });
     return;
   }
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
@@ -259,7 +301,7 @@
   }
 
   window.__mkSb = {
-    sb, fail, num, pad, ymd, ready, resolveReady: () => readyResolve(),
+    sb, fail, num, pad, ymd, ready, resolveReady: () => readyResolve(), showCoreNotice,
     fetchAll, getSettings, setSetting, cycleFor, syncPeriod, trxRow, trxFromRow,
     fetchCategoriesOnly, fetchEntitiesOnly, fetchBudgetsOnly, fetchWalletsOnly,
     fetchWalletsAndTransfers, fetchAssetsOnly, fetchRecurringOnly, goalFromRow,

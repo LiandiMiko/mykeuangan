@@ -99,6 +99,32 @@
     return msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed');
   }
 
+  function updateNetworkStatusPill() {
+    const pill = document.getElementById('networkStatusPill');
+    if (!pill) return;
+    const pendingCount = readLocalQueue().length;
+    const offline = !navigator.onLine;
+    if (!offline && pendingCount === 0) {
+      pill.classList.add('hide');
+      return;
+    }
+    pill.classList.remove('hide');
+    pill.textContent = '';
+    const icon = document.createElement('i');
+    icon.className = offline ? 'ph-bold ph-wifi-slash text-sm' : 'ph-bold ph-arrows-clockwise text-sm';
+    icon.setAttribute('aria-hidden', 'true');
+    const txt = document.createElement('span');
+    txt.textContent = offline
+      ? (pendingCount > 0 ? `Offline (${pendingCount})` : 'Offline')
+      : `Sync (${pendingCount})`;
+    pill.className = 'inline-flex items-center gap-1 h-9 sm:h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0 ' +
+      (offline
+        ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+        : 'border-brand/40 bg-brand/10 text-brand dark:text-brand-ink');
+    pill.title = offline ? 'Mode offline aktif — transaksi baru tersimpan lokal' : 'Klik untuk menyinkronkan antrean offline';
+    pill.append(icon, txt);
+  }
+
   async function flushOfflineQueue(silent) {
     if (isFlushingOffline || !navigator.onLine) return 0;
     const queue = await getOfflineQueueItems();
@@ -143,6 +169,7 @@
       }
     } finally {
       isFlushingOffline = false;
+      updateNetworkStatusPill();
       if (typeof refreshNotificationBell === 'function') refreshNotificationBell();
     }
     return synced;
@@ -168,6 +195,7 @@
     const localId = 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     await saveOfflineQueueItem({ localId, payload: txPayload, createdAt: new Date().toISOString() });
     setTimeout(() => {
+      updateNetworkStatusPill();
       if (typeof refreshNotificationBell === 'function') refreshNotificationBell();
     }, 50);
     return buildOfflineTransactionResponse(localId, txPayload);
@@ -201,7 +229,12 @@
     };
   }
 
+  root.addEventListener('online', updateNetworkStatusPill);
+  root.addEventListener('offline', updateNetworkStatusPill);
+  document.addEventListener('DOMContentLoaded', updateNetworkStatusPill);
+
   root.flushOfflineQueue = flushOfflineQueue;
+  root.updateNetworkStatusPill = updateNetworkStatusPill;
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.readLocalQueue = readLocalQueue;
   root.__mkFeat.waitAndWrapCallServer = waitAndWrapCallServer;

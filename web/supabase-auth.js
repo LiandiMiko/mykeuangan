@@ -3,7 +3,7 @@
   'use strict';
   const core = window.__mkSb;
   if (!core) return;
-  const { sb, fail, resolveReady } = core;
+  const { sb, fail, resolveReady, showCoreNotice } = core;
 
   const LOGOUT_STORAGE_KEYS = [
     'mk_gemini_api_key',
@@ -21,6 +21,15 @@
     'mk_last_seen_release'
   ];
 
+  function escapeAuthAttr(val) {
+    return String(val == null ? '' : val).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  const showAuthNotice = (title, msg) => showCoreNotice(title, msg, { closable: true });
+  const isAuthEn = () => localStorage.getItem('lang') === 'en';
+
   async function finishLogin(session) {
     const user = session && session.user;
     const email = (user && user.email) || '';
@@ -34,7 +43,7 @@
         fail(error);
         if (!prof) throw new Error('Profil akun belum tersedia. Hubungi administrator untuk menyelesaikan penyiapan akun.');
         if (prof.status !== 'active') {
-          alert('Akun Anda belum aktif. Hubungi administrator untuk bantuan.');
+          await showAuthNotice('Akun Nonaktif', 'Akun Anda belum aktif. Hubungi administrator untuk bantuan.');
           await sb.auth.signOut();
           location.reload();
           return;
@@ -53,7 +62,7 @@
       }
     } catch (e) {
       console.error('finishLogin', e);
-      alert('Tidak dapat memuat profil akun: ' + (e.message || String(e)));
+      await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (e.message || String(e)));
     }
     resolveReady();
   }
@@ -68,7 +77,7 @@
       const { data: profile, error } = await sb.from('profiles').select('status').eq('id', authData.user.id).maybeSingle();
       fail(error);
       if (!profile || profile.status !== 'active') {
-        alert('Akun Anda tidak lagi aktif. Sesi akan ditutup.');
+        await showAuthNotice('Sesi Berakhir', 'Akun Anda tidak lagi aktif. Sesi akan ditutup.');
         await sb.auth.signOut();
         location.reload();
       }
@@ -91,80 +100,87 @@
     if (document.visibilityState === 'visible') refreshActiveSession();
   }, 60000);
 
-  function buildAuthModeFields(mode, theme) {
+  function buildAuthModeFields(mode, theme, savedEmail) {
+    const en = isAuthEn();
+    const tAuth = (idStr, enStr) => (en ? enStr : idStr);
     const { textMain, textMuted, field, fieldLabel, passInputGroup, primaryBtn, linkStyle } = theme;
+    const emailAttr = escapeAuthAttr(savedEmail || '');
+    const emailLabel = tAuth('Alamat Email', 'Email Address');
+    const emailPh = tAuth('nama@email.com', 'name@email.com');
     if (mode === 'login') {
       return `
-        <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">Masuk ke Akun</h2>
-        <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">Kelola arus kas, dompet, dan portofolio Anda</p>
-        <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
-        <input id="mkEmail" type="email" placeholder="nama@email.com" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+        <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">${tAuth('Masuk ke Akun', 'Sign In')}</h2>
+        <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">${tAuth('Kelola arus kas, dompet, dan portofolio Anda', 'Track your cashflow, wallets, and portfolio')}</p>
+        <label for="mkEmail" style="${fieldLabel}">${emailLabel}</label>
+        <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" aria-describedby="mkErr" style="${field}">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <label for="mkPass" style="${fieldLabel}">Kata Sandi</label>
-          <a href="#" id="mkForgotLink" style="${linkStyle};font-size:11.5px;font-weight:600">Lupa kata sandi?</a>
+          <label for="mkPass" style="${fieldLabel}">${tAuth('Kata Sandi', 'Password')}</label>
+          <a href="#" id="mkForgotLink" style="${linkStyle};font-size:11.5px;font-weight:600">${tAuth('Lupa kata sandi?', 'Forgot password?')}</a>
         </div>
-        ${passInputGroup('mkPass', 'Masukkan kata sandi', 'current-password', 0)}
-        <button type="submit" id="mkSubmitBtn" style="${primaryBtn}">Masuk Sekarang</button>
+        ${passInputGroup('mkPass', tAuth('Masukkan kata sandi', 'Enter password'), 'current-password', 0)}
+        <button type="submit" id="mkSubmitBtn" style="${primaryBtn}">${tAuth('Masuk Sekarang', 'Sign In')}</button>
         <p style="margin:10px 0 0;font-size:12.5px;color:${textMuted};text-align:center">
-          Belum punya akun? <a href="#" id="mkRegisterLink" style="${linkStyle};font-weight:700">Daftar gratis</a>
+          ${tAuth('Belum punya akun?', "Don't have an account?")} <a href="#" id="mkRegisterLink" style="${linkStyle};font-weight:700">${tAuth('Daftar gratis', 'Sign up free')}</a>
         </p>`;
     }
     if (mode === 'register') {
       return `
-        <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">Daftar Akun Baru</h2>
-        <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">Gratis &amp; privat dengan proteksi enkripsi per pengguna</p>
-        <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
-        <input id="mkEmail" type="email" placeholder="nama@email.com" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-        <label for="mkPass" style="${fieldLabel}">Kata Sandi (min. 8 karakter)</label>
-        ${passInputGroup('mkPass', 'Minimal 8 karakter', 'new-password', 8)}
-        <label for="mkPassConfirm" style="${fieldLabel}">Ulangi Kata Sandi</label>
-        ${passInputGroup('mkPassConfirm', 'Ulangi kata sandi', 'new-password', 8)}
-        <button type="submit" id="mkSubmitBtn" style="${primaryBtn};background:linear-gradient(135deg,#059669 0%,#14b8a6 100%)">Daftar Akun</button>
+        <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">${tAuth('Daftar Akun Baru', 'Create Account')}</h2>
+        <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">${tAuth('Gratis & privat dengan proteksi isolasi data per pengguna', 'Free & private with per-user row-level security')}</p>
+        <label for="mkEmail" style="${fieldLabel}">${emailLabel}</label>
+        <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+        <label for="mkPass" style="${fieldLabel}">${tAuth('Kata Sandi (min. 8 karakter)', 'Password (min. 8 chars)')}</label>
+        ${passInputGroup('mkPass', tAuth('Minimal 8 karakter', 'At least 8 characters'), 'new-password', 8)}
+        <p id="mkPassStrength" style="margin:-2px 0 2px;font-size:11px;min-height:14px;font-weight:700"></p>
+        <label for="mkPassConfirm" style="${fieldLabel}">${tAuth('Ulangi Kata Sandi', 'Confirm Password')}</label>
+        ${passInputGroup('mkPassConfirm', tAuth('Ulangi kata sandi', 'Repeat password'), 'new-password', 8)}
+        <button type="submit" id="mkSubmitBtn" style="${primaryBtn};background:linear-gradient(135deg,#059669 0%,#14b8a6 100%)">${tAuth('Daftar Akun', 'Create Account')}</button>
         <p style="margin:10px 0 0;font-size:12.5px;color:${textMuted};text-align:center">
-          Sudah punya akun? <a href="#" id="mkLoginLink" style="${linkStyle};font-weight:700">Masuk di sini</a>
+          ${tAuth('Sudah punya akun?', 'Already have an account?')} <a href="#" id="mkLoginLink" style="${linkStyle};font-weight:700">${tAuth('Masuk di sini', 'Sign in')}</a>
         </p>`;
     }
     return `
-      <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">Reset Kata Sandi</h2>
-      <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">Masukkan email terdaftar untuk menerima tautan reset</p>
-      <label for="mkEmail" style="${fieldLabel}">Alamat Email</label>
-      <input id="mkEmail" type="email" placeholder="nama@email.com" required autocomplete="username" aria-describedby="mkErr" style="${field}">
-      <button type="submit" id="mkSubmitBtn" style="${primaryBtn}">Kirim Link Reset</button>
+      <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">${tAuth('Reset Kata Sandi', 'Reset Password')}</h2>
+      <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">${tAuth('Masukkan email terdaftar untuk menerima tautan reset', 'Enter your registered email to receive a reset link')}</p>
+      <label for="mkEmail" style="${fieldLabel}">${emailLabel}</label>
+      <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+      <button type="submit" id="mkSubmitBtn" style="${primaryBtn}">${tAuth('Kirim Link Reset', 'Send Reset Link')}</button>
       <p style="margin:10px 0 0;font-size:12.5px;color:${textMuted};text-align:center">
-        Kembali ke <a href="#" id="mkLoginLink" style="${linkStyle};font-weight:700">Halaman Masuk</a>
+        ${tAuth('Kembali ke', 'Back to')} <a href="#" id="mkLoginLink" style="${linkStyle};font-weight:700">${tAuth('Halaman Masuk', 'Sign In')}</a>
       </p>`;
   }
 
   async function executeAuthSubmit(submitMode, el, errEl) {
+    const en = isAuthEn();
     const email = el.querySelector('#mkEmail').value.trim();
     if (submitMode === 'login') {
       const pass = el.querySelector('#mkPass').value;
       const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-      if (error) { errEl.textContent = 'Gagal masuk: ' + error.message; return; }
+      if (error) { errEl.textContent = (en ? 'Sign in failed: ' : 'Gagal masuk: ') + error.message; return; }
       el.remove();
       finishLogin(data.session);
     } else if (submitMode === 'register') {
       const pass = el.querySelector('#mkPass').value;
       const passConfirm = el.querySelector('#mkPassConfirm').value;
       if (pass.length < 8 || pass.length > 128) {
-        errEl.textContent = 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+        errEl.textContent = en ? 'Password must be 8 to 128 characters.' : 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
         return;
       }
-      if (pass !== passConfirm) { errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
+      if (pass !== passConfirm) { errEl.textContent = en ? 'Password confirmation does not match.' : 'Konfirmasi kata sandi tidak cocok.'; return; }
       const { data, error } = await sb.auth.signUp({ email, password: pass });
-      if (error) { errEl.textContent = 'Pendaftaran gagal: ' + error.message; return; }
+      if (error) { errEl.textContent = (en ? 'Sign up failed: ' : 'Pendaftaran gagal: ') + error.message; return; }
       if (data.session) {
         el.remove();
         finishLogin(data.session);
       } else {
         errEl.style.color = '#10b981';
-        errEl.textContent = 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
+        errEl.textContent = en ? 'Account created! Check your email or try signing in.' : 'Pendaftaran berhasil! Cek email untuk konfirmasi atau coba masuk.';
       }
     } else if (submitMode === 'forgot') {
       const { error } = await sb.auth.resetPasswordForEmail(email);
-      if (error) { errEl.textContent = 'Gagal kirim reset: ' + error.message; return; }
+      if (error) { errEl.textContent = (en ? 'Failed to send reset link: ' : 'Gagal kirim reset: ') + error.message; return; }
       errEl.style.color = '#10b981';
-      errEl.textContent = 'Link reset berhasil dikirim ke email Anda.';
+      errEl.textContent = en ? 'Password reset link sent to your email.' : 'Link reset berhasil dikirim ke email Anda.';
     }
   }
 
@@ -192,6 +208,37 @@
     return { isDark, savedTheme, cardBg, textMain, textMuted, inputBorder, field, fieldLabel, passInputGroup, primaryBtn, linkStyle };
   }
 
+  function bindPassControls(el) {
+    el.querySelectorAll('[data-toggle-pass]').forEach((btn) => {
+      btn.onclick = () => {
+        const input = el.querySelector('#' + btn.dataset.togglePass);
+        if (!input) return;
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        const icon = document.createElement('i');
+        icon.className = `ph ph-${showing ? 'eye' : 'eye-slash'}`;
+        icon.setAttribute('aria-hidden', 'true');
+        icon.style.fontSize = '17px';
+        btn.replaceChildren(icon);
+      };
+    });
+    const passInput = el.querySelector('#mkPass');
+    const strengthEl = el.querySelector('#mkPassStrength');
+    if (!passInput || !strengthEl) return;
+    passInput.oninput = () => {
+      const v = passInput.value;
+      const en = isAuthEn();
+      if (!v) { strengthEl.textContent = ''; return; }
+      const strong = v.length >= 10 && /[A-Z]/.test(v) && /\d/.test(v) && /[^A-Za-z0-9]/.test(v);
+      const fair = v.length >= 8 && /[A-Za-z]/.test(v) && (/\d/.test(v) || /[^A-Za-z0-9]/.test(v));
+      strengthEl.style.color = v.length < 8 ? '#e11d48' : strong ? '#059669' : fair ? '#d97706' : '#0284c7';
+      strengthEl.textContent = v.length < 8
+        ? (en ? 'Too short (min. 8 chars)' : 'Terlalu pendek (min. 8 karakter)')
+        : strong ? (en ? 'Strength: Strong' : 'Kekuatan: Kuat')
+          : fair ? (en ? 'Strength: Fair' : 'Kekuatan: Cukup') : (en ? 'Strength: Weak' : 'Kekuatan: Lemah');
+    };
+  }
+
   function showLogin() {
     const theme = createAuthTheme();
     const el = document.createElement('div');
@@ -200,24 +247,21 @@
       (theme.isDark ? 'background:radial-gradient(circle at top,#1e293b 0%,#020617 70%)' : 'background:radial-gradient(circle at top,#eef2ff 0%,#f1f5f9 75%)');
     let mode = 'login';
     let isSubmitting = false;
+    let lastEmail = '';
 
     const bindFormEvents = () => {
-      el.querySelectorAll('[data-toggle-pass]').forEach((btn) => {
-        btn.onclick = () => {
-          const input = el.querySelector('#' + btn.dataset.togglePass);
-          if (!input) return;
-          const showing = input.type === 'text';
-          input.type = showing ? 'password' : 'text';
-          const icon = document.createElement('i');
-          icon.className = `ph ph-${showing ? 'eye' : 'eye-slash'}`;
-          icon.setAttribute('aria-hidden', 'true');
-          icon.style.fontSize = '17px';
-          btn.replaceChildren(icon);
-        };
-      });
+      bindPassControls(el);
       [['#mkRegisterLink', 'register'], ['#mkLoginLink', 'login'], ['#mkForgotLink', 'forgot']].forEach(([sel, nextMode]) => {
         const node = el.querySelector(sel);
-        if (node) node.onclick = (ev) => { ev.preventDefault(); if (!isSubmitting) { mode = nextMode; renderForm(); } };
+        if (node) {
+          node.onclick = (ev) => {
+            ev.preventDefault();
+            if (isSubmitting) return;
+            lastEmail = (el.querySelector('#mkEmail') || {}).value || lastEmail;
+            mode = nextMode;
+            renderForm();
+          };
+        }
       });
       el.querySelector('#mkAuthForm').onsubmit = async (e) => {
         e.preventDefault();
@@ -231,11 +275,11 @@
         btn.disabled = true;
         btn.setAttribute('aria-busy', 'true');
         btn.style.opacity = '0.7';
-        btn.textContent = 'Memproses...';
+        btn.textContent = isAuthEn() ? 'Processing...' : 'Memproses...';
         try {
           await executeAuthSubmit(mode, el, errEl);
         } catch (error) {
-          errEl.textContent = 'Gagal: ' + (error.message || String(error));
+          errEl.textContent = (isAuthEn() ? 'Failed: ' : 'Gagal: ') + (error.message || String(error));
         } finally {
           isSubmitting = false;
           const cur = el.querySelector('#mkSubmitBtn');
@@ -245,7 +289,7 @@
     };
 
     function renderForm() {
-      const content = buildAuthModeFields(mode, theme);
+      const content = buildAuthModeFields(mode, theme, lastEmail);
       const markup = `
         <div style="background:${theme.cardBg};padding:28px 24px;border-radius:24px;width:min(92vw,400px);box-shadow:0 25px 60px -15px rgba(15,23,42,${theme.isDark ? '0.65' : '0.18'});border:1px solid ${theme.inputBorder}">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid ${theme.inputBorder}">

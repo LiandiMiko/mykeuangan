@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, getSwalClass, escapeHtmlJS, renderHtml, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, syncFormCategorySelect, localToday, currentLang, t */
+/* global DB, FinanceAnalysis, Swal, getSwalClass, escapeHtmlJS, renderHtml, formatNominalInputValue, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, syncFormCategorySelect, localToday, currentLang, t */
 /* ============================================================
    FEATURES — RECEIPT OCR SCANNER & AI CHAT BASE
    ============================================================ */
@@ -83,7 +83,7 @@
     if (root.fpTanggal) {
       try { root.fpTanggal.setDate(parsed.tanggal, true); } catch (_) { /* ignore */ }
     }
-    document.getElementById('tr_nominal').value = parsed.nominal;
+    document.getElementById('tr_nominal').value = formatNominalInputValue(parsed.nominal);
     document.getElementById('tr_keterangan').value = parsed.keterangan;
   }
 
@@ -118,7 +118,7 @@
       Swal.fire({
         icon: 'success',
         title: 'Struk terbaca!',
-        text: 'Periksa kembali isian lalu klik Enkripsi & Simpan.',
+        text: 'Periksa kembali isian lalu klik Simpan Transaksi.',
         timer: 1800,
         showConfirmButton: false,
         customClass: { popup: getSwalClass() }

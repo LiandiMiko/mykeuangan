@@ -12,8 +12,8 @@ Prasyarat: Supabase CLI terpasang (`npm i -g supabase` atau `npx supabase`), sud
    supabase secrets set TELEGRAM_BOT_TOKEN=<token dari @BotFather>
    supabase secrets set TELEGRAM_WEBHOOK_SECRET=<string acak panjang, huruf/angka/_/- saja>
    supabase secrets set GEMINI_API_KEY=<key Gemini>
-   supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io
-   (opsional) APP_TIMEZONE=Asia/Jakarta, GEMINI_MODEL_PARSER=gemini-2.5-flash, GEMINI_MODEL_INSIGHT=gemini-2.5-flash
+   supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,http://localhost:4173
+   (mendukung banyak origin dipisah koma tanpa trailing slash; opsional: APP_TIMEZONE=Asia/Jakarta, GEMINI_MODEL_PARSER=gemini-2.5-flash, GEMINI_MODEL_INSIGHT=gemini-2.5-flash)
 4. Deploy:           `supabase functions deploy telegram-bot --no-verify-jwt`
    Reset password admin: `supabase functions deploy admin-password` (jangan gunakan `--no-verify-jwt`)
 5. Daftarkan webhook (ganti nilai; ini juga otomatis mematikan polling lama):

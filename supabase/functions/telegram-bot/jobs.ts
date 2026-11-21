@@ -4,14 +4,28 @@ import {
 } from './core.ts';
 import { getWallets } from './wallets.ts';
 
-export const CORS = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') || '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function resolveAllowedOrigin(req: Request): string {
+  const raw = Deno.env.get('ALLOWED_ORIGIN') || '*';
+  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
+  if (!list.length || list.includes('*')) return '*';
+  const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
+  if (reqOrigin && list.includes(reqOrigin)) return reqOrigin;
+  return list[0];
+}
 
-export const json = (obj: unknown, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'content-type': 'application/json' } });
+export function buildCorsHeaders(req: Request): Record<string, string> {
+  const origin = resolveAllowedOrigin(req);
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+  if (origin !== '*') headers['Vary'] = 'Origin';
+  return headers;
+}
+
+export const json = (req: Request, obj: unknown, status = 200) =>
+  new Response(JSON.stringify(obj), { status, headers: { ...buildCorsHeaders(req), 'content-type': 'application/json' } });
 
 const CRYPTO_MAP: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', ONDO: 'ondo-finance', TAO: 'bittensor', SOL: 'solana', ADA: 'cardano',
@@ -204,22 +218,22 @@ export async function handleJob(req: Request, job: string): Promise<Response> {
     const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const { data } = token ? await sb.auth.getUser(token) : { data: null };
     uid = data?.user?.id ?? null;
-    if (!uid || job !== 'refresh_prices' || !await isActiveUser(uid)) return json({ error: 'forbidden' }, 403);
+    if (!uid || job !== 'refresh_prices' || !await isActiveUser(uid)) return json(req, { error: 'forbidden' }, 403);
   }
   try {
-    if (job === 'refresh_prices' && uid) return json(await refreshPrices(uid));
+    if (job === 'refresh_prices' && uid) return json(req, await refreshPrices(uid));
     if (job === 'refresh_prices') {
       const activeIds = await getActiveUserIds();
       const { data } = await sb.from('assets').select('user_id');
       const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))].filter((u) => activeIds.has(u));
       let done = 0;
       for (const u of users) { try { await refreshPrices(u); done++; } catch (e) { console.error('refreshPrices', u, e); } }
-      return json({ users: done });
+      return json(req, { users: done });
     }
     const jobs: Record<string, () => Promise<unknown>> = { daily: dailyReminder, weekly: weeklyReport, recurring: runRecurring, snapshot: snapshotAll };
-    return jobs[job] ? json(await jobs[job]()) : json({ error: 'unknown job' }, 400);
+    return jobs[job] ? json(req, await jobs[job]()) : json(req, { error: 'unknown job' }, 400);
   } catch (e) {
     console.error('job', job, e);
-    return json({ error: String((e as Error).message || e) }, 500);
+    return json(req, { error: String((e as Error).message || e) }, 500);
   }
 }

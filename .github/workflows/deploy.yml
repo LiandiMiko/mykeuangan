@@ -21,6 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - run: node scripts/check-syntax.mjs
       - run: node --test
       - run: npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i web/tailwind-input.css -o web/vendor/tailwind.min.css --minify
       - run: node build.mjs

@@ -107,6 +107,29 @@
     selectEl.replaceChildren(...nodes);
   }
 
+  function formatNominalInputValue(raw) {
+    if (raw == null || raw === '') return '';
+    let intVal;
+    if (typeof raw === 'number') {
+      if (!Number.isFinite(raw) || raw < 0) return '';
+      intVal = Math.round(raw);
+    } else {
+      const digits = String(raw).replace(/[^\d]/g, '');
+      if (!digits) return '';
+      intVal = Number(digits);
+    }
+    if (!Number.isFinite(intVal)) return '';
+    return String(intVal).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  function parseFormattedNominal(raw) {
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : NaN;
+    const cleaned = String(raw || '').trim().replace(/rp/gi, '').replace(/[\s.]/g, '').replace(',', '.');
+    if (!cleaned) return NaN;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
   const _origFormatRupiah = (a) => new Intl.NumberFormat('id-ID', {
     style: 'currency', currency: 'IDR', minimumFractionDigits: 0
   }).format(a || 0);
@@ -214,8 +237,9 @@
 
   function mergeUpdatedTransactions(payload) {
     const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+    const bulkDeletes = Array.isArray(payload.deletedTransactionIds) ? payload.deletedTransactionIds : [];
     if (has('transactions') || payload.transaction || payload.addedTransactions ||
-      payload.deletedTransactionId || payload.renamedTransactionCategory) {
+      payload.deletedTransactionId || bulkDeletes.length || payload.renamedTransactionCategory) {
       laporanState.dirty = true;
     }
     if (has('transactions')) root.DB.transactions = payload.transactions || [];
@@ -231,8 +255,10 @@
         else root.DB.transactions[index] = transaction;
       });
     }
-    if (payload.deletedTransactionId) {
-      root.DB.transactions = root.DB.transactions.filter((item) => item.id !== payload.deletedTransactionId);
+    if (payload.deletedTransactionId || bulkDeletes.length) {
+      const removedIds = new Set(bulkDeletes.map(String));
+      if (payload.deletedTransactionId) removedIds.add(String(payload.deletedTransactionId));
+      root.DB.transactions = root.DB.transactions.filter((item) => !removedIds.has(String(item.id)));
     }
     if (payload.renamedTransactionCategory) {
       root.DB.transactions.forEach((item) => {
@@ -275,6 +301,8 @@
     escapeAttrJS,
     renderHtml,
     renderSelectOptions,
+    formatNominalInputValue,
+    parseFormattedNominal,
     _origFormatRupiah,
     formatRupiah,
     toggleHideNominal,

@@ -9,7 +9,7 @@ import {
   handleStatus, handleSaldo, handleBulan, handleTambah, handleFreeText,
   handleKategori, handleHapus, handleUndo, handleBatch,
 } from './commands.ts';
-import { CORS, handleJob } from './jobs.ts';
+import { buildCorsHeaders, handleJob } from './jobs.ts';
 
 async function handleCallback(c: Ctx, cbq: Any) {
   await tg('answerCallbackQuery', { callback_query_id: cbq.id });
@@ -136,7 +136,7 @@ async function handlePairingCommand(chat: number, firstName: string, otp: string
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: buildCorsHeaders(req) });
   if (req.method !== 'POST') return new Response('ok');
   let update: Any;
   try { update = await req.json(); } catch { return new Response('bad request', { status: 400 }); }

@@ -47,7 +47,7 @@
       </div>
       <div>
         <label class="block text-[10px] font-bold mb-1.5 uppercase tracking-widest text-slate-500" data-i18n="budget.jumlah">Jumlah Budget (Rp)</label>
-        <input type="number" id="budgetJumlah" min="0" placeholder="0" class="w-full min-h-11 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand font-bold text-slate-800 dark:text-white text-sm">
+        <input type="text" id="budgetJumlah" inputmode="numeric" autocomplete="off" placeholder="0" class="w-full min-h-11 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand font-bold text-slate-800 dark:text-white text-sm tabular-nums">
       </div>
       <button onclick="saveBudget()" class="min-h-11 px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm flex items-center gap-2 justify-center">
         <i class="ph-bold ph-check" aria-hidden="true"></i> <span data-i18n="btn.simpan">Simpan</span>
@@ -71,6 +71,7 @@
     <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden mb-4">
       <div id="budgetSummary"></div>
     </div>
+    <div id="budgetForecastCard" class="mb-4"></div>
     <div id="budgetInsights" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" aria-live="polite"></div>
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
       <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
