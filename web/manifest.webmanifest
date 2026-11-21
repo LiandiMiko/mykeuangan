@@ -1,12 +1,12 @@
 {
-  "name": "MyKeuanganGuech — Kelola Finansial Cerdas",
-  "short_name": "MyKeuangan",
+  "name": "MyKeuGuech — Kelola Finansial Cerdas",
+  "short_name": "MyKeuGuech",
   "description": "Aplikasi pencatatan keuangan pribadi, budgeting, portofolio aset, dan manajemen utang/piutang.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0f172a",
+  "background_color": "#ffffff",
   "theme_color": "#0f172a",
   "icons": [
     {

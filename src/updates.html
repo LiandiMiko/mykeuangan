@@ -1,5 +1,5 @@
 <!-- ================= RIWAYAT PEMBARUAN ================= -->
-<div id="view-updates" class="view-section space-y-6 hide transition-all duration-300" data-latest-release="2026-11-21-v3.12" data-latest-version="v3.12">
+<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-22-v3.13" data-latest-version="v3.13">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div class="flex items-start gap-3">
       <div class="w-11 h-11 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
@@ -7,13 +7,13 @@
       </div>
       <div>
         <h2 id="updates-page-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="updates.title">Riwayat Pembaruan</h2>
-        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuangan.</p>
+        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuGuech.</p>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <span class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
-        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Wave v3.12</strong></span>
+        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Wave v3.13</strong></span>
       </span>
       <button type="button" id="btnToggleAllReleases" onclick="toggleAllReleaseDetails()"
               class="min-h-11 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
@@ -28,53 +28,53 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div class="relative flex-1">
         <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true"></i>
-        <input id="updatesSearchInput" type="search" oninput="filterUpdatesList()"
+        <input id="updatesSearchInput" type="search" enterkeyhint="search" oninput="filterUpdatesList()"
                placeholder="Cari fitur, mis. kalender, telegram, emas..."
                data-i18n-placeholder="updates.search_placeholder"
                aria-label="Cari riwayat pembaruan"
                class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
       </div>
-      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0" aria-live="polite">Menampilkan 13 rilis</p>
+      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums" aria-live="polite">Menampilkan 14 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
-      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')" class="min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-brand text-white shadow-xs" data-i18n="updates.filter_all">Semua</button>
-      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')" class="min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
-      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')" class="min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
-      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')" class="min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
-      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')" class="min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
+      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-brand text-white shadow-xs" data-i18n="updates.filter_all">Semua</button>
+      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
+      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
+      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
+      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
     </div>
   </div>
 
   <!-- RELEASE LIST -->
   <section id="updatesList" class="space-y-4" aria-labelledby="updates-page-title">
     <!-- LATEST RELEASE (OPEN CARD) -->
-    <article data-release-card data-release-id="2026-11-21-v3.12" data-topics="security assets reports ai"
+    <article data-release-card data-release-id="2026-11-22-v3.13" data-topics="security assets reports ai"
              class="bg-white dark:bg-slate-900 rounded-3xl border border-brand/30 dark:border-brand/40 shadow-sm p-5 sm:p-6">
       <div class="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-6">
         <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
           <div class="flex flex-wrap items-center gap-1.5 mb-2">
             <span class="px-2 py-0.5 rounded-full bg-brand text-white text-[10px] font-extrabold uppercase tracking-wider" data-i18n="updates.badge_latest">Terbaru</span>
-            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.12</span>
+            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.13</span>
           </div>
-          <time datetime="2026-11-21" class="block text-brand dark:text-brand-ink">
-            <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink">21</span>
+          <time datetime="2026-11-22" class="block text-brand dark:text-brand-ink">
+            <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink tabular-nums">22</span>
             <span class="mt-2 block text-sm font-semibold text-slate-500 dark:text-slate-400">November 2026</span>
           </time>
         </div>
         <div class="min-w-0">
-          <h4 class="text-base font-bold text-slate-800 dark:text-white">Wave v3.12: Modularisasi 100% Frontend (30 Modul UI), Input Nominal Terformat, Undo Delete, Burn Rate Forecast &amp; Multi-Origin CORS</h4>
+          <h3 class="text-base font-bold text-slate-800 dark:text-white">Wave v3.13: Rebrand MyKeuGuech, Mobile-Native CSS, Motion Craft, Form Inline Validation &amp; WCAG Polish</h3>
           <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Fix Sinkronisasi &amp; Ketahanan</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Memperbaiki bug sinkronisasi aksi massal Laporan (<code>addedTransactions</code> &amp; <code>deletedTransactionIds</code> agar seluruh baris ter-update langsung tanpa reload), mengganti <code>alert()</code> native dengan modal/banner DOM aman, menambah banner retry saat gagal muat awal agar tidak menampilkan <code>Rp 0</code> palsu, serta indikator status jaringan <code>Offline / Sync</code> di header.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Branding &amp; Kontras WCAG</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan nama produk menjadi <strong>MyKeuGuech</strong> di UI, manifest PWA, PDF, backup JSON, notifikasi browser &amp; panduan bot; merapikan hierarki heading &amp; landmark, menambah tombol info <code>showNetWorthInfo()</code> serta toggle privasi <code>#heroHideNominalBtn</code> di Hero Dashboard, dan menaikkan kontras mode terang + angka <code>tabular-nums</code>.</dd>
             </div>
             <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">UX Fintech &amp; Analitik Baru</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Menambahkan format pemisah ribuan otomatis pada input nominal transaksi, split bill &amp; budget lengkap dengan chip nominal cepat (<code>+25rb</code>–<code>+500rb</code>), toast <strong>Batalkan (Undo)</strong> 6 detik setelah menghapus transaksi, kartu <strong>Burn Rate &amp; Proyeksi Akhir Siklus</strong> di Budgeting, Skeleton Loader saat startup, serta Layar Login dwibahasa ID/EN dengan indikator kekuatan kata sandi.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile-Native &amp; Form UX</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Viewport <code>viewport-fit=cover</code> + <code>interactive-widget=resizes-content</code>, tinggi layar <code>100dvh</code>, <code>hoverOnlyWhenSupported</code>, ukuran font input minimal <code>16px</code> di perangkat sentuh (anti auto-zoom), target sentuh ≥ 40–44px, validasi inline aksesibel form transaksi (<code>novalidate</code> &amp; <code>aria-invalid</code>), pemformatan Rupiah terpadu di seluruh modal, tombol <strong>Reset Filter</strong> di Histori &amp; Laporan, serta kartu mobile Admin (<code>#adm-user-mobile-list</code>).</dd>
             </div>
-            <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">100% Modular &amp; Multi-Origin CORS</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Memecah <code>features-v35.html</code> (~1.143 baris JS) ke <strong>5 modul <code>web/ui-pro-*.js</code></strong> (total 30 modul UI) tanpa menyisakan JS inline aplikasi di HTML, membersihkan cache AI saat pindah periode &amp; duplikasi strip rebalance, mendukung multi-origin <code>ALLOWED_ORIGIN</code> di Edge Functions (<code>Vary: Origin</code>), serta menambah <code>scripts/check-syntax.mjs</code> + dukungan aksesibilitas <code>prefers-reduced-motion</code> &amp; <code>aria-current</code>.</dd>
+            <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Motion Craft &amp; Kontrol Aman</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Mengganti seluruh <code>transition-all</code> menjadi transisi properti spesifik bertoken easing (<code>--ease-out</code>, <code>--ease-drawer</code>), menyempurnakan toast <strong>Undo 6 detik</strong> berprogress bar yang jeda saat hover/focus/tab tersembunyi setelah konfirmasi singkat hapus transaksi, focus-trap &amp; focus-restore pada Command Palette instan 0ms dan drawer sidebar, serta dukungan penuh <code>prefers-reduced-motion</code> &amp; <code>prefers-reduced-transparency</code>.</dd>
             </div>
           </dl>
         </div>
@@ -87,10 +87,43 @@
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
+            <time datetime="2026-11-21" class="text-xs font-bold text-slate-500 dark:text-slate-400">21 Nov 2026</time>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.12</span>
+          </div>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.12: Modularisasi 100% Frontend (30 Modul UI), Input Nominal Terformat, Undo Delete, Burn Rate Forecast &amp; Multi-Origin CORS</h3>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+        </div>
+      </summary>
+      <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
+        <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Fix Sinkronisasi &amp; Ketahanan</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki bug sinkronisasi aksi massal Laporan (<code>addedTransactions</code> &amp; <code>deletedTransactionIds</code> agar seluruh baris ter-update langsung tanpa reload), mengganti <code>alert()</code> native dengan modal/banner DOM aman, menambah banner retry saat gagal muat awal agar tidak menampilkan <code>Rp 0</code> palsu, serta indikator status jaringan <code>Offline / Sync</code> di header.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">UX Fintech &amp; Analitik Baru</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan format pemisah ribuan otomatis pada input nominal transaksi, split bill &amp; budget lengkap dengan chip nominal cepat (<code>+25rb</code>–<code>+500rb</code>), toast <strong>Batalkan (Undo)</strong> 6 detik setelah menghapus transaksi, kartu <strong>Burn Rate &amp; Proyeksi Akhir Siklus</strong> di Budgeting, Skeleton Loader saat startup, serta Layar Login dwibahasa ID/EN dengan indikator kekuatan kata sandi.</dd>
+          </div>
+          <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">100% Modular &amp; Multi-Origin CORS</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Memecah <code>features-v35.html</code> (~1.143 baris JS) ke <strong>5 modul <code>web/ui-pro-*.js</code></strong> (total 30 modul UI) tanpa menyisakan JS inline aplikasi di HTML, membersihkan cache AI saat pindah periode &amp; duplikasi strip rebalance, mendukung multi-origin <code>ALLOWED_ORIGIN</code> di Edge Functions (<code>Vary: Origin</code>), serta menambah <code>scripts/check-syntax.mjs</code> + dukungan aksesibilitas <code>prefers-reduced-motion</code> &amp; <code>aria-current</code>.</dd>
+          </div>
+        </dl>
+      </div>
+    </details>
+
+    <details data-release-card data-release-details data-topics="security assets reports ai"
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+          <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.11</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.11: Forensic Hardening, Modularisasi Frontend Penuh (25 Modul UI), Perbaikan Static Tailwind &amp; Upgrade Bot AI</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.11: Forensic Hardening, Modularisasi Frontend Penuh (25 Modul UI), Perbaikan Static Tailwind &amp; Upgrade Bot AI</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -127,7 +160,7 @@
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.10</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.10: Modularisasi Total, Static Tailwind CI, Laporan Mobile Cards, Redesign Auth, Keamanan &amp; PWA Polish</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.10: Modularisasi Total, Static Tailwind CI, Laporan Mobile Cards, Redesign Auth, Keamanan &amp; PWA Polish</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -163,7 +196,7 @@
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.9</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.9: UI/UX Cohesion, Executive Bento Dashboard, Redesign Mobile Navbar &amp; Perbaikan 13 Ikon Phosphor</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.9: UI/UX Cohesion, Executive Bento Dashboard, Redesign Mobile Navbar &amp; Perbaikan 13 Ikon Phosphor</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -199,7 +232,7 @@
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.8</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.5–v3.8: Mobile Bottom Nav, Quick-Add Kilat, #Tag &amp; Auto-Kategori, Bulk Laporan, Rekap Tahunan, Kalkulator Lokal &amp; AI Multi-Turn</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.5–v3.8: Mobile Bottom Nav, Quick-Add Kilat, #Tag &amp; Auto-Kategori, Bulk Laporan, Rekap Tahunan, Kalkulator Lokal &amp; AI Multi-Turn</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -228,14 +261,14 @@
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.4</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.4: Security Hardening, Atomic Asset/Wallet RPCs, Telegram Bot, Print Statement, Kalender &amp; PWA Cache Busting</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.4: Security Hardening, Atomic Asset/Wallet RPCs, Telegram Bot, Print Statement, Kalender &amp; PWA Cache Busting</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5 item</span>
@@ -268,14 +301,14 @@
       </div>
     </details>
     <details data-release-card data-release-details data-topics="assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.3</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.3: Batch Catat Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak &amp; Filter Kalender</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.3: Batch Catat Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak &amp; Filter Kalender</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5 item</span>
@@ -309,14 +342,14 @@
     </details>
 
     <details data-release-card data-release-details data-topics="assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.2</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.2: Top-Up/Jual Emas &amp; USD, Alokasi Portofolio, Anomaly Detector, Restore JSON &amp; PWA Shortcuts</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.2: Top-Up/Jual Emas &amp; USD, Alokasi Portofolio, Anomaly Detector, Restore JSON &amp; PWA Shortcuts</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
@@ -342,14 +375,14 @@
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.1</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.1: Rincian Dompet, Rasio Finansial, Split Bill, Backup &amp; PIN</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.1: Rincian Dompet, Rasio Finansial, Split Bill, Backup &amp; PIN</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -379,14 +412,14 @@
     </details>
 
     <details data-release-card data-release-details data-topics="assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v2.1–v3.0</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Roadmap v2.1–v3.0: AI Multimodal, Grafik Budgeting, Notifikasi &amp; Offline Sync</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Roadmap v2.1–v3.0: AI Multimodal, Grafik Budgeting, Notifikasi &amp; Offline Sync</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -416,14 +449,14 @@
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v2.0</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Comprehensive Upgrade, Tata Letak Modular &amp; On-Demand Gemini AI</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Comprehensive Upgrade, Tata Letak Modular &amp; On-Demand Gemini AI</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">6 item</span>
@@ -461,14 +494,14 @@
     </details>
 
     <details data-release-card data-release-details data-topics="assets"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-17" class="text-xs font-bold text-slate-500 dark:text-slate-400">17 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v1.2</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Dompet dan pembelian aset</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Dompet dan pembelian aset</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
@@ -498,14 +531,14 @@
     </details>
 
     <details data-release-card data-release-details data-topics="reports"
-             class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-17" class="text-xs font-bold text-slate-500 dark:text-slate-400">17 Nov 2026</time>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v1.1</span>
           </div>
-          <h4 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Laporan, impor, target, dan insight keuangan</h4>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Laporan, impor, target, dan insight keuangan</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5 item</span>
@@ -539,7 +572,7 @@
     </details>
   </section>
 
-  <div id="updatesEmptyState" class="hide bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+  <div id="updatesEmptyState" class="hide bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
     <i class="ph ph-magnifying-glass text-2xl block mx-auto mb-2 opacity-60" aria-hidden="true"></i>
     <span data-i18n="updates.empty">Tidak ada catatan pembaruan yang cocok dengan filter atau pencarian.</span>
   </div>

@@ -10,13 +10,13 @@
 
   async function loadAdminData() {
     const tbody = document.getElementById('adm-user-table');
+    const mobileList = document.getElementById('adm-user-mobile-list');
     const setAdminText = (id, value) => {
       const element = document.getElementById(id);
       if (element) element.textContent = String(value);
     };
-    if (tbody) {
-      renderHtml(tbody, '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Memuat data pengguna...</td></tr>');
-    }
+    if (tbody) renderHtml(tbody, '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Memuat data pengguna...</td></tr>');
+    if (mobileList) renderHtml(mobileList, '<div class="p-6 text-center text-xs text-slate-500 dark:text-slate-400">Memuat data pengguna...</div>');
 
     try {
       const data = await callServer('api_getAdminData');
@@ -33,52 +33,95 @@
       return true;
     } catch (err) {
       console.error('loadAdminData error:', err);
+      const errMsg = escapeHtmlJS(String(err.message || err));
       if (tbody) {
         renderHtml(tbody, `
           <tr>
             <td colspan="5" class="px-6 py-8 text-center text-rose-600 dark:text-rose-400">
-              <p>Gagal memuat data pengguna: ${escapeHtmlJS(String(err.message || err))}</p>
+              <p>Gagal memuat data pengguna: ${errMsg}</p>
               <button type="button" onclick="loadAdminData()" class="mt-3 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
             </td>
           </tr>`);
+      }
+      if (mobileList) {
+        renderHtml(mobileList, `
+          <div class="p-6 text-center text-xs text-rose-600 dark:text-rose-400">
+            <p>Gagal memuat data pengguna: ${errMsg}</p>
+            <button type="button" onclick="loadAdminData()" class="mt-2 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
+          </div>`);
       }
       return false;
     }
   }
 
-  function buildAdminUserRowHtml(u) {
+  function buildAdminUserMeta(u, mobileBtnCls) {
     const isSuspended = u.status === 'suspended';
     const statusBadge = isSuspended
-      ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
-      : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
+      ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
+      : '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
     const roleBadge = u.role === 'admin'
-      ? '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
-      : '<span class="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
+      ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
+      : '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
 
     const nextStatus = isSuspended ? 'active' : 'suspended';
-    const statusBtnColor = isSuspended ? 'text-emerald-600 hover:text-emerald-800' : 'text-rose-500 hover:text-rose-700';
+    const statusBtnColor = isSuspended ? 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-800' : 'text-rose-600 dark:text-rose-400 hover:text-rose-700';
     const safeId = escapeHtmlJS(u.id);
+    const padCls = mobileBtnCls ? 'min-h-11 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs ' : 'min-h-[44px] px-2 ';
     const actions = u.id === adminCurrentUserId
-      ? '<span class="text-slate-400">Akun Anda</span>'
-      : `<button type="button" data-admin-action="status" data-user-id="${safeId}" data-value="${nextStatus}" class="min-h-[44px] px-2 font-bold cursor-pointer ${statusBtnColor}">${isSuspended ? 'Aktifkan' : 'Suspend'}</button>
-         <button type="button" data-admin-action="role" data-user-id="${safeId}" data-value="${u.role === 'admin' ? 'user' : 'admin'}" class="min-h-[44px] px-2 font-bold text-blue-500 hover:text-blue-700 cursor-pointer">${u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin'}</button>
-         <button type="button" data-admin-action="password" data-user-id="${safeId}" class="min-h-[44px] px-2 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>`;
+      ? '<span class="text-xs text-slate-500 dark:text-slate-400">Akun Anda</span>'
+      : `<button type="button" data-admin-action="status" data-user-id="${safeId}" data-value="${nextStatus}" class="${padCls}font-bold cursor-pointer ${statusBtnColor}">${isSuspended ? 'Aktifkan' : 'Suspend'}</button>
+         <button type="button" data-admin-action="role" data-user-id="${safeId}" data-value="${u.role === 'admin' ? 'user' : 'admin'}" class="${padCls}font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 cursor-pointer">${u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin'}</button>
+         <button type="button" data-admin-action="password" data-user-id="${safeId}" class="${padCls}font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>`;
+    return { statusBadge, roleBadge, actions };
+  }
 
+  function buildAdminUserRowHtml(u) {
+    const m = buildAdminUserMeta(u, false);
     return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
         <td class="px-6 py-4">
           <p class="font-bold text-slate-800 dark:text-white">${escapeHtmlJS(u.display_name || 'User')}</p>
-          <p class="text-[11px] text-slate-400">${escapeHtmlJS(u.email)}</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(u.email)}</p>
         </td>
-        <td class="px-6 py-4">${roleBadge}</td>
-        <td class="px-6 py-4">${statusBadge}</td>
-        <td class="px-6 py-4 text-slate-500">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
-        <td class="px-6 py-4 text-center"><div class="flex items-center justify-center gap-3">${actions}</div></td>
+        <td class="px-6 py-4">${m.roleBadge}</td>
+        <td class="px-6 py-4">${m.statusBadge}</td>
+        <td class="px-6 py-4 text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
+        <td class="px-6 py-4 text-center"><div class="flex items-center justify-center gap-3">${m.actions}</div></td>
       </tr>`;
+  }
+
+  function buildAdminUserMobileCardHtml(u) {
+    const m = buildAdminUserMeta(u, true);
+    return `
+      <div class="p-4 space-y-2.5">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="font-bold text-sm text-slate-800 dark:text-white truncate">${escapeHtmlJS(u.display_name || 'User')}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(u.email)}</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">${m.roleBadge}${m.statusBadge}</div>
+        </div>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">Terdaftar: ${escapeHtmlJS(String(u.created_at || '').slice(0, 10) || '-')}</p>
+        <div class="flex flex-wrap gap-2">${m.actions}</div>
+      </div>`;
+  }
+
+  function bindAdminActionButtons(container, usersById) {
+    if (!container) return;
+    container.querySelectorAll('[data-admin-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const user = usersById.get(button.dataset.userId);
+        if (!user) return;
+        if (button.dataset.adminAction === 'status') toggleUserStatus(user.id, button.dataset.value);
+        else if (button.dataset.adminAction === 'role') toggleUserRole(user.id, button.dataset.value);
+        else if (button.dataset.adminAction === 'password') resetUserPassword(user.id, user.email || '');
+      });
+    });
   }
 
   function filterAdminUsersTable() {
     const tbody = document.getElementById('adm-user-table');
+    const mobileList = document.getElementById('adm-user-mobile-list');
     const countEl = document.getElementById('adm-user-count');
     if (!tbody) return;
 
@@ -93,21 +136,16 @@
 
     if (countEl) countEl.textContent = String(filtered.length);
     if (!filtered.length) {
-      renderHtml(tbody, '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400">Tidak ada pengguna yang cocok.</td></tr>');
+      renderHtml(tbody, '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Tidak ada pengguna yang cocok.</td></tr>');
+      if (mobileList) renderHtml(mobileList, '<div class="p-6 text-center text-xs text-slate-500 dark:text-slate-400">Tidak ada pengguna yang cocok.</div>');
       return;
     }
 
     renderHtml(tbody, filtered.map(buildAdminUserRowHtml).join(''));
+    if (mobileList) renderHtml(mobileList, filtered.map(buildAdminUserMobileCardHtml).join(''));
     const usersById = new Map(adminUsersCache.map((user) => [user.id, user]));
-    tbody.querySelectorAll('[data-admin-action]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const user = usersById.get(button.dataset.userId);
-        if (!user) return;
-        if (button.dataset.adminAction === 'status') toggleUserStatus(user.id, button.dataset.value);
-        else if (button.dataset.adminAction === 'role') toggleUserRole(user.id, button.dataset.value);
-        else if (button.dataset.adminAction === 'password') resetUserPassword(user.id, user.email || '');
-      });
-    });
+    bindAdminActionButtons(tbody, usersById);
+    bindAdminActionButtons(mobileList, usersById);
   }
 
   async function confirmAndApplyAdminChange(opts) {
@@ -241,7 +279,7 @@
             </div>
             <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
               <p class="font-bold">Cara Menghubungkan:</p>
-              <p>1. Buka Bot Telegram MyKeuangan.</p>
+              <p>1. Buka Bot Telegram MyKeuGuech.</p>
               <p>2. Kirim pesan: <code class="font-bold">${escapeHtmlJS(linkCmd)}</code></p>
               <button type="button" id="btnCopyTgLink" class="w-full min-h-[40px] mt-1 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors">
                 <i class="ph ph-copy" aria-hidden="true"></i> Salin Perintah /link
@@ -257,7 +295,7 @@
             copyBtn.addEventListener('click', async () => {
               try {
                 await navigator.clipboard.writeText(linkCmd);
-                copyBtn.textContent = '✓ Perintah Disalin!';
+                renderHtml(copyBtn, '<i class="ph-bold ph-check" aria-hidden="true"></i> <span>Perintah Disalin!</span>');
               } catch (_) { /* ignore */ }
             });
           }

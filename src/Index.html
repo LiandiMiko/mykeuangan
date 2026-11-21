@@ -2,18 +2,20 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; font-src 'self' data: https://fonts.gstatic.com https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; worker-src 'self'; object-src 'none'; base-uri 'self';">
-  <title>MykeuanganGuech — Dashboard</title>
+  <title>MyKeuGuech — Dashboard</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <?!= include('styles'); ?>
   <?!= include('i18n'); ?>
 </head>
 
-<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans min-h-screen flex transition-colors duration-300 overflow-x-hidden">
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans min-h-dvh flex transition-colors duration-200 overflow-x-hidden">
   <a href="#mainContent" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[120] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-brand focus:text-white focus:font-bold focus:text-xs shadow-lg" data-i18n="a11y.skip_main">Loncat ke konten utama</a>
 
   <!-- Loading Skeleton Overlay -->
@@ -37,53 +39,53 @@
   </div>
 
   <!-- ================= SIDEBAR ================= -->
-  <aside id="sidebar" class="w-72 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col z-40 fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:h-screen transition-all duration-300 transform -translate-x-full lg:translate-x-0">
+  <aside id="sidebar" aria-label="Menu navigasi" class="w-72 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col z-40 fixed inset-y-0 left-0 lg:sticky lg:top-0 lg:h-dvh mk-sidebar-transition transform -translate-x-full lg:translate-x-0">
     <div class="p-6 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-11 h-11 brand-gradient brand-border-glow rounded-2xl flex items-center justify-center shrink-0 transition-all">
+        <div class="w-11 h-11 brand-gradient brand-border-glow rounded-2xl flex items-center justify-center shrink-0">
           <i class="ph-fill ph-wallet text-2xl text-white" aria-hidden="true"></i>
         </div>
         <div class="min-w-0">
-          <h1 class="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight leading-none">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></h1>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">Personal Finance</p>
+          <p class="font-extrabold text-xl text-slate-900 dark:text-white tracking-tight leading-none">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1">Personal Finance</p>
         </div>
       </div>
-      <button class="lg:hidden text-slate-400 hover:text-slate-800 dark:hover:text-white text-2xl" onclick="toggleSidebar()" aria-label="Tutup menu" data-i18n-aria-label="header.close_menu"><i class="ph ph-x" aria-hidden="true"></i></button>
+      <button id="sidebarCloseBtn" type="button" class="lg:hidden w-10 h-10 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-xl transition-colors" onclick="toggleSidebar()" aria-label="Tutup menu" data-i18n-aria-label="header.close_menu"><i class="ph ph-x" aria-hidden="true"></i></button>
     </div>
     
-<nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-1">
-  <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-2 px-4 uppercase tracking-widest" data-i18n="nav.utama">Menu Utama</p>
-  <button type="button" onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-1" aria-label="Menu utama">
+  <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2 px-4 uppercase tracking-widest" data-i18n="nav.utama">Menu Utama</p>
+  <button type="button" onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-squares-four text-xl" aria-hidden="true"></i> <span data-i18n="nav.dashboard">Dashboard</span>
   </button>
-  <button type="button" onclick="switchView('aset')" id="nav-aset" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('aset')" id="nav-aset" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-piggy-bank text-xl" aria-hidden="true"></i> <span data-i18n="nav.aset">Tabungan &amp; Investasi</span>
   </button>
-  <button type="button" onclick="switchView('histori')" id="nav-histori" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('histori')" id="nav-histori" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-list-bullets text-xl" aria-hidden="true"></i> <span data-i18n="nav.histori">Histori Transaksi</span>
   </button>
   <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
-  <button type="button" onclick="switchView('budgeting')" id="nav-budgeting" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('budgeting')" id="nav-budgeting" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-chart-pie-slice text-xl" aria-hidden="true"></i> <span data-i18n="nav.budgeting">Budgeting</span>
   </button>
-  <button type="button" onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-file-pdf text-xl" aria-hidden="true"></i> <span data-i18n="nav.laporan">Laporan &amp; Ekspor</span>
   </button>
-  <button type="button" onclick="switchView('ai')" id="nav-ai" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('ai')" id="nav-ai" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-sparkle text-xl" aria-hidden="true"></i> <span data-i18n="nav.ai">Analisis AI</span>
   </button>
   <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
-  <button type="button" onclick="switchView('updates')" id="nav-updates" class="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('updates')" id="nav-updates" class="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <span class="flex items-center gap-3 min-w-0">
       <i class="ph ph-megaphone-simple text-xl shrink-0" aria-hidden="true"></i>
       <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
     </span>
     <span class="flex items-center gap-1.5 shrink-0">
-      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold leading-none">v3.12</span>
+      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-extrabold leading-none">v3.13</span>
       <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
     </span>
   </button>
-  <button type="button" onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all nav-btn text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+  <button type="button" onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
     <i class="ph ph-shield-check text-xl text-brand dark:text-brand-ink" aria-hidden="true"></i> <span data-i18n="nav.admin">Panel Admin</span>
   </button>
 </nav>
@@ -91,39 +93,46 @@
         <div class="p-4 shrink-0">
       <!-- LANGUAGE TOGGLE -->
       <div class="mb-4 px-2">
-        <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase" data-i18n="lang.title">Bahasa</p>
-        <div class="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-          <button data-lang-btn="id" onclick="setLang('id')" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-500 transition-all">
-            🇮🇩 ID
+        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase" data-i18n="lang.title">Bahasa</p>
+        <div class="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl" role="group" aria-label="Pilih bahasa">
+          <button type="button" data-lang-btn="id" onclick="setLang('id')" aria-pressed="true" class="flex-1 min-h-9 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-600 transition-colors">
+            ID
           </button>
-          <button data-lang-btn="en" onclick="setLang('en')" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-500 transition-all">
-            🇬🇧 EN
+          <button type="button" data-lang-btn="en" onclick="setLang('en')" aria-pressed="false" class="flex-1 min-h-9 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-600 transition-colors">
+            EN
           </button>
         </div>
       </div>
 
       <!-- TEMA WARNA -->
-      <div class="mb-4 px-2">
-        <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase" data-i18n="nav.tema">Tema Warna</p>
-        <div class="flex gap-2.5 items-center">
-          <button type="button" data-theme-btn="" onclick="setTheme('')" aria-label="Tema warna Default (Indigo)" title="Indigo (Default)" class="w-7 h-7 rounded-full bg-indigo-600 focus:outline-none"></button>
-          <button type="button" data-theme-btn="theme-pink" onclick="setTheme('theme-pink')" aria-label="Tema warna Pink" title="Pink" class="w-7 h-7 rounded-full bg-pink-600 focus:outline-none"></button>
-          <button type="button" data-theme-btn="theme-violet" onclick="setTheme('theme-violet')" aria-label="Tema warna Violet" title="Violet" class="w-7 h-7 rounded-full bg-violet-600 focus:outline-none"></button>
-          <button type="button" data-theme-btn="theme-blue" onclick="setTheme('theme-blue')" aria-label="Tema warna Biru" title="Biru" class="w-7 h-7 rounded-full bg-blue-600 focus:outline-none"></button>
-          <button type="button" data-theme-btn="theme-emerald" onclick="setTheme('theme-emerald')" aria-label="Tema warna Emerald" title="Emerald" class="w-7 h-7 rounded-full bg-emerald-600 focus:outline-none"></button>
+      <div class="mb-3 px-2">
+        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase" data-i18n="nav.tema">Tema Warna</p>
+        <div class="flex gap-1 items-center" role="group" aria-label="Pilih tema warna">
+          <button type="button" data-theme-btn="" onclick="setTheme('')" aria-pressed="false" aria-label="Tema warna Default (Indigo)" title="Indigo (Default)" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-indigo-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-pink" onclick="setTheme('theme-pink')" aria-pressed="false" aria-label="Tema warna Pink" title="Pink" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-pink-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-violet" onclick="setTheme('theme-violet')" aria-pressed="false" aria-label="Tema warna Violet" title="Violet" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-violet-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-blue" onclick="setTheme('theme-blue')" aria-pressed="false" aria-label="Tema warna Biru" title="Biru" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-blue-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-emerald" onclick="setTheme('theme-emerald')" aria-pressed="false" aria-label="Tema warna Emerald" title="Emerald" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-emerald-600 block"></span></button>
         </div>
+      </div>
+
+      <!-- TANGGAL GAJIAN (AKSES CEPAT MOBILE) -->
+      <div class="sm:hidden mb-2 px-2">
+        <button type="button" onclick="settingPayrollDay()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+          <i class="ph ph-gear text-base" aria-hidden="true"></i> <span data-i18n="header.payday">Atur tanggal gajian</span>
+        </button>
       </div>
 
       <!-- INSTALL PWA -->
       <div id="pwaInstallWrap" class="hidden mb-2 px-2">
-        <button type="button" onclick="installPwaApp()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-brand dark:text-brand-ink bg-brand/10 hover:bg-brand/20 transition-all flex items-center justify-center gap-2">
+        <button type="button" onclick="installPwaApp()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-brand dark:text-brand-ink bg-brand/10 hover:bg-brand/20 transition-colors flex items-center justify-center gap-2">
           <i class="ph ph-download-simple text-base" aria-hidden="true"></i> <span data-i18n="nav.install_pwa">Install Aplikasi (PWA)</span>
         </button>
       </div>
 
       <!-- HUBUNGKAN TELEGRAM -->
       <div class="mb-4 px-2">
-        <button onclick="openTelegramPairingModal()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-sky-600 bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-all flex items-center justify-center gap-2">
+        <button type="button" onclick="openTelegramPairingModal()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors flex items-center justify-center gap-2">
           <i class="ph ph-telegram-logo text-base" aria-hidden="true"></i> <span data-i18n="nav.telegram">Hubungkan Telegram</span>
         </button>
       </div>
@@ -137,15 +146,15 @@
             </div>
             <div class="min-w-0">
               <p id="ui-username" class="text-sm font-bold text-slate-800 dark:text-white truncate">User</p>
-              <p id="ui-role" class="text-[10px] uppercase text-slate-500 dark:text-slate-400">User</p>
+              <p id="ui-role" class="text-[11px] uppercase text-slate-500 dark:text-slate-400">User</p>
             </div>
           </div>
           <button type="button" onclick="openAccountSettingsModal()" aria-label="Pengaturan Akun & PIN" title="Pengaturan Akun & PIN" data-i18n-aria-label="account.settings" data-i18n-title="account.settings"
-                  class="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
+                  class="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
             <i class="ph ph-user-gear text-lg" aria-hidden="true"></i>
           </button>
         </div>
-        <button onclick="logout()" class="w-full min-h-11 mt-2 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-200/70 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all flex justify-center items-center gap-2">
+        <button type="button" onclick="logout()" class="w-full min-h-11 mt-2 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-200/70 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex justify-center items-center gap-2">
           <i class="ph ph-sign-out text-sm" aria-hidden="true"></i> <span data-i18n="nav.logout">Keluar (Logout)</span>
         </button>
       </div>
@@ -153,48 +162,49 @@
   </aside>
 
   <!-- ================= MAIN ================= -->
-  <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-500">
-    <header class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-2.5 sm:px-6 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 flex flex-row items-center justify-between gap-2 sticky top-0 z-30 shadow-xs transition-colors">
+  <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-200">
+    <h1 class="sr-only">MyKeuGuech — Personal Finance</h1>
+    <header id="appHeader" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-2.5 sm:px-6 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 flex flex-row items-center justify-between gap-2 sticky top-0 z-30 shadow-xs transition-colors">
       <div class="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
-        <button onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
+        <button id="sidebarToggleBtn" type="button" onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
           <i class="ph ph-list" aria-hidden="true"></i>
         </button>
-        <h2 class="min-w-0 flex items-center gap-2 lg:hidden">
+        <div class="min-w-0 flex items-center gap-2 lg:hidden">
           <span class="w-8 h-8 brand-gradient rounded-xl inline-flex items-center justify-center shrink-0"><i class="ph-fill ph-wallet text-white text-base" aria-hidden="true"></i></span>
           <span class="hidden min-[460px]:inline truncate font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">MyKeu<span class="text-brand dark:text-brand-ink">Guech</span></span>
-        </h2>
-      </div>
-      <div class="flex items-center justify-end gap-1 sm:gap-2 ml-auto shrink-0">
-        <div class="relative w-[88px] min-[460px]:w-[96px] sm:w-40 lg:w-44">
-          <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
-          <input type="text" id="dashMonthPicker" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
-                 class="w-full h-9 sm:h-10 lg:h-11 pl-6 sm:pl-9 pr-1.5 sm:pr-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-[11px] sm:text-sm text-slate-700 dark:text-slate-200 truncate"
-                 placeholder="Pilih Bulan">
-          <i class="ph ph-calendar absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-base" aria-hidden="true"></i>
         </div>
-        <button onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
-                class="w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
+      </div>
+      <div class="flex items-center justify-end gap-1.5 sm:gap-2 ml-auto shrink-0">
+        <div class="relative w-[122px] min-[400px]:w-[140px] sm:w-44">
+          <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
+          <input type="text" id="dashMonthPicker" enterkeyhint="done" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
+                 class="w-full h-10 lg:h-11 pl-7 sm:pl-9 pr-2 sm:pr-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 truncate"
+                 placeholder="Pilih Bulan">
+          <i class="ph ph-calendar absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base" aria-hidden="true"></i>
+        </div>
+        <button type="button" onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
+                class="hidden sm:flex w-10 h-10 lg:w-11 lg:h-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i class="ph ph-gear" aria-hidden="true"></i>
         </button>
         <button type="button" onclick="openCommandPalette()" aria-label="Pencarian cepat (Ctrl+K)" title="Perintah Cepat (Ctrl+K)"
-                class="hidden lg:inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
+                class="hidden lg:inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
           <i class="ph ph-magnifying-glass text-base" aria-hidden="true"></i>
           <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold">Ctrl K</kbd>
         </button>
         <button id="networkStatusPill" type="button" onclick="flushOfflineQueue(false)" aria-label="Status jaringan dan antrean offline"
-                class="hide inline-flex items-center gap-1 h-9 sm:h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0">
+                class="hide inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0">
         </button>
         <button id="notifBellBtn" type="button" onclick="openNotificationsModal()" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
-                class="relative w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
+                class="relative w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i class="ph ph-bell" aria-hidden="true"></i>
-          <span id="notifBadge" class="hide absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center leading-none">0</span>
+          <span id="notifBadge" class="hide absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">0</span>
         </button>
-        <button id="toggleHideBtn" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
-                class="w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
+        <button id="toggleHideBtn" type="button" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
+                class="w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i id="eyeIcon" class="ph ph-eye" aria-hidden="true"></i>
         </button>
-        <button onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
-                class="w-8 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-base sm:text-lg lg:text-xl shrink-0">
+        <button type="button" onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
+                class="w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i class="ph ph-moon dark:hidden" aria-hidden="true"></i><i class="ph ph-sun hidden dark:block" aria-hidden="true"></i>
         </button>
       </div>
@@ -232,7 +242,7 @@
     </button>
     <div class="flex flex-col items-center justify-end pb-0.5">
       <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
-              class="w-12 h-12 -mt-6 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center ring-4 ring-white dark:ring-slate-900 shadow-lg active:scale-95 transition-transform">
+              class="w-12 h-12 -mt-6 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center ring-4 ring-white dark:ring-slate-900 shadow-lg">
         <i class="ph-bold ph-plus text-xl leading-none" aria-hidden="true"></i>
       </button>
       <span class="text-[10px] font-bold text-brand dark:text-brand-ink leading-none mt-1" data-i18n="nav.add_short">Catat</span>

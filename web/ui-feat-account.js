@@ -63,8 +63,8 @@
             <input id="acc-pin-input" type="password" inputmode="numeric" maxlength="6" class="swal2-input" style="margin:0;width:100%" placeholder="${hasPin ? 'Kosongkan jika tetap / ketik PIN baru' : 'Contoh: 1234'}">
           </div>
           <div class="flex flex-wrap gap-2 pt-2">
-            <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">🔑 Ganti Password</button>
-            ${hasPin ? '<button type="button" id="acc-clear-pin-btn" class="py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 font-bold">🔓 Hapus PIN</button>' : ''}
+            <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>Ganti Password</span></button>
+            ${hasPin ? '<button type="button" id="acc-clear-pin-btn" class="min-h-11 py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5"><i class="ph ph-lock-open" aria-hidden="true"></i> <span>Hapus PIN</span></button>' : ''}
           </div>
         </div>`,
       showCancelButton: true,
@@ -153,21 +153,21 @@
       title: 'Catat Cepat',
       html: `
         <div class="grid grid-cols-2 gap-3 text-xs font-bold">
-          <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+          <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center"><i class="ph-bold ph-minus-circle text-xl" aria-hidden="true"></i></span>
-            <span>Pengeluaran</span><span class="text-[10px] font-medium opacity-75">Catat biaya harian</span>
+            <span>Pengeluaran</span><span class="text-[11px] font-medium opacity-80">Catat biaya harian</span>
           </button>
-          <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+          <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center"><i class="ph-bold ph-plus-circle text-xl" aria-hidden="true"></i></span>
-            <span>Pemasukan</span><span class="text-[10px] font-medium opacity-75">Gaji atau pendapatan</span>
+            <span>Pemasukan</span><span class="text-[11px] font-medium opacity-80">Gaji atau pendapatan</span>
           </button>
-          <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+          <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-brand/15 flex items-center justify-center"><i class="ph-bold ph-camera text-xl" aria-hidden="true"></i></span>
-            <span>Scan Struk AI</span><span class="text-[10px] font-medium opacity-75">Foto nota belanja</span>
+            <span>Scan Struk AI</span><span class="text-[11px] font-medium opacity-80">Foto nota belanja</span>
           </button>
-          <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm active:scale-[0.98] transition-all">
+          <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-700 flex items-center justify-center"><i class="ph-bold ph-arrows-left-right text-xl" aria-hidden="true"></i></span>
-            <span>Transfer Dompet</span><span class="text-[10px] font-medium opacity-75">Pindah antar saldo</span>
+            <span>Transfer Dompet</span><span class="text-[11px] font-medium opacity-80">Pindah antar saldo</span>
           </button>
         </div>`,
       showConfirmButton: false,

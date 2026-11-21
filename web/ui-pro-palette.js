@@ -8,6 +8,7 @@
   let cachedCmdItems = [];
   let cmdFiltered = [];
   let cmdActiveIdx = 0;
+  let previousFocusEl = null;
 
   function buildCommandItems() {
     const items = [
@@ -50,6 +51,10 @@
   function closeCommandPalette() {
     const el = document.getElementById('mkCommandPalette');
     if (el) el.remove();
+    if (previousFocusEl && previousFocusEl.isConnected && typeof previousFocusEl.focus === 'function') {
+      previousFocusEl.focus();
+    }
+    previousFocusEl = null;
   }
 
   function filterCommandPalette() {
@@ -88,6 +93,7 @@
       closeCommandPalette();
       return;
     }
+    previousFocusEl = document.activeElement;
     cachedCmdItems = buildCommandItems();
     const wrap = document.createElement('div');
     wrap.id = 'mkCommandPalette';
@@ -99,7 +105,7 @@
       <div class="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
         <div class="p-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
           <i class="ph ph-magnifying-glass text-lg text-brand dark:text-brand-ink" aria-hidden="true"></i>
-          <input id="mkCmdInput" type="search" autocomplete="off" placeholder="Ketik halaman, aksi, kalkulator, tema..."
+          <input id="mkCmdInput" type="search" enterkeyhint="go" autocomplete="off" placeholder="Ketik halaman, aksi, kalkulator, tema..."
                  class="flex-1 bg-transparent outline-none text-sm text-slate-800 dark:text-white">
           <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500">ESC</kbd>
         </div>
@@ -107,6 +113,18 @@
       </div>
     `);
     wrap.onclick = (e) => { if (e.target === wrap) closeCommandPalette(); };
+    wrap.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeCommandPalette(); return; }
+      if (e.key !== 'Tab') return;
+      const focusables = Array.from(wrap.querySelectorAll('input, button:not([disabled])'));
+      if (!focusables.length) return;
+      const idx = focusables.indexOf(document.activeElement);
+      e.preventDefault();
+      const nextIdx = e.shiftKey
+        ? (idx <= 0 ? focusables.length - 1 : idx - 1)
+        : (idx < 0 || idx >= focusables.length - 1 ? 0 : idx + 1);
+      focusables[nextIdx].focus();
+    });
     document.body.appendChild(wrap);
     const input = document.getElementById('mkCmdInput');
     input.oninput = filterCommandPalette;

@@ -33,7 +33,7 @@
   <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
     <div class="p-5 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-800 gap-2">
       <p class="font-bold text-slate-600 dark:text-slate-300 text-sm" data-i18n="dash.total_investasi">Total Nilai Investasi</p>
-      <p class="font-black text-xl text-brand dark:text-brand-ink" id="dash-total-investasi">Rp 0</p>
+      <p class="font-black text-xl text-brand dark:text-brand-ink tabular-nums mk-privacy-target" id="dash-total-investasi">Rp 0</p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0" id="list-manual-assets"></div>
   </div>
@@ -45,17 +45,17 @@
         <p class="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
           <i class="ph ph-chart-line text-brand dark:text-brand-ink" aria-hidden="true"></i> Portfolio Chart
         </p>
-        <p class="text-[10px] text-slate-400 mt-0.5">Tren nilai portfolio 30 hari terakhir</p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Tren nilai portfolio 30 hari terakhir</p>
       </div>
-      <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-bold uppercase tracking-wider" data-i18n="aset.days_30">30 Hari</span>
+      <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-bold uppercase tracking-wider" data-i18n="aset.days_30">30 Hari</span>
     </div>
     <div class="p-5" style="height: 280px; position: relative;">
       <canvas id="portfolioChart"></canvas>
       <div id="portfolioChartPlaceholder" style="display:none; position:absolute; inset:0;" class="flex items-center justify-center">
         <div class="text-center">
           <i class="ph ph-chart-line text-4xl text-slate-300 dark:text-slate-600 mb-2" aria-hidden="true"></i>
-          <p class="text-xs text-slate-400">Butuh minimal 2 hari data untuk menampilkan chart</p>
-          <p class="text-[10px] text-slate-400 mt-1">Snapshot otomatis setiap hari jam 23:00</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Butuh minimal 2 hari data untuk menampilkan chart</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Snapshot otomatis setiap hari jam 23:00</p>
         </div>
       </div>
     </div>
@@ -69,9 +69,9 @@
           <i class="ph ph-trend-up text-brand dark:text-brand-ink" aria-hidden="true"></i>
           <span data-i18n="aset.networth_chart_title">Tren Kekayaan Bersih (Net Worth)</span>
         </p>
-        <p class="text-[10px] text-slate-400 mt-0.5">Evolusi kekayaan bersih (kas + investasi + piutang − utang) 6 siklus</p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Evolusi kekayaan bersih (kas + investasi + piutang − utang) 6 siklus</p>
       </div>
-      <span class="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider" data-i18n="aset.cycles_6">6 Siklus</span>
+      <span class="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold uppercase tracking-wider" data-i18n="aset.cycles_6">6 Siklus</span>
     </div>
     <div class="p-5" style="height: 260px; position: relative;">
       <canvas id="netWorthChart"></canvas>
@@ -86,9 +86,9 @@
           <i class="ph ph-arrows-left-right text-brand dark:text-brand-ink" aria-hidden="true"></i>
           <span data-i18n="wallet.recent_transfers">Riwayat Transfer Terakhir</span>
         </p>
-        <p class="text-[11px] text-slate-400 mt-0.5" data-i18n="wallet.recent_transfers_sub">Catatan mutasi antar dompet, tarik tunai, dan top-up investasi.</p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5" data-i18n="wallet.recent_transfers_sub">Catatan mutasi antar dompet, tarik tunai, dan top-up investasi.</p>
       </div>
-      <button type="button" onclick="openTransferModal('transfer')" class="min-h-11 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors shrink-0">
+      <button type="button" onclick="openTransferModal('transfer')" class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shrink-0">
         <i class="ph ph-arrows-left-right" aria-hidden="true"></i> <span data-i18n="dash.transfer_wallet">Tarik Tunai / Transfer</span>
       </button>
     </div>

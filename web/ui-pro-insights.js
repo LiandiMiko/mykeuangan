@@ -141,8 +141,8 @@
       const isUser = msg.role === 'user';
       const formatted = escapeHtmlJS(msg.text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
       return `
-        <div class="${isUser ? 'bg-brand/10 border-brand/20 ml-6' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 mr-6'} p-3 rounded-2xl border text-xs sm:text-sm">
-          <p class="text-[10px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}</p>
+        <div class="${isUser ? 'bg-brand/10 border-brand/20 ml-3 sm:ml-6' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 mr-3 sm:mr-6'} p-3 rounded-2xl border text-xs sm:text-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-500 dark:text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}</p>
           <div class="leading-relaxed">${formatted}</div>
         </div>
       `;
@@ -205,13 +205,13 @@
     const recentTurns = history.slice(-4).map((m) => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n');
     const contextPrompt = recentTurns ? `${recentTurns}\nPertanyaan lanjutan: ${question}` : question;
 
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
     history.push({ role: 'user', text: question });
     renderAiChatThread(history);
     if (input) input.value = '';
     if (out) {
       const loader = document.createElement('p');
-      loader.className = 'text-xs text-slate-400 mt-2 animate-pulse';
+      loader.className = 'text-xs text-slate-500 dark:text-slate-400 mt-2 animate-pulse';
       loader.textContent = 'Gemini sedang menyusun jawaban...';
       out.appendChild(loader);
     }
@@ -232,7 +232,7 @@
       renderAiChatThread(history);
       Swal.fire(pro.swalOpt({ icon: 'error', title: 'Gagal meminta jawaban AI', text: String((err && err.message) || err) }));
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
     }
   }
 
@@ -247,12 +247,12 @@
       width: 480,
       html: `
         <div class="text-left space-y-2.5 text-xs">
-          <p class="text-slate-500">Atur target persentase portofolio (total harus 100%).</p>
-          ${keys.map((k) => `
+          <p class="text-slate-500 dark:text-slate-400">Atur target persentase portofolio (total harus 100%).</p>
+          ${keys.map((k, idx) => `
             <div class="flex items-center justify-between gap-2">
-              <label class="font-bold">${escapeHtmlJS(k)}</label>
-              <input data-reb-key="${escapeHtmlJS(k)}" type="number" min="0" max="100" value="${Number(saved[k]) || 0}"
-                     class="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-right">
+              <label for="reb-${idx}" class="font-bold">${escapeHtmlJS(k)}</label>
+              <input id="reb-${idx}" data-reb-key="${escapeHtmlJS(k)}" type="number" min="0" max="100" value="${Number(saved[k]) || 0}"
+                     class="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-right tabular-nums">
             </div>`).join('')}
         </div>
       `,
@@ -305,12 +305,12 @@
     renderHtml(strip, `
       <div class="flex flex-wrap items-center gap-1.5">
         ${rebalance ? rebalance.rows.map((r) => `
-          <span class="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+          <span class="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 tabular-nums">
             <strong>${escapeHtmlJS(r.label)}</strong>: ${r.currentPct}% → ${r.targetPct}%
-            (<span class="${r.action === 'Tambah' ? 'text-emerald-600' : r.action === 'Kurangi' ? 'text-rose-600' : 'text-slate-400'} font-bold">${escapeHtmlJS(r.action)}${r.action !== 'Seimbang' ? ' ' + escapeHtmlJS(formatShortIDR(Math.abs(r.deltaAmount))) : ''}</span>)
-          </span>`).join('') : '<span class="text-slate-400">Belum ada target alokasi rebalancing.</span>'}
+            (<span class="${r.action === 'Tambah' ? 'text-emerald-700 dark:text-emerald-400' : r.action === 'Kurangi' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'} font-bold">${escapeHtmlJS(r.action)}${r.action !== 'Seimbang' ? ' ' + escapeHtmlJS(formatShortIDR(Math.abs(r.deltaAmount))) : ''}</span>)
+          </span>`).join('') : '<span class="text-slate-500 dark:text-slate-400">Belum ada target alokasi rebalancing.</span>'}
       </div>
-      <button type="button" onclick="openRebalanceTargetsModal()" class="px-3 py-1.5 rounded-xl bg-brand/10 text-brand dark:text-brand-ink font-bold hover:bg-brand/20">Atur Target</button>
+      <button type="button" onclick="openRebalanceTargetsModal()" class="min-h-9 px-3 py-1.5 rounded-xl bg-brand/10 text-brand dark:text-brand-ink font-bold hover:bg-brand/20">Atur Target</button>
     `);
     card.appendChild(strip);
   }

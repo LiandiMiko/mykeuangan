@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, isInPeriod, walletName, walletBalances, t */
+/* global DB, FinanceAnalysis, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, buildEmptyTxPlaceholder, isInPeriod, walletName, walletBalances, t */
 /* ============================================================
    FEATURES — HISTORI FILTER, FINANCIAL RATIOS, ALLOCATION & ANOMALIES
    ============================================================ */
@@ -24,6 +24,8 @@
 
     const q = ((document.getElementById('historiSearch') || {}).value || '').trim().toLowerCase();
     const wFilter = (wSelect && wSelect.value) || '';
+    const resetBtn = document.getElementById('historiResetFilterBtn');
+    if (resetBtn) resetBtn.classList.toggle('hide', !(q || wFilter));
     const defaultWid = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
 
     const cycleTxs = (DB.transactions || [])
@@ -46,20 +48,20 @@
         <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 mb-2 hover:border-slate-300 dark:hover:border-slate-600 transition-colors group">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconCol} ${iconBG}">
-              <i class="ph ph-receipt text-lg"></i>
+              <i class="ph ph-receipt text-lg" aria-hidden="true"></i>
             </div>
             <div class="truncate">
               <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${catHtml}</p>
-              <p class="text-[10px] text-slate-500">${escapeHtmlJS(String(tx.tanggal).substring(5))} • ${escapeHtmlJS(tx.keterangan || '-')} • ${escapeHtmlJS(walletName(tx.walletId))}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')} · ${escapeHtmlJS(walletName(tx.walletId))}</p>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0 ml-2">
-            <p class="${colClass} font-bold text-sm">${formatRupiah(tx.nominal).replace(',00', '')}</p>
+            <p class="${colClass} font-bold text-sm tabular-nums">${formatRupiah(tx.nominal).replace(',00', '')}</p>
             <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-              <button type="button" onclick="editTransaction('${idAttr}')" aria-label="Edit transaksi ${catHtml}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
+              <button type="button" onclick="editTransaction('${idAttr}')" aria-label="Edit transaksi ${catHtml}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
                 <i class="ph ph-pencil text-base" aria-hidden="true"></i>
               </button>
-              <button type="button" onclick="deleteTransaction('${idAttr}')" aria-label="Hapus transaksi ${catHtml}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
+              <button type="button" onclick="deleteTransaction('${idAttr}')" aria-label="Hapus transaksi ${catHtml}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
                 <i class="ph ph-trash text-base" aria-hidden="true"></i>
               </button>
             </div>
@@ -67,15 +69,17 @@
         </div>`;
     };
 
+    const emptyFor = (tipe) => (typeof buildEmptyTxPlaceholder === 'function' && !q && !wFilter)
+      ? buildEmptyTxPlaceholder(tipe)
+      : `<p class="text-center text-xs text-slate-500 dark:text-slate-400 p-4">${escapeHtmlJS(t('dash.kosong'))}</p>`;
+
     if (listIn) {
       const inRows = cycleTxs.filter((tx) => tx.tipe === 'Pemasukan');
-      renderHtml(listIn, inRows.map((tx) => buildRow(tx, 'text-emerald-500', 'text-emerald-500', 'bg-emerald-50 dark:bg-emerald-500/10')).join('') ||
-        `<p class="text-center text-xs text-slate-400 p-4">${escapeHtmlJS(t('dash.kosong'))}</p>`);
+      renderHtml(listIn, inRows.map((tx) => buildRow(tx, 'text-emerald-700 dark:text-emerald-400', 'text-emerald-700 dark:text-emerald-400', 'bg-emerald-50 dark:bg-emerald-500/10')).join('') || emptyFor('Pemasukan'));
     }
     if (listOut) {
       const outRows = cycleTxs.filter((tx) => tx.tipe === 'Pengeluaran');
-      renderHtml(listOut, outRows.map((tx) => buildRow(tx, 'text-rose-500', 'text-rose-500', 'bg-rose-50 dark:bg-rose-500/10')).join('') ||
-        `<p class="text-center text-xs text-slate-400 p-4">${escapeHtmlJS(t('dash.kosong'))}</p>`);
+      renderHtml(listOut, outRows.map((tx) => buildRow(tx, 'text-rose-600 dark:text-rose-400', 'text-rose-600 dark:text-rose-400', 'bg-rose-50 dark:bg-rose-500/10')).join('') || emptyFor('Pengeluaran'));
     }
   }
 
@@ -143,7 +147,7 @@
         : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300';
 
     const barsHtml = alloc.segments.filter((s) => s.amount > 0)
-      .map((s) => `<div style="width:${Math.max(2, s.sharePct)}%;background-color:${s.color};" title="${escapeHtmlJS(s.label)}: ${s.sharePct}%" class="h-full transition-all duration-300"></div>`)
+      .map((s) => `<div style="width:${Math.max(2, s.sharePct)}%;background-color:${s.color};" title="${escapeHtmlJS(s.label)}: ${s.sharePct}%" class="h-full transition-[width] duration-200"></div>`)
       .join('');
     const legendHtml = alloc.segments.map((s) => `
       <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-3 min-w-0">
@@ -152,9 +156,9 @@
             <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${s.color};"></span>
             <span class="truncate">${escapeHtmlJS(s.label)}</span>
           </span>
-          <span class="text-[11px] font-black text-slate-800 dark:text-white shrink-0">${s.sharePct}%</span>
+          <span class="text-[11px] font-black tabular-nums text-slate-800 dark:text-white shrink-0">${s.sharePct}%</span>
         </div>
-        <p class="text-xs font-extrabold text-slate-900 dark:text-white truncate">${formatRupiah(s.amount).replace(',00', '')}</p>
+        <p class="text-xs font-extrabold tabular-nums text-slate-900 dark:text-white truncate">${formatRupiah(s.amount).replace(',00', '')}</p>
       </div>`).join('');
 
     const titleText = typeof t === 'function' ? t('aset.allocation_title') : 'Alokasi & Diversifikasi Portofolio';
@@ -166,9 +170,9 @@
               <i class="ph ph-chart-pie-slice text-brand dark:text-brand-ink" aria-hidden="true"></i>
               <span>${escapeHtmlJS(titleText)}</span>
             </h3>
-            <p class="text-[11px] text-slate-400 mt-0.5">Total portofolio bruto: <strong class="text-slate-700 dark:text-slate-200">${formatRupiah(alloc.total).replace(',00', '')}</strong></p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Total portofolio bruto: <strong class="tabular-nums text-slate-700 dark:text-slate-200">${formatRupiah(alloc.total).replace(',00', '')}</strong></p>
           </div>
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${divBadgeClass}">${divLabel} (${score}/5 kelas)</span>
+          <span class="px-2.5 py-1 rounded-full text-[11px] font-bold tabular-nums ${divBadgeClass}">${divLabel} (${score}/5 kelas)</span>
         </div>
         <div class="h-3.5 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex gap-0.5 mb-4" role="img" aria-label="Diagram alokasi portofolio">${barsHtml}</div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">${legendHtml}</div>
@@ -225,5 +229,13 @@
     if (fields) fields.classList.toggle('hide', !(chk && chk.checked));
   }
 
-  Object.assign(root, { filterHistoriView, renderFinancialRatios, renderAssetAllocation, renderBudgetAnomalyBanner, toggleSplitBillFields });
+  function resetHistoriFilters() {
+    const s = document.getElementById('historiSearch');
+    const w = document.getElementById('historiWalletFilter');
+    if (s) s.value = '';
+    if (w) w.value = '';
+    filterHistoriView();
+  }
+
+  Object.assign(root, { filterHistoriView, resetHistoriFilters, renderFinancialRatios, renderAssetAllocation, renderBudgetAnomalyBanner, toggleSplitBillFields });
 })(typeof window !== 'undefined' ? window : globalThis);

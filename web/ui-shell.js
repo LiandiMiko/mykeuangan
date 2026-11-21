@@ -62,6 +62,14 @@
     bindReportControls();
   }
 
+  function syncThemeColorMeta() {
+    const isDark = document.documentElement.classList.contains('dark');
+    const color = isDark ? '#0f172a' : '#ffffff';
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute('content', color);
+    });
+  }
+
   function setTheme(t) {
     const theme = t || '';
     document.documentElement.className = '';
@@ -74,14 +82,10 @@
     document.querySelectorAll('[data-theme-btn]').forEach((btn) => {
       const isActive = (btn.getAttribute('data-theme-btn') || '') === theme;
       btn.classList.toggle('active-theme', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
     });
 
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) {
-      const isDark = document.documentElement.classList.contains('dark');
-      const brandHex = getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#4f46e5';
-      metaTheme.setAttribute('content', isDark ? '#0f172a' : brandHex);
-    }
+    syncThemeColorMeta();
 
     if (root.isDataReady) {
       try { renderPortfolioChart(); } catch (_) { /* ignore */ }
@@ -92,13 +96,11 @@
     document.documentElement.classList.toggle('dark');
     const isDark = document.documentElement.classList.contains('dark');
     localStorage.setItem('mode', isDark ? 'dark' : 'light');
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) {
-      const brandHex = getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#4f46e5';
-      metaTheme.setAttribute('content', isDark ? '#0f172a' : brandHex);
-    }
+    syncThemeColorMeta();
     renderAll();
   }
+
+  let lastFocusBeforeSidebar = null;
 
   function toggleSidebar() {
     const sb = document.getElementById('sidebar');
@@ -108,16 +110,38 @@
       sb.classList.toggle('lg:-ml-72');
       sb.classList.toggle('lg:translate-x-0');
     } else if (sb.classList.contains('-translate-x-full')) {
+      lastFocusBeforeSidebar = document.activeElement;
       sb.classList.remove('-translate-x-full');
+      sb.setAttribute('aria-hidden', 'false');
       ov.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
       ov.classList.add('opacity-100');
+      const closeBtn = document.getElementById('sidebarCloseBtn');
+      if (closeBtn && typeof closeBtn.focus === 'function') {
+        setTimeout(() => closeBtn.focus(), 50);
+      }
     } else {
       sb.classList.add('-translate-x-full');
+      sb.setAttribute('aria-hidden', 'true');
       ov.classList.remove('opacity-100');
       ov.classList.add('opacity-0', 'pointer-events-none');
-      setTimeout(() => ov.classList.add('hidden'), 300);
+      setTimeout(() => ov.classList.add('hidden'), 280);
+      const restoreTarget = (lastFocusBeforeSidebar && document.contains(lastFocusBeforeSidebar))
+        ? lastFocusBeforeSidebar
+        : document.getElementById('sidebarToggleBtn');
+      lastFocusBeforeSidebar = null;
+      if (restoreTarget && typeof restoreTarget.focus === 'function') {
+        restoreTarget.focus();
+      }
     }
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || window.innerWidth >= 1024) return;
+    const sb = document.getElementById('sidebar');
+    if (sb && !sb.classList.contains('-translate-x-full')) {
+      toggleSidebar();
+    }
+  });
 
   function switchView(id) {
     document.querySelectorAll('.view-section').forEach((el) => el.classList.add('hide'));

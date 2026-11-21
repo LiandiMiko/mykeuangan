@@ -130,6 +130,17 @@
     return Number.isFinite(n) ? n : NaN;
   }
 
+  function bindNominalInputs(idsOrEls) {
+    (idsOrEls || []).forEach((item) => {
+      const el = typeof item === 'string' ? document.getElementById(item) : item;
+      if (!el || el.dataset.fmtBound === '1') return;
+      el.dataset.fmtBound = '1';
+      el.addEventListener('input', () => {
+        el.value = formatNominalInputValue(el.value);
+      });
+    });
+  }
+
   const _origFormatRupiah = (a) => new Intl.NumberFormat('id-ID', {
     style: 'currency', currency: 'IDR', minimumFractionDigits: 0
   }).format(a || 0);
@@ -140,23 +151,35 @@
   };
 
   function updateEyeIcon() {
-    const icon = document.getElementById('eyeIcon');
-    if (icon) {
-      icon.className = root.hideNominal ? 'ph ph-eye-slash' : 'ph ph-eye';
-    }
-    const btn = document.getElementById('toggleHideBtn');
-    if (btn) {
-      btn.title = root.hideNominal ? t('header.show_nominal') : t('header.hide_nominal');
-      btn.setAttribute('aria-label', btn.title);
-      btn.setAttribute('aria-pressed', String(Boolean(root.hideNominal)));
-    }
+    const title = root.hideNominal ? t('header.show_nominal') : t('header.hide_nominal');
+    const iconCls = root.hideNominal ? 'ph ph-eye-slash' : 'ph ph-eye';
+    [['toggleHideBtn', 'eyeIcon'], ['heroHideNominalBtn', 'heroEyeIcon']].forEach(([btnId, iconId]) => {
+      const icon = document.getElementById(iconId);
+      if (icon) icon.className = iconCls;
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        btn.title = title;
+        btn.setAttribute('aria-label', title);
+        btn.setAttribute('aria-pressed', String(Boolean(root.hideNominal)));
+      }
+    });
   }
 
   function toggleHideNominal() {
     root.hideNominal = !root.hideNominal;
     localStorage.setItem('hideNominal', root.hideNominal ? '1' : '0');
     updateEyeIcon();
+    const targets = document.querySelectorAll('.mk-privacy-target');
+    targets.forEach((el) => {
+      el.style.transition = 'opacity 120ms ease';
+      el.classList.add('mk-privacy-fade');
+    });
     if (typeof renderAll === 'function' && root.isDataReady) renderAll();
+    if (typeof root.requestAnimationFrame === 'function') {
+      root.requestAnimationFrame(() => targets.forEach((el) => el.classList.remove('mk-privacy-fade')));
+    } else {
+      targets.forEach((el) => el.classList.remove('mk-privacy-fade'));
+    }
   }
 
   const getSwalClass = () => document.documentElement.classList.contains('dark') ? 'dark-swal' : '';
@@ -303,6 +326,7 @@
     renderSelectOptions,
     formatNominalInputValue,
     parseFormattedNominal,
+    bindNominalInputs,
     _origFormatRupiah,
     formatRupiah,
     toggleHideNominal,

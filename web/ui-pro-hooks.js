@@ -88,7 +88,7 @@
     if (!important.length) return;
     localStorage.setItem(pro.KEYS.BROWSER_NOTIF_DATE, todayStr);
     try {
-      new Notification(`MyKeuangan: ${important.length} Pengingat Hari Ini`, {
+      new Notification(`MyKeuGuech: ${important.length} Pengingat Hari Ini`, {
         body: `${important[0].title} — ${important[0].message}`,
         icon: 'icons/icon-192.png'
       });

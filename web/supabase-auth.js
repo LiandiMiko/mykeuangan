@@ -112,7 +112,7 @@
         <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">${tAuth('Masuk ke Akun', 'Sign In')}</h2>
         <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">${tAuth('Kelola arus kas, dompet, dan portofolio Anda', 'Track your cashflow, wallets, and portfolio')}</p>
         <label for="mkEmail" style="${fieldLabel}">${emailLabel}</label>
-        <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+        <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" autocapitalize="off" autocorrect="off" enterkeyhint="next" aria-describedby="mkErr" style="${field}">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <label for="mkPass" style="${fieldLabel}">${tAuth('Kata Sandi', 'Password')}</label>
           <a href="#" id="mkForgotLink" style="${linkStyle};font-size:11.5px;font-weight:600">${tAuth('Lupa kata sandi?', 'Forgot password?')}</a>
@@ -128,12 +128,12 @@
         <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">${tAuth('Daftar Akun Baru', 'Create Account')}</h2>
         <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">${tAuth('Gratis & privat dengan proteksi isolasi data per pengguna', 'Free & private with per-user row-level security')}</p>
         <label for="mkEmail" style="${fieldLabel}">${emailLabel}</label>
-        <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+        <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" autocapitalize="off" autocorrect="off" enterkeyhint="next" aria-describedby="mkErr" style="${field}">
         <label for="mkPass" style="${fieldLabel}">${tAuth('Kata Sandi (min. 8 karakter)', 'Password (min. 8 chars)')}</label>
-        ${passInputGroup('mkPass', tAuth('Minimal 8 karakter', 'At least 8 characters'), 'new-password', 8)}
+        ${passInputGroup('mkPass', tAuth('Minimal 8 karakter', 'At least 8 characters'), 'new-password', 8, 'next')}
         <p id="mkPassStrength" style="margin:-2px 0 2px;font-size:11px;min-height:14px;font-weight:700"></p>
         <label for="mkPassConfirm" style="${fieldLabel}">${tAuth('Ulangi Kata Sandi', 'Confirm Password')}</label>
-        ${passInputGroup('mkPassConfirm', tAuth('Ulangi kata sandi', 'Repeat password'), 'new-password', 8)}
+        ${passInputGroup('mkPassConfirm', tAuth('Ulangi kata sandi', 'Repeat password'), 'new-password', 8, 'done')}
         <button type="submit" id="mkSubmitBtn" style="${primaryBtn};background:linear-gradient(135deg,#059669 0%,#14b8a6 100%)">${tAuth('Daftar Akun', 'Create Account')}</button>
         <p style="margin:10px 0 0;font-size:12.5px;color:${textMuted};text-align:center">
           ${tAuth('Sudah punya akun?', 'Already have an account?')} <a href="#" id="mkLoginLink" style="${linkStyle};font-weight:700">${tAuth('Masuk di sini', 'Sign in')}</a>
@@ -143,20 +143,33 @@
       <h2 style="margin:0 0 2px;font-size:20px;color:${textMain};font-weight:800;letter-spacing:-0.02em">${tAuth('Reset Kata Sandi', 'Reset Password')}</h2>
       <p style="margin:0 0 10px;font-size:12.5px;color:${textMuted}">${tAuth('Masukkan email terdaftar untuk menerima tautan reset', 'Enter your registered email to receive a reset link')}</p>
       <label for="mkEmail" style="${fieldLabel}">${emailLabel}</label>
-      <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" aria-describedby="mkErr" style="${field}">
+      <input id="mkEmail" type="email" value="${emailAttr}" placeholder="${emailPh}" required autocomplete="username" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="mkErr" style="${field}">
       <button type="submit" id="mkSubmitBtn" style="${primaryBtn}">${tAuth('Kirim Link Reset', 'Send Reset Link')}</button>
       <p style="margin:10px 0 0;font-size:12.5px;color:${textMuted};text-align:center">
         ${tAuth('Kembali ke', 'Back to')} <a href="#" id="mkLoginLink" style="${linkStyle};font-weight:700">${tAuth('Halaman Masuk', 'Sign In')}</a>
       </p>`;
   }
 
+  function focusAuthErrorField(el, fieldId, selectValue) {
+    const target = el && el.querySelector('#' + fieldId);
+    if (!target) return;
+    target.setAttribute('aria-invalid', 'true');
+    if (typeof target.focus === 'function') target.focus();
+    if (selectValue && typeof target.select === 'function') target.select();
+  }
+
   async function executeAuthSubmit(submitMode, el, errEl) {
     const en = isAuthEn();
     const email = el.querySelector('#mkEmail').value.trim();
+    el.querySelectorAll('input').forEach((inp) => inp.removeAttribute('aria-invalid'));
     if (submitMode === 'login') {
       const pass = el.querySelector('#mkPass').value;
       const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-      if (error) { errEl.textContent = (en ? 'Sign in failed: ' : 'Gagal masuk: ') + error.message; return; }
+      if (error) {
+        errEl.textContent = (en ? 'Sign in failed: ' : 'Gagal masuk: ') + error.message;
+        focusAuthErrorField(el, 'mkPass', true);
+        return;
+      }
       el.remove();
       finishLogin(data.session);
     } else if (submitMode === 'register') {
@@ -164,11 +177,20 @@
       const passConfirm = el.querySelector('#mkPassConfirm').value;
       if (pass.length < 8 || pass.length > 128) {
         errEl.textContent = en ? 'Password must be 8 to 128 characters.' : 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+        focusAuthErrorField(el, 'mkPass', false);
         return;
       }
-      if (pass !== passConfirm) { errEl.textContent = en ? 'Password confirmation does not match.' : 'Konfirmasi kata sandi tidak cocok.'; return; }
+      if (pass !== passConfirm) {
+        errEl.textContent = en ? 'Password confirmation does not match.' : 'Konfirmasi kata sandi tidak cocok.';
+        focusAuthErrorField(el, 'mkPassConfirm', true);
+        return;
+      }
       const { data, error } = await sb.auth.signUp({ email, password: pass });
-      if (error) { errEl.textContent = (en ? 'Sign up failed: ' : 'Pendaftaran gagal: ') + error.message; return; }
+      if (error) {
+        errEl.textContent = (en ? 'Sign up failed: ' : 'Pendaftaran gagal: ') + error.message;
+        focusAuthErrorField(el, 'mkEmail', false);
+        return;
+      }
       if (data.session) {
         el.remove();
         finishLogin(data.session);
@@ -178,7 +200,11 @@
       }
     } else if (submitMode === 'forgot') {
       const { error } = await sb.auth.resetPasswordForEmail(email);
-      if (error) { errEl.textContent = (en ? 'Failed to send reset link: ' : 'Gagal kirim reset: ') + error.message; return; }
+      if (error) {
+        errEl.textContent = (en ? 'Failed to send reset link: ' : 'Gagal kirim reset: ') + error.message;
+        focusAuthErrorField(el, 'mkEmail', false);
+        return;
+      }
       errEl.style.color = '#10b981';
       errEl.textContent = en ? 'Password reset link sent to your email.' : 'Link reset berhasil dikirim ke email Anda.';
     }
@@ -192,16 +218,16 @@
     const textMuted = isDark ? '#94a3b8' : '#64748b';
     const inputBg = isDark ? '#020617' : '#f8fafc';
     const inputBorder = isDark ? '#1e293b' : '#e2e8f0';
-    const field = `width:100%;box-sizing:border-box;min-height:44px;padding:11px 14px;border:1px solid ${inputBorder};border-radius:12px;font-size:13.5px;background:${inputBg};color:${textMain};outline:none`;
-    const passField = `width:100%;box-sizing:border-box;min-height:44px;padding:11px 44px 11px 14px;border:1px solid ${inputBorder};border-radius:12px;font-size:13.5px;background:${inputBg};color:${textMain};outline:none`;
+    const field = `width:100%;box-sizing:border-box;min-height:44px;padding:10px 14px;border:1px solid ${inputBorder};border-radius:12px;font-size:16px;background:${inputBg};color:${textMain};outline:none`;
+    const passField = `width:100%;box-sizing:border-box;min-height:44px;padding:10px 44px 10px 14px;border:1px solid ${inputBorder};border-radius:12px;font-size:16px;background:${inputBg};color:${textMain};outline:none`;
     const fieldLabel = `display:block;font-size:11.5px;font-weight:700;color:${isDark ? '#cbd5e1' : '#334155'};margin-top:2px`;
-    const toggleBtnStyle = `position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:${textMuted};display:inline-flex;align-items:center;justify-content:center;cursor:pointer`;
+    const toggleBtnStyle = `position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:${textMuted};display:inline-flex;align-items:center;justify-content:center;cursor:pointer`;
     const primaryBtn = 'width:100%;min-height:46px;padding:12px 16px;border:0;border-radius:14px;background:linear-gradient(135deg,var(--color-brand,#4f46e5) 0%,var(--color-brand-accent,#6366f1) 100%);color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:6px;box-shadow:0 12px 28px -12px rgb(var(--color-brand-rgb,79 70 229)/0.55)';
     const linkStyle = 'color:var(--color-brand-ink,#4f46e5);text-decoration:none';
-    const passInputGroup = (id, placeholder, autocomplete, minLen) => `
+    const passInputGroup = (id, placeholder, autocomplete, minLen, enterHint) => `
       <div style="position:relative">
-        <input id="${id}" type="password" placeholder="${placeholder}" ${minLen ? `minlength="${minLen}"` : ''} required autocomplete="${autocomplete}" aria-describedby="mkErr" style="${passField}">
-        <button type="button" data-toggle-pass="${id}" aria-label="Tampilkan atau sembunyikan kata sandi" style="${toggleBtnStyle}">
+        <input id="${id}" type="password" placeholder="${placeholder}" ${minLen ? `minlength="${minLen}"` : ''} required autocomplete="${autocomplete}" enterkeyhint="${enterHint || 'done'}" aria-describedby="mkErr" style="${passField}">
+        <button type="button" data-toggle-pass="${id}" aria-pressed="false" aria-label="Tampilkan atau sembunyikan kata sandi" style="${toggleBtnStyle}">
           <i class="ph ph-eye" aria-hidden="true" style="font-size:17px"></i>
         </button>
       </div>`;
@@ -209,12 +235,16 @@
   }
 
   function bindPassControls(el) {
+    el.querySelectorAll('input').forEach((inp) => {
+      inp.addEventListener('input', () => inp.removeAttribute('aria-invalid'));
+    });
     el.querySelectorAll('[data-toggle-pass]').forEach((btn) => {
       btn.onclick = () => {
         const input = el.querySelector('#' + btn.dataset.togglePass);
         if (!input) return;
         const showing = input.type === 'text';
         input.type = showing ? 'password' : 'text';
+        btn.setAttribute('aria-pressed', String(!showing));
         const icon = document.createElement('i');
         icon.className = `ph ph-${showing ? 'eye' : 'eye-slash'}`;
         icon.setAttribute('aria-hidden', 'true');

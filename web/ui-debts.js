@@ -1,4 +1,4 @@
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, walletOptions, localToday */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, walletOptions, localToday */
 /* ============================================================
    DEBT & RECEIVABLES (UTANG / PIUTANG)
    ============================================================ */
@@ -43,15 +43,15 @@
             <p class="font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title="${safeName}">${safeName}</p>
           </div>
           <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-            <button type="button" data-debt-action="edit" data-debt-group="${safeGroup}" data-debt-name="${safeName}" aria-label="Edit ${safeName}" class="w-10 h-10 text-blue-500 hover:text-blue-600">
+            <button type="button" data-debt-action="edit" data-debt-group="${safeGroup}" data-debt-name="${safeName}" aria-label="Edit ${safeName}" class="w-10 h-10 text-blue-700 dark:text-blue-400 hover:text-blue-800">
               <i class="ph ph-pencil" aria-hidden="true"></i>
             </button>
-            <button type="button" data-debt-action="delete" data-debt-group="${safeGroup}" data-debt-name="${safeName}" aria-label="Hapus ${safeName}" class="w-10 h-10 text-rose-500 hover:text-rose-600">
+            <button type="button" data-debt-action="delete" data-debt-group="${safeGroup}" data-debt-name="${safeName}" aria-label="Hapus ${safeName}" class="w-10 h-10 text-rose-600 dark:text-rose-400 hover:text-rose-700">
               <i class="ph ph-trash" aria-hidden="true"></i>
             </button>
           </div>
         </div>
-        <p class="text-xl font-black mb-4 text-slate-800 dark:text-white">${formatRupiah(bal).replace(',00', '')}</p>
+        <p class="text-xl font-black mb-4 text-slate-800 dark:text-white tabular-nums">${formatRupiah(bal).replace(',00', '')}</p>
         <div class="flex gap-2">
           <button type="button" data-debt-action="add" data-debt-group="${safeGroup}" data-debt-name="${safeName}" class="flex-1 min-h-[44px] py-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors">
             ${btnAddTxt}
@@ -141,20 +141,25 @@
 
     const affectsCash = !(isDebtGroup && type === 'add');
     const walletSel = affectsCash && (DB.wallets || []).length
-      ? `<label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">${isIncome ? 'Masuk ke dompet' : 'Dibayar dari dompet'}</label><select id="swal-wallet" class="swal2-input">${walletOptions('')}</select>`
+      ? `<label for="swal-wallet" class="block text-left text-xs font-semibold text-slate-600 dark:text-slate-300 mt-2 mb-1">${isIncome ? 'Masuk ke dompet' : 'Dibayar dari dompet'}</label><select id="swal-wallet" class="swal2-input" style="margin:0;width:100%">${walletOptions('')}</select>`
       : '';
 
     const { value: formVals } = await Swal.fire({
       title: escapeHtmlJS(title),
       html: `
-        <input id="swal-nom" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="number" placeholder="Nominal Rp">
-        <input id="swal-ket" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="text" placeholder="Catatan Opsional">
-        <label for="swal-date" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Tanggal Transaksi</label>
-        <input id="swal-date" class="swal2-input bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white" type="date" value="${localToday()}">
-        ${walletSel}`,
+        <div class="text-left space-y-2">
+          <label for="swal-nom" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nominal (Rp)</label>
+          <input id="swal-nom" class="swal2-input tabular-nums" style="margin:0;width:100%" type="text" inputmode="numeric" placeholder="0">
+          <label for="swal-ket" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Catatan (opsional)</label>
+          <input id="swal-ket" class="swal2-input" style="margin:0;width:100%" type="text" placeholder="Contoh: Cicilan ke-1">
+          <label for="swal-date" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal Transaksi</label>
+          <input id="swal-date" class="swal2-input" style="margin:0;width:100%" type="date" value="${localToday()}">
+          ${walletSel}
+        </div>`,
       focusConfirm: false,
       showCancelButton: true,
       customClass: { popup: getSwalClass() },
+      didOpen: () => bindNominalInputs(['swal-nom']),
       preConfirm: () => [
         document.getElementById('swal-nom').value,
         document.getElementById('swal-ket').value,
@@ -164,7 +169,7 @@
     });
 
     if (formVals && formVals[0]) {
-      const nominal = parseFloat(formVals[0]);
+      const nominal = Math.round(parseFormattedNominal(formVals[0]));
       if (!nominal || nominal <= 0) return;
       const payload = {
         tanggal: (formVals[3] || '').slice(0, 10) || localToday(),

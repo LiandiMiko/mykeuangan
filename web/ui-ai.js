@@ -114,7 +114,7 @@
     const score = parsed.healthScore;
     const scoreColor = score === null ? 'bg-brand text-white'
       : score >= 75 ? 'bg-emerald-600 text-white'
-        : score >= 50 ? 'bg-amber-500 text-white' : 'bg-rose-600 text-white';
+        : score >= 50 ? 'bg-amber-600 text-white' : 'bg-rose-600 text-white';
 
     const renderBullets = (items, emptyText) => {
       if (!items || !items.length) return emptyText ? `<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(emptyText)}</p>` : '';
@@ -126,10 +126,10 @@
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
           <div class="flex items-center gap-3">
-            ${score !== null ? `<div class="w-12 h-12 rounded-2xl ${scoreColor} flex flex-col items-center justify-center shrink-0 font-black"><span class="text-lg leading-none">${score}</span><span class="text-[9px] opacity-80">/100</span></div>` : ''}
+            ${score !== null ? `<div class="w-12 h-12 rounded-2xl ${scoreColor} flex flex-col items-center justify-center shrink-0 font-black tabular-nums"><span class="text-lg leading-none">${score}</span><span class="text-[10px] opacity-90">/100</span></div>` : ''}
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtmlJS(t('ai.score'))} · ${escapeHtmlJS(payload.period)}</p>
-              <p class="text-base font-bold text-slate-800 dark:text-white">${escapeHtmlJS(parsed.statusLabel || 'Hasil Analisis')} <span class="text-xs font-medium text-slate-500 dark:text-slate-400">(Savings Rate: ${escapeHtmlJS(payload.savingsRate)}%)</span></p>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(t('ai.score'))} · ${escapeHtmlJS(payload.period)}</p>
+              <p class="text-base font-bold text-slate-800 dark:text-white">${escapeHtmlJS(parsed.statusLabel || 'Hasil Analisis')} <span class="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">(Savings Rate: ${escapeHtmlJS(payload.savingsRate)}%)</span></p>
             </div>
           </div>
           <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand self-start sm:self-center">Tutup</button>
@@ -162,7 +162,7 @@
     const btn = document.getElementById('btnRunAiAnalysis');
     const box = document.getElementById('aiAnalysisResult');
     if (!box) return;
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
     box.classList.remove('hide');
     renderHtml(box, `
       <div class="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-600 dark:text-slate-300">
@@ -190,7 +190,7 @@
           <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
         </div>`);
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
     }
   }
 

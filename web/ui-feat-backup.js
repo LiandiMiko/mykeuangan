@@ -67,7 +67,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Backup_MyKeuangan_${sessionUser}_${todayStr}.json`;
+    a.download = `Backup_MyKeuGuech_${sessionUser}_${todayStr}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }

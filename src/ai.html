@@ -27,7 +27,7 @@
         <button type="button" onclick="configureGeminiApiKey()" class="min-h-11 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 transition-colors">
           <i class="ph ph-key" aria-hidden="true"></i> <span data-i18n="ai.btn_key">Atur API Key Gemini</span>
         </button>
-        <button type="button" id="btnRunAiAnalysis" onclick="runAiCashflowAnalysis()" class="min-h-11 px-5 py-2 brand-gradient text-white hover:opacity-95 rounded-xl text-xs font-bold flex items-center justify-center gap-2 brand-border-glow transition-all disabled:opacity-60">
+        <button type="button" id="btnRunAiAnalysis" onclick="runAiCashflowAnalysis()" class="min-h-11 px-5 py-2 brand-gradient text-white hover:opacity-95 rounded-xl text-xs font-bold flex items-center justify-center gap-2 brand-border-glow transition-opacity disabled:opacity-60">
           <i class="ph ph-magic-wand text-base" aria-hidden="true"></i> <span data-i18n="ai.btn_analyze">Analisis Arus Keuangan</span>
         </button>
       </div>
@@ -58,19 +58,19 @@
     </div>
 
     <div class="flex flex-wrap gap-2 mb-3">
-      <button type="button" onclick="fillAiChatPrompt('Bagaimana cara menekan pengeluaran terbesar saya bulan ini sebesar 15%?')" class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
-        💡 Tekan pengeluaran terbesar
+      <button type="button" onclick="fillAiChatPrompt('Bagaimana cara menekan pengeluaran terbesar saya bulan ini sebesar 15%?')" class="min-h-9 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink inline-flex items-center gap-1.5 transition-colors">
+        <i class="ph ph-lightbulb text-amber-600 dark:text-amber-400" aria-hidden="true"></i> <span>Tekan pengeluaran terbesar</span>
       </button>
-      <button type="button" onclick="fillAiChatPrompt('Apakah arus kas saya aman untuk menambah cicilan Rp 1.000.000 per bulan?')" class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
-        🧮 Simulasi cicilan baru
+      <button type="button" onclick="fillAiChatPrompt('Apakah arus kas saya aman untuk menambah cicilan Rp 1.000.000 per bulan?')" class="min-h-9 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink inline-flex items-center gap-1.5 transition-colors">
+        <i class="ph ph-calculator text-brand dark:text-brand-ink" aria-hidden="true"></i> <span>Simulasi cicilan baru</span>
       </button>
-      <button type="button" onclick="fillAiChatPrompt('Strategi terbaik melunasi utang atau mempercepat target tabungan saya sekarang?')" class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
-        🎯 Prioritas utang vs target
+      <button type="button" onclick="fillAiChatPrompt('Strategi terbaik melunasi utang atau mempercepat target tabungan saya sekarang?')" class="min-h-9 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink inline-flex items-center gap-1.5 transition-colors">
+        <i class="ph ph-target text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i> <span>Prioritas utang vs target</span>
       </button>
     </div>
 
     <form onsubmit="event.preventDefault(); runAiFinancialChat();" class="flex flex-col sm:flex-row gap-2.5">
-      <input type="text" id="aiChatInput" maxlength="500" data-i18n-placeholder="ai.chat_placeholder" placeholder="Contoh: Berapa dana darurat ideal dan berapa yang bisa saya sisihkan per bulan?"
+      <input type="text" id="aiChatInput" enterkeyhint="send" maxlength="500" data-i18n-placeholder="ai.chat_placeholder" placeholder="Contoh: Berapa dana darurat ideal dan berapa yang bisa saya sisihkan per bulan?"
              class="flex-1 min-h-11 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm text-slate-800 dark:text-white">
       <button type="submit" id="btnAskAiChat" class="min-h-11 px-5 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60 shrink-0">
         <i class="ph ph-paper-plane-tilt text-base" aria-hidden="true"></i> <span data-i18n="ai.chat_ask">Tanya Gemini</span>

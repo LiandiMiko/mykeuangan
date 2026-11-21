@@ -1,4 +1,4 @@
-/* global DB, Swal, callServer, refreshFromServer, renderAll, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, getPeriodLabel, t */
+/* global DB, Swal, callServer, refreshFromServer, renderAll, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, getPeriodLabel, t */
 /* ============================================================
    PAYROLL CYCLE & RECURRING TRANSACTIONS
    ============================================================ */
@@ -64,7 +64,7 @@
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">${escapeHtmlJS(isActive ? t('rec.active') : t('rec.paused'))}</span>
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${escapeHtmlJS(t('rec.day_prefix'))} ${escapeHtmlJS(r.dayOfMonth)}${r.keterangan ? ' · ' + escapeHtmlJS(r.keterangan) : ''}</p>
-          <p class="font-black text-sm mt-1 ${amountClass}">${isIncome ? '+' : '-'}${formatRupiah(r.nominal)}</p>
+          <p class="font-black text-sm mt-1 tabular-nums ${amountClass}">${isIncome ? '+' : '-'}${formatRupiah(r.nominal)}</p>
         </div>
         <div class="flex items-center gap-1 shrink-0">
           <button type="button" onclick="recordRecurringFromNotif('${idAttr}')" aria-label="Catat sekarang ${catHtml}" title="Catat transaksi ini sekarang" class="h-10 px-2.5 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-ink text-[11px] font-bold flex items-center justify-center gap-1 hover:bg-brand hover:text-white transition-colors">
@@ -114,7 +114,7 @@
           <label for="rec-kat" class="block font-semibold">Kategori</label>
           <select id="rec-kat" class="swal2-input" style="margin:0;width:100%">${optsFor(cur.tipe)}</select>
           <label for="rec-nom" class="block font-semibold">Nominal (Rp)</label>
-          <input id="rec-nom" type="number" min="1" value="${escapeHtmlJS(cur.nominal)}" class="swal2-input" style="margin:0;width:100%" placeholder="Contoh: 350000">
+          <input id="rec-nom" type="text" inputmode="numeric" value="${escapeHtmlJS(cur.nominal ? formatNominalInputValue(cur.nominal) : '')}" class="swal2-input tabular-nums" style="margin:0;width:100%" placeholder="Contoh: 350.000">
           <label for="rec-day" class="block font-semibold">Tanggal Eksekusi Setiap Bulan (1-31)</label>
           <input id="rec-day" type="number" min="1" max="31" value="${escapeHtmlJS(cur.dayOfMonth || 1)}" class="swal2-input" style="margin:0;width:100%">
           <label for="rec-ket" class="block font-semibold">Catatan</label>
@@ -125,6 +125,7 @@
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => {
+        bindNominalInputs(['rec-nom']);
         const tipeSel = document.getElementById('rec-tipe');
         const katSel = document.getElementById('rec-kat');
         if (tipeSel && katSel) {
@@ -137,7 +138,7 @@
       preConfirm: () => {
         const tipe = document.getElementById('rec-tipe').value;
         const kategori = document.getElementById('rec-kat').value;
-        const nominal = parseFloat(document.getElementById('rec-nom').value);
+        const nominal = Math.round(parseFormattedNominal(document.getElementById('rec-nom').value));
         const dayOfMonth = parseInt(document.getElementById('rec-day').value, 10);
         const keterangan = document.getElementById('rec-ket').value.trim();
         if (!kategori || !Number.isFinite(nominal) || nominal <= 0 || !dayOfMonth || dayOfMonth < 1 || dayOfMonth > 31) {

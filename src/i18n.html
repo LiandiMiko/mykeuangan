@@ -122,8 +122,8 @@ const I18N = {
     'cal.next': 'Bulan berikutnya',
     'cal.today': 'Ke bulan ini',
     'cal.filter_all': 'Semua',
-    'cal.filter_out': '🔴 Keluar',
-    'cal.filter_in': '🟢 Masuk',
+    'cal.filter_out': 'Keluar',
+    'cal.filter_in': 'Masuk',
 
     // ============ BULAN ============
     'month.jan': 'Januari',
@@ -152,6 +152,7 @@ const I18N = {
     'form.pemasukan': 'Pemasukan',
     'form.pengeluaran': 'Pengeluaran',
     'form.scan_receipt': 'Scan Struk (AI)',
+    'form.back': 'Kembali ke Dashboard',
 
     // ============ LAPORAN ============
     'lap.title': 'Semua Data',
@@ -267,6 +268,7 @@ const I18N = {
     'btn.ya': 'Ya',
     'btn.tidak': 'Tidak',
     'btn.ya_hapus': 'Ya, Hapus',
+    'filter.reset': 'Reset Filter',
 
     // ============ ALERTS ============
     'alert.saved': 'Tersimpan!',
@@ -280,7 +282,7 @@ const I18N = {
     'alert.invalid_data_text': 'Isi tanggal dan nominal dengan benar.',
 
     // ============ SETTING PAYROLL ============
-    'payroll.title': '⚙️ Tanggal Gajian',
+    'payroll.title': 'Tanggal Gajian',
     'payroll.desc': 'Siklus keuangan akan dimulai dari tanggal ini setiap bulan.',
     'payroll.example': 'Contoh',
     'payroll.range_hint': 'Isi 1 untuk bulan kalender biasa (1-30/31)',
@@ -305,7 +307,7 @@ const I18N = {
     // ============ UPDATES ============
     'nav.updates': 'Pembaruan',
     'updates.title': 'Riwayat Pembaruan',
-    'updates.subtitle': 'Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuangan.',
+    'updates.subtitle': 'Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuGuech.',
     'updates.current_version': 'Versi saat ini',
     'updates.badge_latest': 'Terbaru',
     'updates.search_placeholder': 'Cari fitur, mis. kalender, telegram, emas...',
@@ -464,8 +466,8 @@ const I18N = {
     'cal.next': 'Next month',
     'cal.today': 'Go to this month',
     'cal.filter_all': 'All',
-    'cal.filter_out': '🔴 Out',
-    'cal.filter_in': '🟢 In',
+    'cal.filter_out': 'Out',
+    'cal.filter_in': 'In',
 
     // ============ BULAN ============
     'month.jan': 'January',
@@ -494,6 +496,7 @@ const I18N = {
     'form.pemasukan': 'Income',
     'form.pengeluaran': 'Expense',
     'form.scan_receipt': 'Scan Receipt (AI)',
+    'form.back': 'Back to Dashboard',
 
     // ============ LAPORAN ============
     'lap.title': 'All Data',
@@ -609,6 +612,7 @@ const I18N = {
     'btn.ya': 'Yes',
     'btn.tidak': 'No',
     'btn.ya_hapus': 'Yes, Delete',
+    'filter.reset': 'Reset Filters',
 
     // ============ ALERTS ============
     'alert.saved': 'Saved!',
@@ -622,7 +626,7 @@ const I18N = {
     'alert.invalid_data_text': 'Fill date and amount correctly.',
 
     // ============ SETTING PAYROLL ============
-    'payroll.title': '⚙️ Payday',
+    'payroll.title': 'Payday',
     'payroll.desc': 'Financial cycle will start from this date each month.',
     'payroll.example': 'Example',
     'payroll.range_hint': 'Fill 1 for regular calendar month (1-30/31)',
@@ -647,7 +651,7 @@ const I18N = {
     // ============ UPDATES ============
     'nav.updates': 'What\'s New',
     'updates.title': 'Release History',
-    'updates.subtitle': 'Summary of new features, bug fixes, and security improvements in MyKeuangan.',
+    'updates.subtitle': 'Summary of new features, bug fixes, and security improvements in MyKeuGuech.',
     'updates.current_version': 'Current version',
     'updates.badge_latest': 'Latest',
     'updates.search_placeholder': 'Search updates, e.g. calendar, telegram, gold...',
@@ -714,6 +718,7 @@ function updateLangUI() {
   // Update active state di tombol lang
   document.querySelectorAll('[data-lang-btn]').forEach(btn => {
     const isActive = btn.getAttribute('data-lang-btn') === currentLang;
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     btn.classList.toggle('bg-brand', isActive);
     btn.classList.toggle('text-white', isActive);
     btn.classList.toggle('text-slate-500', !isActive);
@@ -728,7 +733,7 @@ function applyTranslations() {
     if (val) el.textContent = val;
   });
 
-  // Placeholder
+  // Input placeholder attributes
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
     const key = el.getAttribute('data-i18n-placeholder');
     const val = t(key);

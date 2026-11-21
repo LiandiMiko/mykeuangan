@@ -41,7 +41,7 @@
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
     doc.setTextColor(15, 23, 42);
-    doc.text('MyKeuanganGuech', 14, 22);
+    doc.text('MyKeuGuech', 14, 22);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
@@ -143,7 +143,7 @@
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text(`Halaman ${i} dari ${pageCount} | Dicetak oleh MyKeuanganGuech`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+      doc.text(`Halaman ${i} dari ${pageCount} | Dicetak oleh MyKeuGuech`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
     }
     doc.save(`Laporan_Keuangan_${sessionUser}_${period || 'All'}.pdf`);
   }

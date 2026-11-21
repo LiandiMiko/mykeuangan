@@ -42,6 +42,7 @@
     const count = getCheckedReportIds().length;
     countEl.textContent = String(count);
     bar.classList.toggle('hide', count === 0);
+    bar.classList.toggle('mk-bulk-enter', count > 0);
   }
 
   async function finalizeBulkMutation(payload, okCount, failedCount, verb) {
@@ -178,17 +179,17 @@
     const monthRows = recap.months.map((m) => `
       <tr class="border-b border-slate-100 dark:border-slate-800 text-xs">
         <td class="py-1.5 font-semibold">${escapeHtmlJS(m.period)}</td>
-        <td class="py-1.5 text-right text-emerald-600">+${escapeHtmlJS(formatShortIDR(m.income))}</td>
-        <td class="py-1.5 text-right text-rose-600">-${escapeHtmlJS(formatShortIDR(m.expense))}</td>
-        <td class="py-1.5 text-right font-bold">${m.net >= 0 ? '+' : '-'}${escapeHtmlJS(formatShortIDR(Math.abs(m.net)))}</td>
+        <td class="py-1.5 text-right tabular-nums text-emerald-700 dark:text-emerald-400">+${escapeHtmlJS(formatShortIDR(m.income))}</td>
+        <td class="py-1.5 text-right tabular-nums text-rose-600 dark:text-rose-400">-${escapeHtmlJS(formatShortIDR(m.expense))}</td>
+        <td class="py-1.5 text-right tabular-nums font-bold">${m.net >= 0 ? '+' : '-'}${escapeHtmlJS(formatShortIDR(Math.abs(m.net)))}</td>
       </tr>
     `).join('');
     renderHtml(box, `
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs mb-3">
-        <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[10px] text-slate-500">Masuk ${escapeHtmlJS(recap.year)}</p><p class="font-black text-emerald-600">${escapeHtmlJS(fmt(recap.totalIncome))}</p></div>
-        <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[10px] text-slate-500">Keluar ${escapeHtmlJS(recap.year)}</p><p class="font-black text-rose-600">${escapeHtmlJS(fmt(recap.totalExpense))}</p></div>
-        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[10px] text-slate-500">Tabungan Bersih</p><p class="font-black text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(recap.netSavings))}</p></div>
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[10px] text-slate-500">Savings Rate</p><p class="font-black">${recap.savingsRatePct}%</p></div>
+        <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Masuk ${escapeHtmlJS(recap.year)}</p><p class="font-black tabular-nums text-emerald-700 dark:text-emerald-400">${escapeHtmlJS(fmt(recap.totalIncome))}</p></div>
+        <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Keluar ${escapeHtmlJS(recap.year)}</p><p class="font-black tabular-nums text-rose-600 dark:text-rose-400">${escapeHtmlJS(fmt(recap.totalExpense))}</p></div>
+        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Tabungan Bersih</p><p class="font-black tabular-nums text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(recap.netSavings))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-600 dark:text-slate-400">Savings Rate</p><p class="font-black tabular-nums">${recap.savingsRatePct}%</p></div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -197,8 +198,8 @@
         </div>
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
           <p class="font-bold">Top Pengeluaran ${escapeHtmlJS(recap.year)}</p>
-          ${recap.topCategories.map((c) => `<div class="flex justify-between"><span>${escapeHtmlJS(c.category)}</span><strong>${escapeHtmlJS(fmt(c.amount))} (${c.sharePct}%)</strong></div>`).join('') || '<p class="text-slate-400">Belum ada pengeluaran.</p>'}
-          ${recap.bestSavingMonth ? `<p class="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">🏆 Paling hemat: <strong>${escapeHtmlJS(recap.bestSavingMonth.period)}</strong></p>` : ''}
+          ${recap.topCategories.map((c) => `<div class="flex justify-between gap-2"><span>${escapeHtmlJS(c.category)}</span><strong class="tabular-nums">${escapeHtmlJS(fmt(c.amount))} (${c.sharePct}%)</strong></div>`).join('') || '<p class="text-slate-500">Belum ada pengeluaran.</p>'}
+          ${recap.bestSavingMonth ? `<p class="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] flex items-center gap-1.5"><i class="ph-bold ph-trophy text-amber-500" aria-hidden="true"></i><span>Paling hemat: <strong class="tabular-nums">${escapeHtmlJS(recap.bestSavingMonth.period)}</strong></span></p>` : ''}
         </div>
       </div>
     `);
@@ -213,16 +214,16 @@
     const fmt = (n) => formatRupiah(n).replace(',00', '');
     renderHtml(box, `
       <div class="grid grid-cols-3 gap-2 text-xs mb-3">
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[10px] text-slate-400">${escapeHtmlJS(pA)} Keluar</p><p class="font-black">${escapeHtmlJS(fmt(cmp.expenseA))}</p></div>
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[10px] text-slate-400">${escapeHtmlJS(pB)} Keluar</p><p class="font-black">${escapeHtmlJS(fmt(cmp.expenseB))}</p></div>
-        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[10px] text-slate-400">Selisih Keluar</p><p class="font-black">${cmp.expenseB - cmp.expenseA >= 0 ? '+' : '-'}${escapeHtmlJS(fmt(Math.abs(cmp.expenseB - cmp.expenseA)))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(pA)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseA))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(pB)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseB))}</p></div>
+        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Selisih Keluar</p><p class="font-black tabular-nums">${cmp.expenseB - cmp.expenseA >= 0 ? '+' : '-'}${escapeHtmlJS(fmt(Math.abs(cmp.expenseB - cmp.expenseA)))}</p></div>
       </div>
       <div class="max-h-56 overflow-y-auto space-y-1.5 text-xs">
         ${cmp.categories.map((r) => `
           <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60">
             <span class="font-semibold truncate">${escapeHtmlJS(r.category)}</span>
-            <span class="shrink-0">${escapeHtmlJS(formatShortIDR(r.amountA))} → <strong>${escapeHtmlJS(formatShortIDR(r.amountB))}</strong> <span class="${r.delta > 0 ? 'text-rose-500' : 'text-emerald-500'}">(${r.delta >= 0 ? '+' : ''}${escapeHtmlJS(formatShortIDR(r.delta))})</span></span>
-          </div>`).join('') || '<p class="text-slate-400">Tidak ada transaksi untuk dibandingkan.</p>'}
+            <span class="shrink-0 tabular-nums">${escapeHtmlJS(formatShortIDR(r.amountA))} → <strong>${escapeHtmlJS(formatShortIDR(r.amountB))}</strong> <span class="${r.delta > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}">(${r.delta >= 0 ? '+' : ''}${escapeHtmlJS(formatShortIDR(r.delta))})</span></span>
+          </div>`).join('') || '<p class="text-slate-500">Tidak ada transaksi untuk dibandingkan.</p>'}
       </div>
     `);
   }

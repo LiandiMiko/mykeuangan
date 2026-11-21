@@ -59,8 +59,8 @@
     document.getElementById('tr_tipe').value = parsed.tipe;
     const submitBtn = document.getElementById('btnSubmitTrans');
     if (submitBtn) {
-      submitBtn.className = 'w-full text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ' +
-        (parsed.tipe === 'Pemasukan' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600');
+      submitBtn.className = 'w-full min-h-[52px] text-white font-bold py-3.5 rounded-2xl shadow-xl transition-[background-color,opacity,transform] flex items-center justify-center gap-2 ' +
+        (parsed.tipe === 'Pemasukan' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700');
     }
     const tipeKey = parsed.tipe === 'Pemasukan' ? 'form.pemasukan' : 'form.pengeluaran';
     const titleEl = document.getElementById('formTitle');
@@ -156,7 +156,7 @@
       if (!apiKey) return;
     }
 
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
     if (out) {
       out.classList.remove('hide');
       renderHtml(out, '<div class="flex items-center gap-2 text-slate-500"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div><span>Gemini sedang menjawab pertanyaan Anda...</span></div>');
@@ -176,7 +176,7 @@
         renderHtml(out, `<p class="text-rose-600 dark:text-rose-400 font-semibold">Gagal meminta jawaban AI: ${escapeHtmlJS(String((err && err.message) || err))}</p>`);
       }
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
     }
   }
 

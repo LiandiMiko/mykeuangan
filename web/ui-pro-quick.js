@@ -1,4 +1,4 @@
-/* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getSwalClass, showActionError, cycleOfDate, localToday, t */
+/* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, cycleOfDate, localToday, t */
 /* ============================================================
    PRO FEATURES — QUICK-ADD, TEMPLATES & PWA UPDATE TOAST
    ============================================================ */
@@ -99,7 +99,13 @@
       Swal.fire(swalOpt({ icon: 'warning', title: 'Format belum lengkap', text: 'Sertakan nominal dan keterangan singkat, contoh: kopi 25rb bca' }));
       return;
     }
-    if (btn) btn.disabled = true;
+    const savedNodes = btn ? Array.from(btn.childNodes) : [];
+    if (btn) {
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      btn.classList.add('opacity-75');
+      renderHtml(btn, '<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span><span class="hidden sm:inline">Menyimpan...</span>');
+    }
     try {
       await saveQuickTransactionObject({
         tanggal: parsed.tanggal,
@@ -121,7 +127,12 @@
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.classList.remove('opacity-75');
+        btn.replaceChildren(...savedNodes);
+      }
     }
   }
 
@@ -148,15 +159,17 @@
     if (!container || !root.isDataReady) return;
     cachedQuickTemplates = getMergedQuickTemplates();
     if (!cachedQuickTemplates.length) {
-      renderHtml(container, '<span class="text-[11px] text-slate-400 shrink-0 whitespace-nowrap">Template otomatis muncul setelah beberapa transaksi.</span>');
+      renderHtml(container, '<span class="text-xs text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">Template otomatis muncul setelah beberapa transaksi.</span>');
       return;
     }
     renderHtml(container, cachedQuickTemplates.map((tpl, idx) => {
-      const icon = tpl.pinned ? '📌 ' : '⚡ ';
+      const iconHtml = tpl.pinned
+        ? '<i class="ph-fill ph-push-pin text-xs shrink-0" aria-hidden="true"></i>'
+        : '<i class="ph-bold ph-lightning text-xs shrink-0" aria-hidden="true"></i>';
       const tone = tpl.tipe === 'Pemasukan'
         ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200/70 dark:border-emerald-900/40'
         : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700';
-      return `<button type="button" onclick="applyQuickTemplate(${idx})" class="px-2.5 py-1 rounded-full border text-[11px] font-bold hover:border-brand transition-colors shrink-0 whitespace-nowrap ${tone}">${icon}${escapeHtmlJS(tpl.label)} · ${escapeHtmlJS(formatShortIDR(tpl.nominal))}</button>`;
+      return `<button type="button" onclick="applyQuickTemplate(${idx})" class="min-h-8 px-2.5 py-1 rounded-full border text-xs font-bold inline-flex items-center gap-1 hover:border-brand transition-colors shrink-0 whitespace-nowrap tabular-nums ${tone}">${iconHtml}<span>${escapeHtmlJS(tpl.label)} · ${escapeHtmlJS(formatShortIDR(tpl.nominal))}</span></button>`;
     }).join(''));
   }
 
@@ -205,10 +218,10 @@
     const listHtml = pinned.length
       ? pinned.map((p, i) => `
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
-            <span class="truncate font-semibold">${escapeHtmlJS(p.label)} · ${escapeHtmlJS(formatRupiah(p.nominal).replace(',00', ''))}</span>
-            <button type="button" data-del-tpl="${i}" class="px-2 py-1 rounded bg-rose-500/10 text-rose-600 font-bold">Hapus</button>
+            <span class="truncate font-semibold tabular-nums">${escapeHtmlJS(p.label)} · ${escapeHtmlJS(formatRupiah(p.nominal).replace(',00', ''))}</span>
+            <button type="button" data-del-tpl="${i}" class="min-h-8 px-2.5 py-1 rounded bg-rose-500/10 text-rose-600 font-bold">Hapus</button>
           </div>`).join('')
-      : '<p class="text-xs text-slate-400">Belum ada template yang disematkan.</p>';
+      : '<p class="text-xs text-slate-500">Belum ada template yang disematkan.</p>';
 
     const res = await Swal.fire(swalOpt({
       title: 'Template Transaksi Cepat',
@@ -217,25 +230,32 @@
         <div class="text-left space-y-3">
           <div id="tplSavedList" class="space-y-1.5 max-h-36 overflow-y-auto">${listHtml}</div>
           <div class="border-t border-slate-200 dark:border-slate-700 pt-3 grid grid-cols-2 gap-2 text-xs">
+            <label for="tpl-label" class="sr-only">Nama template</label>
             <input id="tpl-label" class="swal2-input col-span-2" style="margin:0;width:100%" placeholder="Nama singkat (mis. Kopi Pagi)">
+            <label for="tpl-tipe" class="sr-only">Tipe template</label>
             <select id="tpl-tipe" class="swal2-select" style="margin:0;width:100%">
               <option value="Pengeluaran">Pengeluaran</option>
               <option value="Pemasukan">Pemasukan</option>
             </select>
+            <label for="tpl-cat" class="sr-only">Kategori template</label>
             <select id="tpl-cat" class="swal2-select" style="margin:0;width:100%">${catOpts}</select>
-            <input id="tpl-amt" type="number" min="1" class="swal2-input col-span-2" style="margin:0;width:100%" placeholder="Nominal (Rp)">
+            <label for="tpl-amt" class="sr-only">Nominal template (Rp)</label>
+            <input id="tpl-amt" type="text" inputmode="numeric" class="swal2-input col-span-2 tabular-nums" style="margin:0;width:100%" placeholder="Nominal (Rp, mis. 25.000)">
           </div>
         </div>
       `,
       showCancelButton: true,
       confirmButtonText: 'Tambah Template',
       cancelButtonText: t('btn.tutup'),
-      didOpen: () => bindTemplateDeleteButtons(pinned),
+      didOpen: () => {
+        bindTemplateDeleteButtons(pinned);
+        bindNominalInputs(['tpl-amt']);
+      },
       preConfirm: () => {
         const label = String(document.getElementById('tpl-label').value || '').trim();
         const tipe = document.getElementById('tpl-tipe').value;
         const kategori = document.getElementById('tpl-cat').value || 'Lainnya';
-        const nominal = Number(document.getElementById('tpl-amt').value);
+        const nominal = parseFormattedNominal(document.getElementById('tpl-amt').value);
         if (!label || !Number.isFinite(nominal) || nominal <= 0) {
           Swal.showValidationMessage('Isi nama template dan nominal di atas 0.');
           return false;
@@ -255,26 +275,36 @@
     if (document.getElementById('pwaUpdateToast')) return;
     const toast = document.createElement('div');
     toast.id = 'pwaUpdateToast';
-    toast.className = 'fixed bottom-20 lg:bottom-6 right-4 z-50 max-w-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center gap-3 border border-slate-700 dark:border-slate-200';
+    toast.setAttribute('data-open', 'false');
+    toast.className = 'mk-toast fixed right-4 z-50 max-w-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center gap-3 border border-slate-700 dark:border-slate-200';
     renderHtml(toast, `
       <i class="ph ph-sparkle text-xl text-brand-ink dark:text-brand shrink-0" aria-hidden="true"></i>
       <div class="min-w-0 flex-1 text-xs">
         <p class="font-bold">Pembaruan tersedia</p>
         <p class="opacity-80 text-[11px]">Muat ulang untuk memakai versi terbaru.</p>
       </div>
-      <button type="button" id="pwaReloadBtn" class="px-3 py-1.5 rounded-xl bg-brand text-white text-[11px] font-bold shrink-0">Muat Ulang</button>
-      <button type="button" id="pwaDismissBtn" aria-label="Tutup" class="p-1 opacity-70 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
+      <button type="button" id="pwaReloadBtn" class="min-h-9 px-3 py-1.5 rounded-xl bg-brand text-white text-xs font-bold shrink-0">Muat Ulang</button>
+      <button type="button" id="pwaDismissBtn" aria-label="Tutup" class="w-8 h-8 rounded-lg opacity-75 hover:opacity-100 flex items-center justify-center"><i class="ph ph-x" aria-hidden="true"></i></button>
     `);
     document.body.appendChild(toast);
+    if (typeof root.requestAnimationFrame === 'function') {
+      root.requestAnimationFrame(() => toast.setAttribute('data-open', 'true'));
+    } else {
+      toast.setAttribute('data-open', 'true');
+    }
+    const dismiss = () => {
+      toast.setAttribute('data-open', 'false');
+      root.setTimeout(() => toast.remove(), 190);
+    };
     document.getElementById('pwaReloadBtn').onclick = () => {
       if (reg && reg.waiting) {
         reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        setTimeout(() => window.location.reload(), 1500);
+        root.setTimeout(() => window.location.reload(), 1500);
         return;
       }
       window.location.reload();
     };
-    document.getElementById('pwaDismissBtn').onclick = () => toast.remove();
+    document.getElementById('pwaDismissBtn').onclick = dismiss;
   }
 
   root.__mkPro = Object.assign(root.__mkPro || {}, { KEYS, safeReadJson, safeWriteJson, swalOpt });

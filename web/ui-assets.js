@@ -137,16 +137,16 @@
       : isUsd ? 'currency-dollar'
         : isSaham ? 'chart-line-up'
           : (typeLower === 'cash' ? 'bank' : 'coins');
-    const iconColor = (isCrypto || isEmas) ? 'text-amber-500'
-      : (typeLower === 'cash' || isUsd ? 'text-emerald-500' : 'text-brand dark:text-brand-ink');
+    const iconColor = (isCrypto || isEmas) ? 'text-amber-700 dark:text-amber-400'
+      : (typeLower === 'cash' || isUsd ? 'text-emerald-700 dark:text-emerald-400' : 'text-brand dark:text-brand-ink');
     const iconBG = (isCrypto || isEmas) ? 'bg-amber-50 dark:bg-amber-500/10'
       : (typeLower === 'cash' || isUsd ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand/10');
 
-    let meta = `<span class="text-[10px] text-slate-400">${escapeHtmlJS(a.type)}</span>`;
-    if (isCrypto) meta = `<span class="text-[10px] text-slate-400">${qty} ${escapeHtmlJS(a.symbol)} · Crypto</span>`;
-    else if (isEmas) meta = `<span class="text-[10px] text-slate-400">${qty} gram · Emas</span>`;
-    else if (isUsd) meta = `<span class="text-[10px] text-slate-400">$${qty.toLocaleString('id-ID')} USD · Valas</span>`;
-    else if (isSaham) meta = `<span class="text-[10px] text-slate-400">${a.symbol ? escapeHtmlJS(a.symbol) + ' · ' : ''}Saham / Reksa Dana</span>`;
+    let meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(a.type)}</span>`;
+    if (isCrypto) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${qty} ${escapeHtmlJS(a.symbol)} · Crypto</span>`;
+    else if (isEmas) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${qty} gram · Emas</span>`;
+    else if (isUsd) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">$${qty.toLocaleString('id-ID')} USD · Valas</span>`;
+    else if (isSaham) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400">${a.symbol ? escapeHtmlJS(a.symbol) + ' · ' : ''}Saham / Reksa Dana</span>`;
 
     return { iconName, iconColor, iconBG, meta, hasUnitPnl: isCrypto || isEmas || isUsd };
   }
@@ -160,7 +160,7 @@
     const pnlPct = buyTotal > 0 ? (pnl / buyTotal * 100) : 0;
     const ui = resolveAssetPresentation(a, typeLower, qty);
     const pnlHtml = ui.hasUnitPnl && buyTotal > 0
-      ? `<div class="text-[10px] font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00', '')} (${pnlPct.toFixed(1)}%)</div>`
+      ? `<div class="text-[11px] font-bold tabular-nums ${pnl >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00', '')} (${pnlPct.toFixed(1)}%)</div>`
       : '';
     const safeName = escapeHtmlJS(a.name);
     const idAttr = escapeAttrJS(a.id);
@@ -169,7 +169,7 @@
       <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl ${ui.iconBG} ${ui.iconColor} flex items-center justify-center">
-            <i class="ph ph-${ui.iconName} text-lg"></i>
+            <i class="ph ph-${ui.iconName} text-lg" aria-hidden="true"></i>
           </div>
           <div>
             <p class="font-bold text-slate-800 dark:text-white text-sm">${safeName}</p>
@@ -178,17 +178,17 @@
         </div>
         <div class="flex items-center gap-2 text-right">
           <div>
-            <p class="font-black ${ui.iconColor}">${formatRupiah(value)}</p>
+            <p class="font-black tabular-nums ${ui.iconColor}">${formatRupiah(value)}</p>
             ${pnlHtml}
           </div>
           <div class="flex items-center gap-1 opacity-100 sm:opacity-75 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-            <button type="button" onclick="topUpAsset('${idAttr}')" aria-label="Tambah nilai aset ${safeName}" title="Tambah nilai aset" class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all">
+            <button type="button" onclick="topUpAsset('${idAttr}')" aria-label="Tambah nilai aset ${safeName}" title="Tambah nilai aset" class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-100 transition-colors">
               <i class="ph-bold ph-plus text-sm" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="withdrawAsset('${idAttr}')" aria-label="Cairkan atau jual aset ${safeName}" title="Cairkan / Jual ke Dompet" class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-all">
+            <button type="button" onclick="withdrawAsset('${idAttr}')" aria-label="Cairkan atau jual aset ${safeName}" title="Cairkan / Jual ke Dompet" class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center hover:bg-amber-100 transition-colors">
               <i class="ph ph-hand-coins text-sm" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="deleteAsset('${idAttr}')" aria-label="Hapus aset ${safeName}" title="Hapus aset" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all">
+            <button type="button" onclick="deleteAsset('${idAttr}')" aria-label="Hapus aset ${safeName}" title="Hapus aset" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors">
               <i class="ph ph-trash text-sm" aria-hidden="true"></i>
             </button>
           </div>

@@ -25,40 +25,32 @@
         </div>
       </div>
     </div>
-    <div class="hidden md:flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <button type="button" onclick="openAutoBudgetModal()" class="min-h-11 px-4 py-2 bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 hover:bg-brand hover:text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-2">
         <i class="ph ph-magic-wand" aria-hidden="true"></i> <span data-i18n="budget.btn_auto">Rekomendasi Otomatis</span>
       </button>
-      <button id="budgetCopyBtn" onclick="copyBudgetFromLastMonth()" class="inline-flex min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors items-center gap-2">
-        <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
+      <button type="button" id="budgetCopyBtn" onclick="copyBudgetFromLastMonth()" class="inline-flex min-h-11 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-xl text-xs font-bold transition-colors items-center gap-2">
+        <i class="ph ph-copy" aria-hidden="true"></i> <span data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
       </button>
     </div>
   </div>
 
   <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 mb-6">
     <h3 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-      <i class="ph ph-plus-circle text-brand"></i>
+      <i class="ph ph-plus-circle text-brand" aria-hidden="true"></i>
       <span data-i18n="budget.btn_save">Tambah Budget</span>
     </h3>
     <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
       <div>
-        <label class="block text-[10px] font-bold mb-1.5 uppercase tracking-widest text-slate-500" data-i18n="budget.kategori">Kategori</label>
+        <label for="budgetKategori" class="block text-[11px] font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="budget.kategori">Kategori</label>
         <select id="budgetKategori" class="w-full min-h-11 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white text-sm"></select>
       </div>
       <div>
-        <label class="block text-[10px] font-bold mb-1.5 uppercase tracking-widest text-slate-500" data-i18n="budget.jumlah">Jumlah Budget (Rp)</label>
-        <input type="text" id="budgetJumlah" inputmode="numeric" autocomplete="off" placeholder="0" class="w-full min-h-11 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand font-bold text-slate-800 dark:text-white text-sm tabular-nums">
+        <label for="budgetJumlah" class="block text-[11px] font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="budget.jumlah">Jumlah Budget (Rp)</label>
+        <input type="text" id="budgetJumlah" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="0" class="w-full min-h-11 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand font-bold text-slate-800 dark:text-white text-sm tabular-nums">
       </div>
-      <button onclick="saveBudget()" class="min-h-11 px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm flex items-center gap-2 justify-center">
+      <button type="button" onclick="saveBudget()" class="min-h-11 px-6 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm flex items-center gap-2 justify-center">
         <i class="ph-bold ph-check" aria-hidden="true"></i> <span data-i18n="btn.simpan">Simpan</span>
-      </button>
-    </div>
-    <div class="md:hidden mt-3 grid grid-cols-2 gap-2">
-      <button type="button" onclick="openAutoBudgetModal()" class="min-h-11 px-3 py-2 bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-        <i class="ph ph-magic-wand" aria-hidden="true"></i> <span data-i18n="budget.btn_auto">Otomatis</span>
-      </button>
-      <button type="button" onclick="copyBudgetFromLastMonth()" class="min-h-11 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-        <i class="ph ph-copy"></i> <span data-i18n="budget.btn_copy">Copy Lalu</span>
       </button>
     </div>
   </div>

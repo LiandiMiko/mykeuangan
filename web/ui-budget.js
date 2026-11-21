@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, parseFormattedNominal, localToday, getSwalClass, showActionError, isInPeriod, getPeriodLabel, editTransaction, t */
+/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, localToday, getSwalClass, showActionError, isInPeriod, getPeriodLabel, editTransaction, t */
 /* ============================================================
    BUDGETING & ANALYSIS
    ============================================================ */
@@ -73,24 +73,23 @@
   }
 
   async function editBudgetInline(id, kategori, currentJumlah) {
-    const { value: newJumlah } = await Swal.fire({
-      title: '✏️ ' + escapeHtmlJS(kategori),
-      input: 'number',
-      inputValue: currentJumlah,
-      inputAttributes: { min: 0, step: 1000 },
+    const { value: val } = await Swal.fire({
+      title: escapeHtmlJS(kategori),
+      html: `<div class="text-left"><label for="swal-budget-nom" class="block text-xs font-semibold mb-1.5">Jumlah Budget (Rp)</label><input id="swal-budget-nom" type="text" inputmode="numeric" value="${escapeHtmlJS(formatNominalInputValue(currentJumlah))}" class="swal2-input tabular-nums" style="margin:0;width:100%"></div>`,
       showCancelButton: true,
       confirmButtonText: t('btn.simpan'),
       cancelButtonText: t('btn.batal'),
-      customClass: { popup: getSwalClass() }
+      customClass: { popup: getSwalClass() },
+      didOpen: () => bindNominalInputs(['swal-budget-nom']),
+      preConfirm: () => {
+        const parsed = Math.round(parseFormattedNominal(document.getElementById('swal-budget-nom').value));
+        if (isNaN(parsed) || parsed < 0) { Swal.showValidationMessage('Masukkan jumlah budget yang valid.'); return false; }
+        return parsed;
+      }
     });
-    if (newJumlah === null || newJumlah === undefined) return;
-    const val = parseInt(newJumlah, 10);
-    if (isNaN(val) || val < 0) return;
-    try {
-      await refreshFromServer(await callServer('api_saveBudget', kategori, DB.currentPeriod, val));
-    } catch (e) {
-      showActionError(e);
-    }
+    if (val === null || val === undefined) return;
+    try { await refreshFromServer(await callServer('api_saveBudget', kategori, DB.currentPeriod, val)); }
+    catch (e) { showActionError(e); }
   }
 
   function toggleBudgetExpand(id) {
@@ -178,7 +177,7 @@
         <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('budget.over_budget'))}</h4>
           ${overBudgetRows.length
-            ? `<ul class="mt-2 space-y-1">${overBudgetRows.map((row) => `<li class="flex justify-between gap-2 text-xs"><span class="truncate text-slate-700 dark:text-slate-200">${escapeHtmlJS(row.category)}</span><strong class="shrink-0 text-rose-600 dark:text-rose-400">+${formatRupiah(row.actual - row.plan).replace(',00', '')}</strong></li>`).join('')}</ul>`
+            ? `<ul class="mt-2 space-y-1">${overBudgetRows.map((row) => `<li class="flex justify-between gap-2 text-xs"><span class="truncate text-slate-700 dark:text-slate-200">${escapeHtmlJS(row.category)}</span><strong class="shrink-0 tabular-nums text-rose-600 dark:text-rose-400">+${formatRupiah(row.actual - row.plan).replace(',00', '')}</strong></li>`).join('')}</ul>`
             : `<p class="mt-2 text-sm text-slate-600 dark:text-slate-300">${escapeHtmlJS(t('budget.no_over_budget'))}</p>`}
         </article>`);
     }
@@ -187,16 +186,16 @@
       renderHtml(summary, `
         <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50">
           <div>
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p>
-            <p class="text-sm sm:text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(analysis.budgetTotal).replace(',00', '')}</p>
+            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p>
+            <p class="text-sm sm:text-lg font-black tabular-nums text-slate-800 dark:text-white truncate">${formatRupiah(analysis.budgetTotal).replace(',00', '')}</p>
           </div>
           <div>
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p>
-            <p class="text-sm sm:text-lg font-black text-slate-700 dark:text-white truncate">${formatRupiah(analysis.actualTotal).replace(',00', '')}</p>
+            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p>
+            <p class="text-sm sm:text-lg font-black tabular-nums text-slate-800 dark:text-white truncate">${formatRupiah(analysis.actualTotal).replace(',00', '')}</p>
           </div>
           <div>
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p>
-            <p class="text-sm sm:text-lg font-black ${differenceClass(analysis.remaining)} truncate">${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00', '')}</p>
+            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p>
+            <p class="text-sm sm:text-lg font-black tabular-nums ${differenceClass(analysis.remaining)} truncate">${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00', '')}</p>
           </div>
         </div>`);
     }
@@ -239,20 +238,20 @@
     }
     return `
       <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
-        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">${catTxns.length} Transaksi</p>
+        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">${catTxns.length} Transaksi</p>
         ${catTxns.map((tx) => `
           <div class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-2 min-w-0 flex-1">
               <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></div>
               <div class="min-w-0 flex-1">
                 <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}</p>
-                <p class="text-[9px] text-slate-400">${escapeHtmlJS(String(tx.tanggal).substring(5))}</p>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(String(tx.tanggal).substring(5))}</p>
               </div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
-              <p class="text-[11px] font-black text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00', '')}</p>
-              <button type="button" data-budget-transaction="${escapeHtmlJS(tx.id)}" class="w-8 h-8 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100" aria-label="Edit transaksi" title="Edit">
-                <i class="ph ph-pencil text-[10px]" aria-hidden="true"></i>
+              <p class="text-[11px] font-black tabular-nums text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00', '')}</p>
+              <button type="button" data-budget-transaction="${escapeHtmlJS(tx.id)}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100" aria-label="Edit transaksi" title="Edit">
+                <i class="ph ph-pencil text-xs" aria-hidden="true"></i>
               </button>
             </div>
           </div>`).join('')}
@@ -265,7 +264,7 @@
     const selisih = plan - actual;
     const pct = plan > 0 ? (actual / plan * 100) : 0;
     const status = getBudgetStatusInfo(pct);
-    const selisihColor = selisih >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+    const selisihColor = selisih >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
     const isExpanded = expandedBudgets.has(b.id);
     const catTxns = txs
       .filter((tx) => tx.tipe === 'Pengeluaran' && tx.kategori === b.kategori)
@@ -283,29 +282,29 @@
               <span class="min-w-0 flex-1">
                 <span class="flex items-center gap-1.5">
                   <span class="font-bold text-slate-800 dark:text-white text-sm truncate">${escapeHtmlJS(b.kategori)}</span>
-                  <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-400" aria-hidden="true"></i>
+                  <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-500" aria-hidden="true"></i>
                 </span>
-                <span class="block text-[10px] ${status.textClass} font-bold uppercase tracking-wider">
+                <span class="block text-[11px] ${status.textClass} font-bold uppercase tracking-wider tabular-nums">
                   ${escapeHtmlJS(status.text)} · ${pct.toFixed(0)}% · ${catTxns.length} transaksi
                 </span>
               </span>
             </button>
             <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-              <button type="button" data-budget-action="edit" data-budget-id="${escapeHtmlJS(b.id)}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 flex items-center justify-center hover:bg-blue-100" aria-label="Edit budget ${escapeHtmlJS(b.kategori)}" title="Edit">
+              <button type="button" data-budget-action="edit" data-budget-id="${escapeHtmlJS(b.id)}" class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100" aria-label="Edit budget ${escapeHtmlJS(b.kategori)}" title="Edit">
                 <i class="ph ph-pencil text-sm" aria-hidden="true"></i>
               </button>
-              <button type="button" data-budget-action="delete" data-budget-id="${escapeHtmlJS(b.id)}" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-100" aria-label="Hapus budget ${escapeHtmlJS(b.kategori)}" title="Hapus">
+              <button type="button" data-budget-action="delete" data-budget-id="${escapeHtmlJS(b.id)}" class="w-10 h-10 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100" aria-label="Hapus budget ${escapeHtmlJS(b.kategori)}" title="Hapus">
                 <i class="ph ph-trash text-sm" aria-hidden="true"></i>
               </button>
             </div>
           </div>
           <div class="grid grid-cols-3 gap-2 mb-3 text-xs">
-            <div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p><p class="font-black text-slate-700 dark:text-white">${formatRupiah(plan).replace(',00', '')}</p></div>
-            <div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p><p class="font-black text-slate-700 dark:text-white">${formatRupiah(actual).replace(',00', '')}</p></div>
-            <div><p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p><p class="font-black ${selisihColor}">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}</p></div>
+            <div><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white">${formatRupiah(plan).replace(',00', '')}</p></div>
+            <div><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white">${formatRupiah(actual).replace(',00', '')}</p></div>
+            <div><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p><p class="font-black tabular-nums ${selisihColor}">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}</p></div>
           </div>
           <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden" role="progressbar" aria-label="Progres budget ${escapeHtmlJS(b.kategori)}" aria-valuenow="${Math.min(pct, 100).toFixed(0)}" aria-valuemin="0" aria-valuemax="100">
-            <div class="${status.progressClass} h-full rounded-full transition-all" style="width: ${Math.min(pct, 100).toFixed(1)}%"></div>
+            <div class="${status.progressClass} h-full rounded-full transition-[width] duration-200" style="width: ${Math.min(pct, 100).toFixed(1)}%"></div>
           </div>
         </div>
         ${isExpanded ? `<div class="px-4 sm:px-5 pb-4 sm:pb-5">${txnListHtml}</div>` : ''}

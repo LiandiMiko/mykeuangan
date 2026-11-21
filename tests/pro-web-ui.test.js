@@ -10,6 +10,13 @@ const asetHtml = fs.readFileSync('src/aset.html', 'utf8');
 const aiHtml = fs.readFileSync('src/ai.html', 'utf8');
 const formHtml = fs.readFileSync('src/form.html', 'utf8');
 const budgetingHtml = fs.readFileSync('src/budgeting.html', 'utf8');
+const adminHtml = fs.readFileSync('src/admin.html', 'utf8');
+const i18nHtml = fs.readFileSync('src/i18n.html', 'utf8');
+const manifestJson = fs.readFileSync('web/manifest.webmanifest', 'utf8');
+const tailwindConfigJs = fs.readFileSync('tailwind.config.js', 'utf8');
+const uiFormJs = fs.readFileSync('web/ui-form.js', 'utf8');
+const uiAdminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
+const uiExportJs = fs.readFileSync('web/ui-export.js', 'utf8');
 const uiProPaletteJs = fs.readFileSync('web/ui-pro-palette.js', 'utf8');
 const stylesHtml = fs.readFileSync('src/styles.html', 'utf8');
 const buildMjs = fs.readFileSync('build.mjs', 'utf8');
@@ -71,4 +78,33 @@ test('mobile bottom nav, responsive dropdowns, and Phosphor v2 icons use valid c
   assert.match(uiProPaletteJs, /ArrowDown/);
   assert.match(uiProPaletteJs, /Enter/);
   assert.match(stylesHtml, /crossorigin="anonymous"/);
+});
+
+test('wave v3.13 enforces MyKeuGuech branding, mobile-native polish, motion tokens, and WCAG controls', () => {
+  assert.match(manifestJson, /"short_name":\s*"MyKeuGuech"/);
+  assert.match(indexHtml, /viewport-fit=cover/);
+  assert.match(indexHtml, /interactive-widget=resizes-content/);
+  assert.match(indexHtml, /MyKeuGuech/);
+  assert.match(uiExportJs, /MyKeuGuech/);
+
+  assert.match(tailwindConfigJs, /hoverOnlyWhenSupported:\s*true/);
+  assert.match(stylesHtml, /hoverOnlyWhenSupported:\s*true/);
+  assert.match(stylesHtml, /--ease-out:/);
+  assert.match(stylesHtml, /\.mk-toast\[data-open="true"\]/);
+  assert.match(stylesHtml, /prefers-reduced-transparency:\s*reduce/);
+  assert.match(stylesHtml, /prefers-reduced-motion:\s*reduce/);
+
+  assert.match(dashboardHtml, /id="heroHideNominalBtn"/);
+  assert.match(dashboardHtml, /showNetWorthInfo\(\)/);
+  assert.match(formHtml, /novalidate/);
+  assert.match(formHtml, /for="tr_nominal"/);
+  assert.match(uiFormJs, /setFormFieldError/);
+  assert.match(uiFormJs, /Hapus Transaksi\?/);
+
+  assert.match(historiHtml, /id="historiResetFilterBtn"/);
+  assert.match(laporanHtml, /id="lapResetFilterBtn"/);
+  assert.match(adminHtml, /id="adm-user-mobile-list"/);
+  assert.match(uiAdminJs, /buildAdminUserMobileCardHtml/);
+  assert.doesNotMatch(i18nHtml, /\/\/\s*Placeholder\b/);
+  assert.match(uiProPaletteJs, /previousFocusEl/);
 });

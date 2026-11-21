@@ -10,7 +10,7 @@
     if (!banner) return;
     if (!root.isDataReady || typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.getDueRecurringBills !== 'function') {
       banner.classList.add('hide');
-      banner.innerHTML = '';
+      banner.textContent = '';
       return;
     }
 
@@ -18,7 +18,7 @@
     const due = FinanceAnalysis.getDueRecurringBills(DB.recurring || [], DB.transactions || [], todayStr, DB.currentPeriod, DB.payrollDay);
     if (!due || due.count === 0) {
       banner.classList.add('hide');
-      banner.innerHTML = '';
+      banner.textContent = '';
       return;
     }
 
@@ -26,28 +26,28 @@
     const previewChips = due.dueBills.slice(0, 3).map((b) => {
       const isInc = b.tipe === 'Pemasukan';
       const color = isInc ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20' : 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/20';
-      return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold ${color}">${escapeHtmlJS(b.kategori)}: ${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>`;
+      return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold tabular-nums ${color}">${escapeHtmlJS(b.kategori)}: ${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>`;
     }).join('');
-    const moreText = due.dueBills.length > 3 ? `<span class="text-xs text-amber-700 dark:text-amber-300 font-semibold">+${due.dueBills.length - 3} lainnya</span>` : '';
+    const moreText = due.dueBills.length > 3 ? `<span class="text-xs text-amber-800 dark:text-amber-300 font-semibold">+${due.dueBills.length - 3} lainnya</span>` : '';
 
     renderHtml(banner, `
       <div class="rounded-3xl border border-amber-200 dark:border-amber-500/30 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 p-4 sm:p-5 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-start gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
               <i class="ph-bold ph-calendar-check text-xl" aria-hidden="true"></i>
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h4 class="text-sm font-extrabold text-slate-800 dark:text-white">${due.count} <span data-i18n="dash.recurring_due">${escapeHtmlJS(t('dash.recurring_due'))}</span></h4>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 dark:bg-amber-500/30 text-amber-800 dark:text-amber-300">Siap Catat</span>
+                <h3 class="text-sm font-extrabold text-slate-800 dark:text-white">${due.count} <span data-i18n="dash.recurring_due">${escapeHtmlJS(t('dash.recurring_due'))}</span></h3>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-200 dark:bg-amber-500/30 text-amber-900 dark:text-amber-300">Siap Catat</span>
               </div>
-              <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">Total tagihan: <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> pada siklus ini dan belum tercatat.</p>
+              <p class="text-xs text-slate-700 dark:text-slate-300 mt-1 tabular-nums">Total tagihan: <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> pada siklus ini dan belum tercatat.</p>
               <div class="flex flex-wrap items-center gap-1.5 mt-2.5">${previewChips}${moreText}</div>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
-            <button type="button" onclick="batchRecordRecurring()" class="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-amber-500/20 transition-all">
+            <button type="button" onclick="batchRecordRecurring()" class="min-h-11 px-4 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-amber-600/20 transition-colors">
               <i class="ph-bold ph-lightning" aria-hidden="true"></i>
               <span data-i18n="dash.batch_record">Catat Semua Sekaligus</span>
             </button>
@@ -69,7 +69,7 @@
       const isInc = b.tipe === 'Pemasukan';
       return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs">
         <span class="font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(b.kategori)}${b.keterangan ? ' · ' + escapeHtmlJS(b.keterangan) : ''}</span>
-        <span class="font-black ${isInc ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} shrink-0">${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>
+        <span class="font-black tabular-nums ${isInc ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} shrink-0">${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>
       </div>`;
     }).join('');
     const walletSelectHtml = (typeof walletOptions === 'function' && (DB.wallets || []).length)
@@ -78,12 +78,12 @@
 
     const res = await Swal.fire({
       title: 'Catat Semua Tagihan Jatuh Tempo?',
-      html: `<p class="text-xs text-slate-600 dark:text-slate-300 mb-3 text-left">Terdapat <strong>${due.count} tagihan</strong> dengan total <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> yang akan langsung dicatat sebagai transaksi hari ini (${todayStr}).</p><div class="space-y-1.5 max-h-52 overflow-y-auto text-left mb-2">${itemsHtml}</div>${walletSelectHtml}`,
+      html: `<p class="text-xs text-slate-600 dark:text-slate-300 mb-3 text-left tabular-nums">Terdapat <strong>${due.count} tagihan</strong> dengan total <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> yang akan langsung dicatat sebagai transaksi hari ini (${todayStr}).</p><div class="space-y-1.5 max-h-52 overflow-y-auto text-left mb-2">${itemsHtml}</div>${walletSelectHtml}`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: '⚡ Ya, Catat Semua',
+      confirmButtonText: 'Ya, Catat Semua',
       cancelButtonText: 'Batal',
-      confirmButtonColor: '#f59e0b',
+      confirmButtonColor: '#d97706',
       customClass: { popup: getSwalClass() },
       preConfirm: () => ({ walletId: (document.getElementById('batch-rec-wallet') || {}).value || (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '' })
     });

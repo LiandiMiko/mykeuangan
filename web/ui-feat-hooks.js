@@ -26,7 +26,13 @@
     const myPortion = f.totalNominal - f.friendShare;
     const submitBtn = document.getElementById('btnSubmitTrans');
     if (submitBtn && submitBtn.disabled) return;
-    if (submitBtn) submitBtn.disabled = true;
+    const savedBtnNodes = submitBtn ? Array.from(submitBtn.childNodes) : [];
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.setAttribute('aria-busy', 'true');
+      submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+      renderHtml(submitBtn, '<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span><span>Menyimpan...</span>');
+    }
     try {
       if (!((DB.entities && DB.entities.Piutang) || []).includes(f.person)) {
         const entData = await callServer('api_addEntity', 'Piutang', f.person);
@@ -62,7 +68,12 @@
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
     } finally {
-      if (submitBtn) submitBtn.disabled = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.removeAttribute('aria-busy');
+        submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+        submitBtn.replaceChildren(...savedBtnNodes);
+      }
     }
   }
 
@@ -101,13 +112,27 @@
         const splitChk = document.getElementById('tr_split_enable');
         if (!rowId && tipe === 'Pengeluaran' && splitChk && splitChk.checked) {
           e.preventDefault();
+          if (typeof root.clearFormErrors === 'function') root.clearFormErrors();
+          const setErr = typeof root.setFormFieldError === 'function' ? root.setFormFieldError : null;
           const f = readSplitBillForm();
-          if (!f.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(f.tanggal) || !f.totalNominal || f.totalNominal <= 0) {
-            Swal.fire({ icon: 'error', title: 'Data tidak valid', text: 'Isi tanggal dan nominal total dengan benar.', customClass: { popup: getSwalClass() } });
+          let firstBad = null;
+          if (!f.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(f.tanggal)) {
+            if (setErr) setErr('tr_tanggal', 'tr_tanggal_error', 'Isi tanggal dengan format YYYY-MM-DD.');
+            firstBad = document.getElementById('tr_tanggal');
+          }
+          if (!f.totalNominal || f.totalNominal <= 0) {
+            if (setErr) setErr('tr_nominal', 'tr_nominal_error', 'Masukkan nominal total lebih dari 0.');
+            if (!firstBad) firstBad = document.getElementById('tr_nominal');
+          }
+          if (firstBad) { firstBad.focus(); return; }
+          if (!f.person) {
+            if (setErr) setErr('tr_split_person', 'tr_split_error', 'Isi nama teman untuk porsi Split Bill.');
+            document.getElementById('tr_split_person')?.focus();
             return;
           }
-          if (!f.person || !f.friendShare || f.friendShare <= 0 || f.friendShare >= f.totalNominal) {
-            Swal.fire({ icon: 'error', title: 'Split Bill tidak valid', text: 'Isi nama teman dan porsi teman lebih dari 0 serta lebih kecil dari total transaksi.', customClass: { popup: getSwalClass() } });
+          if (!f.friendShare || f.friendShare <= 0 || f.friendShare >= f.totalNominal) {
+            if (setErr) setErr('tr_split_amount', 'tr_split_error', 'Porsi teman harus > 0 dan lebih kecil dari total.');
+            document.getElementById('tr_split_amount')?.focus();
             return;
           }
           await executeSplitBillSubmit(f);
@@ -133,23 +158,28 @@
       const calc = FinanceAnalysis.calculateGoalMonthlySaving(goal.currentAmount, goal.targetAmount, goal.targetDate, todayStr);
       const proj = FinanceAnalysis.projectGoalMilestone(goal.currentAmount, goal.targetAmount, goal.targetDate, calc.monthlySaving, avgSavingRate, todayStr);
       let label = 'Kurang ' + formatRupiah(calc.remaining).replace(',00', '');
+      let iconClass = 'ph-bold ph-wallet';
       let tone = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
       if (calc.status === 'completed' || proj.status === 'completed') {
-        label = '✅ Target tercapai!';
+        label = 'Target tercapai!';
+        iconClass = 'ph-bold ph-check-circle';
         tone = 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300';
       } else if (calc.status === 'overdue' || proj.status === 'overdue') {
-        label = '⚠️ Lewat tenggat · Sisa ' + formatRupiah(calc.remaining).replace(',00', '');
+        label = 'Lewat tenggat · Sisa ' + formatRupiah(calc.remaining).replace(',00', '');
+        iconClass = 'ph-bold ph-warning-circle';
         tone = 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300';
       } else if (calc.monthlySaving !== null) {
-        label = '💡 Saran: ' + formatRupiah(calc.monthlySaving).replace(',00', '') + '/bln (' + calc.daysLeft + ' hari)';
+        label = 'Saran: ' + formatRupiah(calc.monthlySaving).replace(',00', '') + '/bln (' + calc.daysLeft + ' hari)';
+        iconClass = 'ph-bold ph-lightbulb';
         tone = calc.status === 'urgent' ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-brand/10 text-brand dark:text-brand-ink';
       } else if (proj.projectedDate) {
-        label = '🎯 Proyeksi tercapai: ' + proj.projectedDate + ' (~' + proj.projectedMonths + ' bln dg ' + formatRupiah(proj.savingRate).replace(',00', '') + '/bln)';
+        label = 'Proyeksi tercapai: ' + proj.projectedDate + ' (~' + proj.projectedMonths + ' bln dg ' + formatRupiah(proj.savingRate).replace(',00', '') + '/bln)';
+        iconClass = 'ph-bold ph-target';
         tone = 'bg-brand/10 text-brand dark:text-brand-ink';
       }
       const badge = document.createElement('p');
-      badge.className = 'mk-goal-calc mt-2.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold ' + tone;
-      badge.textContent = label;
+      badge.className = 'mk-goal-calc mt-2.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 tabular-nums ' + tone;
+      renderHtml(badge, `<i class="${iconClass} shrink-0" aria-hidden="true"></i><span>${escapeHtmlJS(label)}</span>`);
       card.appendChild(badge);
     });
   }
@@ -159,18 +189,6 @@
       root._origRenderWallets = root.renderWallets;
       root.renderWallets = function () {
         root._origRenderWallets();
-        document.querySelectorAll('#wallet-panel > div').forEach((card) => {
-          if (card.dataset.detailBound === 'true') return;
-          const editBtn = card.querySelector('button[onclick^="editWallet("]');
-          const m = editBtn ? (editBtn.getAttribute('onclick') || '').match(/editWallet\('([^']+)'\)/) : null;
-          if (!m) return;
-          const walletId = m[1];
-          card.dataset.detailBound = 'true';
-          card.classList.add('cursor-pointer', 'hover:border-brand/50');
-          card.addEventListener('click', (ev) => {
-            if (!ev.target.closest('button')) openWalletDetailModal(walletId);
-          });
-        });
         if (typeof root.renderAssetAllocation === 'function') renderAssetAllocation();
       };
     }
@@ -194,7 +212,11 @@
           const overdue = due && due < todayStr;
           const bar = document.createElement('div');
           bar.className = 'mk-debt-due-row mt-3 pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between gap-2 text-[11px]';
-          renderHtml(bar, `<span class="${due ? (overdue ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-semibold') : 'text-slate-400'} truncate">${due ? ((overdue ? '⚠️ Lewat tempo: ' : '📅 Tempo: ') + escapeHtmlJS(due)) : 'Belum ada jatuh tempo'}</span><button type="button" class="text-brand dark:text-brand-ink font-bold hover:underline shrink-0">Riwayat &amp; Tempo</button>`);
+          const dueIcon = overdue ? 'ph-bold ph-warning-circle' : 'ph ph-calendar-blank';
+          const dueHtml = due
+            ? `<i class="${dueIcon} shrink-0" aria-hidden="true"></i><span class="truncate tabular-nums">${overdue ? 'Lewat tempo: ' : 'Tempo: '}${escapeHtmlJS(due)}</span>`
+            : '<span class="truncate">Belum ada jatuh tempo</span>';
+          renderHtml(bar, `<span class="flex items-center gap-1 min-w-0 ${due ? (overdue ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-amber-700 dark:text-amber-400 font-semibold') : 'text-slate-500 dark:text-slate-400'}">${dueHtml}</span><button type="button" class="min-h-8 px-1.5 text-brand dark:text-brand-ink font-bold hover:underline shrink-0">Riwayat &amp; Tempo</button>`);
           bar.querySelector('button').addEventListener('click', () => openDebtDetailModal(group, name));
           card.appendChild(bar);
         });

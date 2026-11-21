@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, getSwalClass, showActionError, localToday, walletOptions, walletKindLabel, switchView, retryReportLoad, renderDebtLists, t */
+/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, localToday, walletOptions, walletKindLabel, switchView, retryReportLoad, renderDebtLists, t */
 /* ============================================================
    FEATURES — DEBT DETAIL, ASSET FORM, WALLET DETAIL & AUTO BUDGET
    ============================================================ */
@@ -21,12 +21,12 @@
       ? history.slice(0, 15).map((tx) => `
           <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             <div class="min-w-0 text-left">
-              <p class="font-bold text-slate-700 dark:text-slate-200">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.tipe)}</p>
-              <p class="text-[11px] text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || '-')}</p>
+              <p class="font-bold text-slate-700 dark:text-slate-200 tabular-nums">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.tipe)}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || '-')}</p>
             </div>
-            <span class="font-black shrink-0 ${tx.tipe === 'Pemasukan' ? 'text-emerald-600' : 'text-rose-600'}">${formatRupiah(tx.nominal).replace(',00', '')}</span>
+            <span class="font-black shrink-0 tabular-nums ${tx.tipe === 'Pemasukan' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${formatRupiah(tx.nominal).replace(',00', '')}</span>
           </div>`).join('')
-      : '<p class="text-xs text-slate-400 py-3">Belum ada riwayat cicilan untuk entitas ini.</p>';
+      : '<p class="text-xs text-slate-500 dark:text-slate-400 py-3">Belum ada riwayat cicilan untuk entitas ini.</p>';
 
     const res = await Swal.fire({
       title: escapeHtmlJS(name),
@@ -93,7 +93,7 @@
     if (type === 'Crypto') {
       const symbol = document.getElementById('asset-symbol').value.trim().toUpperCase();
       const quantity = parseFloat(document.getElementById('asset-quantity').value);
-      const buyPrice = parseFloat(document.getElementById('asset-buyprice').value) || 0;
+      const buyPrice = parseFormattedNominal(document.getElementById('asset-buyprice').value) || 0;
       if (!symbol) { Swal.showValidationMessage('Isi symbol crypto'); return false; }
       if (!quantity || quantity <= 0) { Swal.showValidationMessage('Isi jumlah coin'); return false; }
       if (buyPrice < 0 || (walletId && buyPrice <= 0)) {
@@ -102,7 +102,7 @@
       }
       return { name, type, symbol, quantity, buyPrice, value: 0, walletId, tanggal: localToday() };
     }
-    const value = parseFloat(document.getElementById('asset-value').value);
+    const value = parseFormattedNominal(document.getElementById('asset-value').value);
     if (!value || value <= 0) { Swal.showValidationMessage('Isi total nilai Rupiah aset'); return false; }
     const quantity = (type === 'Emas' || type === 'USD') ? (parseFloat(document.getElementById('asset-quantity').value) || 0) : 0;
     if ((type === 'Emas' || type === 'USD') && quantity <= 0) {
@@ -118,28 +118,32 @@
     Swal.fire({
       title: 'Tambah Aset & Investasi',
       html: `
-        <select id="asset-type" class="swal2-input" style="background:#f1f5f9;color:#0f172a;">
-          <option value="Crypto">🪙 Crypto (CoinGecko)</option>
-          <option value="Emas">🥇 Emas (gram · Auto Harga)</option>
-          <option value="USD">💵 Valas USD (Auto Kurs IDR)</option>
-          <option value="Saham">📈 Saham / Reksa Dana</option>
-          <option value="Cash">🏦 Cash / Deposito / Tabungan</option>
-          <option value="Other">📦 Aset Lainnya</option>
-        </select>
-        <input id="asset-name" class="swal2-input" placeholder="Nama aset (mis. Bitcoin / Antam 5g / Tabungan USD)">
-        <input id="asset-symbol" class="swal2-input" placeholder="Simbol/Kode (mis. BTC, ETH, BBCA)" style="display:none;">
-        <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input" placeholder="Jumlah unit" style="display:none;">
-        <input id="asset-buyprice" type="number" class="swal2-input" placeholder="Harga beli per unit (Rp)" style="display:none;">
-        <input id="asset-value" type="number" class="swal2-input" placeholder="Total Nilai (Rp)">
-        <label for="asset-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana (opsional)</label>
-        <select id="asset-wallet" class="swal2-input"><option value="">Catat sebagai aset manual</option>${walletOptions('')}</select>
-        <p style="font-size:12px;color:#64748b;margin:6px 4px">Jika dompet dipilih, pembelian dicatat ke pengeluaran kategori Investasi.</p>`,
+        <div class="text-left space-y-2">
+          <label for="asset-type" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jenis Aset</label>
+          <select id="asset-type" class="swal2-input" style="margin:0;width:100%">
+            <option value="Crypto">Crypto (CoinGecko)</option>
+            <option value="Emas">Emas (gram · Auto Harga)</option>
+            <option value="USD">Valas USD (Auto Kurs IDR)</option>
+            <option value="Saham">Saham / Reksa Dana</option>
+            <option value="Cash">Cash / Deposito / Tabungan</option>
+            <option value="Other">Aset Lainnya</option>
+          </select>
+          <label for="asset-name" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Aset</label>
+          <input id="asset-name" class="swal2-input" style="margin:0;width:100%" placeholder="Contoh: Bitcoin / Antam 5g / Tabungan USD">
+          <input id="asset-symbol" class="swal2-input" placeholder="Simbol/Kode (mis. BTC, ETH, BBCA)" style="display:none;margin:0;width:100%">
+          <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input tabular-nums" placeholder="Jumlah unit" style="display:none;margin:0;width:100%">
+          <input id="asset-buyprice" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Harga beli per unit (Rp)" style="display:none;margin:0;width:100%">
+          <input id="asset-value" type="text" inputmode="numeric" aria-label="Total Nilai Rupiah" class="swal2-input tabular-nums" style="margin:0;width:100%" placeholder="Total Nilai (Rp)">
+          <label for="asset-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 pt-1">Sumber dana (opsional)</label>
+          <select id="asset-wallet" class="swal2-input" style="margin:0;width:100%"><option value="">Catat sebagai aset manual</option>${walletOptions('')}</select>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">Jika dompet dipilih, pembelian dicatat ke pengeluaran kategori Investasi.</p>
+        </div>`,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: 'Simpan',
       cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() },
-      didOpen: bindAddAssetFieldToggles,
+      didOpen: () => { bindAddAssetFieldToggles(); bindNominalInputs(['asset-buyprice', 'asset-value']); },
       preConfirm: validateAddAssetInput
     }).then(async (res) => {
       if (!res.isConfirmed || !res.value) return;
@@ -191,23 +195,23 @@
           <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             <div class="min-w-0 text-left">
               <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(tx.kategori)}</p>
-              <p class="text-[11px] text-slate-400 truncate">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
             </div>
-            <span class="font-black shrink-0 ${tx.tipe === 'Pemasukan' ? 'text-emerald-600' : 'text-rose-600'}">${tx.tipe === 'Pemasukan' ? '+' : '-'}${formatRupiah(tx.nominal).replace(',00', '')}</span>
+            <span class="font-black shrink-0 tabular-nums ${tx.tipe === 'Pemasukan' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${tx.tipe === 'Pemasukan' ? '+' : '-'}${formatRupiah(tx.nominal).replace(',00', '')}</span>
           </div>`).join('')
-      : '<p class="text-xs text-slate-400 py-3 text-center">Belum ada transaksi tercatat di dompet ini.</p>';
+      : '<p class="text-xs text-slate-500 dark:text-slate-400 py-3 text-center">Belum ada transaksi tercatat di dompet ini.</p>';
 
     const res = await Swal.fire({
       title: escapeHtmlJS(w.name) + ' (' + escapeHtmlJS(typeof walletKindLabel === 'function' ? walletKindLabel(w.kind) : w.kind) + ')',
       html: `
         <div class="text-left space-y-3">
           <div class="grid grid-cols-2 gap-2 text-xs">
-            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70"><p class="text-[10px] text-slate-400 uppercase font-bold">Saldo Awal</p><p class="font-bold text-slate-700 dark:text-slate-200">${formatRupiah(st.opening).replace(',00', '')}</p></div>
-            <div class="p-2.5 rounded-xl bg-brand/10"><p class="text-[10px] text-brand dark:text-brand-ink uppercase font-bold">Saldo Saat Ini</p><p class="font-black text-brand dark:text-brand-ink">${formatRupiah(st.currentBal).replace(',00', '')}</p></div>
-            <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[10px] text-emerald-600 uppercase font-bold">Total Masuk</p><p class="font-bold text-emerald-600">+${formatRupiah(st.totalIn).replace(',00', '')}</p></div>
-            <div class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[10px] text-rose-600 uppercase font-bold">Total Keluar</p><p class="font-bold text-rose-600">-${formatRupiah(st.totalOut).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70"><p class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold">Saldo Awal</p><p class="font-bold tabular-nums text-slate-800 dark:text-slate-200">${formatRupiah(st.opening).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-brand/10"><p class="text-[11px] text-brand dark:text-brand-ink uppercase font-bold">Saldo Saat Ini</p><p class="font-black tabular-nums text-brand dark:text-brand-ink">${formatRupiah(st.currentBal).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase font-bold">Total Masuk</p><p class="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">+${formatRupiah(st.totalIn).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[11px] text-rose-600 dark:text-rose-400 uppercase font-bold">Total Keluar</p><p class="font-bold tabular-nums text-rose-600 dark:text-rose-400">-${formatRupiah(st.totalOut).replace(',00', '')}</p></div>
           </div>
-          <p class="text-[11px] text-slate-500">Mutasi Transfer Netto: <strong class="text-slate-700 dark:text-slate-200">${st.netTransfers >= 0 ? '+' : ''}${formatRupiah(st.netTransfers).replace(',00', '')}</strong></p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">Mutasi Transfer Netto: <strong class="tabular-nums text-slate-700 dark:text-slate-200">${st.netTransfers >= 0 ? '+' : ''}${formatRupiah(st.netTransfers).replace(',00', '')}</strong></p>
           <div><p class="text-xs font-bold text-slate-500 mb-1">10 Transaksi Terakhir</p><div class="max-h-52 overflow-y-auto pr-1">${recentHtml}</div></div>
         </div>`,
       showCancelButton: true,

@@ -1,16 +1,47 @@
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t */
 /* ============================================================
    TRANSACTION FORM & CATEGORY MANAGEMENT
    ============================================================ */
 (function (root) {
   'use strict';
 
+  function setFormFieldError(inputId, errId, msg) {
+    const errEl = document.getElementById(errId);
+    const inpEl = document.getElementById(inputId);
+    if (errEl) {
+      errEl.textContent = msg || '';
+      errEl.classList.toggle('hide', !msg);
+    }
+    if (inpEl) {
+      if (msg) inpEl.setAttribute('aria-invalid', 'true');
+      else inpEl.removeAttribute('aria-invalid');
+    }
+  }
+
+  function clearFormErrors() {
+    setFormFieldError('tr_tanggal', 'tr_tanggal_error', '');
+    setFormFieldError('tr_nominal', 'tr_nominal_error', '');
+    setFormFieldError('tr_split_person', 'tr_split_error', '');
+    const splitAmt = document.getElementById('tr_split_amount');
+    if (splitAmt) splitAmt.removeAttribute('aria-invalid');
+  }
+
   function bindNominalFormatters() {
-    ['tr_nominal', 'tr_split_amount', 'budgetJumlah'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el || el.dataset.fmtBound === '1') return;
-      el.dataset.fmtBound = '1';
-      el.addEventListener('input', () => { el.value = formatNominalInputValue(el.value); });
+    bindNominalInputs(['tr_nominal', 'tr_split_amount', 'budgetJumlah']);
+    const noteEl = document.getElementById('tr_keterangan');
+    if (noteEl && noteEl.dataset.growBound !== '1') {
+      noteEl.dataset.growBound = '1';
+      noteEl.addEventListener('input', () => {
+        noteEl.style.height = 'auto';
+        noteEl.style.height = Math.min(256, noteEl.scrollHeight) + 'px';
+      });
+    }
+    [['tr_tanggal', 'tr_tanggal_error'], ['tr_nominal', 'tr_nominal_error'], ['tr_split_person', 'tr_split_error'], ['tr_split_amount', 'tr_split_error']].forEach(([inpId, errId]) => {
+      const el = document.getElementById(inpId);
+      if (el && el.dataset.errBound !== '1') {
+        el.dataset.errBound = '1';
+        el.addEventListener('input', () => setFormFieldError(inpId, errId, ''));
+      }
     });
   }
 
@@ -20,12 +51,14 @@
     const current = parseFormattedNominal(input.value);
     const next = (Number.isFinite(current) && current > 0 ? current : 0) + (Number(delta) || 0);
     input.value = next > 0 ? formatNominalInputValue(next) : '';
+    setFormFieldError('tr_nominal', 'tr_nominal_error', '');
   }
 
   function resetQuickNominalAmount() {
     const input = document.getElementById('tr_nominal');
     if (input) {
       input.value = '';
+      setFormFieldError('tr_nominal', 'tr_nominal_error', '');
       input.focus();
     }
   }
@@ -33,7 +66,10 @@
   function openForm(action) {
     switchView('form-transaction');
     bindNominalFormatters();
+    clearFormErrors();
     document.getElementById('formTransaction').reset();
+    const noteEl = document.getElementById('tr_keterangan');
+    if (noteEl) noteEl.style.height = '';
     document.getElementById('tr_row').value = '';
     const tipeKey = action === 'Pemasukan' ? 'form.pemasukan' : 'form.pengeluaran';
     document.getElementById('formTitle').innerText = t('form.title_add') + ' ' + t(tipeKey);
@@ -42,8 +78,8 @@
     const tipe = (action === 'Pemasukan' || action === 'Pinjaman') ? 'Pemasukan' : 'Pengeluaran';
     document.getElementById('tr_tipe').value = tipe;
 
-    const btnClass = 'w-full text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ' +
-      (tipe === 'Pemasukan' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600');
+    const btnClass = 'w-full min-h-[52px] text-white font-bold py-3.5 rounded-2xl shadow-xl transition-[background-color,opacity,transform] flex items-center justify-center gap-2 ' +
+      (tipe === 'Pemasukan' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700');
     document.getElementById('btnSubmitTrans').className = btnClass;
 
     let opts = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
@@ -194,24 +230,27 @@
     e.preventDefault();
     const submitBtn = document.getElementById('btnSubmitTrans');
     if (submitBtn && submitBtn.disabled) return;
+    clearFormErrors();
     const rowId = document.getElementById('tr_row').value;
     const p = readTransactionFormData();
 
-    if (!p.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(p.tanggal) || !p.nominal || p.nominal <= 0) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Data tidak valid',
-        text: 'Isi tanggal (format YYYY-MM-DD) dan nominal dengan benar.',
-        customClass: { popup: getSwalClass() }
-      });
-      return;
+    let firstInvalid = null;
+    if (!p.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(p.tanggal)) {
+      setFormFieldError('tr_tanggal', 'tr_tanggal_error', 'Isi tanggal dengan format YYYY-MM-DD.');
+      firstInvalid = document.getElementById('tr_tanggal');
     }
+    if (!p.nominal || p.nominal <= 0) {
+      setFormFieldError('tr_nominal', 'tr_nominal_error', 'Masukkan nominal lebih dari 0.');
+      if (!firstInvalid) firstInvalid = document.getElementById('tr_nominal');
+    }
+    if (firstInvalid) { firstInvalid.focus(); return; }
 
     const savedBtnNodes = submitBtn ? Array.from(submitBtn.childNodes) : [];
     if (submitBtn) {
       submitBtn.disabled = true;
+      submitBtn.setAttribute('aria-busy', 'true');
       submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-      submitBtn.textContent = 'Menyimpan...';
+      renderHtml(submitBtn, '<i class="ph ph-spinner animate-spin" aria-hidden="true"></i><span>Menyimpan...</span>');
     }
 
     const txMonth = cycleOfDate(p.tanggal);
@@ -245,6 +284,7 @@
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
+        submitBtn.removeAttribute('aria-busy');
         submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
         submitBtn.replaceChildren(...savedBtnNodes);
       }
@@ -260,7 +300,12 @@
     document.getElementById('tr_row').value = tx.id;
     document.getElementById('tr_kategori').value = tx.kategori;
     document.getElementById('tr_nominal').value = formatNominalInputValue(tx.nominal);
-    document.getElementById('tr_keterangan').value = tx.keterangan || '';
+    const noteEl = document.getElementById('tr_keterangan');
+    if (noteEl) {
+      noteEl.value = tx.keterangan || '';
+      noteEl.style.height = 'auto';
+      noteEl.style.height = Math.min(256, noteEl.scrollHeight) + 'px';
+    }
     fillWalletSelect('tr_wallet', tx.walletId);
     if (root.fpTanggal) {
       try { root.fpTanggal.setDate(tx.tanggal, true); } catch (_) { /* ignore */ }
@@ -271,24 +316,59 @@
 
   function showUndoDeleteToast(txSnapshot) {
     if (!txSnapshot) return;
-    document.getElementById('mkUndoToast')?.remove();
+    const prev = document.getElementById('mkUndoToast');
+    if (prev) { if (typeof prev._mkCleanup === 'function') prev._mkCleanup(); prev.remove(); }
     const toast = document.createElement('div');
     toast.id = 'mkUndoToast';
     toast.setAttribute('role', 'status');
-    toast.className = 'fixed bottom-20 lg:bottom-6 left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center justify-between gap-3 border border-slate-700 dark:border-slate-200';
+    toast.className = 'mk-toast fixed left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-700 dark:border-slate-200';
     renderHtml(toast, `
-      <span class="text-xs font-semibold truncate">Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})</span>
-      <div class="flex items-center gap-1.5 shrink-0">
-        <button type="button" id="btnUndoDeleteTx" class="px-3 py-1.5 rounded-xl bg-brand text-white text-[11px] font-bold">Batalkan</button>
-        <button type="button" id="btnDismissUndoTx" aria-label="Tutup" class="p-1 opacity-75 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
+      <div class="p-3.5 flex items-center justify-between gap-3">
+        <span class="text-xs font-semibold truncate tabular-nums">Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})</span>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" id="btnUndoDeleteTx" class="px-3 min-h-9 rounded-xl bg-brand hover:bg-brand-hover text-white text-[11px] font-bold transition-colors">Batalkan</button>
+          <button type="button" id="btnDismissUndoTx" aria-label="Tutup" class="w-8 h-8 rounded-lg flex items-center justify-center opacity-80 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
+        </div>
       </div>
+      <div class="h-1 bg-slate-800 dark:bg-slate-200"><div class="mk-toast-progress h-full bg-brand"></div></div>
     `);
     document.body.appendChild(toast);
-    const timer = root.setTimeout(() => toast.remove(), 6000);
-    document.getElementById('btnDismissUndoTx').onclick = () => { root.clearTimeout(timer); toast.remove(); };
-    document.getElementById('btnUndoDeleteTx').onclick = async () => {
+    requestAnimationFrame(() => { toast.dataset.open = 'true'; });
+
+    let remaining = 6000;
+    let startedAt = Date.now();
+    let timer = null;
+    const closeToast = () => {
       root.clearTimeout(timer);
-      toast.remove();
+      document.removeEventListener('visibilitychange', onVisChange);
+      delete toast.dataset.open;
+      root.setTimeout(() => toast.remove(), 200);
+    };
+    const pause = () => {
+      if (!timer) return;
+      root.clearTimeout(timer);
+      timer = null;
+      remaining = Math.max(0, remaining - (Date.now() - startedAt));
+      toast.dataset.paused = 'true';
+    };
+    const resume = () => {
+      if (timer || document.hidden) return;
+      delete toast.dataset.paused;
+      startedAt = Date.now();
+      timer = root.setTimeout(closeToast, Math.max(250, remaining));
+    };
+    const onVisChange = () => (document.hidden ? pause() : resume());
+    toast._mkCleanup = () => { root.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisChange); };
+    toast.addEventListener('mouseenter', pause);
+    toast.addEventListener('mouseleave', resume);
+    toast.addEventListener('focusin', pause);
+    toast.addEventListener('focusout', resume);
+    document.addEventListener('visibilitychange', onVisChange);
+    resume();
+
+    document.getElementById('btnDismissUndoTx').onclick = closeToast;
+    document.getElementById('btnUndoDeleteTx').onclick = async () => {
+      closeToast();
       try {
         await refreshFromServer(await callServer('api_addTransaction', {
           tanggal: txSnapshot.tanggal,
@@ -306,13 +386,17 @@
 
   function deleteTransaction(id) {
     const targetTx = (DB.transactions || []).find((x) => String(x.id) === String(id));
+    const txLabel = targetTx
+      ? `${targetTx.kategori || 'Transaksi'} (${formatRupiah(targetTx.nominal).replace(',00', '')})`
+      : 'transaksi ini';
     Swal.fire({
-      title: 'Hapus Data?',
-      text: 'Data tidak bisa dikembalikan!',
+      title: 'Hapus Transaksi?',
+      text: `Hapus ${txLabel}? Kamu masih bisa membatalkannya lewat Undo selama 6 detik setelah dihapus.`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'Ya, Hapus',
+      confirmButtonColor: '#dc2626',
+      confirmButtonText: 'Hapus Transaksi',
+      cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;
@@ -329,6 +413,8 @@
 
   Object.assign(root, {
     openForm,
+    setFormFieldError,
+    clearFormErrors,
     addQuickNominalAmount,
     resetQuickNominalAmount,
     promptAddCategory,

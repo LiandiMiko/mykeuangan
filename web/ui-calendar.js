@@ -67,6 +67,7 @@
       el.classList.toggle('dark:text-brand-ink', isActive);
       el.classList.toggle('text-slate-600', !isActive);
       el.classList.toggle('dark:text-slate-300', !isActive);
+      el.setAttribute('aria-pressed', String(isActive));
     });
     renderKalender();
   }
@@ -159,19 +160,19 @@
     let html = '<div class="flex items-center justify-between mb-1">' +
       '<span class="text-[11px] sm:text-xs font-bold ' +
       (isToday ? 'text-brand dark:text-brand-ink' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
-    if (hasData) html += '<span class="text-[8px] font-bold text-slate-400 dark:text-slate-500">' + visibleCount + 'x</span>';
+    if (hasData) html += '<span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 tabular-nums">' + visibleCount + 'x</span>';
     html += '</div>';
 
     if (hasData) {
       if (showIn && data.inAmt > 0) {
-        html += '<p class="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">+' + formatShortIDR(data.inAmt) + '</p>';
+        html += '<p class="text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400 leading-tight truncate tabular-nums">+' + formatShortIDR(data.inAmt) + '</p>';
       }
       if (showOut && data.outAmt > 0) {
-        html += '<p class="text-[9px] sm:text-[10px] font-bold text-rose-600 dark:text-rose-400 leading-tight truncate">−' + formatShortIDR(data.outAmt) + '</p>';
+        html += '<p class="text-[10px] sm:text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-tight truncate tabular-nums">−' + formatShortIDR(data.outAmt) + '</p>';
       }
       if (mode === 'all' && data.inAmt > 0 && data.outAmt > 0) {
-        html += '<p class="text-[9px] sm:text-[10px] font-black mt-0.5 ' +
-          (net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + '">= ' +
+        html += '<p class="text-[10px] sm:text-[11px] font-black mt-0.5 tabular-nums ' +
+          (net >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + '">= ' +
           (net >= 0 ? '+' : '−') + formatShortIDR(Math.abs(net)) + '</p>';
       }
     }

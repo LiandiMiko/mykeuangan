@@ -1,8 +1,8 @@
 {
   "name": "mykeuangan",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "private": true,
-  "description": "MyKeuanganGuech — Personal Finance SaaS & PWA powered by Vanilla JS and Supabase",
+  "description": "MyKeuGuech — Personal Finance SaaS & PWA powered by Vanilla JS and Supabase",
   "scripts": {
     "check:syntax": "node scripts/check-syntax.mjs",
     "test": "node --test",
