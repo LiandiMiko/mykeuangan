@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, getSwalClass, escapeHtmlJS, renderHtml, formatNominalInputValue, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, syncFormCategorySelect, localToday, currentLang, t */
+/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, syncFormCategorySelect, localToday, currentLang, t */
 /* ============================================================
    FEATURES — RECEIPT OCR SCANNER & AI CHAT BASE
    ============================================================ */
@@ -139,51 +139,9 @@
     }
   }
 
-  function formatAiTextSafe(text) {
-    return escapeHtmlJS(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-  }
-
-  async function runAiFinancialChat() {
-    const input = document.getElementById('aiChatInput');
-    const out = document.getElementById('aiChatResult');
-    const btn = document.getElementById('btnAskAiChat');
-    const question = ((input && input.value) || '').trim();
-    if (!question) { if (input) input.focus(); return; }
-
-    let apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
-    if (!apiKey && typeof configureGeminiApiKey === 'function') {
-      apiKey = await configureGeminiApiKey();
-      if (!apiKey) return;
-    }
-
-    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-    if (out) {
-      out.classList.remove('hide');
-      renderHtml(out, '<div class="flex items-center gap-2 text-slate-500"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div><span>Gemini sedang menjawab pertanyaan Anda...</span></div>');
-    }
-
-    try {
-      const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
-      const prompt = FinanceAnalysis.buildAiFinancialChatPrompt(payload, question, currentLang);
-      const { json } = await callGeminiApi(apiKey, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.35 } });
-      const answer = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
-      if (!answer) throw new Error('Gemini tidak mengembalikan jawaban.');
-      if (out) {
-        renderHtml(out, `<div class="leading-relaxed space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-brand dark:text-brand-ink">Jawaban Gemini AI</p><div>${formatAiTextSafe(answer)}</div></div>`);
-      }
-    } catch (err) {
-      if (out) {
-        renderHtml(out, `<p class="text-rose-600 dark:text-rose-400 font-semibold">Gagal meminta jawaban AI: ${escapeHtmlJS(String((err && err.message) || err))}</p>`);
-      }
-    } finally {
-      if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
-    }
-  }
-
   Object.assign(root, {
     triggerReceiptOcr,
     handleReceiptOcrFile,
-    fillAiChatPrompt,
-    runAiFinancialChat
+    fillAiChatPrompt
   });
 })(typeof window !== 'undefined' ? window : globalThis);

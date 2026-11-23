@@ -299,6 +299,7 @@
     showNetWorthInfo,
     renderFinancialGoals,
     openGoalForm,
-    deleteGoal
+    deleteGoal,
+    buildEmptyTxPlaceholder
   });
 })(typeof window !== 'undefined' ? window : globalThis);

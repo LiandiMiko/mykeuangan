@@ -76,12 +76,124 @@
     return { added, skipped };
   }
 
+  function filterNewBackupCategories(rawCategories, existingCategories) {
+    if (!rawCategories || typeof rawCategories !== 'object' || Array.isArray(rawCategories)) return { added: [], skipped: 0 };
+    const existing = existingCategories && typeof existingCategories === 'object' ? existingCategories : {};
+    const added = [];
+    let skipped = 0;
+    const processSide = (tipe, rawList, existingList) => {
+      const seen = new Set((Array.isArray(existingList) ? existingList : []).map((n) => String(n || '').trim().toLowerCase()));
+      (Array.isArray(rawList) ? rawList : []).forEach((rawName) => {
+        const name = String(rawName || '').trim().slice(0, 60);
+        if (!name || name === 'Saldo Awal' || name === 'Mutasi') { skipped += 1; return; }
+        const key = name.toLowerCase();
+        if (seen.has(key)) { skipped += 1; return; }
+        seen.add(key);
+        added.push({ tipe, name });
+      });
+    };
+    processSide('Pemasukan', rawCategories.pemasukan, existing.pemasukan);
+    processSide('Pengeluaran', rawCategories.pengeluaran, existing.pengeluaran);
+    return { added, skipped };
+  }
+
+  function filterNewBackupWallets(rawWallets, existingWallets) {
+    const seen = new Set((Array.isArray(existingWallets) ? existingWallets : []).map((w) => String(w.name || '').trim().toLowerCase()));
+    const walletNameByOldId = {};
+    const added = [];
+    let skipped = 0;
+    (Array.isArray(rawWallets) ? rawWallets : []).forEach((w) => {
+      if (!w || typeof w !== 'object') { skipped += 1; return; }
+      const name = String(w.name || '').trim().slice(0, 80);
+      if (!name) { skipped += 1; return; }
+      if (w.id) walletNameByOldId[String(w.id)] = name;
+      const key = name.toLowerCase();
+      if (seen.has(key)) { skipped += 1; return; }
+      seen.add(key);
+      const rawKind = String(w.kind || '').toLowerCase();
+      const kind = ['bank', 'cash', 'ewallet'].includes(rawKind) ? rawKind : 'bank';
+      const openingBalance = Math.max(0, Number(w.openingBalance ?? w.opening_balance) || 0);
+      added.push({ name, kind, openingBalance });
+    });
+    return { added, skipped, walletNameByOldId };
+  }
+
+  function filterNewBackupRecurring(rawRecurring, existingRecurring) {
+    const sigFn = (r) => `${String(r.tipe || '').trim()}|${String(r.kategori || '').trim().toLowerCase()}|${Math.round(Number(r.nominal) || 0)}|${Math.trunc(Number(r.dayOfMonth ?? r.day_of_month) || 0)}|${String(r.keterangan || '').trim().toLowerCase()}`;
+    const seen = new Set((Array.isArray(existingRecurring) ? existingRecurring : []).map(sigFn));
+    const added = [];
+    let skipped = 0;
+    (Array.isArray(rawRecurring) ? rawRecurring : []).forEach((r) => {
+      if (!r || typeof r !== 'object') { skipped += 1; return; }
+      const tipe = String(r.tipe || '').trim();
+      const kategori = String(r.kategori || '').trim();
+      const nominal = Number(r.nominal);
+      const dayOfMonth = Math.trunc(Number(r.dayOfMonth ?? r.day_of_month));
+      if ((tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !kategori || !Number.isFinite(nominal) || nominal <= 0 || !Number.isFinite(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) {
+        skipped += 1; return;
+      }
+      const item = { tipe, kategori, nominal, dayOfMonth, keterangan: String(r.keterangan || '').trim(), active: r.active === undefined ? true : Boolean(r.active) };
+      const sig = sigFn(item);
+      if (seen.has(sig)) { skipped += 1; return; }
+      seen.add(sig);
+      added.push(item);
+    });
+    return { added, skipped };
+  }
+
+  function filterNewBackupAssets(rawAssets, existingAssets) {
+    const VALID_TYPES = ['Crypto', 'Emas', 'USD', 'Saham', 'Cash', 'Other'];
+    const sigFn = (a) => `${String(a.type || 'Other').trim().toLowerCase()}|${String(a.name || '').trim().toLowerCase()}|${String(a.symbol || '').trim().toUpperCase()}`;
+    const seen = new Set((Array.isArray(existingAssets) ? existingAssets : []).map(sigFn));
+    const added = [];
+    let skipped = 0;
+    (Array.isArray(rawAssets) ? rawAssets : []).forEach((a) => {
+      if (!a || typeof a !== 'object') { skipped += 1; return; }
+      const name = String(a.name || '').trim().slice(0, 80);
+      if (!name) { skipped += 1; return; }
+      const type = VALID_TYPES.includes(String(a.type || '')) ? String(a.type) : 'Other';
+      const item = {
+        name, type,
+        symbol: String(a.symbol || '').trim().toUpperCase().slice(0, 16),
+        quantity: Math.max(0, Number(a.quantity) || 0),
+        buyPrice: Math.max(0, Number(a.buyPrice ?? a.buy_price) || 0),
+        value: Math.max(0, Number(a.value) || 0)
+      };
+      const sig = sigFn(item);
+      if (seen.has(sig)) { skipped += 1; return; }
+      seen.add(sig);
+      added.push(item);
+    });
+    return { added, skipped };
+  }
+
+  function filterNewBackupDebtDueDates(rawDueDates, existingDueDates) {
+    if (!rawDueDates || typeof rawDueDates !== 'object' || Array.isArray(rawDueDates)) return { added: {}, skipped: 0 };
+    const seen = new Set(Object.keys(existingDueDates && typeof existingDueDates === 'object' ? existingDueDates : {}));
+    const added = {};
+    let skipped = 0;
+    Object.entries(rawDueDates).forEach(([rawKey, rawVal]) => {
+      const key = String(rawKey || '').trim().slice(0, 120);
+      const val = String(rawVal || '').slice(0, 10);
+      if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(val) || seen.has(key)) { skipped += 1; return; }
+      seen.add(key);
+      added[key] = val;
+    });
+    return { added, skipped };
+  }
+
   function prepareBackupRestorePayload(backupObj, existingData) {
     const empty = {
       valid: false,
       newTransactions: [], skippedTransactions: 0,
       newBudgets: [], skippedBudgets: 0,
-      newGoals: [], skippedGoals: 0
+      newGoals: [], skippedGoals: 0,
+      newCategories: [], skippedCategories: 0,
+      newWallets: [], skippedWallets: 0,
+      walletNameByOldId: {},
+      newRecurring: [], skippedRecurring: 0,
+      newAssets: [], skippedAssets: 0,
+      newDebtDueDates: {}, skippedDebtDueDates: 0
     };
     if (!backupObj || typeof backupObj !== 'object') return empty;
 
@@ -89,7 +201,12 @@
     const rawTx = Array.isArray(src.transactions) ? src.transactions : (Array.isArray(src.transaksi) ? src.transaksi : null);
     const rawBudgets = Array.isArray(src.budgets) ? src.budgets : null;
     const rawGoals = Array.isArray(src.goals) ? src.goals : null;
-    if (!rawTx && !rawBudgets && !rawGoals) return empty;
+    const rawCategories = (src.categories && typeof src.categories === 'object' && !Array.isArray(src.categories)) ? src.categories : null;
+    const rawWallets = Array.isArray(src.wallets) ? src.wallets : null;
+    const rawRecurring = Array.isArray(src.recurring) ? src.recurring : null;
+    const rawAssets = Array.isArray(src.assets) ? src.assets : null;
+    const rawDueDates = (src.debtDueDates && typeof src.debtDueDates === 'object' && !Array.isArray(src.debtDueDates)) ? src.debtDueDates : null;
+    if (!rawTx && !rawBudgets && !rawGoals && !rawCategories && !rawWallets && !rawRecurring && !rawAssets && !rawDueDates) return empty;
 
     const existing = existingData && typeof existingData === 'object' ? existingData : {};
     const existingTxList = Array.isArray(existing.transactions)
@@ -98,12 +215,23 @@
     const txRes = filterNewBackupTransactions(rawTx, existingTxList);
     const budgetRes = filterNewBackupBudgets(rawBudgets, existing.budgets);
     const goalRes = filterNewBackupGoals(rawGoals, existing.goals);
+    const catRes = filterNewBackupCategories(rawCategories, existing.categories);
+    const walletRes = filterNewBackupWallets(rawWallets, existing.wallets);
+    const recRes = filterNewBackupRecurring(rawRecurring, existing.recurring);
+    const assetRes = filterNewBackupAssets(rawAssets, existing.assets);
+    const dueRes = filterNewBackupDebtDueDates(rawDueDates, existing.debtDueDates);
 
     return {
       valid: true,
       newTransactions: txRes.added, skippedTransactions: txRes.skipped,
       newBudgets: budgetRes.added, skippedBudgets: budgetRes.skipped,
-      newGoals: goalRes.added, skippedGoals: goalRes.skipped
+      newGoals: goalRes.added, skippedGoals: goalRes.skipped,
+      newCategories: catRes.added, skippedCategories: catRes.skipped,
+      newWallets: walletRes.added, skippedWallets: walletRes.skipped,
+      walletNameByOldId: walletRes.walletNameByOldId,
+      newRecurring: recRes.added, skippedRecurring: recRes.skipped,
+      newAssets: assetRes.added, skippedAssets: assetRes.skipped,
+      newDebtDueDates: dueRes.added, skippedDebtDueDates: dueRes.skipped
     };
   }
 
@@ -115,7 +243,7 @@
     }
     const remaining = Math.max(0, target - cur);
     if (remaining <= 0) {
-      return { status: 'completed', remaining: 0, projectedMonths: 0, projectedDate: '', label: 'Target sudah tercapai! 🎉' };
+      return { status: 'completed', remaining: 0, projectedMonths: 0, projectedDate: '', label: 'Target sudah tercapai!' };
     }
 
     const todayDate = todayStr ? new Date(todayStr + 'T00:00:00Z') : new Date();

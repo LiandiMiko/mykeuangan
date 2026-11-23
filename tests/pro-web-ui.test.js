@@ -108,3 +108,74 @@ test('wave v3.13 enforces MyKeuGuech branding, mobile-native polish, motion toke
   assert.doesNotMatch(i18nHtml, /\/\/\s*Placeholder\b/);
   assert.match(uiProPaletteJs, /previousFocusEl/);
 });
+
+test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot timeouts, and CI workflow', () => {
+  const uiDashboardJs = fs.readFileSync('web/ui-dashboard.js', 'utf8');
+  const uiFeatHooksJs = fs.readFileSync('web/ui-feat-hooks.js', 'utf8');
+  const uiProHooksJs = fs.readFileSync('web/ui-pro-hooks.js', 'utf8');
+  const uiShellJs = fs.readFileSync('web/ui-shell.js', 'utf8');
+  const supabaseAuthJs = fs.readFileSync('web/supabase-auth.js', 'utf8');
+  const uiAssetsJs = fs.readFileSync('web/ui-assets.js', 'utf8');
+  const uiFeatChartsJs = fs.readFileSync('web/ui-feat-charts.js', 'utf8');
+  const uiFeatAiJs = fs.readFileSync('web/ui-feat-ai.js', 'utf8');
+  const uiAssetOpsJs = fs.readFileSync('web/ui-asset-ops.js', 'utf8');
+  const uiProQuickJs = fs.readFileSync('web/ui-pro-quick.js', 'utf8');
+  const uiFeatOfflineJs = fs.readFileSync('web/ui-feat-offline.js', 'utf8');
+  const uiFeatUpdatesJs = fs.readFileSync('web/ui-feat-updates.js', 'utf8');
+  const uiFeatBackupJs = fs.readFileSync('web/ui-feat-backup.js', 'utf8');
+  const swJs = fs.readFileSync('web/sw.js', 'utf8');
+  const updatesHtml = fs.readFileSync('src/updates.html', 'utf8');
+  const botCoreTs = fs.readFileSync('supabase/functions/telegram-bot/core.ts', 'utf8');
+  const botIndexTs = fs.readFileSync('supabase/functions/telegram-bot/index.ts', 'utf8');
+  const botAiTs = fs.readFileSync('supabase/functions/telegram-bot/ai.ts', 'utf8');
+  const botJobsTs = fs.readFileSync('supabase/functions/telegram-bot/jobs.ts', 'utf8');
+  const deployYml = fs.readFileSync('.github/workflows/deploy.yml', 'utf8');
+
+  assert.match(uiDashboardJs, /buildEmptyTxPlaceholder\s*[\n,}]/);
+  assert.match(uiFeatHooksJs, /mkCommandPalette/);
+  assert.match(uiProHooksJs, /mkCommandPalette/);
+  assert.match(uiProHooksJs, /offline_failed/);
+  assert.match(uiShellJs, /prefers-reduced-motion:\s*reduce/);
+  assert.match(uiShellJs, /\.toUpperCase\(\)/);
+  assert.match(supabaseAuthJs, /mk_last_market_refresh_ts/);
+  assert.match(uiAssetsJs, /placeholder\.style\.display\s*=\s*'flex'/);
+  assert.match(uiAssetsJs, /prefers-reduced-motion:\s*reduce/);
+  assert.match(uiFeatChartsJs, /window\.innerWidth\s*<\s*640/);
+  assert.doesNotMatch(uiFeatAiJs, /runAiFinancialChat/);
+
+  assert.match(uiAssetOpsJs, /bindNominalInputs/);
+  assert.match(uiAssetOpsJs, /parseFormattedNominal/);
+  assert.match(uiProQuickJs, /id="tpl-wallet"/);
+  assert.match(uiProQuickJs, /syncTemplateCategorySelect/);
+  assert.match(uiFeatOfflineJs, /MAX_OFFLINE_RETRIES/);
+  assert.match(uiFeatOfflineJs, /retryFailedOfflineItems/);
+  assert.match(uiFeatOfflineJs, /discardFailedOfflineItems/);
+  assert.match(uiFeatUpdatesJs, /offline:failed/);
+
+  assert.match(swJs, /icon-512\.png/);
+  assert.match(swJs, /icon-maskable\.png/);
+  assert.match(swJs, /\.then\(\(\)\s*=>\s*self\.clients\.claim\(\)\)/);
+  assert.match(swJs, /const htmlCacheKey\s*=\s*'\.\/index\.html'/);
+
+  assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
+  assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
+  assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.14</);
+  assert.match(updatesHtml, /data-latest-release="2026-11-23-v3\.14"/);
+  assert.match(updatesHtml, /Menampilkan 15 rilis/);
+
+  assert.match(botCoreTs, /AbortSignal\.timeout/);
+  assert.match(botCoreTs, /gteFilter/);
+  assert.match(botIndexTs, /MyKeuGuech Bot/);
+  assert.doesNotMatch(botIndexTs, /MyKeuanganGuech/);
+  assert.match(botAiTs, /web MyKeuGuech/);
+  assert.match(botAiTs, /AbortSignal\.timeout/);
+  assert.match(botJobsTs, /POL:\s*'polygon-ecosystem-token'/);
+  assert.match(botJobsTs, /SUI:\s*'sui'/);
+  assert.match(botJobsTs, /cutoff366/);
+
+  assert.match(deployYml, /\bverify:/);
+  assert.match(deployYml, /\bdeploy:/);
+  assert.match(deployYml, /needs:\s*verify/);
+  assert.match(deployYml, /node-version:\s*22/);
+});

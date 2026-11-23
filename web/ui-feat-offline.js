@@ -8,7 +8,9 @@
   const OFFLINE_QUEUE_KEY = 'mk_offline_tx_queue_v1';
   const IDB_NAME = 'mykeuangan_offline_db';
   const IDB_STORE = 'pending_transactions';
+  const MAX_OFFLINE_RETRIES = 3;
   let isFlushingOffline = false;
+  let offlineDbPromise = null;
 
   function readLocalQueue() {
     try {
@@ -30,7 +32,8 @@
 
   function openOfflineDb() {
     if (!root.indexedDB) return Promise.resolve(null);
-    return new Promise((resolve) => {
+    if (offlineDbPromise) return offlineDbPromise;
+    offlineDbPromise = new Promise((resolve) => {
       try {
         const req = root.indexedDB.open(IDB_NAME, 1);
         req.onupgradeneeded = () => {
@@ -39,12 +42,25 @@
             db.createObjectStore(IDB_STORE, { keyPath: 'localId' });
           }
         };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
+        req.onsuccess = () => {
+          const db = req.result;
+          db.onversionchange = () => {
+            try { db.close(); } catch (_) { /* ignore */ }
+            offlineDbPromise = null;
+          };
+          db.onclose = () => { offlineDbPromise = null; };
+          resolve(db);
+        };
+        req.onerror = () => {
+          offlineDbPromise = null;
+          resolve(null);
+        };
       } catch (_) {
+        offlineDbPromise = null;
         resolve(null);
       }
     });
+    return offlineDbPromise;
   }
 
   async function saveOfflineQueueItem(item) {
@@ -102,40 +118,121 @@
   function updateNetworkStatusPill() {
     const pill = document.getElementById('networkStatusPill');
     if (!pill) return;
-    const pendingCount = readLocalQueue().length;
+    const queue = readLocalQueue();
+    const pendingCount = queue.filter((x) => !x.failed).length;
+    const failedCount = queue.filter((x) => x.failed).length;
     const offline = !navigator.onLine;
-    if (!offline && pendingCount === 0) {
+    if (!offline && pendingCount === 0 && failedCount === 0) {
       pill.classList.add('hide');
       return;
     }
     pill.classList.remove('hide');
     pill.textContent = '';
     const icon = document.createElement('i');
-    icon.className = offline ? 'ph-bold ph-wifi-slash text-sm' : 'ph-bold ph-arrows-clockwise text-sm';
+    icon.className = offline
+      ? 'ph-bold ph-wifi-slash text-sm'
+      : (failedCount > 0 ? 'ph-bold ph-warning-circle text-sm' : 'ph-bold ph-arrows-clockwise text-sm');
     icon.setAttribute('aria-hidden', 'true');
     const txt = document.createElement('span');
-    txt.textContent = offline
-      ? (pendingCount > 0 ? `Offline (${pendingCount})` : 'Offline')
-      : `Sync (${pendingCount})`;
-    pill.className = 'inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0 ' +
-      (offline
-        ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+    if (offline) {
+      const total = pendingCount + failedCount;
+      txt.textContent = total > 0 ? `Offline (${total})` : 'Offline';
+    } else if (failedCount > 0) {
+      txt.textContent = pendingCount > 0 ? `Gagal (${failedCount}) · ${pendingCount}` : `Gagal (${failedCount})`;
+    } else {
+      txt.textContent = `Sync (${pendingCount})`;
+    }
+    const toneClass = offline
+      ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+      : (failedCount > 0
+        ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300'
         : 'border-brand/40 bg-brand/10 text-brand dark:text-brand-ink');
-    pill.title = offline ? 'Mode offline aktif — transaksi baru tersimpan lokal' : 'Klik untuk menyinkronkan antrean offline';
+    pill.className = 'inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0 ' + toneClass;
+    pill.title = offline
+      ? 'Mode offline aktif — transaksi baru tersimpan lokal'
+      : (failedCount > 0 ? 'Ada transaksi offline gagal sinkronisasi — klik untuk kelola' : 'Klik untuk menyinkronkan antrean offline');
     pill.append(icon, txt);
+  }
+
+  async function recordOfflineFailure(item, err) {
+    const nextRetry = (Number(item.retryCount) || 0) + 1;
+    const isFailed = nextRetry >= MAX_OFFLINE_RETRIES;
+    const errMsg = String((err && err.message) || err || 'Ditolak server').slice(0, 180);
+    await saveOfflineQueueItem(Object.assign({}, item, {
+      retryCount: nextRetry,
+      failed: isFailed,
+      lastError: errMsg,
+      lastTriedAt: new Date().toISOString()
+    }));
+    return { isFailed, errMsg };
+  }
+
+  async function promptFailedOfflineQueue(failedCount, sampleError) {
+    if (typeof Swal === 'undefined' || failedCount <= 0) return;
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `${failedCount} transaksi offline gagal`,
+      text: sampleError
+        ? `Server menolak sinkronisasi: ${sampleError}. Coba ulang sekarang atau buang item bermasalah?`
+        : 'Sebagian antrean offline ditolak server berulang kali. Coba ulang sekarang atau buang item bermasalah?',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Coba Ulang',
+      denyButtonText: 'Buang Gagal',
+      cancelButtonText: 'Tutup',
+      customClass: { popup: getSwalClass() }
+    });
+    if (res.isConfirmed) await retryFailedOfflineItems();
+    else if (res.isDenied) await discardFailedOfflineItems();
+  }
+
+  async function retryFailedOfflineItems() {
+    const queue = await getOfflineQueueItems();
+    const failed = queue.filter((x) => x.failed);
+    for (const item of failed) {
+      await saveOfflineQueueItem(Object.assign({}, item, { retryCount: 0, failed: false, lastError: '' }));
+    }
+    updateNetworkStatusPill();
+    return flushOfflineQueue(false);
+  }
+
+  async function discardFailedOfflineItems() {
+    const queue = await getOfflineQueueItems();
+    const failed = queue.filter((x) => x.failed);
+    for (const item of failed) {
+      await removeOfflineQueueItem(item.localId);
+      if (typeof DB !== 'undefined' && Array.isArray(DB.transactions)) {
+        DB.transactions = DB.transactions.filter((tx) => tx.id !== item.localId);
+      }
+    }
+    updateNetworkStatusPill();
+    if (typeof refreshNotificationBell === 'function') refreshNotificationBell();
+    if (typeof root.renderAll === 'function' && root.isDataReady) root.renderAll();
+    return failed.length;
   }
 
   async function flushOfflineQueue(silent) {
     if (isFlushingOffline || !navigator.onLine) return 0;
     const queue = await getOfflineQueueItems();
     if (!queue.length) return 0;
+    const pendingItems = queue.filter((x) => !x.failed);
+    const prevFailed = queue.filter((x) => x.failed);
+
+    if (!pendingItems.length) {
+      if (!silent && prevFailed.length) {
+        await promptFailedOfflineQueue(prevFailed.length, prevFailed[0].lastError);
+      }
+      return 0;
+    }
 
     isFlushingOffline = true;
     let synced = 0;
+    let newlyFailed = 0;
+    let lastErrMsg = '';
     const addedTransactions = [];
     let latestPeriod = '';
     try {
-      for (const item of queue) {
+      for (const item of pendingItems) {
         try {
           const payload = Object.assign({}, item.payload);
           const res = await root._rawCallServer('api_addTransaction', payload);
@@ -150,6 +247,11 @@
           synced += 1;
         } catch (err) {
           if (isNetworkOfflineError(err)) break;
+          const recorded = await recordOfflineFailure(item, err);
+          if (recorded.isFailed) {
+            newlyFailed += 1;
+            lastErrMsg = recorded.errMsg;
+          }
         }
       }
       if (synced > 0 && typeof refreshFromServer === 'function') {
@@ -166,6 +268,8 @@
           showConfirmButton: false,
           customClass: { popup: getSwalClass() }
         });
+      } else if (newlyFailed > 0 && !silent) {
+        await promptFailedOfflineQueue(newlyFailed + prevFailed.length, lastErrMsg);
       }
     } finally {
       isFlushingOffline = false;
@@ -234,6 +338,8 @@
   document.addEventListener('DOMContentLoaded', updateNetworkStatusPill);
 
   root.flushOfflineQueue = flushOfflineQueue;
+  root.retryFailedOfflineItems = retryFailedOfflineItems;
+  root.discardFailedOfflineItems = discardFailedOfflineItems;
   root.updateNetworkStatusPill = updateNetworkStatusPill;
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.readLocalQueue = readLocalQueue;

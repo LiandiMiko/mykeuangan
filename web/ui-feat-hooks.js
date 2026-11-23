@@ -307,7 +307,7 @@
     if (typeof root.flushOfflineQueue === 'function') root.flushOfflineQueue(false);
   });
   document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || (typeof Swal !== 'undefined' && Swal.isVisible()) || document.getElementById('mkCommandPalette')) return;
     const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable) || !root.isDataReady) return;
     const k = String(e.key || '').toLowerCase();

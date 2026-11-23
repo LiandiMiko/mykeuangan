@@ -54,8 +54,10 @@
         }
       });
     }
+    const prefersReducedMotion = typeof root.matchMedia === 'function' && root.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (typeof Chart !== 'undefined') {
       Chart.defaults.font.family = "'Inter', sans-serif";
+      if (prefersReducedMotion) Chart.defaults.animation = false;
     }
     updateEyeIcon();
     updateAiKeyStatusUI();
@@ -167,7 +169,8 @@
       nav.setAttribute('aria-current', 'page');
     }
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const reduceScrollMotion = typeof root.matchMedia === 'function' && root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceScrollMotion ? 'auto' : 'smooth' });
 
     if (id === 'aset') {
       setTimeout(() => {
@@ -214,7 +217,7 @@
     const uEl = document.getElementById('ui-username');
     const rEl = document.getElementById('ui-role');
     if (uEl) uEl.innerText = root.sessionUser;
-    if (rEl) rEl.innerText = root.sessionRole;
+    if (rEl) rEl.innerText = String(root.sessionRole || 'USER').toUpperCase();
     updateDashboardTitle();
   }
 
@@ -271,7 +274,7 @@
     const uEl = document.getElementById('ui-username');
     const rEl = document.getElementById('ui-role');
     if (uEl) uEl.innerText = root.sessionUser;
-    if (rEl) rEl.innerText = root.sessionRole;
+    if (rEl) rEl.innerText = String(root.sessionRole || 'USER').toUpperCase();
     updateDashboardTitle();
 
     await loadInitialAppData();

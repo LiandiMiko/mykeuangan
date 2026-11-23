@@ -59,6 +59,7 @@ export async function tg(method: string, body: Record<string, unknown>) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(12000),
   });
   if (!r.ok) console.error('telegram', method, r.status, await r.text());
 }
@@ -97,10 +98,17 @@ export const statusKb = () => ({
   ],
 });
 
-export async function fetchAll(table: string, cols: string, uid: string, order: string[]): Promise<Any[]> {
+export async function fetchAll(
+  table: string,
+  cols: string,
+  uid: string,
+  order: string[],
+  gteFilter?: [string, string],
+): Promise<Any[]> {
   const out: Any[] = [];
   for (let from = 0; ; from += 1000) {
     let q = sb.from(table).select(cols).eq('user_id', uid).range(from, from + 999);
+    if (gteFilter) q = q.gte(gteFilter[0], gteFilter[1]);
     for (const o of order) q = q.order(o);
     const { data, error } = await q;
     if (error) throw error;

@@ -23,18 +23,23 @@
     renderHtml(pane, `
       <p class="text-slate-500 mb-2">Terdeteksi <strong>${userDebts.length}</strong> utang aktif (${escapeHtmlJS(fmt(totalUserDebt))}).</p>
       <div class="grid grid-cols-2 gap-2 mb-2">
-        <input id="calc-extra" type="number" min="0" value="500000" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Ekstra bayar/bln">
+        <label for="calc-extra" class="sr-only">Ekstra bayar bulanan (Rp)</label>
+        <input id="calc-extra" type="number" min="0" value="500000" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 tabular-nums" placeholder="Ekstra bayar/bln">
         <button type="button" id="btnRunDebtCalc" class="px-3 py-2 rounded-lg bg-brand text-white font-bold">Bandingkan Strategi</button>
       </div>
-      <div id="debtCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60"></div>
+      <div id="debtCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 tabular-nums"></div>
     `);
     const run = () => {
       const extra = Number(document.getElementById('calc-extra').value) || 0;
       const snow = FinancePro.simulateDebtPayoff(base, extra, 'snowball');
       const aval = FinancePro.simulateDebtPayoff(base, extra, 'avalanche');
+      const capWarn = (snow.capped || aval.capped)
+        ? '<p class="mt-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">Catatan: cicilan belum melunasi bunga penuh dalam 600 bulan (50 thn); tambah ekstra bayar bulanan.</p>'
+        : '';
       renderHtml(document.getElementById('debtCalcOut'), `
-        <p><strong>Snowball</strong> (terkecil dulu): <strong>${snow.months} bln</strong> · Total ${escapeHtmlJS(fmt(snow.totalPaid))}</p>
-        <p class="mt-1"><strong>Avalanche</strong> (bunga/saldo terbesar dulu): <strong>${aval.months} bln</strong> · Total ${escapeHtmlJS(fmt(aval.totalPaid))}</p>
+        <p><strong>Snowball</strong> (terkecil dulu): <strong>${snow.months}${snow.capped ? '+' : ''} bln</strong> · Total ${escapeHtmlJS(fmt(snow.totalPaid))}</p>
+        <p class="mt-1"><strong>Avalanche</strong> (bunga/saldo terbesar dulu): <strong>${aval.months}${aval.capped ? '+' : ''} bln</strong> · Total ${escapeHtmlJS(fmt(aval.totalPaid))}</p>
+        ${capWarn}
       `);
     };
     document.getElementById('btnRunDebtCalc').onclick = run;

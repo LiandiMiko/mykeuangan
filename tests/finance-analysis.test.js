@@ -479,3 +479,63 @@ test('computeCycleForecast estimates burn rate, safe daily allowance, and end-of
   assert.equal(doneForecast.remainingDays, 0);
   assert.equal(doneForecast.projectedExpense, 1000000);
 });
+
+test('prepareBackupRestorePayload supports 8 collections additively and removes goal emoji', () => {
+  const plan = prepareBackupRestorePayload(
+    {
+      categories: { pemasukan: ['Gaji', 'Dividen'], pengeluaran: ['Makan', 'Internet'] },
+      wallets: [
+        { id: 'old-bca', name: 'BCA Utama', kind: 'bank', openingBalance: 1000000 },
+        { id: 'old-ovo', name: 'OVO', kind: 'ewallet', openingBalance: 250000 }
+      ],
+      transactions: [
+        { tanggal: '2026-11-10', tipe: 'Pengeluaran', kategori: 'Internet', nominal: 350000, keterangan: 'Fiber', walletId: 'old-ovo' }
+      ],
+      recurring: [
+        { tipe: 'Pengeluaran', kategori: 'Internet', nominal: 350000, dayOfMonth: 10, keterangan: 'Fiber', active: true },
+        { tipe: 'Pengeluaran', kategori: 'Listrik', nominal: 200000, dayOfMonth: 5, keterangan: 'PLN', active: true }
+      ],
+      assets: [
+        { name: 'Bitcoin', type: 'Crypto', symbol: 'btc', quantity: 0.01, buyPrice: 1200000000, value: 15000000 },
+        { name: 'Antam', type: 'Emas', symbol: 'XAU', quantity: 5, buyPrice: 1400000, value: 7500000 }
+      ],
+      debtDueDates: {
+        'UtangPerson - Budi': '2026-12-01',
+        'UtangPerson - Ani': '2026-12-15',
+        InvalidDate: 'not-a-date'
+      }
+    },
+    {
+      categories: { pemasukan: ['Gaji'], pengeluaran: ['makan'] },
+      wallets: [{ id: 'new-bca', name: 'bca utama' }],
+      transactions: [],
+      recurring: [{ tipe: 'Pengeluaran', kategori: 'internet', nominal: 350000, dayOfMonth: 10, keterangan: 'fiber' }],
+      assets: [{ name: 'bitcoin', type: 'Crypto', symbol: 'BTC' }],
+      debtDueDates: { 'UtangPerson - Budi': '2026-11-30' }
+    }
+  );
+
+  assert.equal(plan.valid, true);
+  assert.deepEqual(plan.newCategories, [
+    { tipe: 'Pemasukan', name: 'Dividen' },
+    { tipe: 'Pengeluaran', name: 'Internet' }
+  ]);
+  assert.equal(plan.skippedCategories, 2);
+  assert.deepEqual(plan.newWallets, [{ name: 'OVO', kind: 'ewallet', openingBalance: 250000 }]);
+  assert.equal(plan.skippedWallets, 1);
+  assert.equal(plan.walletNameByOldId['old-ovo'], 'OVO');
+  assert.equal(plan.newRecurring.length, 1);
+  assert.equal(plan.newRecurring[0].kategori, 'Listrik');
+  assert.equal(plan.newAssets.length, 1);
+  assert.equal(plan.newAssets[0].symbol, 'XAU');
+  assert.deepEqual(plan.newDebtDueDates, { 'UtangPerson - Ani': '2026-12-15' });
+  assert.equal(plan.skippedDebtDueDates, 2);
+
+  const partialOnlyWallets = prepareBackupRestorePayload({ wallets: [{ name: 'Dana Baru', kind: 'ewallet' }] }, {});
+  assert.equal(partialOnlyWallets.valid, true);
+  assert.equal(partialOnlyWallets.newWallets.length, 1);
+
+  const goalDone = projectGoalMilestone(1000000, 1000000);
+  assert.equal(goalDone.status, 'completed');
+  assert.equal(goalDone.label, 'Target sudah tercapai!');
+});

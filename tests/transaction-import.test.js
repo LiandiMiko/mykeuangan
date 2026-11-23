@@ -81,3 +81,37 @@ test('CSV parser supports semicolon delimiters and bank mutation statements (BCA
   assert.equal(parsedDC.valid[1].tipe, 'Pemasukan');
   assert.equal(parsedDC.valid[1].nominal, 15500);
 });
+
+test('CSV parser skips bank statement preamble rows and parses IDR, accounting parens, no-space DB/CR, and case-insensitive dedup', () => {
+  const bankPreambleCsv = [
+    'Rekening: 1234567890',
+    'Periode: November 2026',
+    'Mata Uang: IDR',
+    '',
+    'Tanggal;Uraian;Mutasi',
+    '19/11/2026;TARIK TUNAI ATM;"(150.000)"',
+    '19/11/2026;BAYAR QRIS MART;IDR 25.000DB',
+    '19/11/2026;BAYAR qris mart;IDR 25.000DB',
+    '20/11/2026;TOPUP BONUS;IDR 500000CR'
+  ].join('\n');
+
+  const existing = [{
+    tanggal: '2026-11-20',
+    tipe: 'Pemasukan',
+    kategori: 'Lainnya',
+    nominal: 500000,
+    keterangan: 'topup bonus',
+    walletId: 'w-bca'
+  }];
+
+  const res = parseTransactionCsv(bankPreambleCsv, existing, [{ id: 'w-bca', name: 'BCA' }]);
+  assert.equal(res.invalidCount, 0);
+  assert.equal(res.duplicateCount, 2);
+  assert.equal(res.valid.length, 2);
+  assert.equal(res.valid[0].tipe, 'Pengeluaran');
+  assert.equal(res.valid[0].nominal, 150000);
+  assert.equal(res.valid[0].line, undefined);
+  assert.equal(res.rows[0].line, 6);
+  assert.equal(res.valid[1].nominal, 25000);
+  assert.equal(res.valid[1].tipe, 'Pengeluaran');
+});

@@ -56,6 +56,8 @@
         actionBtn = `<button type="button" onclick="recordRecurringFromNotif('${escapeAttrJS(n.actionPayload.id)}')" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Catat Sekarang</button>`;
       } else if (n.actionType === 'sync_offline') {
         actionBtn = '<button type="button" onclick="Swal.close();flushOfflineQueue(false)" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Sinkronisasi</button>';
+      } else if (n.actionType === 'offline_failed') {
+        actionBtn = '<div class="mt-2 flex flex-wrap gap-2"><button type="button" onclick="Swal.close();if(typeof retryFailedOfflineItems===\'function\')retryFailedOfflineItems()" class="px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Coba Ulang</button><button type="button" onclick="Swal.close();if(typeof discardFailedOfflineItems===\'function\')discardFailedOfflineItems()" class="px-3 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-bold">Buang Gagal</button></div>';
       }
       return `
         <div class="p-3 rounded-xl border text-left ${sevStyle[n.severity] || sevStyle.info}">
@@ -140,7 +142,7 @@
     if ((e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'k') {
       e.preventDefault();
       if (typeof openCommandPalette === 'function') openCommandPalette();
-    } else if (e.key === 'Escape' && typeof closeCommandPalette === 'function') {
+    } else if (e.key === 'Escape' && document.getElementById('mkCommandPalette') && typeof closeCommandPalette === 'function') {
       closeCommandPalette();
     }
   });

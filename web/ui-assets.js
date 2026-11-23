@@ -44,9 +44,11 @@
   }
 
   function buildPortfolioChartOptions(isDark, textColor, gridColor) {
+    const reduceMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     return {
       responsive: true,
       maintainAspectRatio: false,
+      ...(reduceMotion ? { animation: false } : {}),
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
@@ -113,7 +115,7 @@
 
     if (snapshots.length < 2) {
       canvas.style.display = 'none';
-      if (placeholder) placeholder.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'flex';
       return;
     }
 

@@ -47,9 +47,10 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        ...(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? { animation: false } : {}),
         cutout: '62%',
         plugins: {
-          legend: { position: 'right', labels: { color: theme.textColor, boxWidth: 10, font: { family: 'Inter', size: 11 } } },
+          legend: { position: (typeof window !== 'undefined' && window.innerWidth < 640) ? 'bottom' : 'right', labels: { color: theme.textColor, boxWidth: 10, font: { family: 'Inter', size: 11 } } },
           tooltip: { callbacks: { label: (ctx) => ctx.label + ': ' + formatRupiah(ctx.parsed).replace(',00', '') } }
         }
       }
@@ -90,6 +91,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        ...(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? { animation: false } : {}),
         plugins: {
           legend: { position: 'bottom', labels: { color: theme.textColor, boxWidth: 10, font: { family: 'Inter', size: 11 } } },
           tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + formatRupiah(ctx.parsed.y).replace(',00', '') } }
@@ -135,9 +137,9 @@
     }
 
     const isDark = document.documentElement.classList.contains('dark');
-    const gridColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.18)';
-    const textColor = isDark ? '#94a3b8' : '#64748b';
-    const brandColor = '#10b981';
+    const gridColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.24)';
+    const textColor = isDark ? '#94a3b8' : '#475569';
+    const brandColor = (typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() : '') || '#10b981';
 
     root._netWorthChartInstance = new Chart(canvas.getContext('2d'), {
       type: 'line',
@@ -160,6 +162,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        ...(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? { animation: false } : {}),
         plugins: {
           legend: { display: false },
           tooltip: {

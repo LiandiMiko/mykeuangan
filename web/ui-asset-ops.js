@@ -1,4 +1,4 @@
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, getSwalClass, showActionError, walletOptions, localToday */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, escapeHtmlJS, getSwalClass, showActionError, walletOptions, localToday */
 /* ============================================================
    ASSET TOP-UP & LIQUIDATION MODALS
    ============================================================ */
@@ -23,9 +23,9 @@
     const priceEl = document.getElementById('tu-price');
     const syncFromUnit = () => {
       const qVal = parseFloat(qtyEl && qtyEl.value);
-      const pVal = parseFloat(priceEl && priceEl.value) || implied;
-      if (amtEl && qVal > 0 && pVal > 0 && (!amtEl.value || amtEl.dataset.auto === '1')) {
-        amtEl.value = Math.round(qVal * pVal);
+      const pVal = (priceEl ? parseFormattedNominal(priceEl.value) : 0) || implied;
+      if (amtEl && qVal > 0 && pVal > 0 && (!parseFormattedNominal(amtEl.value) || amtEl.dataset.auto === '1')) {
+        amtEl.value = formatNominalInputValue(Math.round(qVal * pVal));
         amtEl.dataset.auto = '1';
       }
     };
@@ -39,8 +39,10 @@
     if (!a) return;
     const m = getAssetUnitMeta(a);
     const unitFieldsHtml = m.isUnitAsset
-      ? `<input id="tu-qty" type="number" step="${m.unitStep}" class="swal2-input" placeholder="Jumlah ${m.unitLabel} didapat — opsional">
-         <input id="tu-price" type="number" class="swal2-input" placeholder="Harga per ${m.unitLabel} saat beli (Rp) — opsional">
+      ? `<label for="tu-qty" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jumlah ${m.unitLabel} didapat — opsional</label>
+         <input id="tu-qty" type="number" step="${m.unitStep}" class="swal2-input" placeholder="Jumlah ${m.unitLabel} didapat — opsional">
+         <label for="tu-price" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Harga per ${m.unitLabel} saat beli (Rp) — opsional</label>
+         <input id="tu-price" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Harga per ${m.unitLabel} saat beli (Rp) — opsional">
          <p style="font-size:12px;color:#64748b;margin:6px 4px">${m.implied
            ? `Kosongkan keduanya untuk memakai harga terakhir (${formatRupiah(m.implied)} per ${escapeHtmlJS(m.symbolLabel)}).`
            : `Harga terakhir belum ada: isi jumlah ${m.unitLabel} atau harga per ${m.unitLabel}.`}</p>`
@@ -49,23 +51,33 @@
     const res = await Swal.fire({
       title: 'Tambah ' + escapeHtmlJS(a.name),
       html: `
-        <input id="tu-amount" type="number" class="swal2-input" placeholder="Nominal ditambah (Rp), mis. 1000000">
+        <label for="tu-amount" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nominal ditambah (Rp)</label>
+        <input id="tu-amount" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Nominal ditambah (Rp), mis. 1.000.000">
         ${unitFieldsHtml}
-        <label style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana</label>
+        <label for="tu-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana</label>
         <select id="tu-wallet" class="swal2-input"><option value="">Tidak dikurangi dari dompet</option>${walletOptions('')}</select>`,
       showCancelButton: true,
       confirmButtonText: 'Tambahkan',
       cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() },
-      didOpen: () => { if (m.isUnitAsset) bindTopUpAutoAmount(m.implied); },
+      didOpen: () => {
+        bindNominalInputs(m.isUnitAsset ? ['tu-amount', 'tu-price'] : ['tu-amount']);
+        if (m.isUnitAsset) bindTopUpAutoAmount(m.implied);
+      },
       preConfirm: () => {
-        const amount = parseFloat(document.getElementById('tu-amount').value);
-        if (!amount || amount <= 0) { Swal.showValidationMessage('Isi nominal'); return false; }
+        const amount = parseFormattedNominal(document.getElementById('tu-amount').value);
+        if (!Number.isFinite(amount) || amount <= 0) { Swal.showValidationMessage('Isi nominal yang valid.'); return false; }
         const readNum = (elId) => { const el = document.getElementById(elId); return el ? (parseFloat(el.value) || 0) : 0; };
         return {
           amount,
           quantity: readNum('tu-qty'),
-          price: readNum('tu-price'),
+          price: (() => {
+            const pEl = document.getElementById('tu-price');
+            const raw = String((pEl && pEl.value) || '').trim();
+            if (!raw) return null;
+            const parsed = parseFormattedNominal(raw);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+          })(),
           walletId: document.getElementById('tu-wallet').value,
           tanggal: localToday()
         };
@@ -87,7 +99,7 @@
       : '';
     return `
       <label for="wd-amount" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nominal dicairkan (maks. ${formatRupiah(m.val)})</label>
-      <input id="wd-amount" type="number" min="1" max="${Math.round(m.val)}" value="${Math.round(m.val)}" class="swal2-input" placeholder="Nominal dicairkan (Rp)">
+      <input id="wd-amount" type="text" inputmode="numeric" value="${escapeHtmlJS(formatNominalInputValue(Math.round(m.val)))}" class="swal2-input tabular-nums" placeholder="Nominal dicairkan (Rp)">
       ${qtyField}
       <label for="wd-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Masuk ke dompet tujuan</label>
       <select id="wd-wallet" class="swal2-input">
@@ -108,6 +120,7 @@
       cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() },
       didOpen: () => {
+        bindNominalInputs(['wd-amount']);
         if (!m.isUnitAsset || m.qty <= 0 || m.implied <= 0) return;
         const amtEl = document.getElementById('wd-amount');
         const qtyEl = document.getElementById('wd-qty');
@@ -115,13 +128,13 @@
           qtyEl.addEventListener('input', () => {
             const q = parseFloat(qtyEl.value);
             if (Number.isFinite(q) && q > 0) {
-              amtEl.value = Math.min(Math.round(m.val), Math.max(1, Math.round(q * m.implied)));
+              amtEl.value = formatNominalInputValue(Math.min(Math.round(m.val), Math.max(1, Math.round(q * m.implied))));
             }
           });
         }
       },
       preConfirm: () => {
-        const amount = parseFloat(document.getElementById('wd-amount').value);
+        const amount = parseFormattedNominal(document.getElementById('wd-amount').value);
         if (!Number.isFinite(amount) || amount <= 0 || amount > m.val + 1) {
           Swal.showValidationMessage('Nominal harus di antara 1 sampai nilai aset saat ini.');
           return false;

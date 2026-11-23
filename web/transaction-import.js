@@ -2,16 +2,16 @@
   'use strict';
 
   function detectDelimiter(text) {
-    const firstLine = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/, 1)[0] || '';
-    const countOutsideQuotes = (ch) => {
+    const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim() !== '').slice(0, 10);
+    const countOutsideQuotes = (ch) => lines.reduce((sum, line) => {
       let count = 0;
       let quoted = false;
-      for (let i = 0; i < firstLine.length; i += 1) {
-        if (firstLine[i] === '"') quoted = !quoted;
-        else if (!quoted && firstLine[i] === ch) count += 1;
+      for (let i = 0; i < line.length; i += 1) {
+        if (line[i] === '"') quoted = !quoted;
+        else if (!quoted && line[i] === ch) count += 1;
       }
-      return count;
-    };
+      return sum + count;
+    }, 0);
     const commas = countOutsideQuotes(',');
     const semis = countOutsideQuotes(';');
     const tabs = countOutsideQuotes('\t');
@@ -81,10 +81,16 @@
 
   function parseNumericToken(raw) {
     let clean = String(raw || '').trim()
-      .replace(/^Rp\.?\s*/i, '')
-      .replace(/\s+(DB|CR)$/i, '')
+      .replace(/^(?:Rp\.?|IDR)\s*/i, '')
+      .replace(/(?:\d|\s|\)|\.|,)\s*(DB|CR)$/i, (m, s) => m.slice(0, m.length - s.length))
       .replace(/\s+/g, '');
     if (!clean) return NaN;
+    let negative = false;
+    if (/^\([^()]+\)$/.test(clean)) {
+      negative = true;
+      clean = clean.slice(1, -1);
+    }
+    clean = clean.replace(/^(?:Rp\.?|IDR)\s*/i, '');
     if (/^-?\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(clean)) {
       clean = clean.replace(/\./g, '').replace(',', '.');
     } else if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(clean)) {
@@ -92,7 +98,8 @@
     } else if (/^-?\d+,\d{1,2}$/.test(clean)) {
       clean = clean.replace(',', '.');
     }
-    return Number(clean);
+    const num = Number(clean);
+    return negative && Number.isFinite(num) ? -Math.abs(num) : num;
   }
 
   function parseAmountAndDirection(rawAmount, rawType, rawDebit, rawCredit) {
@@ -116,8 +123,8 @@
       amount = creditVal;
       if (!tipe) tipe = 'Pemasukan';
     } else if (amountRawStr) {
-      if (/\bDB\s*$/i.test(amountRawStr) && !tipe) tipe = 'Pengeluaran';
-      else if (/\bCR\s*$/i.test(amountRawStr) && !tipe) tipe = 'Pemasukan';
+      if (/(?:^|\b|\d|\s|\)|\.|,)DB\s*$/i.test(amountRawStr) && !tipe) tipe = 'Pengeluaran';
+      else if (/(?:^|\b|\d|\s|\)|\.|,)CR\s*$/i.test(amountRawStr) && !tipe) tipe = 'Pemasukan';
       const parsed = parseNumericToken(amountRawStr);
       if (Number.isFinite(parsed)) {
         if (parsed < 0) {
@@ -138,7 +145,7 @@
       transaction.tipe,
       String(transaction.kategori || '').trim().toLocaleLowerCase(),
       Number(transaction.nominal),
-      String(transaction.keterangan || '').trim(),
+      String(transaction.keterangan || '').trim().toLocaleLowerCase(),
       transaction.walletId || ''
     ].join('\u001f');
   }
@@ -191,8 +198,8 @@
 
   function parseCsvDataRow(cells, index, ctx) {
     const readIdx = (colIdx) => (colIdx === undefined ? '' : String(cells[colIdx] || '').trim());
-    const { cols, walletByName, defaultWalletId, knownTransactions, fileTransactions, options } = ctx;
-    const line = index + 2;
+    const { cols, walletByName, defaultWalletId, knownTransactions, fileTransactions, options, headerIndex } = ctx;
+    const line = (headerIndex || 0) + index + 2;
     const errors = [];
     const date = normalizeDateString(readIdx(cols.dateCol));
     const { amount, tipe } = parseAmountAndDirection(
@@ -227,16 +234,29 @@
     return { line, transaction, errors, duplicate };
   }
 
+  function findHeaderRowIndex(rows) {
+    const limit = Math.min(rows.length, 15);
+    for (let i = 0; i < limit; i += 1) {
+      const headers = rows[i].map((header) => header.trim().toLocaleLowerCase());
+      try {
+        return { cols: resolveCsvColumns(headers), headerIndex: i };
+      } catch (_) {
+        /* try next candidate row */
+      }
+    }
+    return { cols: resolveCsvColumns(rows[0].map((header) => header.trim().toLocaleLowerCase())), headerIndex: 0 };
+  }
+
   function parseTransactionCsv(text, existingTransactions, wallets, options) {
     const rows = parseRows(text);
     if (rows.length < 1) throw new Error('File CSV kosong.');
-    const headers = rows[0].map((header) => header.trim().toLocaleLowerCase());
-    const cols = resolveCsvColumns(headers);
+    const { cols, headerIndex } = findHeaderRowIndex(rows);
 
     const walletList = wallets || [];
     const walletByName = new Map(walletList.map((w) => [String(w.name || '').trim().toLocaleLowerCase(), w]));
     const ctx = {
       cols,
+      headerIndex,
       walletByName,
       defaultWalletId: walletList.length ? String(walletList[0].id || '') : '',
       knownTransactions: new Set((existingTransactions || []).map(fingerprint)),
@@ -244,7 +264,7 @@
       options: options || {}
     };
 
-    const parsedRows = rows.slice(1).map((cells, index) => parseCsvDataRow(cells, index, ctx));
+    const parsedRows = rows.slice(headerIndex + 1).map((cells, index) => parseCsvDataRow(cells, index, ctx));
     const valid = parsedRows.filter((item) => item.errors.length === 0 && !item.duplicate).map((item) => item.transaction);
     return {
       rows: parsedRows,

@@ -29,8 +29,9 @@ export const json = (req: Request, obj: unknown, status = 200) =>
 
 const CRYPTO_MAP: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', ONDO: 'ondo-finance', TAO: 'bittensor', SOL: 'solana', ADA: 'cardano',
-  DOT: 'polkadot', MATIC: 'matic-network', USDT: 'tether', USDC: 'usd-coin', BNB: 'binancecoin', XRP: 'ripple',
+  DOT: 'polkadot', MATIC: 'matic-network', POL: 'polygon-ecosystem-token', USDT: 'tether', USDC: 'usd-coin', BNB: 'binancecoin', XRP: 'ripple',
   DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink', PEPE: 'pepe', SHIB: 'shiba-inu', ARB: 'arbitrum', OP: 'optimism',
+  SUI: 'sui', TON: 'the-open-network', LTC: 'litecoin', BCH: 'bitcoin-cash', NEAR: 'near', APT: 'aptos', RENDER: 'render-token',
   PAXG: 'pax-gold',
 };
 
@@ -53,7 +54,7 @@ async function fetchPricesIDR(symbols: string[]): Promise<Record<string, number>
   const ids = [...new Set([...wanted.map((s) => CRYPTO_MAP[s]), 'tether'])];
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd` +
     (CG_KEY ? `&x_cg_demo_api_key=${encodeURIComponent(CG_KEY)}` : '');
-  const r = await fetch(url);
+  const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!r.ok) throw new Error('CoinGecko HTTP ' + r.status);
   const j = await r.json();
   const usdIdr = Number(j.tether?.idr) || 16000;
@@ -153,12 +154,16 @@ async function runRecurring() {
 }
 
 async function dailyReminder() {
+  const end = today();
+  const cutoff = new Date(end + 'T00:00:00Z');
+  cutoff.setUTCDate(cutoff.getUTCDate() - 366);
+  const cutoff366 = cutoff.toISOString().slice(0, 10);
   const activeIds = await getActiveUserIds();
   let sent = 0;
   for (const ch of await chatsOf()) {
     if (!activeIds.has(ch.user_id)) continue;
-    const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id']);
-    const todayTx = trx.filter((x) => String(x.tanggal).slice(0, 10) === today());
+    const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id'], ['tanggal', cutoff366]);
+    const todayTx = trx.filter((x) => String(x.tanggal).slice(0, 10) === end);
     const st = streak(trx);
     const total = todayTx.filter((x) => x.tipe === 'Pengeluaran' && isFlow(x.kategori)).reduce((a, x) => a + Number(x.nominal), 0);
     const msg = todayTx.length === 0
@@ -179,7 +184,7 @@ async function weeklyReport() {
   let sent = 0;
   for (const ch of await chatsOf()) {
     if (!activeIds.has(ch.user_id)) continue;
-    const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id']);
+    const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal', ch.user_id, ['tanggal', 'id'], ['tanggal', start]);
     const weekTx = trx.filter((x) => { const t = String(x.tanggal).slice(0, 10); return t >= start && t <= end; });
     if (weekTx.length === 0) continue;
     let tIn = 0, tOut = 0;

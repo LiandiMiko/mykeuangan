@@ -98,7 +98,7 @@ async function handleMessage(c: Ctx, msg: Any) {
   };
   if (menu[cmd]) return void (await menu[cmd]());
   if (GREETINGS.includes(cmd.split(/\s+/)[0])) return handleStatus(c);
-  if (cmd === '/start' || cmd === 'start') return send(c.chat, `👋 Halo <b>${esc(c.name)}</b>! Saya <b>MyKeuanganGuech Bot</b> 💰`, mainKb());
+  if (cmd === '/start' || cmd === 'start') return send(c.chat, `👋 Halo <b>${esc(c.name)}</b>! Saya <b>MyKeuGuech Bot</b> 💰`, mainKb());
   if (['/status', 'status', 'info', 'rekap'].includes(cmd)) return handleStatus(c);
   if (cmd === '/saldo' || cmd === 'saldo') return handleSaldo(c);
   if (cmd === '/bulan' || cmd === 'bulan') return handleBulan(c);
@@ -132,7 +132,7 @@ async function handlePairingCommand(chat: number, firstName: string, otp: string
 
   const { error: upsertErr } = await sb.from('telegram_chats').upsert({ chat_id: chat, user_id: pair.user_id, name: firstName || 'User' }, { onConflict: 'chat_id' });
   if (upsertErr) throw upsertErr;
-  return send(chat, '🎉 <b>Selamat!</b> Akun Telegram Anda berhasil terhubung dengan MyKeuangan.', mainKb());
+  return send(chat, '🎉 <b>Selamat!</b> Akun Telegram Anda berhasil terhubung dengan MyKeuGuech.', mainKb());
 }
 
 Deno.serve(async (req) => {

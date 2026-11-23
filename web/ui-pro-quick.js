@@ -1,4 +1,4 @@
-/* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, cycleOfDate, localToday, t */
+/* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, renderSelectOptions, walletOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, cycleOfDate, localToday, t */
 /* ============================================================
    PRO FEATURES — QUICK-ADD, TEMPLATES & PWA UPDATE TOAST
    ============================================================ */
@@ -211,10 +211,20 @@
     });
   }
 
+  function syncTemplateCategorySelect() {
+    const tipeEl = document.getElementById('tpl-tipe');
+    const catEl = document.getElementById('tpl-cat');
+    if (!tipeEl || !catEl) return;
+    const rawList = tipeEl.value === 'Pemasukan'
+      ? (DB.categories?.pemasukan || [])
+      : (DB.categories?.pengeluaran || []);
+    const list = rawList.length ? rawList : ['Lainnya'];
+    const prev = catEl.value;
+    renderSelectOptions(catEl, list, null, list.includes(prev) ? prev : list[0]);
+  }
+
   async function openQuickTemplatesModal() {
     const pinned = safeReadJson(KEYS.QUICK_TEMPLATES, []);
-    const cats = [...(DB.categories?.pengeluaran || []), ...(DB.categories?.pemasukan || [])];
-    const catOpts = Array.from(new Set(cats)).map((c) => `<option value="${escapeHtmlJS(c)}">${escapeHtmlJS(c)}</option>`).join('');
     const listHtml = pinned.length
       ? pinned.map((p, i) => `
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
@@ -238,9 +248,14 @@
               <option value="Pemasukan">Pemasukan</option>
             </select>
             <label for="tpl-cat" class="sr-only">Kategori template</label>
-            <select id="tpl-cat" class="swal2-select" style="margin:0;width:100%">${catOpts}</select>
+            <select id="tpl-cat" class="swal2-select" style="margin:0;width:100%"></select>
             <label for="tpl-amt" class="sr-only">Nominal template (Rp)</label>
             <input id="tpl-amt" type="text" inputmode="numeric" class="swal2-input col-span-2 tabular-nums" style="margin:0;width:100%" placeholder="Nominal (Rp, mis. 25.000)">
+            <label for="tpl-wallet" class="sr-only">Dompet template</label>
+            <select id="tpl-wallet" class="swal2-select col-span-2" style="margin:0;width:100%">
+              <option value="">Otomatis (dompet utama)</option>
+              ${walletOptions('')}
+            </select>
           </div>
         </div>
       `,
@@ -250,17 +265,20 @@
       didOpen: () => {
         bindTemplateDeleteButtons(pinned);
         bindNominalInputs(['tpl-amt']);
+        syncTemplateCategorySelect();
+        document.getElementById('tpl-tipe')?.addEventListener('change', syncTemplateCategorySelect);
       },
       preConfirm: () => {
         const label = String(document.getElementById('tpl-label').value || '').trim();
         const tipe = document.getElementById('tpl-tipe').value;
         const kategori = document.getElementById('tpl-cat').value || 'Lainnya';
         const nominal = parseFormattedNominal(document.getElementById('tpl-amt').value);
+        const walletId = document.getElementById('tpl-wallet')?.value || '';
         if (!label || !Number.isFinite(nominal) || nominal <= 0) {
           Swal.showValidationMessage('Isi nama template dan nominal di atas 0.');
           return false;
         }
-        return { label, tipe, kategori, nominal, keterangan: label, walletId: (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '' };
+        return { label, tipe, kategori, nominal, keterangan: label, walletId };
       }
     }));
 

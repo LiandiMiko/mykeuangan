@@ -33,6 +33,7 @@ export async function callGeminiJson(parts: Any[], responseSchema: Any): Promise
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
       body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema } }),
+      signal: AbortSignal.timeout(25000),
     });
     const j = await r.json().catch(() => ({}));
     if (j?.error || !r.ok) {
@@ -111,7 +112,7 @@ export function confirmPreview(chat: number, p: Tx) {
 
 export async function handleMediaMessage(c: Ctx, msg: Any) {
   if (msg.document) {
-    return send(c.chat, '📄 Upload CSV & bank statement dapat dilakukan melalui menu <b>Laporan → Impor CSV</b> di web MyKeuangan.', mainKb());
+    return send(c.chat, '📄 Upload CSV & bank statement dapat dilakukan melalui menu <b>Laporan → Impor CSV</b> di web MyKeuGuech.', mainKb());
   }
   const photo = Array.isArray(msg.photo) && msg.photo.length ? msg.photo[msg.photo.length - 1] : null;
   const voice = msg.voice ?? null;
@@ -119,12 +120,12 @@ export async function handleMediaMessage(c: Ctx, msg: Any) {
   if (!fileId) return;
 
   await send(c.chat, photo ? '📸 Membaca foto struk dengan Gemini AI...' : '🎙️ Memahami voice note dengan Gemini AI...');
-  const metaJson = await (await fetch(`${TG}/getFile?file_id=${encodeURIComponent(fileId)}`)).json();
+  const metaJson = await (await fetch(`${TG}/getFile?file_id=${encodeURIComponent(fileId)}`, { signal: AbortSignal.timeout(12000) })).json();
   const filePath = metaJson?.result?.file_path;
   if (!filePath) throw new Error('Gagal mengambil file dari Telegram.');
   if (Number(metaJson?.result?.file_size || 0) > 4 * 1024 * 1024) throw new Error('Ukuran media melebihi batas 4 MB.');
 
-  const fileRes = await fetch(`https://api.telegram.org/file/bot${TOKEN}/${filePath}`);
+  const fileRes = await fetch(`https://api.telegram.org/file/bot${TOKEN}/${filePath}`, { signal: AbortSignal.timeout(20000) });
   if (!fileRes.ok) throw new Error('Gagal mengunduh file media Telegram.');
   const base64 = bytesToBase64(new Uint8Array(await fileRes.arrayBuffer()));
   const caption = String(msg.caption || '').trim();
@@ -160,6 +161,7 @@ Format: Bahasa Indonesia santai profesional, HTML Telegram (<b>, <i>, <code>), m
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig }),
+        signal: AbortSignal.timeout(25000),
       });
       const j = await r.json().catch(() => ({}));
       if (j?.error || !r.ok) {

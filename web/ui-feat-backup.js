@@ -48,7 +48,7 @@
     const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
     const snapshot = {
       exportedAt: new Date().toISOString(),
-      version: '3.1',
+      version: '3.14',
       user: sessionUser,
       currentPeriod: DB.currentPeriod,
       payrollDay: DB.payrollDay,
@@ -80,6 +80,17 @@
     }
   }
 
+  function resolveRestoredWalletId(oldWalletId, walletNameByOldId, fallbackWalletId) {
+    const wallets = DB.wallets || [];
+    if (oldWalletId && wallets.some((w) => String(w.id) === String(oldWalletId))) return String(oldWalletId);
+    const mappedName = oldWalletId && walletNameByOldId ? String(walletNameByOldId[String(oldWalletId)] || '').trim().toLowerCase() : '';
+    if (mappedName) {
+      const matched = wallets.find((w) => String(w.name || '').trim().toLowerCase() === mappedName);
+      if (matched && matched.id) return String(matched.id);
+    }
+    return fallbackWalletId;
+  }
+
   async function applyBackupRestorePlan(plan) {
     Swal.fire({
       title: 'Memulihkan data...',
@@ -88,12 +99,17 @@
       didOpen: () => Swal.showLoading(),
       customClass: { popup: getSwalClass() }
     });
-    const validWalletIds = new Set((DB.wallets || []).map((w) => String(w.id)));
+    for (const c of (plan.newCategories || [])) {
+      await refreshFromServer(await callServer('api_addCategory', c.tipe, c.name));
+    }
+    for (const w of (plan.newWallets || [])) {
+      await refreshFromServer(await callServer('api_addWallet', w));
+    }
     const fallbackWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
     for (let i = 0; i < plan.newTransactions.length; i += 500) {
       const chunk = plan.newTransactions.slice(i, i + 500).map((tx) => ({
         ...tx,
-        walletId: tx.walletId && validWalletIds.has(String(tx.walletId)) ? tx.walletId : fallbackWalletId
+        walletId: resolveRestoredWalletId(tx.walletId, plan.walletNameByOldId, fallbackWalletId)
       }));
       await refreshFromServer(await callServer('api_importTransactions', chunk));
     }
@@ -103,10 +119,40 @@
     for (const g of plan.newGoals) {
       await refreshFromServer(await callServer('api_saveGoal', g));
     }
+    for (const r of (plan.newRecurring || [])) {
+      await refreshFromServer(await callServer('api_saveRecurring', r));
+    }
+    for (const a of (plan.newAssets || [])) {
+      await refreshFromServer(await callServer('api_addAssetV2', { ...a, walletId: '' }));
+    }
+    const dueEntries = Object.entries(plan.newDebtDueDates || {});
+    if (dueEntries.length) {
+      const mergedDue = Object.assign({}, plan.newDebtDueDates, DB.debtDueDates || {});
+      await refreshFromServer(await callServer('api_saveDebtDueDates', mergedDue));
+    }
+  }
+
+  function buildRestoreSummaryHtml(plan) {
+    const dueCount = Object.keys(plan.newDebtDueDates || {}).length;
+    const rows = [
+      ['Kategori baru', (plan.newCategories || []).length, plan.skippedCategories || 0],
+      ['Dompet baru', (plan.newWallets || []).length, plan.skippedWallets || 0],
+      ['Transaksi baru', plan.newTransactions.length, plan.skippedTransactions],
+      ['Budget baru', plan.newBudgets.length, plan.skippedBudgets],
+      ['Target keuangan baru', plan.newGoals.length, plan.skippedGoals],
+      ['Jadwal rutin baru', (plan.newRecurring || []).length, plan.skippedRecurring || 0],
+      ['Aset baru', (plan.newAssets || []).length, plan.skippedAssets || 0],
+      ['Jatuh tempo utang baru', dueCount, plan.skippedDebtDueDates || 0]
+    ];
+    const listHtml = rows.map(([label, add, skip]) =>
+      `<li><strong>${label}:</strong> ${add} <span class="text-slate-400">(${skip} dilewati)</span></li>`
+    ).join('');
+    return `<div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300"><p>Data baru akan ditambahkan tanpa menduplikasi data yang sudah ada:</p><ul class="list-disc pl-5 space-y-1">${listHtml}</ul></div>`;
   }
 
   async function handleRestoreJsonFile(event) {
     const file = event && event.target && event.target.files && event.target.files[0];
+    if (event && event.target) event.target.value = '';
     if (!file) return;
     if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.prepareBackupRestorePayload !== 'function') {
       Swal.fire({ icon: 'error', title: 'Error', text: 'Modul analisis belum siap.', customClass: { popup: getSwalClass() } });
@@ -123,15 +169,19 @@
 
     const plan = FinanceAnalysis.prepareBackupRestorePayload(parsed, DB);
     if (!plan.valid) {
-      Swal.fire({ icon: 'error', title: 'Format Tidak Dikenali', text: 'File JSON tidak memuat array transactions, budgets, atau goals.', customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Format Tidak Dikenali', text: 'File JSON tidak memuat koleksi data MyKeuGuech yang valid.', customClass: { popup: getSwalClass() } });
       return;
     }
 
-    if (plan.newTransactions.length + plan.newBudgets.length + plan.newGoals.length === 0) {
+    const dueCount = Object.keys(plan.newDebtDueDates || {}).length;
+    const totalNew = plan.newTransactions.length + plan.newBudgets.length + plan.newGoals.length
+      + (plan.newCategories || []).length + (plan.newWallets || []).length
+      + (plan.newRecurring || []).length + (plan.newAssets || []).length + dueCount;
+    if (totalNew === 0) {
       Swal.fire({
         icon: 'info',
         title: 'Semua Data Sudah Tersimpan',
-        text: `Tidak ada data baru untuk ditambahkan (${plan.skippedTransactions} transaksi, ${plan.skippedBudgets} budget, ${plan.skippedGoals} target sudah ada).`,
+        text: `Tidak ada data baru untuk ditambahkan (${plan.skippedTransactions} transaksi, ${plan.skippedBudgets} budget, ${plan.skippedGoals} target, ${(plan.skippedWallets || 0)} dompet, ${(plan.skippedAssets || 0)} aset sudah ada).`,
         customClass: { popup: getSwalClass() }
       });
       return;
@@ -140,15 +190,7 @@
     const confirmRes = await Swal.fire({
       icon: 'question',
       title: 'Konfirmasi Restore & Merge JSON',
-      html: `
-        <div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300">
-          <p>Data baru akan ditambahkan tanpa menduplikasi data yang sudah ada:</p>
-          <ul class="list-disc pl-5 space-y-1">
-            <li><strong>Transaksi baru:</strong> ${plan.newTransactions.length} <span class="text-slate-400">(${plan.skippedTransactions} dilewati)</span></li>
-            <li><strong>Budget baru:</strong> ${plan.newBudgets.length} <span class="text-slate-400">(${plan.skippedBudgets} dilewati)</span></li>
-            <li><strong>Target keuangan baru:</strong> ${plan.newGoals.length} <span class="text-slate-400">(${plan.skippedGoals} dilewati)</span></li>
-          </ul>
-        </div>`,
+      html: buildRestoreSummaryHtml(plan),
       showCancelButton: true,
       confirmButtonText: 'Pulihkan Sekarang',
       cancelButtonText: t('btn.batal'),
@@ -161,7 +203,7 @@
       Swal.fire({
         icon: 'success',
         title: 'Restore Selesai!',
-        text: `${plan.newTransactions.length} transaksi, ${plan.newBudgets.length} budget, dan ${plan.newGoals.length} target berhasil dipulihkan.`,
+        text: `${totalNew} entri baru berhasil dipulihkan dan digabung ke akun Anda.`,
         customClass: { popup: getSwalClass() }
       });
     } catch (err) {
@@ -171,6 +213,7 @@
   }
 
   function buildStatementHtml(st, fmtFn, forPrint) {
+    const printAccent = (typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() : '') || '#4f46e5';
     const dateRangeLabel = `${st.range.start} s/d ${st.range.end}`;
     const runwayText = st.ratios.emergencyRunwayMonths !== null ? `${st.ratios.emergencyRunwayMonths} Bulan` : '—';
     const cardStyle = forPrint ? 'padding:12px;border-radius:12px;border:1px solid #cbd5e1;background:#f8fafc;' : '';
@@ -191,7 +234,7 @@
         <div style="${forPrint ? 'border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:12px;' : ''}" class="${forPrint ? '' : 'border-b border-slate-200 dark:border-slate-700 pb-3'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <h3 style="${forPrint ? 'margin:0;font-size:16px;font-weight:900;text-transform:uppercase;color:#0f172a;' : ''}" class="${forPrint ? '' : 'text-base font-black text-slate-900 dark:text-white uppercase tracking-wide'}">Ringkasan Finansial Eksekutif</h3>
-            <span style="${forPrint ? 'font-size:10px;font-weight:700;padding:3px 8px;border:1px solid #4f46e5;border-radius:999px;color:#4f46e5;text-transform:uppercase;' : ''}" class="${forPrint ? '' : 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase'}">1-Page Statement</span>
+            <span style="${forPrint ? `font-size:10px;font-weight:700;padding:3px 8px;border:1px solid ${printAccent};border-radius:999px;color:${printAccent};text-transform:uppercase;` : ''}" class="${forPrint ? '' : 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase'}">1-Page Statement</span>
           </div>
           <p style="${forPrint ? 'margin:4px 0 0;font-size:12px;color:#475569;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500 dark:text-slate-400 mt-0.5'}">Pengguna: <strong>${escapeHtmlJS(sessionUser || 'User')}</strong> · Siklus: <strong>${escapeHtmlJS(st.period)}</strong> (${escapeHtmlJS(dateRangeLabel)})</p>
         </div>
@@ -220,7 +263,7 @@
         <div class="${cardClass}" style="${forPrint ? cardStyle + 'margin-bottom:12px;' : ''}">
           <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block'}">Metrik Kesehatan Finansial</span>
           <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-2 gap-2 text-xs'}">
-            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Runway Dana Darurat</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p><span style="${forPrint ? 'font-size:10px;font-weight:700;color:#4f46e5;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span></div>
+            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Runway Dana Darurat</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${printAccent};` : ''}" class="${forPrint ? '' : 'text-[10px] font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span></div>
             <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Rasio Utang / Aset</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${st.ratios.debtToAssetPct}%</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${st.ratios.debtToAssetPct <= 30 ? '#059669' : '#d97706'};` : ''}" class="${forPrint ? '' : `text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}`}">${escapeHtmlJS(st.ratios.debtStatus)}</span></div>
           </div>
         </div>
@@ -238,13 +281,14 @@
     }
     const st = FinanceAnalysis.compileOnePageFinancialStatement(DB, DB.currentPeriod, DB.payrollDay);
     const fmtPreview = (n) => formatRupiah(n).replace(',00', '');
+    const brandAccent = (typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() : '') || '#4f46e5';
     Swal.fire({
       html: `<div id="printStatementArea">${buildStatementHtml(st, fmtPreview, false)}</div>`,
       width: '540px',
       showCancelButton: true,
-      confirmButtonText: '🖨️ Cetak / Print',
+      confirmButtonText: 'Cetak / Print',
       cancelButtonText: 'Tutup',
-      confirmButtonColor: '#4f46e5',
+      confirmButtonColor: brandAccent,
       customClass: { popup: getSwalClass() }
     }).then((result) => {
       if (!result.isConfirmed) return;

@@ -136,3 +136,27 @@ test('TransactionImport applies custom autoCategoryRules on empty bank mutation 
   assert.equal(res.valid[0].kategori, 'Kopi & Jajan');
   assert.equal(res.valid[1].kategori, 'Tagihan');
 });
+
+test('parseQuickTxInput handles Rp tokens and simulateDebtPayoff reports capped flag', () => {
+  const categories = { pemasukan: ['Bonus', 'Lainnya'], pengeluaran: ['Makanan', 'Lainnya'] };
+  const qRp = FinancePro.parseQuickTxInput('makan siang Rp 35rb', categories, [], [], '2026-11-23');
+  assert.equal(qRp.valid, true);
+  assert.equal(qRp.nominal, 35000);
+
+  const qRpPlain = FinancePro.parseQuickTxInput('+Rp 1.500.000 bonus', categories, [], [], '2026-11-23');
+  assert.equal(qRpPlain.valid, true);
+  assert.equal(qRpPlain.tipe, 'Pemasukan');
+  assert.equal(qRpPlain.nominal, 1500000);
+
+  const negAmort = FinancePro.simulateDebtPayoff([
+    { name: 'Pinjol Tinggi', balance: 100000000, annualRatePct: 48, minPayment: 500000 }
+  ], 0, 'avalanche');
+  assert.equal(negAmort.capped, true);
+  assert.equal(negAmort.months, 600);
+
+  const normalPay = FinancePro.simulateDebtPayoff([
+    { name: 'Cicilan Ringan', balance: 1000000, annualRatePct: 0, minPayment: 500000 }
+  ], 0, 'snowball');
+  assert.equal(normalPay.capped, false);
+  assert.equal(normalPay.months, 2);
+});

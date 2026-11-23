@@ -79,14 +79,14 @@
   }
 
   function parseQuickAmountToken(rawStr) {
-    const unitMatch = /(?:^|\s)(\+?)\s*(\d+(?:[.,]\d+)?)\s*(rb|ribu|k|jt|juta|m)\b/i.exec(rawStr);
+    const unitMatch = /(?:^|\s)(\+?)\s*(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(rb|ribu|k|jt|juta|m)\b/i.exec(rawStr);
     if (unitMatch) {
       const val = Number(unitMatch[2].replace(',', '.'));
       const unit = unitMatch[3].toLowerCase();
       const mult = (unit === 'jt' || unit === 'juta' || unit === 'm') ? 1000000 : 1000;
       return { amount: Math.round(val * mult), token: unitMatch[0], hasPlus: unitMatch[1] === '+' };
     }
-    const plainMatch = /(?:^|\s)(\+?)\s*(\d{1,3}(?:[.,]\d{3})+|\d{3,9})(?=\s|$)/.exec(rawStr);
+    const plainMatch = /(?:^|\s)(\+?)\s*(?:rp\.?\s*)?(\d{1,3}(?:[.,]\d{3})+|\d{3,9})(?=\s|$)/i.exec(rawStr);
     if (plainMatch) {
       const digits = Number(plainMatch[2].replace(/[.,]/g, ''));
       return { amount: Math.round(digits), token: plainMatch[0], hasPlus: plainMatch[1] === '+' };
@@ -283,7 +283,7 @@
       }))
       .filter((d) => d.balance > 0);
 
-    if (!items.length) return { strategy: mode, months: 0, totalPaid: 0, totalInterest: 0, payoffOrder: [] };
+    if (!items.length) return { strategy: mode, months: 0, totalPaid: 0, totalInterest: 0, payoffOrder: [], capped: false };
 
     items.sort((a, b) => mode === 'avalanche'
       ? (b.rate - a.rate) || (b.balance - a.balance)
@@ -319,13 +319,13 @@
         if (d.balance <= 0.01) { d.balance = 0; payoffOrder.push({ name: d.name, month: months }); }
       }
     }
-
     return {
       strategy: mode,
       months,
       totalPaid: Math.round(totalPaid),
       totalInterest: Math.round(totalInterest),
-      payoffOrder
+      payoffOrder,
+      capped: items.some((d) => d.balance > 0)
     };
   }
 

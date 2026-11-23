@@ -112,14 +112,28 @@
   function getCurrentNotifications() {
     const feat = root.__mkFeat || {};
     const queue = typeof feat.readLocalQueue === 'function' ? feat.readLocalQueue() : [];
+    const pendingItems = queue.filter((x) => !x.failed);
+    const failedItems = queue.filter((x) => x.failed);
     const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
     const list = FinanceAnalysis.buildAppNotifications({
       budgets: DB.budgets,
       transactions: DB.transactions,
       recurring: DB.recurring,
       goals: DB.goals,
-      offlineQueueCount: queue.length
+      offlineQueueCount: pendingItems.length
     }, DB.currentPeriod, DB.payrollDay, todayStr);
+
+    if (failedItems.length > 0) {
+      const sampleErr = failedItems[0].lastError ? ` (${String(failedItems[0].lastError).slice(0, 90)})` : '';
+      list.unshift({
+        id: 'offline:failed',
+        severity: 'danger',
+        title: `${failedItems.length} transaksi offline gagal sinkronisasi`,
+        message: `Sinkronisasi ditolak server${sampleErr}. Coba ulang atau buang antrean bermasalah.`,
+        actionType: 'offline_failed',
+        actionPayload: { count: failedItems.length }
+      });
+    }
 
     if (hasUnreadRelease()) {
       const meta = getLatestReleaseMeta();

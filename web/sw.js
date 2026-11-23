@@ -3,7 +3,9 @@ const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icons/icon-192.png'
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,13 +27,12 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
+    caches.keys()
+      .then((keys) => Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
+      ))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -51,16 +52,19 @@ self.addEventListener('fetch', (event) => {
     || url.pathname.endsWith('/index.html');
 
   if (isHtmlRequest) {
+    const htmlCacheKey = './index.html';
     event.respondWith(
       fetch(event.request)
         .then((networkRes) => {
           if (networkRes && networkRes.status === 200) {
             const clone = networkRes.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.put(htmlCacheKey, clone))
+            );
           }
           return networkRes;
         })
-        .catch(() => caches.match(event.request).then((hit) => hit || caches.match('./index.html')))
+        .catch(() => caches.match(htmlCacheKey).then((hit) => hit || caches.match('./')))
     );
     return;
   }
@@ -71,12 +75,15 @@ self.addEventListener('fetch', (event) => {
         .then((networkRes) => {
           if (networkRes && networkRes.status === 200 && event.request.method === 'GET') {
             const clone = networkRes.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            event.waitUntil(
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
+            );
           }
           return networkRes;
         })
         .catch(() => cached || new Response('', { status: 503, statusText: 'Offline' }));
 
+      if (cached) event.waitUntil(fetchPromise);
       return cached || fetchPromise;
     })
   );

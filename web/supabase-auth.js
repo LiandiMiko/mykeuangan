@@ -353,7 +353,10 @@
       LOGOUT_STORAGE_KEYS.forEach((k) => {
         try { localStorage.removeItem(k); } catch (_) { /* ignore */ }
       });
-      try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) { /* ignore */ }
+      try {
+        sessionStorage.removeItem('mk_pin_unlocked');
+        sessionStorage.removeItem('mk_last_market_refresh_ts');
+      } catch (_) { /* ignore */ }
       if ('indexedDB' in window) {
         try { window.indexedDB.deleteDatabase('mykeuangan_offline_db'); } catch (_) { /* ignore */ }
       }
