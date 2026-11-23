@@ -112,6 +112,7 @@ test('CSV parser skips bank statement preamble rows and parses IDR, accounting p
   assert.equal(res.valid[0].nominal, 150000);
   assert.equal(res.valid[0].line, undefined);
   assert.equal(res.rows[0].line, 6);
+  assert.equal(res.rows[1].line, 7);
   assert.equal(res.valid[1].nominal, 25000);
   assert.equal(res.valid[1].tipe, 'Pengeluaran');
 });

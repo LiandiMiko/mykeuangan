@@ -20,7 +20,7 @@
     return ',';
   }
 
-  function parseRows(text, explicitDelimiter) {
+  function parseRowsWithLineNumbers(text, explicitDelimiter) {
     if (typeof text !== 'string') throw new Error('File CSV tidak dapat dibaca sebagai teks.');
     const source = text.replace(/^\uFEFF/, '');
     const delimiter = explicitDelimiter || detectDelimiter(source);
@@ -28,6 +28,8 @@
     let row = [];
     let field = '';
     let quoted = false;
+    let currentLine = 1;
+    let rowStartLine = 1;
 
     for (let index = 0; index < source.length; index += 1) {
       const character = source[index];
@@ -39,6 +41,7 @@
           quoted = false;
         } else {
           field += character;
+          if (character === '\n' || (character === '\r' && source[index + 1] !== '\n')) currentLine += 1;
         }
       } else if (character === '"' && field.length === 0) {
         quoted = true;
@@ -48,9 +51,11 @@
       } else if (character === '\n' || character === '\r') {
         if (character === '\r' && source[index + 1] === '\n') index += 1;
         row.push(field);
-        if (row.some((cell) => cell.trim() !== '')) rows.push(row);
+        if (row.some((cell) => cell.trim() !== '')) rows.push({ cells: row, line: rowStartLine });
+        currentLine += 1;
         row = [];
         field = '';
+        rowStartLine = currentLine;
       } else {
         field += character;
       }
@@ -58,8 +63,12 @@
 
     if (quoted) throw new Error('CSV memiliki tanda kutip yang tidak berpasangan.');
     row.push(field);
-    if (row.some((cell) => cell.trim() !== '')) rows.push(row);
+    if (row.some((cell) => cell.trim() !== '')) rows.push({ cells: row, line: rowStartLine });
     return rows;
+  }
+
+  function parseRows(text, explicitDelimiter) {
+    return parseRowsWithLineNumbers(text, explicitDelimiter).map((entry) => entry.cells);
   }
 
   function normalizeDateString(value) {
@@ -196,10 +205,10 @@
     return { ...cols, isBankMutation };
   }
 
-  function parseCsvDataRow(cells, index, ctx) {
+  function parseCsvDataRow(cells, index, ctx, explicitLine) {
     const readIdx = (colIdx) => (colIdx === undefined ? '' : String(cells[colIdx] || '').trim());
     const { cols, walletByName, defaultWalletId, knownTransactions, fileTransactions, options, headerIndex } = ctx;
-    const line = (headerIndex || 0) + index + 2;
+    const line = explicitLine || ((headerIndex || 0) + index + 2);
     const errors = [];
     const date = normalizeDateString(readIdx(cols.dateCol));
     const { amount, tipe } = parseAmountAndDirection(
@@ -248,9 +257,9 @@
   }
 
   function parseTransactionCsv(text, existingTransactions, wallets, options) {
-    const rows = parseRows(text);
-    if (rows.length < 1) throw new Error('File CSV kosong.');
-    const { cols, headerIndex } = findHeaderRowIndex(rows);
+    const rowEntries = parseRowsWithLineNumbers(text);
+    if (rowEntries.length < 1) throw new Error('File CSV kosong.');
+    const { cols, headerIndex } = findHeaderRowIndex(rowEntries.map((entry) => entry.cells));
 
     const walletList = wallets || [];
     const walletByName = new Map(walletList.map((w) => [String(w.name || '').trim().toLocaleLowerCase(), w]));
@@ -264,7 +273,7 @@
       options: options || {}
     };
 
-    const parsedRows = rows.slice(headerIndex + 1).map((cells, index) => parseCsvDataRow(cells, index, ctx));
+    const parsedRows = rowEntries.slice(headerIndex + 1).map((entry, index) => parseCsvDataRow(entry.cells, index, ctx, entry.line));
     const valid = parsedRows.filter((item) => item.errors.length === 0 && !item.duplicate).map((item) => item.transaction);
     return {
       rows: parsedRows,
