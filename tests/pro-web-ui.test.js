@@ -235,19 +235,19 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.equal(webSandbox.isNativeApp(), false);
   assert.equal(webSandbox.getNativePlatform(), 'web');
   assert.equal(webSandbox.NATIVE_AUTH_REDIRECT_URL, 'com.mykeuguech.app://auth-callback');
-  assert.deepEqual(webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?code=pkce_123'), {
+  assert.deepEqual({ ...webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?code=pkce_123') }, {
     code: 'pkce_123',
     accessToken: '',
     refreshToken: '',
     error: ''
   });
-  assert.deepEqual(webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback#access_token=at_1&refresh_token=rt_2'), {
+  assert.deepEqual({ ...webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback#access_token=at_1&refresh_token=rt_2') }, {
     code: '',
     accessToken: 'at_1',
     refreshToken: 'rt_2',
     error: ''
   });
-  assert.deepEqual(webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?error=access_denied&error_description=User%20cancelled'), {
+  assert.deepEqual({ ...webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?error=access_denied&error_description=User%20cancelled') }, {
     code: '',
     accessToken: '',
     refreshToken: '',
