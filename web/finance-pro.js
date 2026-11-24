@@ -6,7 +6,7 @@
     { keyword: 'pln|listrik|pdam|air|indihome|biznet|telkomsel|xl|indosat|wifi|pulsa|paket data|bpjs|token|tagihan', category: 'Tagihan', tipe: 'Pengeluaran' },
     { keyword: 'gojek|grab|maxim|uber|bensin|pertamina|shell|spbu|tol|parkir|kereta|kai|krl|mrt|tj|transjakarta|tiket', category: 'Transportasi', tipe: 'Pengeluaran' },
     { keyword: 'tokopedia|shopee|lazada|blibli|indomaret|alfamart|superindo|hypermart|uniqlo|mall|belanja', category: 'Belanja', tipe: 'Pengeluaran' },
-    { keyword: 'apotek|kimia farma|halodoc|klinik|dokter|rs |rumah sakit|obat|vitamin|lab', category: 'Kesehatan', tipe: 'Pengeluaran' },
+    { keyword: 'apotek|kimia farma|halodoc|klinik|dokter|rs|rumah sakit|obat|vitamin|lab', category: 'Kesehatan', tipe: 'Pengeluaran' },
     { keyword: 'netflix|spotify|youtube|bioskop|xxi|cgv|steam|game|gym|liburan|hotel|wisata', category: 'Hiburan', tipe: 'Pengeluaran' },
     { keyword: 'gaji|payroll|salary|thr|bonus|fee proyek|dividen|komisi|refund|cashback', category: 'Gaji', tipe: 'Pemasukan' }
   ];
@@ -49,33 +49,53 @@
 
   function resolveAlignedCategory(target, availableList) {
     const list = Array.isArray(availableList) ? availableList : [];
-    if (!target) return '';
-    const exact = list.find((c) => String(c).toLowerCase() === String(target).toLowerCase());
+    const targetLower = String(target || '').trim().toLowerCase();
+    if (!targetLower) return '';
+    const exact = list.find((c) => String(c).trim().toLowerCase() === targetLower);
     if (exact) return exact;
-    const partial = list.find((c) => String(c).toLowerCase().includes(String(target).toLowerCase()));
-    return partial || (list.length ? '' : target);
+    const partial = list.find((c) => String(c).trim().toLowerCase().includes(targetLower));
+    return partial || (list.length ? '' : String(target || '').trim());
+  }
+
+  function escapeRegex(str) {
+    return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function matchesKeywordToken(text, kw) {
+    const clean = String(kw || '').trim().toLowerCase();
+    return Boolean(clean) && new RegExp('(?:^|[^a-z0-9])' + escapeRegex(clean) + '(?:[^a-z0-9]|$)', 'i').test(text);
+  }
+
+  function matchRulesPool(text, tipe, rules, cats) {
+    for (const rule of rules) {
+      if (!rule || !rule.keyword || !rule.category || (rule.tipe && tipe && rule.tipe !== tipe)) continue;
+      const parts = String(rule.keyword).toLowerCase().split('|').map((s) => s.trim()).filter(Boolean);
+      if (!parts.some((kw) => matchesKeywordToken(text, kw))) continue;
+      const matched = cats.length ? resolveAlignedCategory(rule.category, cats) : rule.category;
+      if (matched) return matched;
+    }
+    return '';
+  }
+
+  function matchDirectUserCategory(text, cats) {
+    const sorted = cats
+      .filter((c) => { const k = String(c || '').trim().toLowerCase(); return k && k !== 'lainnya'; })
+      .sort((a, b) => String(b).trim().length - String(a).trim().length);
+    return sorted.find((c) => matchesKeywordToken(text, String(c).trim())) || '';
   }
 
   function applyAutoCategoryRules(description, tipe, customRules, availableCategories) {
     const text = String(description || '').toLowerCase();
     if (!text.trim()) return '';
     const custom = Array.isArray(customRules) ? customRules : [];
-    const pool = [...custom, ...DEFAULT_AUTO_CATEGORY_RULES];
     const cats = Array.isArray(availableCategories)
       ? availableCategories
       : (availableCategories && typeof availableCategories === 'object'
         ? (tipe === 'Pemasukan' ? availableCategories.pemasukan : availableCategories.pengeluaran) || []
         : []);
-
-    for (const rule of pool) {
-      if (!rule || !rule.keyword || !rule.category) continue;
-      if (rule.tipe && tipe && rule.tipe !== tipe) continue;
-      const parts = String(rule.keyword).toLowerCase().split('|').map((s) => s.trim()).filter(Boolean);
-      if (!parts.some((kw) => text.includes(kw))) continue;
-      const matched = cats.length ? resolveAlignedCategory(rule.category, cats) : rule.category;
-      if (matched) return matched;
-    }
-    return '';
+    return matchRulesPool(text, tipe, custom, cats) ||
+      matchDirectUserCategory(text, cats) ||
+      matchRulesPool(text, tipe, DEFAULT_AUTO_CATEGORY_RULES, cats);
   }
 
   function parseQuickAmountToken(rawStr) {
@@ -126,14 +146,8 @@
       ? (tipe === 'Pemasukan' ? catsObj.pemasukan : catsObj.pengeluaran)
       : [];
 
-    let kategori = applyAutoCategoryRules(cleaned || raw, tipe, customRules, catList);
-    if (!kategori && catList.length) {
-      const lower = (cleaned || raw).toLowerCase();
-      kategori = catList.find((c) => lower.includes(String(c).toLowerCase())) || '';
-    }
-    if (!kategori) {
-      kategori = catList.includes('Lainnya') ? 'Lainnya' : (catList[0] || 'Lainnya');
-    }
+    const kategori = applyAutoCategoryRules(cleaned || raw, tipe, customRules, catList) ||
+      (catList.find((c) => String(c).trim().toLowerCase() === 'lainnya') || catList[0] || 'Lainnya');
 
     const tags = extractTags(raw);
     return {
@@ -188,10 +202,19 @@
     }, 0);
   }
 
+  function pickCategoryLabel(existing, candidate) {
+    const clean = String(candidate || '').trim();
+    if (!clean) return existing || '';
+    if (!existing) return clean;
+    if (existing === existing.toLocaleLowerCase() && clean !== clean.toLocaleLowerCase()) return clean;
+    return existing;
+  }
+
   function computeAnnualRecap(transactions, budgets, year, payrollDay, analysisLib) {
     const targetYear = String(year || new Date().getFullYear()).slice(0, 4);
     const months = [];
     const catTotals = new Map();
+    const catLabels = new Map();
     let totalIncome = 0;
     let totalExpense = 0;
     let txCount = 0;
@@ -204,7 +227,10 @@
       totalIncome += income;
       totalExpense += sum.actualTotal;
       sum.rows.forEach((r) => {
-        if (r.actual > 0) catTotals.set(r.category, (catTotals.get(r.category) || 0) + r.actual);
+        if (r.actual <= 0) return;
+        const key = String(r.category || '').trim().toLocaleLowerCase();
+        catLabels.set(key, pickCategoryLabel(catLabels.get(key), r.category));
+        catTotals.set(key, (catTotals.get(key) || 0) + r.actual);
       });
       const periodTxCount = (transactions || []).filter((t) => analysisLib.isInPeriod(t.tanggal, period, payrollDay)).length;
       txCount += periodTxCount;
@@ -221,8 +247,8 @@
     const topCategories = Array.from(catTotals.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
-      .map(([category, amount]) => ({
-        category,
+      .map(([catKey, amount]) => ({
+        category: catLabels.get(catKey) || catKey,
         amount,
         sharePct: totalExpense > 0 ? Number(((amount / totalExpense) * 100).toFixed(1)) : 0
       }));
@@ -246,28 +272,33 @@
     const sumB = analysisLib.summarizePeriod(budgets || [], transactions || [], periodB, payrollDay);
     const incomeA = computePeriodIncome(transactions, periodA, payrollDay, analysisLib);
     const incomeB = computePeriodIncome(transactions, periodB, payrollDay, analysisLib);
-    const mapA = new Map(sumA.rows.map((r) => [r.category, r.actual]));
-    const mapB = new Map(sumB.rows.map((r) => [r.category, r.actual]));
+    const mapA = new Map();
+    const mapB = new Map();
+    const labels = new Map();
+    const collectRows = (rows, target) => {
+      rows.forEach((r) => {
+        const key = String(r.category || '').trim().toLocaleLowerCase();
+        labels.set(key, pickCategoryLabel(labels.get(key), r.category));
+        target.set(key, (target.get(key) || 0) + (Number(r.actual) || 0));
+      });
+    };
+    collectRows(sumA.rows, mapA);
+    collectRows(sumB.rows, mapB);
     const cats = Array.from(new Set([...mapA.keys(), ...mapB.keys()]));
 
-    const categories = cats.map((category) => {
-      const amountA = mapA.get(category) || 0;
-      const amountB = mapB.get(category) || 0;
+    const categories = cats.map((key) => {
+      const amountA = mapA.get(key) || 0;
+      const amountB = mapB.get(key) || 0;
       const delta = amountB - amountA;
       const deltaPct = amountA > 0 ? Number(((delta / amountA) * 100).toFixed(1)) : null;
-      return { category, amountA, amountB, delta, deltaPct };
+      return { category: labels.get(key) || key, amountA, amountB, delta, deltaPct };
     }).filter((row) => row.amountA > 0 || row.amountB > 0)
       .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
     return {
-      periodA,
-      periodB,
-      incomeA,
-      incomeB,
-      expenseA: sumA.actualTotal,
-      expenseB: sumB.actualTotal,
-      netA: incomeA - sumA.actualTotal,
-      netB: incomeB - sumB.actualTotal,
+      periodA, periodB, incomeA, incomeB,
+      expenseA: sumA.actualTotal, expenseB: sumB.actualTotal,
+      netA: incomeA - sumA.actualTotal, netB: incomeB - sumB.actualTotal,
       categories
     };
   }
@@ -383,18 +414,9 @@
   }
 
   const api = {
-    DEFAULT_AUTO_CATEGORY_RULES,
-    extractTags,
-    summarizeTags,
-    applyAutoCategoryRules,
-    parseQuickTxInput,
-    buildFrequentTemplates,
-    computeAnnualRecap,
-    compareTwoPeriods,
-    simulateDebtPayoff,
-    simulateCompoundGrowth,
-    simulateInstallmentVsCash,
-    computePortfolioRebalance
+    DEFAULT_AUTO_CATEGORY_RULES, extractTags, summarizeTags, applyAutoCategoryRules,
+    parseQuickTxInput, buildFrequentTemplates, computeAnnualRecap, compareTwoPeriods,
+    simulateDebtPayoff, simulateCompoundGrowth, simulateInstallmentVsCash, computePortfolioRebalance
   };
   root.FinancePro = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

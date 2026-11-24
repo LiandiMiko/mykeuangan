@@ -63,18 +63,24 @@
       const summary = core.summarizePeriod([], list, period, payrollDay);
       summary.rows.forEach((row) => {
         if (row.actual <= 0) return;
-        const entry = perCategoryTotals.get(row.category) || { sum: 0, cycles: 0 };
+        const key = typeof core.normalizeCategoryKey === 'function'
+          ? core.normalizeCategoryKey(row.category)
+          : String(row.category || '').trim().toLocaleLowerCase();
+        const entry = perCategoryTotals.get(key) || { label: row.category, sum: 0, cycles: 0 };
+        if (entry.label === entry.label.toLocaleLowerCase() && row.category !== row.category.toLocaleLowerCase()) {
+          entry.label = row.category;
+        }
         entry.sum += row.actual;
         entry.cycles += 1;
-        perCategoryTotals.set(row.category, entry);
+        perCategoryTotals.set(key, entry);
       });
     }
 
-    return Array.from(perCategoryTotals.entries())
-      .map(([category, stats]) => {
+    return Array.from(perCategoryTotals.values())
+      .map((stats) => {
         const avg = stats.sum / stats.cycles;
         return {
-          category,
+          category: stats.label,
           recommendedAmount: Math.max(10000, Math.ceil(avg / 10000) * 10000),
           averageActual: Math.round(avg),
           activeCycles: stats.cycles

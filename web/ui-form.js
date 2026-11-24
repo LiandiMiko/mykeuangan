@@ -101,17 +101,13 @@
       showCancelButton: true,
       customClass: { popup: getSwalClass() }
     });
-    if (!name) return;
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return;
     const tipeKey = act === 'Pemasukan' ? 'pemasukan' : 'pengeluaran';
     try {
-      const data = await callServer('api_addCategory', tipeKey, name);
+      const data = await callServer('api_addCategory', tipeKey, cleanName);
       DB.categories = data.categories;
-      const select = document.getElementById('tr_kategori');
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      select.appendChild(opt);
-      select.value = name;
+      syncFormCategorySelect(cleanName);
     } catch (e) {
       showActionError(e);
     }
@@ -123,8 +119,10 @@
     if (!tipeEl || !select) return;
     const tipe = tipeEl.value === 'Pemasukan' ? 'pemasukan' : 'pengeluaran';
     const opts = DB.categories[tipe] || [];
-    const prev = selectedName || select.value;
-    renderSelectOptions(select, opts, null, opts.includes(prev) ? prev : undefined);
+    const prev = String(selectedName || select.value || '').trim();
+    const prevKey = prev.toLocaleLowerCase();
+    const match = opts.find((c) => String(c || '').trim().toLocaleLowerCase() === prevKey);
+    renderSelectOptions(select, opts, null, match || undefined);
   }
 
   async function openManageCategoriesModal(defaultTipe) {
@@ -171,18 +169,13 @@
       customClass: { popup: getSwalClass() },
       inputValidator: (v) => (!v || !v.trim()) ? 'Nama kategori wajib diisi.' : undefined
     });
-    if (!newName || newName.trim() === oldName) {
-      await openManageCategoriesModal(tipe);
-      return;
-    }
+    if (!newName || newName.trim() === oldName) { await openManageCategoriesModal(tipe); return; }
     try {
       const data = await callServer('api_renameCategory', tipe, oldName, newName.trim());
       await refreshFromServer(data);
       syncFormCategorySelect(newName.trim());
       await openManageCategoriesModal(tipe);
-    } catch (e) {
-      showActionError(e);
-    }
+    } catch (e) { showActionError(e); }
   }
 
   async function deleteCategoryUI(tipe, name) {
@@ -196,18 +189,13 @@
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     });
-    if (!conf.isConfirmed) {
-      await openManageCategoriesModal(tipe);
-      return;
-    }
+    if (!conf.isConfirmed) { await openManageCategoriesModal(tipe); return; }
     try {
       const data = await callServer('api_deleteCategory', tipe, name);
       await refreshFromServer(data);
       syncFormCategorySelect();
       await openManageCategoriesModal(tipe);
-    } catch (e) {
-      showActionError(e);
-    }
+    } catch (e) { showActionError(e); }
   }
 
   function readTransactionFormData() {
@@ -291,6 +279,22 @@
     }
   }
 
+  function selectCategorySafely(selectEl, rawCategory) {
+    if (!selectEl) return;
+    const raw = String(rawCategory || '').trim();
+    const targetKey = raw.toLocaleLowerCase();
+    const options = Array.from(selectEl.options || []);
+    const matched = options.find((opt) => opt.value === rawCategory) ||
+      options.find((opt) => String(opt.value || '').trim().toLocaleLowerCase() === targetKey);
+    if (matched) { selectEl.value = matched.value; return; }
+    if (!raw) return;
+    const extraOpt = document.createElement('option');
+    extraOpt.value = raw;
+    extraOpt.textContent = raw;
+    selectEl.appendChild(extraOpt);
+    selectEl.value = raw;
+  }
+
   function editTransaction(id) {
     const tx = DB.transactions.find((x) => String(x.id) === String(id));
     if (!tx) return;
@@ -298,7 +302,7 @@
     document.getElementById('formTitle').innerText = t('form.title_edit');
     document.getElementById('tr_action').value = 'Edit';
     document.getElementById('tr_row').value = tx.id;
-    document.getElementById('tr_kategori').value = tx.kategori;
+    selectCategorySafely(document.getElementById('tr_kategori'), tx.kategori);
     document.getElementById('tr_nominal').value = formatNominalInputValue(tx.nominal);
     const noteEl = document.getElementById('tr_keterangan');
     if (noteEl) {
@@ -412,18 +416,8 @@
   document.addEventListener('DOMContentLoaded', bindNominalFormatters);
 
   Object.assign(root, {
-    openForm,
-    setFormFieldError,
-    clearFormErrors,
-    addQuickNominalAmount,
-    resetQuickNominalAmount,
-    promptAddCategory,
-    syncFormCategorySelect,
-    openManageCategoriesModal,
-    renameCategoryUI,
-    deleteCategoryUI,
-    submitTransaction,
-    editTransaction,
-    deleteTransaction
+    openForm, setFormFieldError, clearFormErrors, addQuickNominalAmount, resetQuickNominalAmount,
+    promptAddCategory, syncFormCategorySelect, openManageCategoriesModal, renameCategoryUI,
+    deleteCategoryUI, submitTransaction, editTransaction, deleteTransaction
   });
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -22,12 +22,20 @@
     const select = document.getElementById('lapCategory');
     if (!select) return;
     const current = select.value;
-    const categories = Array.from(new Set([
-      ...(DB.categories.pemasukan || []),
-      ...(DB.categories.pengeluaran || []),
-      ...DB.transactions.map((transaction) => transaction.kategori)
-    ].filter(Boolean))).sort((left, right) => left.localeCompare(right));
-    renderSelectOptions(select, categories, t('lap.all_categories'), categories.includes(current) ? current : '');
+    const byKey = new Map();
+    const register = (raw) => {
+      const clean = String(raw || '').trim();
+      if (!clean) return;
+      const key = clean.toLocaleLowerCase();
+      if (!byKey.has(key)) byKey.set(key, clean);
+    };
+    (DB.categories.pemasukan || []).forEach(register);
+    (DB.categories.pengeluaran || []).forEach(register);
+    (DB.transactions || []).forEach((transaction) => register(transaction && transaction.kategori));
+    const categories = Array.from(byKey.values()).sort((left, right) => left.localeCompare(right));
+    const curKey = String(current || '').trim().toLocaleLowerCase();
+    const selected = categories.find((c) => c.toLocaleLowerCase() === curKey) || '';
+    renderSelectOptions(select, categories, t('lap.all_categories'), selected);
   }
 
   function buildReportDesktopRow(r) {
@@ -322,12 +330,15 @@
     const type = (document.getElementById('lapType') || {}).value || '';
     const category = (document.getElementById('lapCategory') || {}).value || '';
     const walletId = (document.getElementById('lapWallet') || {}).value || '';
+    const normCat = (v) => String(v || '').trim().toLocaleLowerCase();
+    const catKey = normCat(category);
+    const defaultWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
     const txs = DB.transactions.filter((transaction) =>
       transaction.tanggal >= start &&
       transaction.tanggal <= end &&
       (!type || transaction.tipe === type) &&
-      (!category || transaction.kategori === category) &&
-      (!walletId || transaction.walletId === walletId) &&
+      (!catKey || normCat(transaction.kategori) === catKey) &&
+      (!walletId || String(transaction.walletId || defaultWalletId) === String(walletId)) &&
       (!search || `${transaction.kategori} ${transaction.keterangan || ''}`.toLocaleLowerCase().includes(search))
     ).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
     return { txs, period: `${start}_${end}` };

@@ -7,6 +7,21 @@
 
   const expandedBudgets = new Set();
 
+  function normalizeBudgetCatKey(value) {
+    if (typeof FinanceAnalysis !== 'undefined' && typeof FinanceAnalysis.normalizeCategoryKey === 'function') {
+      return FinanceAnalysis.normalizeCategoryKey(value);
+    }
+    return String(value || '').trim().toLocaleLowerCase();
+  }
+
+  function isDebtBudgetTx(tx) {
+    if (typeof FinanceAnalysis !== 'undefined' && typeof FinanceAnalysis.isDebtCategory === 'function') {
+      return FinanceAnalysis.isDebtCategory(tx && tx.kategori);
+    }
+    const val = String((tx && tx.kategori) || '').trim();
+    return val.startsWith('Utang') || val.startsWith('Piutang');
+  }
+
   async function saveBudget() {
     const kategori = document.getElementById('budgetKategori').value;
     const jumlah = Math.round(parseFormattedNominal(document.getElementById('budgetJumlah').value));
@@ -229,7 +244,7 @@
     };
   }
 
-  function buildBudgetTxListHtml(catTxns) {
+  function buildBudgetTxListHtml(catTxns, showCategoryBadge) {
     if (catTxns.length === 0) {
       return `
         <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-center">
@@ -244,7 +259,7 @@
             <div class="flex items-center gap-2 min-w-0 flex-1">
               <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></div>
               <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}</p>
+                <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">${showCategoryBadge ? `<span class="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-[10px]">${escapeHtmlJS(tx.kategori || 'Lainnya')}</span>` : ''}${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}</p>
                 <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(String(tx.tanggal).substring(5))}</p>
               </div>
             </div>
@@ -260,16 +275,17 @@
 
   function buildBudgetItemHtml(b, actualByCat, txs) {
     const plan = Number(b.jumlah) || 0;
-    const actual = actualByCat[b.kategori] || 0;
+    const catKey = normalizeBudgetCatKey(b.kategori);
+    const actual = actualByCat[catKey] || 0;
     const selisih = plan - actual;
     const pct = plan > 0 ? (actual / plan * 100) : 0;
     const status = getBudgetStatusInfo(pct);
     const selisihColor = selisih >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
     const isExpanded = expandedBudgets.has(b.id);
     const catTxns = txs
-      .filter((tx) => tx.tipe === 'Pengeluaran' && tx.kategori === b.kategori)
+      .filter((tx) => tx.tipe === 'Pengeluaran' && !isDebtBudgetTx(tx) && normalizeBudgetCatKey(tx.kategori) === catKey)
       .sort((a, bTx) => String(bTx.tanggal).localeCompare(String(a.tanggal)));
-    const txnListHtml = isExpanded ? buildBudgetTxListHtml(catTxns) : '';
+    const txnListHtml = isExpanded ? buildBudgetTxListHtml(catTxns, false) : '';
 
     return `
       <div class="transition-colors ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/20' : ''}">
@@ -311,49 +327,38 @@
       </div>`;
   }
 
-  function renderBudgeting() {
-    const container = document.getElementById('budgetList');
-    const formKategori = document.getElementById('budgetKategori');
-    const monthLabel = document.getElementById('budgetMonthLabel');
-    if (!container) return;
+  function buildUnbudgetedSectionHtml(unbudgetedTxs) {
+    if (!unbudgetedTxs.length) return '';
+    const total = unbudgetedTxs.reduce((sum, tx) => sum + (Number(tx.nominal) || 0), 0);
+    const isExpanded = expandedBudgets.has('__unbudgeted__');
+    const catsCount = new Set(unbudgetedTxs.map((tx) => normalizeBudgetCatKey(tx.kategori))).size;
+    return `
+      <div class="transition-colors ${isExpanded ? 'bg-amber-50/40 dark:bg-amber-950/10' : ''}">
+        <div class="p-4 sm:p-5">
+          <button type="button" data-budget-expand="__unbudgeted__" aria-expanded="${isExpanded}" class="w-full flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-xl p-1 -m-1 transition-colors">
+            <span class="flex items-center gap-3 min-w-0 flex-1">
+              <span class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <i class="ph ph-tray text-lg" aria-hidden="true"></i>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-1.5">
+                  <span class="font-bold text-slate-800 dark:text-white text-sm truncate">Pengeluaran di Luar Budget</span>
+                  <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-500" aria-hidden="true"></i>
+                </span>
+                <span class="block text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider tabular-nums">
+                  ${unbudgetedTxs.length} transaksi · ${catsCount} kategori · Klik untuk periksa
+                </span>
+              </span>
+            </span>
+            <span class="text-sm font-black tabular-nums text-slate-800 dark:text-white shrink-0">${formatRupiah(total).replace(',00', '')}</span>
+          </button>
+        </div>
+        ${isExpanded ? `<div class="px-4 sm:px-5 pb-4 sm:pb-5">${buildBudgetTxListHtml(unbudgetedTxs, true)}</div>` : ''}
+      </div>`;
+  }
 
-    const period = DB.currentPeriod;
-    if (monthLabel) monthLabel.innerText = '(' + getPeriodLabel(period, DB.payrollDay) + ')';
-    renderBudgetAnalysis(period);
-
-    if (formKategori) {
-      const currentVal = formKategori.value;
-      const pengeluaran = DB.categories.pengeluaran || [];
-      renderSelectOptions(
-        formKategori,
-        pengeluaran,
-        '— ' + t('budget.kategori') + ' —',
-        pengeluaran.includes(currentVal) ? currentVal : ''
-      );
-    }
-
-    const budgets = (DB.budgets || []).filter((b) => String(b.bulan).slice(0, 7) === period);
-    const txs = DB.transactions.filter((tx) => isInPeriod(tx.tanggal, period));
-    const actualByCat = {};
-    txs.forEach((tx) => {
-      if (tx.tipe !== 'Pengeluaran' || tx.kategori.startsWith('Utang') || tx.kategori.startsWith('Piutang')) return;
-      actualByCat[tx.kategori] = (actualByCat[tx.kategori] || 0) + tx.nominal;
-    });
-
-    if (budgets.length === 0) {
-      renderHtml(container, `
-        <div class="p-8 text-center">
-          <i class="ph ph-piggy-bank text-5xl text-slate-300 dark:text-slate-600 mb-3"></i>
-          <p class="text-sm text-slate-500">${escapeHtmlJS(t('budget.empty'))}</p>
-        </div>`);
-      return;
-    }
-
-    budgets.sort((a, b) => String(a.kategori).localeCompare(String(b.kategori)));
-    renderHtml(container, '<div class="divide-y divide-slate-100 dark:divide-slate-800">' +
-      budgets.map((b) => buildBudgetItemHtml(b, actualByCat, txs)).join('') + '</div>');
-
-    const budgetsById = new Map(budgets.map((budget) => [budget.id, budget]));
+  function bindBudgetListEvents(container, budgets) {
+    const budgetsById = new Map((budgets || []).map((budget) => [budget.id, budget]));
     container.querySelectorAll('[data-budget-expand]').forEach((button) => {
       button.addEventListener('click', () => toggleBudgetExpand(button.dataset.budgetExpand));
     });
@@ -368,6 +373,55 @@
         else if (button.dataset.budgetAction === 'delete') deleteBudget(budget.id, budget.kategori);
       });
     });
+  }
+
+  function renderBudgeting() {
+    const container = document.getElementById('budgetList');
+    const formKategori = document.getElementById('budgetKategori');
+    const monthLabel = document.getElementById('budgetMonthLabel');
+    if (!container) return;
+
+    const period = DB.currentPeriod;
+    if (monthLabel) monthLabel.innerText = '(' + getPeriodLabel(period, DB.payrollDay) + ')';
+    renderBudgetAnalysis(period);
+
+    if (formKategori) {
+      const currentKey = normalizeBudgetCatKey(formKategori.value);
+      const pengeluaran = DB.categories.pengeluaran || [];
+      const matchedVal = pengeluaran.find((c) => normalizeBudgetCatKey(c) === currentKey) || '';
+      renderSelectOptions(formKategori, pengeluaran, '— ' + t('budget.kategori') + ' —', matchedVal);
+    }
+
+    const budgets = (DB.budgets || []).filter((b) => String(b.bulan).slice(0, 7) === period);
+    const txs = (DB.transactions || []).filter((tx) => isInPeriod(tx.tanggal, period));
+    const actualByCat = {};
+    txs.forEach((tx) => {
+      if (tx.tipe !== 'Pengeluaran' || isDebtBudgetTx(tx)) return;
+      const key = normalizeBudgetCatKey(tx.kategori);
+      actualByCat[key] = (actualByCat[key] || 0) + (Number(tx.nominal) || 0);
+    });
+
+    const budgetedKeys = new Set(budgets.map((b) => normalizeBudgetCatKey(b.kategori)).filter(Boolean));
+    const unbudgetedTxs = txs
+      .filter((tx) => tx.tipe === 'Pengeluaran' && !isDebtBudgetTx(tx) && !budgetedKeys.has(normalizeBudgetCatKey(tx.kategori)))
+      .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+    const unbudgetedHtml = buildUnbudgetedSectionHtml(unbudgetedTxs);
+
+    if (budgets.length === 0) {
+      const emptyHtml = `
+        <div class="p-8 text-center">
+          <i class="ph ph-piggy-bank text-5xl text-slate-300 dark:text-slate-600 mb-3"></i>
+          <p class="text-sm text-slate-500">${escapeHtmlJS(t('budget.empty'))}</p>
+        </div>`;
+      renderHtml(container, unbudgetedHtml ? `<div class="divide-y divide-slate-100 dark:divide-slate-800">${emptyHtml}${unbudgetedHtml}</div>` : emptyHtml);
+      bindBudgetListEvents(container, budgets);
+      return;
+    }
+
+    budgets.sort((a, b) => String(a.kategori).localeCompare(String(b.kategori)));
+    renderHtml(container, '<div class="divide-y divide-slate-100 dark:divide-slate-800">' +
+      budgets.map((b) => buildBudgetItemHtml(b, actualByCat, txs)).join('') + unbudgetedHtml + '</div>');
+    bindBudgetListEvents(container, budgets);
   }
 
   Object.assign(root, {

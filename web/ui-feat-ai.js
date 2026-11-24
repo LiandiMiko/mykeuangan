@@ -74,7 +74,8 @@
       const catSelect = document.getElementById('tr_kategori');
       if (catSelect) {
         const opts = DB.categories[listKey] || [];
-        const match = opts.find((c) => c.toLowerCase() === parsed.kategori.toLowerCase());
+        const targetKey = String(parsed.kategori || '').trim().toLowerCase();
+        const match = opts.find((c) => String(c || '').trim().toLowerCase() === targetKey);
         if (match) catSelect.value = match;
       }
     }

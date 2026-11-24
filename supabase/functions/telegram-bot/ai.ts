@@ -1,6 +1,6 @@
 import {
   Any, Ctx, Tx, TOKEN, TG, GEMINI_KEY, GEMINI_MODEL, GEMINI_INSIGHT_MODEL,
-  esc, rp, today, sleep, safeHtml, getCategories, isFlow, loadCore,
+  esc, rp, today, sleep, safeHtml, getCategories, normalizeCatKey, isFlow, loadCore,
   inPeriod, getTemp, setTemp, send, mainKb,
 } from './core.ts';
 import { getWallets, matchWalletFromText } from './wallets.ts';
@@ -55,9 +55,9 @@ function buildParsedTx(parsed: Any, inc: string[], exp: string[], fallbackNote: 
   if (!nominal || nominal <= 0) throw new Error(invalidAmtMsg);
   const tipe: 'Pemasukan' | 'Pengeluaran' = parsed?.tipe === 'Pemasukan' ? 'Pemasukan' : 'Pengeluaran';
   const cats = tipe === 'Pemasukan' ? inc : exp;
-  const kategori = cats.includes(parsed?.kategori)
-    ? parsed.kategori
-    : (cats.includes('Lainnya') ? 'Lainnya' : String(parsed?.kategori || 'Lainnya'));
+  const rawCat = String(parsed?.kategori || '').trim();
+  const matchedCat = cats.find((c) => normalizeCatKey(c) === normalizeCatKey(rawCat));
+  const kategori = matchedCat ?? (cats.find((c) => normalizeCatKey(c) === 'lainnya') ?? (rawCat || 'Lainnya'));
   return {
     tipe, kategori, nominal,
     keterangan: String(parsed?.keterangan || fallbackNote),
@@ -190,17 +190,28 @@ export async function handleInsight(c: Ctx) {
   if (monthTx.length === 0) return send(c.chat, '📭 Belum ada transaksi bulan ini untuk dianalisis.', mainKb());
 
   let totalIn = 0, totalOut = 0;
-  const byCat: Record<string, number> = {};
+  const byCat = new Map<string, { label: string; total: number }>();
   for (const t of monthTx) {
     if (!isFlow(t.kategori)) continue;
     const n = Number(t.nominal);
     if (t.tipe === 'Pemasukan') totalIn += n;
-    else { totalOut += n; byCat[t.kategori] = (byCat[t.kategori] || 0) + n; }
+    else {
+      totalOut += n;
+      const clean = String(t.kategori || '').trim() || 'Lainnya';
+      const key = normalizeCatKey(clean);
+      const prev = byCat.get(key);
+      if (prev) {
+        prev.total += n;
+        if (prev.label === prev.label.toLowerCase() && clean !== clean.toLowerCase()) prev.label = clean;
+      } else {
+        byCat.set(key, { label: clean, total: n });
+      }
+    }
   }
-  const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const top = Array.from(byCat.values()).sort((a, b) => b.total - a.total).slice(0, 5);
   let body: string;
   try {
-    body = safeHtml(await askInsight({ period, totalIn, totalOut, n: monthTx.length, top: top.map(([k, v]) => `• ${k}: ${rp(v)}`).join('\n') }));
+    body = safeHtml(await askInsight({ period, totalIn, totalOut, n: monthTx.length, top: top.map((it) => `• ${it.label}: ${rp(it.total)}`).join('\n') }));
   } catch (e) {
     console.error('insight', e);
     const sel = totalIn - totalOut;

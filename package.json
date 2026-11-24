@@ -1,6 +1,6 @@
 {
   "name": "mykeuangan",
-  "version": "3.16.0",
+  "version": "3.17.0",
   "private": true,
   "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
   "scripts": {

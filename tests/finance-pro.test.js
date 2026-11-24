@@ -160,3 +160,44 @@ test('parseQuickTxInput handles Rp tokens and simulateDebtPayoff reports capped 
   assert.equal(normalPay.capped, false);
   assert.equal(normalPay.months, 2);
 });
+
+test('auto-categorization uses word boundaries, prioritizes user categories, and recap merges case variants', () => {
+  const categories = {
+    pemasukan: ['Gaji', 'Lainnya'],
+    pengeluaran: ['Makanan', 'Tagihan', 'Transportasi', 'Laundry', 'Lainnya']
+  };
+  const wallets = [{ id: 'w1', name: 'Cash' }];
+
+  const laundryTx = FinancePro.parseQuickTxInput('laundry pakaian 25rb', categories, wallets, [], '2026-11-25');
+  assert.equal(laundryTx.valid, true);
+  assert.equal(laundryTx.kategori, 'Laundry');
+
+  const bottleTx = FinancePro.parseQuickTxInput('cuci botol 20rb', categories, wallets, [], '2026-11-25');
+  assert.equal(bottleTx.kategori, 'Lainnya');
+
+  const repairTx = FinancePro.parseQuickTxInput('repair sepatu 50rb', categories, wallets, [], '2026-11-25');
+  assert.equal(repairTx.kategori, 'Lainnya');
+
+  const customRuleOverride = FinancePro.parseQuickTxInput(
+    'laundry kilat 30rb',
+    categories,
+    wallets,
+    [{ keyword: 'laundry kilat', category: 'Tagihan', tipe: 'Pengeluaran' }],
+    '2026-11-25'
+  );
+  assert.equal(customRuleOverride.kategori, 'Tagihan');
+
+  const crossMonthTxs = [
+    { tanggal: '2026-10-12', tipe: 'Pengeluaran', kategori: 'laundry', nominal: 40000 },
+    { tanggal: '2026-11-12', tipe: 'Pengeluaran', kategori: 'Laundry', nominal: 90000 }
+  ];
+  const recap = FinancePro.computeAnnualRecap(crossMonthTxs, [], '2026', 1, FinanceAnalysis);
+  assert.equal(recap.topCategories.length, 1);
+  assert.equal(recap.topCategories[0].category, 'Laundry');
+  assert.equal(recap.topCategories[0].amount, 130000);
+
+  const cmp = FinancePro.compareTwoPeriods(crossMonthTxs, [], '2026-10', '2026-11', 1, FinanceAnalysis);
+  assert.equal(cmp.categories.length, 1);
+  assert.equal(cmp.categories[0].category, 'Laundry');
+  assert.equal(cmp.categories[0].delta, 50000);
+});

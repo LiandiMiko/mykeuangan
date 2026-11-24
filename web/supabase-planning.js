@@ -88,9 +88,10 @@
         throw new Error('Periode budget tidak valid.');
       }
       const all = await fetchAll('budgets', 'kategori,bulan,jumlah', ['kategori']);
-      const have = new Set(all.filter((b) => b.bulan === tB).map((b) => b.kategori));
-      const rows = all.filter((b) => b.bulan === fB && !have.has(b.kategori))
-        .map((b) => ({ kategori: b.kategori, bulan: tB, jumlah: num(b.jumlah) }));
+      const normCat = (v) => String(v || '').trim().toLocaleLowerCase();
+      const have = new Set(all.filter((b) => b.bulan === tB).map((b) => normCat(b.kategori)));
+      const rows = all.filter((b) => b.bulan === fB && !have.has(normCat(b.kategori)))
+        .map((b) => ({ kategori: String(b.kategori || '').trim(), bulan: tB, jumlah: num(b.jumlah) }));
       if (rows.length) {
         const { error } = await sb.from('budgets').insert(rows);
         fail(error);

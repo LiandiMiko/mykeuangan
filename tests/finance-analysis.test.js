@@ -539,3 +539,45 @@ test('prepareBackupRestorePayload supports 8 collections additively and removes 
   assert.equal(goalDone.status, 'completed');
   assert.equal(goalDone.label, 'Target sudah tercapai!');
 });
+
+test('category matching normalizes case and whitespace across budgeting, insights, cashflow, notifications, and auto-budget', () => {
+  const budgets = [{ bulan: '2026-11', kategori: 'Laundry', jumlah: 100000 }];
+  const txs = [
+    { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'laundry', nominal: 45000, walletId: 'w1' },
+    { tanggal: '2026-11-12', tipe: 'Pengeluaran', kategori: ' Laundry ', nominal: 75000, walletId: 'w1' },
+    { tanggal: '2026-11-15', tipe: 'Pengeluaran', kategori: 'LAUNDRY', nominal: 30000, walletId: 'w1' }
+  ];
+
+  const summary = summarizePeriod(budgets, txs, '2026-11', 1);
+  assert.equal(summary.rows.length, 1);
+  assert.equal(summary.rows[0].category, 'Laundry');
+  assert.equal(summary.rows[0].actual, 150000);
+  assert.equal(summary.rows[0].remaining, -50000);
+
+  const insights = periodInsights(budgets, txs, '2026-11', 1);
+  assert.equal(insights.highestSpending.category, 'Laundry');
+  assert.equal(insights.highestSpending.actual, 150000);
+  assert.equal(insights.overBudget.length, 1);
+  assert.equal(insights.overBudget[0].category, 'Laundry');
+
+  const payload = buildAiCashflowPayload({
+    wallets: [{ id: 'w1', openingBalance: 500000 }],
+    budgets,
+    transactions: txs
+  }, '2026-11', 1);
+  assert.equal(payload.topExpenses.length, 1);
+  assert.equal(payload.topExpenses[0].category, 'Laundry');
+  assert.equal(payload.topExpenses[0].amount, 150000);
+
+  const alerts = buildAppNotifications({ budgets, transactions: txs }, '2026-11', 1, '2026-11-20');
+  assert.equal(alerts.some((a) => a.id === 'budget:2026-11:Laundry' && a.severity === 'danger'), true);
+
+  const recs = recommendCategoryBudgets([
+    { tanggal: '2026-10-10', tipe: 'Pengeluaran', kategori: 'laundry', nominal: 100000 },
+    { tanggal: '2026-11-10', tipe: 'Pengeluaran', kategori: 'Laundry', nominal: 200000 }
+  ], '2026-11', 1, 2);
+  assert.equal(recs.length, 1);
+  assert.equal(recs[0].category, 'Laundry');
+  assert.equal(recs[0].averageActual, 150000);
+  assert.equal(recs[0].activeCycles, 2);
+});

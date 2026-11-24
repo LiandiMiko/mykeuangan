@@ -205,6 +205,23 @@
     return { ...cols, isBankMutation };
   }
 
+  function canonicalizeImportCategory(rawCat, tipe, options) {
+    const clean = String(rawCat || '').trim();
+    if (!clean) return '';
+    const categories = options && typeof options === 'object' ? options.categories : null;
+    if (!categories) return clean;
+    const list = Array.isArray(categories)
+      ? categories
+      : (tipe === 'Pemasukan'
+        ? (categories.pemasukan || [])
+        : (tipe === 'Pengeluaran'
+          ? (categories.pengeluaran || [])
+          : [...(categories.pengeluaran || []), ...(categories.pemasukan || [])]));
+    if (!Array.isArray(list) || !list.length) return clean;
+    const targetKey = clean.toLocaleLowerCase();
+    return list.find((c) => String(c || '').trim().toLocaleLowerCase() === targetKey) || clean;
+  }
+
   function parseCsvDataRow(cells, index, ctx, explicitLine) {
     const readIdx = (colIdx) => (colIdx === undefined ? '' : String(cells[colIdx] || '').trim());
     const { cols, walletByName, defaultWalletId, knownTransactions, fileTransactions, options, headerIndex } = ctx;
@@ -215,7 +232,7 @@
       readIdx(cols.amountCol), readIdx(cols.typeCol), readIdx(cols.debitCol), readIdx(cols.creditCol)
     );
     const desc = readIdx(cols.descCol);
-    const rawCat = readIdx(cols.catCol);
+    const rawCat = canonicalizeImportCategory(readIdx(cols.catCol), tipe, options);
     const autoCat = !rawCat && cols.isBankMutation ? resolveImportAutoCategory(desc, tipe, options) : '';
     const category = rawCat || autoCat || (cols.isBankMutation ? 'Lainnya' : '');
     const transaction = { tanggal: date, tipe, kategori: category, nominal: amount, keterangan: desc };

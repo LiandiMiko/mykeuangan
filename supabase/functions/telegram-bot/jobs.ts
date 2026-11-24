@@ -1,6 +1,6 @@
 import {
   Any, CRON_SECRET, CG_KEY, sb, esc, rp, today, safeEqual, fetchAll,
-  isActiveUser, isFlow, syncPeriod, streak, streakEmoji, send, mainKb,
+  isActiveUser, isFlow, normalizeCatKey, syncPeriod, streak, streakEmoji, send, mainKb,
 } from './core.ts';
 import { getWallets } from './wallets.ts';
 
@@ -188,16 +188,28 @@ async function weeklyReport() {
     const weekTx = trx.filter((x) => { const t = String(x.tanggal).slice(0, 10); return t >= start && t <= end; });
     if (weekTx.length === 0) continue;
     let tIn = 0, tOut = 0;
-    const byCat: Record<string, number> = {};
+    const byCat = new Map<string, { label: string; total: number }>();
     for (const x of weekTx) {
       if (!isFlow(x.kategori)) continue;
       const n = Number(x.nominal);
-      if (x.tipe === 'Pemasukan') tIn += n; else { tOut += n; byCat[x.kategori] = (byCat[x.kategori] || 0) + n; }
+      if (x.tipe === 'Pemasukan') tIn += n;
+      else {
+        tOut += n;
+        const clean = String(x.kategori || '').trim() || 'Lainnya';
+        const key = normalizeCatKey(clean);
+        const prev = byCat.get(key);
+        if (prev) {
+          prev.total += n;
+          if (prev.label === prev.label.toLowerCase() && clean !== clean.toLowerCase()) prev.label = clean;
+        } else {
+          byCat.set(key, { label: clean, total: n });
+        }
+      }
     }
-    const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const top = Array.from(byCat.values()).sort((a, b) => b.total - a.total).slice(0, 5);
     const sel = tIn - tOut;
     const msg = `📊 <b>Laporan Minggu Ini</b> (${start.slice(5)}..${end.slice(5)})\n📥 ${rp(tIn)} · 📤 ${rp(tOut)} · 💵 ${sel >= 0 ? '+' : ''}${rp(sel)}\n` +
-      (top.length ? '\n🔝 ' + top.map(([k, v]) => `${esc(k)} (${rp(v)})`).join(', ') : '');
+      (top.length ? '\n🔝 ' + top.map((it) => `${esc(it.label)} (${rp(it.total)})`).join(', ') : '');
     await send(ch.chat_id, msg, mainKb());
     sent++;
   }

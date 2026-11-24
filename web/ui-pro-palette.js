@@ -184,7 +184,12 @@
   async function openAutoCatRulesModal() {
     const pro = root.__mkPro || {};
     const custom = root.getAutoCategoryRules();
-    const allCats = Array.from(new Set([...(DB.categories?.pengeluaran || []), ...(DB.categories?.pemasukan || [])]));
+    const catByKey = new Map();
+    [...(DB.categories?.pengeluaran || []), ...(DB.categories?.pemasukan || [])].forEach((c) => {
+      const clean = String(c || '').trim();
+      if (clean && !catByKey.has(clean.toLocaleLowerCase())) catByKey.set(clean.toLocaleLowerCase(), clean);
+    });
+    const allCats = Array.from(catByKey.values());
     const catOpts = allCats.map((c) => `<option value="${escapeHtmlJS(c)}">${escapeHtmlJS(c)}</option>`).join('');
     const customHtml = custom.length
       ? custom.map((r, i) => `

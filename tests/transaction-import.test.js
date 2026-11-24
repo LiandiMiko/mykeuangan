@@ -116,3 +116,29 @@ test('CSV parser skips bank statement preamble rows and parses IDR, accounting p
   assert.equal(res.valid[1].nominal, 25000);
   assert.equal(res.valid[1].tipe, 'Pengeluaran');
 });
+
+test('CSV parser canonicalizes explicit category casing and matches user categories without substring collisions', () => {
+  const csv = [
+    'tanggal,tipe,kategori,nominal,keterangan,dompet',
+    '2026-11-20,Pengeluaran,laundry,25000,Cuci baju,Cash',
+    '2026-11-21,Pengeluaran,LAUNDRY,30000,Cuci selimut,Cash'
+  ].join('\n');
+  const res = parseTransactionCsv(csv, [], [{ id: 'w-cash', name: 'Cash' }], {
+    categories: { pengeluaran: ['Laundry', 'Transportasi', 'Lainnya'], pemasukan: ['Gaji'] }
+  });
+  assert.equal(res.valid.length, 2);
+  assert.equal(res.valid[0].kategori, 'Laundry');
+  assert.equal(res.valid[1].kategori, 'Laundry');
+
+  const bankCsv = [
+    'Tanggal,Uraian,Debit,Kredit',
+    '2026-11-22,QRIS LAUNDRY PAKAIAN KILAT,45000,',
+    '2026-11-23,BAYAR REPAIR SEPATU,60000,'
+  ].join('\n');
+  const bankRes = parseTransactionCsv(bankCsv, [], [{ id: 'w-bca', name: 'BCA' }], {
+    categories: { pengeluaran: ['Laundry', 'Tagihan', 'Transportasi', 'Lainnya'], pemasukan: ['Gaji'] }
+  });
+  assert.equal(bankRes.valid.length, 2);
+  assert.equal(bankRes.valid[0].kategori, 'Laundry');
+  assert.equal(bankRes.valid[1].kategori, 'Lainnya');
+});

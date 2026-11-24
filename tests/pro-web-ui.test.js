@@ -161,7 +161,7 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
   assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
   assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
-  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.16</);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.17</);
   assert.match(updatesHtml, /datetime="2026-11-23"/);
 
   assert.match(botCoreTs, /AbortSignal\.timeout/);
@@ -223,8 +223,8 @@ test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete accou
   assert.match(uiReportsJs, /template-transaksi-mykeuguech\.csv/);
   assert.doesNotMatch(uiReportsJs, /template-transaksi-mykeuangan\.csv/);
   assert.match(swJs, /targetCacheKey/);
-  assert.match(updatesHtml, /data-latest-release="2026-11-25-v3\.16"/);
-  assert.match(updatesHtml, /Menampilkan 17 rilis/);
+  assert.match(updatesHtml, /data-latest-release="2026-11-25-v3\.17"/);
+  assert.match(updatesHtml, /Menampilkan 18 rilis/);
 });
 
 test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android bridge, and config fixes', () => {
@@ -324,7 +324,46 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.match(fs.readFileSync('web/ui-feat-account.js', 'utf8'), /localStorage\.getItem\('lang'\) === 'en'/);
 
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  assert.equal(pkg.version, '3.16.0');
+  assert.equal(pkg.version, '3.17.0');
   assert.ok(pkg.dependencies && pkg.dependencies['@capacitor/core']);
   assert.ok(pkg.scripts && pkg.scripts['cap:sync'] && pkg.scripts['vendors:fetch']);
+});
+
+test('wave v3.17 normalizes category matching across budgeting, forms, reports, telegram bot, and SQL migration', () => {
+  const uiBudgetJs = fs.readFileSync('web/ui-budget.js', 'utf8');
+  const uiReportsJs = fs.readFileSync('web/ui-reports.js', 'utf8');
+  const uiStateJs = fs.readFileSync('web/ui-state.js', 'utf8');
+  const uiRecurringJs = fs.readFileSync('web/ui-recurring.js', 'utf8');
+  const supabaseRecordsJs = fs.readFileSync('web/supabase-records.js', 'utf8');
+  const supabasePlanningJs = fs.readFileSync('web/supabase-planning.js', 'utf8');
+  const botCoreTs = fs.readFileSync('supabase/functions/telegram-bot/core.ts', 'utf8');
+  const botAiTs = fs.readFileSync('supabase/functions/telegram-bot/ai.ts', 'utf8');
+  const botCommandsTs = fs.readFileSync('supabase/functions/telegram-bot/commands.ts', 'utf8');
+  const botPlanningTs = fs.readFileSync('supabase/functions/telegram-bot/planning.ts', 'utf8');
+  const botJobsTs = fs.readFileSync('supabase/functions/telegram-bot/jobs.ts', 'utf8');
+  const migrationSql = fs.readFileSync('supabase/migrations/20261125000000_normalize_categories_and_search.sql', 'utf8');
+
+  assert.match(uiBudgetJs, /normalizeBudgetCatKey/);
+  assert.match(uiBudgetJs, /buildUnbudgetedSectionHtml/);
+  assert.match(uiBudgetJs, /__unbudgeted__/);
+  assert.match(uiFormJs, /selectCategorySafely/);
+  assert.match(uiFormJs, /cleanName/);
+  assert.match(uiReportsJs, /defaultWalletId/);
+  assert.match(uiReportsJs, /normCat/);
+  assert.match(uiStateJs, /fromKey/);
+  assert.match(uiRecurringJs, /curKey/);
+  assert.match(supabaseRecordsJs, /cleanTipe\s*=\s*String\(tipe\s*\|\|\s*''\)\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(supabasePlanningJs, /normCat\(/);
+
+  assert.match(botCoreTs, /export const normalizeCatKey/);
+  assert.match(botCoreTs, /export async function resolveUserCategory/);
+  assert.match(botAiTs, /normalizeCatKey/);
+  assert.match(botCommandsTs, /resolveUserCategory/);
+  assert.match(botPlanningTs, /normalizeCatKey/);
+  assert.match(botJobsTs, /normalizeCatKey/);
+
+  assert.match(migrationSql, /lower\(btrim\(t\.kategori\)\)\s*=\s*lower\(btrim\(p_category\)\)/);
+  assert.match(migrationSql, /default_wallet/);
+  assert.match(migrationSql, /rename_category_with_transactions/);
+  assert.match(migrationSql, /on conflict \(user_id, kategori, bulan\)/);
 });

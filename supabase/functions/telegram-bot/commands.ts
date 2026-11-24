@@ -1,6 +1,6 @@
 import {
   Ctx, Tx, TZ, sb, esc, rp, today, parseNominal, fetchAll,
-  getSettings, getCategories, cycleFor, inPeriod, periodLabel, syncPeriod,
+  getSettings, getCategories, normalizeCatKey, resolveUserCategory, cycleFor, inPeriod, periodLabel, syncPeriod,
   isFlow, streak, streakEmoji, setTemp, getTemp, delTemp, saveTx, savedMsg,
   send, mainKb, kategoriKb, statusKb,
 } from './core.ts';
@@ -75,7 +75,8 @@ export async function handleTambah(c: Ctx, arg: string) {
   const nominal = parts.length >= 3 ? parseNominal(parts[parts.length - 1]) : 0;
   if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.');
   const w = trailingHint ? matchWalletFromText(ws, trailingHint) : ws[0];
-  const p: Tx = { tanggal: today(), tipe, kategori: parts.slice(1, -1).join(' '), nominal, keterangan: 'Via Telegram', wallet_id: w?.id ?? null, walletName: w?.name };
+  const kategori = await resolveUserCategory(c.uid, tipe, parts.slice(1, -1).join(' '));
+  const p: Tx = { tanggal: today(), tipe, kategori, nominal, keterangan: 'Via Telegram', wallet_id: w?.id ?? null, walletName: w?.name };
   await saveTx(c, p);
   await send(c.chat, savedMsg('✅ <b>Tersimpan!</b>', p), mainKb());
   if (p.tipe === 'Pengeluaran') await checkBudgetAlert(c, p.kategori);
@@ -164,8 +165,20 @@ export async function handleBatch(c: Ctx, fullText: string) {
   lines.forEach((line, i) => { const r = parseBatchLine(line, today()); if (r.ok) rows.push(r.data); else errors.push(`Baris ${i + 1}: ${r.error}`); });
   if (rows.length === 0) return send(c.chat, '❌ Tidak ada baris valid.\n' + errors.join('\n'));
 
+  const [inc, exp, ws] = await Promise.all([
+    getCategories(c.uid, 'pemasukan'),
+    getCategories(c.uid, 'pengeluaran'),
+    getWallets(c.uid),
+  ]);
+  const defaultWalletId = ws[0]?.id ?? null;
+  const resolveBatchCat = (tipe: Tx['tipe'], rawCat: string) => {
+    const clean = String(rawCat || '').trim();
+    const pool = tipe === 'Pemasukan' ? inc : exp;
+    return pool.find((cat) => normalizeCatKey(cat) === normalizeCatKey(clean)) ?? (clean || 'Lainnya');
+  };
   const { error } = await sb.from('transactions').insert(rows.map((p) => ({
-    user_id: c.uid, tanggal: p.tanggal, tipe: p.tipe, kategori: p.kategori, nominal: p.nominal, keterangan: p.keterangan || 'Via Batch', source: 'telegram',
+    user_id: c.uid, tanggal: p.tanggal, tipe: p.tipe, kategori: resolveBatchCat(p.tipe, p.kategori), nominal: p.nominal,
+    keterangan: p.keterangan || 'Via Batch', source: 'telegram', wallet_id: defaultWalletId,
   })));
   if (error) throw error;
   await syncPeriod(c.uid, rows.map((r) => r.tanggal).sort().at(-1)!);

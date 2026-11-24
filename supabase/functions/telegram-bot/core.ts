@@ -172,9 +172,18 @@ export async function syncPeriod(uid: string, tanggal: string) {
   if (!s.currentPeriod || cyc > s.currentPeriod) await setSetting(uid, 'currentPeriod', cyc);
 }
 
-export const isPiutang = (k: string) => k.startsWith('Piutang');
-export const isUtang = (k: string) => k.startsWith('Utang');
-export const isFlow = (k: string) => !isUtang(k) && !isPiutang(k);
+export const normalizeCatKey = (s: unknown) => String(s ?? '').trim().toLowerCase();
+
+export async function resolveUserCategory(uid: string, tipe: Tx['tipe'], raw: string): Promise<string> {
+  const clean = String(raw || '').trim();
+  if (!clean) return 'Lainnya';
+  const cats = await getCategories(uid, tipe === 'Pemasukan' ? 'pemasukan' : 'pengeluaran');
+  return cats.find((c) => normalizeCatKey(c) === normalizeCatKey(clean)) ?? clean;
+}
+
+export const isPiutang = (k: unknown) => String(k ?? '').trim().startsWith('Piutang');
+export const isUtang = (k: unknown) => String(k ?? '').trim().startsWith('Utang');
+export const isFlow = (k: unknown) => !isUtang(k) && !isPiutang(k);
 
 export function balances(trx: Any[], assets: Any[]) {
   let kas = 0, utang = 0, piutang = 0;
@@ -247,8 +256,9 @@ export async function loadCore(uid: string) {
 }
 
 export function actualFor(trx: Any[], kategori: string, period: string, pd: number): number {
+  const targetKey = normalizeCatKey(kategori);
   return trx
-    .filter((t) => t.tipe === 'Pengeluaran' && t.kategori === kategori && isFlow(t.kategori) && inPeriod(String(t.tanggal), period, pd))
+    .filter((t) => t.tipe === 'Pengeluaran' && normalizeCatKey(t.kategori) === targetKey && isFlow(t.kategori) && inPeriod(String(t.tanggal), period, pd))
     .reduce((a, t) => a + Number(t.nominal), 0);
 }
 

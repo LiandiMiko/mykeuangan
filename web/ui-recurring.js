@@ -97,10 +97,19 @@
   async function openRecurringForm(id) {
     const item = (DB.recurring || []).find((x) => String(x.id) === String(id));
     const cur = item || { tipe: 'Pengeluaran', kategori: '', nominal: '', dayOfMonth: 1, keterangan: '', active: true };
-    const optsFor = (tipe) => {
-      const list = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
-      return (list.length ? list : ['Lainnya']).map((c) => `<option value="${escapeHtmlJS(c)}" ${c === cur.kategori ? 'selected' : ''}>${escapeHtmlJS(c)}</option>`).join('');
+    const curKey = String(cur.kategori || '').trim().toLocaleLowerCase();
+    const getCatList = (tipe) => {
+      const raw = tipe === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
+      const list = raw.length ? raw.slice() : ['Lainnya'];
+      if (item && cur.kategori && !list.some((c) => String(c || '').trim().toLocaleLowerCase() === curKey)) {
+        list.push(String(cur.kategori).trim());
+      }
+      return list;
     };
+    const optsFor = (tipe) => getCatList(tipe).map((c) => {
+      const selected = curKey && String(c || '').trim().toLocaleLowerCase() === curKey;
+      return `<option value="${escapeHtmlJS(c)}" ${selected ? 'selected' : ''}>${escapeHtmlJS(c)}</option>`;
+    }).join('');
 
     const res = await Swal.fire({
       title: item ? 'Edit Jadwal Rutin' : t('rec.add'),
@@ -130,8 +139,9 @@
         const katSel = document.getElementById('rec-kat');
         if (tipeSel && katSel) {
           tipeSel.addEventListener('change', () => {
-            const list = tipeSel.value === 'Pemasukan' ? (DB.categories.pemasukan || []) : (DB.categories.pengeluaran || []);
-            renderSelectOptions(katSel, list.length ? list : ['Lainnya'], null, cur.kategori);
+            const list = getCatList(tipeSel.value);
+            const matchCur = list.find((c) => String(c || '').trim().toLocaleLowerCase() === curKey);
+            renderSelectOptions(katSel, list, null, matchCur);
           });
         }
       },

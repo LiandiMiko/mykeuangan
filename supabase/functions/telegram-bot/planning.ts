@@ -1,5 +1,5 @@
 import {
-  Ctx, Tx, sb, esc, rp, pad, parseNominal, fetchAll, getCategories,
+  Ctx, Tx, sb, esc, rp, pad, parseNominal, fetchAll, getCategories, normalizeCatKey, resolveUserCategory,
   periodLabel, isFlow, inPeriod, loadCore, actualFor, getBudgets, send, mainKb,
 } from './core.ts';
 
@@ -28,13 +28,14 @@ async function showBudgets(c: Ctx) {
 
 async function budgetDetail(c: Ctx, kategori: string) {
   const { trx, pd, period } = await loadCore(c.uid);
-  const b = (await getBudgets(c.uid, period)).find((x) => x.kategori.toLowerCase() === kategori.toLowerCase());
+  const targetKey = normalizeCatKey(kategori);
+  const b = (await getBudgets(c.uid, period)).find((x) => normalizeCatKey(x.kategori) === targetKey);
   if (!b) return send(c.chat, `❌ Budget <b>${esc(kategori)}</b> tidak ditemukan.\n\nTambah: <code>/budget set ${esc(kategori)} 1000000</code>`, mainKb());
   const plan = Number(b.jumlah) || 0;
   const actual = actualFor(trx, b.kategori, period, pd);
   const pct = plan > 0 ? (actual / plan) * 100 : 0;
   const sisa = plan - actual;
-  const n = trx.filter((t) => t.tipe === 'Pengeluaran' && t.kategori === b.kategori && inPeriod(String(t.tanggal), period, pd)).length;
+  const n = trx.filter((t) => t.tipe === 'Pengeluaran' && normalizeCatKey(t.kategori) === normalizeCatKey(b.kategori) && isFlow(t.kategori) && inPeriod(String(t.tanggal), period, pd)).length;
   const status = pct > 100 ? '🔴 Over' : pct >= 80 ? '🟡 Mendekati' : '🟢 Aman';
   await send(c.chat,
     `📊 <b>${esc(b.kategori)}</b>\n📅 ${periodLabel(period, pd)}\n━━━━━━━━━━━━━━━━\n\n` +
@@ -44,7 +45,7 @@ async function budgetDetail(c: Ctx, kategori: string) {
 async function setBudget(c: Ctx, kategori: string, jumlah: number) {
   const { pd, period } = await loadCore(c.uid);
   const cats = await getCategories(c.uid, 'pengeluaran');
-  const found = cats.find((k) => k.toLowerCase() === kategori.toLowerCase());
+  const found = cats.find((k) => normalizeCatKey(k) === normalizeCatKey(kategori));
   if (!found) {
     return send(c.chat, `❌ Kategori <b>${esc(kategori)}</b> tidak ada.\n\nTambah: <code>/kategori tambah Pengeluaran ${esc(kategori)}</code>`, mainKb());
   }
@@ -55,7 +56,7 @@ async function setBudget(c: Ctx, kategori: string, jumlah: number) {
 
 async function deleteBudget(c: Ctx, kategori: string) {
   const { period } = await loadCore(c.uid);
-  const b = (await getBudgets(c.uid, period)).find((x) => x.kategori.toLowerCase() === kategori.toLowerCase());
+  const b = (await getBudgets(c.uid, period)).find((x) => normalizeCatKey(x.kategori) === normalizeCatKey(kategori));
   if (!b) return send(c.chat, `❌ Budget <b>${esc(kategori)}</b> tidak ditemukan bulan ini.`, mainKb());
   const { error } = await sb.from('budgets').delete().eq('id', b.id).eq('user_id', c.uid);
   if (error) throw error;
@@ -68,8 +69,8 @@ async function copyBudget(c: Ctx) {
   const prev = `${m === 1 ? y - 1 : y}-${pad(m === 1 ? 12 : m - 1)}`;
   const source = await getBudgets(c.uid, prev);
   if (source.length === 0) return send(c.chat, '❌ Tidak ada budget di bulan sebelumnya untuk di-copy.', mainKb());
-  const have = new Set((await getBudgets(c.uid, period)).map((b) => b.kategori));
-  const rows = source.filter((b) => !have.has(b.kategori)).map((b) => ({ user_id: c.uid, kategori: b.kategori, bulan: period, jumlah: b.jumlah }));
+  const have = new Set((await getBudgets(c.uid, period)).map((b) => normalizeCatKey(b.kategori)));
+  const rows = source.filter((b) => !have.has(normalizeCatKey(b.kategori))).map((b) => ({ user_id: c.uid, kategori: String(b.kategori || '').trim(), bulan: period, jumlah: b.jumlah }));
   if (rows.length) {
     const { error } = await sb.from('budgets').insert(rows);
     if (error) throw error;
@@ -104,7 +105,7 @@ export async function checkBudgetAlert(c: Ctx, kategori: string) {
   try {
     if (!isFlow(kategori)) return;
     const { trx, pd, period } = await loadCore(c.uid);
-    const b = (await getBudgets(c.uid, period)).find((x) => x.kategori.toLowerCase() === kategori.toLowerCase());
+    const b = (await getBudgets(c.uid, period)).find((x) => normalizeCatKey(x.kategori) === normalizeCatKey(kategori));
     if (!b) return;
     const plan = Number(b.jumlah) || 0;
     const actual = actualFor(trx, b.kategori, period, pd);
@@ -140,7 +141,7 @@ export async function handleRecurring(c: Ctx, arg: string) {
     if ((tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !day || day < 1 || day > 31 || nominal <= 0) {
       return send(c.chat, '❌ Tipe, tanggal (1-31), atau nominal tidak valid.', mainKb());
     }
-    const kategori = parts.slice(2, -2).join(' ');
+    const kategori = await resolveUserCategory(c.uid, tipe, parts.slice(2, -2).join(' '));
     const { error } = await sb.from('recurring').insert({ user_id: c.uid, tipe, kategori, nominal, keterangan: 'Auto via Telegram', day_of_month: day, active: true });
     if (error) throw error;
     return send(c.chat, `✅ <b>Recurring ditambahkan!</b> ${esc(kategori)} (${rp(nominal)}) tgl ${day}`, mainKb());

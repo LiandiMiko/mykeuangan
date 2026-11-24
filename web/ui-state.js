@@ -284,8 +284,9 @@
       root.DB.transactions = root.DB.transactions.filter((item) => !removedIds.has(String(item.id)));
     }
     if (payload.renamedTransactionCategory) {
+      const fromKey = String(payload.renamedTransactionCategory.from || '').trim().toLocaleLowerCase();
       root.DB.transactions.forEach((item) => {
-        if (item.kategori === payload.renamedTransactionCategory.from &&
+        if (String(item.kategori || '').trim().toLocaleLowerCase() === fromKey &&
           (!payload.renamedTransactionCategory.tipe || item.tipe === payload.renamedTransactionCategory.tipe)) {
           item.kategori = payload.renamedTransactionCategory.to;
         }

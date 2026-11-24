@@ -105,7 +105,8 @@ mykeuangan/
 │       ├── 20261117000000_wallets_asset_purchases.sql
 │       ├── 20261118000000_comprehensive_upgrade.sql
 │       ├── 20261120000000_hardening_assets_profile_wallets.sql
-│       └── 20261124000000_oauth_onboarding_display_name.sql # Google OAuth display_name fallback
+│       ├── 20261124000000_oauth_onboarding_display_name.sql # Google OAuth display_name fallback
+│       └── 20261125000000_normalize_categories_and_search.sql # Normalisasi kategori & filter dompet utama
 │
 ├── docs/
 │   └── ANDROID_PLAYSTORE_GUIDE.md # Panduan build Android Capacitor 8 (API 36) & Play Console
@@ -260,6 +261,23 @@ Migrasi ini menambahkan/memperbarui:
 - Pembaruan atomik `create_asset_with_expense()`, `top_up_asset()`, dan `liquidate_asset()` untuk mendukung `Crypto`, `Emas`, `USD`, `Saham`, `Cash`, dan `Other` beserta `unit_label`, `price_per_unit`, dan `buy_price` dalam satu transaksi database
 - Hardening `delete_wallet()` untuk mempertahankan saldo awal serta riwayat transaksi/transfer non-internal saat dompet dihapus
 
+#### Step 11 — OAuth Display Name Fallback
+```sql
+-- Jalankan isi file: supabase/migrations/20261124000000_oauth_onboarding_display_name.sql
+```
+
+Memperbarui trigger `handle_new_user()` agar menyertakan fallback `full_name` / `name` dari Google OAuth metadata saat membuat profil baru.
+
+#### Step 12 — Normalisasi Kategori, Search Filter & Rename RPC
+```sql
+-- Jalankan isi file: supabase/migrations/20261125000000_normalize_categories_and_search.sql
+```
+
+Migrasi idempoten ini:
+- Memperbarui `search_user_transactions()` agar filter `p_category` bersifat *case-insensitive* (tanpa spasi berlebih) dan filter `p_wallet_id` ikut menyertakan transaksi lama ber-`wallet_id IS NULL` saat memfilter dompet utama
+- Memperbarui `rename_category_with_transactions()` agar mencocokkan varian huruf besar-kecil secara menyeluruh di transaksi, budget, dan jadwal rutin
+- Membersihkan spasi dan menyelaraskan kapitalisasi kategori historis agar sesuai tabel `categories` milik pengguna
+
 > Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi baru setelah migrasi hardening.
 > **Rotasi Rahasia Cron**: Bila sebelumnya menggunakan nilai contoh di `supabase/schedule.sql`, wajib rotasi `CRON_SECRET` di Supabase Edge Function Secrets dan perbarui job `pg_cron` memakai placeholder `<PROJECT_REF>` serta secret acak minimal 32 karakter.
 
@@ -410,6 +428,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Wave v3.17 (Normalisasi Kategori Lintas Fitur, Auto-Kategori Kata Utuh & Audit Budgeting)
+- **Normalisasi Kategori Budgeting & Panel Luar Budget (`web/finance-analysis-core.js`, `web/finance-analysis-portfolio.js`, `web/ui-budget.js`, `web/finance-pro.js`)**: Menyelaraskan pencocokan kategori secara *case-insensitive* dan tanpa spasi di `summarizePeriod()`, `aggregateWalletAndPeriodFlows()`, `recommendCategoryBudgets()`, `computeAnnualRecap()`, `compareTwoPeriods()`, dan `renderBudgeting()` agar varian seperti `laundry` / `Laundry ` otomatis terhitung ke kartu budget `Laundry`, plus kartu lipat **Pengeluaran di Luar Budget** untuk memeriksa dan mengedit transaksi yang keluar dari kategori budget.
+- **Perbaikan Auto-Kategori Kata Utuh, Form Edit, CSV, Laporan & Restore (`web/finance-pro.js`, `web/ui-form.js`, `web/ui-recurring.js`, `web/ui-feat-ai.js`, `web/transaction-import.js`, `web/ui-reports.js`, `web/ui-state.js`, `web/supabase-records.js`, `web/supabase-planning.js`, `web/ui-pro-palette.js`)**: Menggunakan batas kata utuh serta memprioritaskan aturan kustom & kategori pengguna di `applyAutoCategoryRules()` (mencegah substring seperti `pakaian` → `kai` atau `botol` → `tol`), mencegah `editTransaction()` & modal jadwal rutin menimpa kategori yang terhapus/beda kapitalisasi, menyamakan filter dompet utama + kategori di Laporan, menormalkan `api_addCategory()` untuk Restore JSON, dan mengkanonisasi kolom kategori impor CSV.
+- **Bot Telegram & Migrasi SQL (`supabase/functions/telegram-bot/*.ts`, `supabase/migrations/20261125000000_normalize_categories_and_search.sql`)**: Menambahkan `normalizeCatKey()` & `resolveUserCategory()` pada parsing Gemini AI, `/tambah`, `/batch`, `/budget`, `/recurring`, dan laporan mingguan bot, serta migrasi SQL idempoten untuk `search_user_transactions()`, `rename_category_with_transactions()`, dan pembersihan data kategori historis.
 
 ### 25 November 2026: Wave v3.16 (Bundel Vendor Offline 100%, Bridge Native Android & Setup Capacitor 8 API 36)
 - **Bundel Vendor Lokal 100% Offline (`scripts/fetch-vendors.mjs`, `build.mjs`, `web/sw.js`, `.github/workflows/deploy.yml`, `.gitignore`)**: Mengunduh versi ter-pin Supabase JS, Chart.js, SweetAlert2, Flatpickr, jsPDF, ikon Phosphor `.woff2`, dan font Inter ke `web/vendor/` lalu disalin ke `dist/vendor/`, ditulis ulang dari tag CDN di `dist/index.html`, dan diprecache ke Service Worker.

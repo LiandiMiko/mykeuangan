@@ -44,8 +44,25 @@
     return date >= range.start && date <= range.end;
   }
 
+  function normalizeCategoryKey(category) {
+    return String(category || '').trim().toLocaleLowerCase();
+  }
+
+  function cleanCategoryLabel(category) {
+    return String(category || '').trim();
+  }
+
+  function pickDisplayLabel(existing, candidate) {
+    if (!candidate) return existing || '';
+    if (!existing) return candidate;
+    if (existing === existing.toLocaleLowerCase() && candidate !== candidate.toLocaleLowerCase()) {
+      return candidate;
+    }
+    return existing;
+  }
+
   function isDebtCategory(category) {
-    const value = String(category || '');
+    const value = cleanCategoryLabel(category);
     return value.startsWith('Utang') || value.startsWith('Piutang');
   }
 
@@ -53,43 +70,52 @@
     const monthlyBudgets = (budgets || []).filter((budget) =>
       String(budget.bulan || '').slice(0, 7) === period
     );
+    const labelByKey = new Map();
+    const planByCategory = new Map();
+    monthlyBudgets.forEach((budget) => {
+      const label = cleanCategoryLabel(budget.kategori);
+      const key = normalizeCategoryKey(label);
+      if (label && !labelByKey.has(key)) labelByKey.set(key, label);
+      planByCategory.set(key, (planByCategory.get(key) || 0) + (Number(budget.jumlah) || 0));
+    });
+
     const actualByCategory = new Map();
     let actualTotal = 0;
 
     (transactions || []).forEach((transaction) => {
-      const category = String(transaction.kategori || '');
+      const label = cleanCategoryLabel(transaction.kategori);
+      const key = normalizeCategoryKey(label);
       if (transaction.tipe !== 'Pengeluaran' ||
-          isDebtCategory(category) ||
+          isDebtCategory(label) ||
           !isInPeriod(transaction.tanggal, period, payrollDay)) {
         return;
       }
 
+      if (!labelByKey.has(key)) {
+        if (label) labelByKey.set(key, label);
+      } else if (!planByCategory.has(key)) {
+        labelByKey.set(key, pickDisplayLabel(labelByKey.get(key), label));
+      }
       const amount = Number(transaction.nominal) || 0;
-      actualByCategory.set(category, (actualByCategory.get(category) || 0) + amount);
+      actualByCategory.set(key, (actualByCategory.get(key) || 0) + amount);
       actualTotal += amount;
     });
 
-    const planByCategory = new Map();
-    monthlyBudgets.forEach((budget) => {
-      const category = String(budget.kategori || '');
-      planByCategory.set(category, (planByCategory.get(category) || 0) + (Number(budget.jumlah) || 0));
-    });
-
     const budgetTotal = Array.from(planByCategory.values()).reduce((sum, amount) => sum + amount, 0);
-    const categories = new Set([...planByCategory.keys(), ...actualByCategory.keys()]);
-    const rows = Array.from(categories)
-      .sort((left, right) => left.localeCompare(right))
-      .map((category) => {
-        const plan = planByCategory.get(category) || 0;
-        const actual = actualByCategory.get(category) || 0;
+    const keys = new Set([...planByCategory.keys(), ...actualByCategory.keys()]);
+    const rows = Array.from(keys)
+      .map((key) => {
+        const plan = planByCategory.get(key) || 0;
+        const actual = actualByCategory.get(key) || 0;
         return {
-          category,
+          category: labelByKey.get(key) || key,
           plan,
           actual,
           remaining: plan - actual,
           percent: plan > 0 ? actual / plan * 100 : null
         };
-      });
+      })
+      .sort((left, right) => left.category.localeCompare(right.category));
 
     return {
       period,
@@ -144,14 +170,17 @@
     let saldoKasFallback = 0;
     let utangTotal = 0;
     let piutangTotal = 0;
-    const incomeByCat = new Map();
-    const expenseByCat = new Map();
+    const incomeTotals = new Map();
+    const expenseTotals = new Map();
+    const incomeLabels = new Map();
+    const expenseLabels = new Map();
     const walletBal = new Map();
     wallets.forEach((w) => { walletBal.set(w.id, Number(w.openingBalance) || 0); });
     const defaultWalletId = wallets.length ? wallets[0].id : null;
 
     transactions.forEach((t) => {
-      const cat = String(t.kategori || '');
+      const cat = cleanCategoryLabel(t.kategori);
+      const catKey = normalizeCategoryKey(cat);
       const amount = Number(t.nominal) || 0;
       const isPiutang = cat.startsWith('Piutang');
       const isUtang = !isPiutang && cat.startsWith('Utang');
@@ -173,10 +202,12 @@
       if (!isDebtCategory(cat) && isInPeriod(t.tanggal, period, payrollDay)) {
         if (t.tipe === 'Pemasukan') {
           incomeTotal += amount;
-          incomeByCat.set(cat, (incomeByCat.get(cat) || 0) + amount);
+          incomeLabels.set(catKey, pickDisplayLabel(incomeLabels.get(catKey), cat));
+          incomeTotals.set(catKey, (incomeTotals.get(catKey) || 0) + amount);
         } else if (t.tipe === 'Pengeluaran') {
           expenseTotal += amount;
-          expenseByCat.set(cat, (expenseByCat.get(cat) || 0) + amount);
+          expenseLabels.set(catKey, pickDisplayLabel(expenseLabels.get(catKey), cat));
+          expenseTotals.set(catKey, (expenseTotals.get(catKey) || 0) + amount);
         }
       }
     });
@@ -188,8 +219,22 @@
       if (x.toWallet && walletBal.has(x.toWallet)) walletBal.set(x.toWallet, walletBal.get(x.toWallet) + n);
     });
 
+    const buildLabeledMap = (totals, labels) => {
+      const out = new Map();
+      totals.forEach((val, key) => { out.set(labels.get(key) || key, val); });
+      return out;
+    };
+
     const walletsTotal = wallets.length ? Array.from(walletBal.values()).reduce((s, v) => s + v, 0) : saldoKasFallback;
-    return { incomeTotal, expenseTotal, incomeByCat, expenseByCat, walletsTotal, utangTotal, piutangTotal };
+    return {
+      incomeTotal,
+      expenseTotal,
+      incomeByCat: buildLabeledMap(incomeTotals, incomeLabels),
+      expenseByCat: buildLabeledMap(expenseTotals, expenseLabels),
+      walletsTotal,
+      utangTotal,
+      piutangTotal
+    };
   }
 
   function monthlyCashflowSeries(transactions, endPeriod, payrollDay, count) {
@@ -305,6 +350,7 @@
   }
 
   const coreApi = {
+    normalizeCategoryKey, cleanCategoryLabel,
     parsePeriod, formatDate, shiftPeriod, getPeriodRange, isInPeriod, isDebtCategory,
     summarizePeriod, monthlyTrend, periodInsights, goalProgress,
     aggregateWalletAndPeriodFlows, monthlyCashflowSeries, buildAiCashflowPayload

@@ -139,9 +139,11 @@
     },
 
     async api_addCategory(tipe, name) {
+      const cleanTipe = String(tipe || '').trim().toLowerCase();
+      if (!['pemasukan', 'pengeluaran'].includes(cleanTipe)) throw new Error('Tipe kategori tidak valid.');
       const clean = String(name || '').trim();
       if (!clean) throw new Error('Nama kategori wajib diisi.');
-      const { error } = await sb.from('categories').upsert({ tipe, name: clean }, { onConflict: 'user_id,tipe,name', ignoreDuplicates: true });
+      const { error } = await sb.from('categories').upsert({ tipe: cleanTipe, name: clean }, { onConflict: 'user_id,tipe,name', ignoreDuplicates: true });
       fail(error);
       return fetchCategoriesOnly();
     },
