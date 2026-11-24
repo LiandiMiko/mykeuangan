@@ -177,6 +177,16 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(deployYml, /\bdeploy:/);
   assert.match(deployYml, /needs:\s*verify/);
   assert.match(deployYml, /node-version:\s*22/);
+  assert.match(deployYml, /actions\/configure-pages@v5/);
+  assert.match(deployYml, /actions\/upload-pages-artifact@v4/);
+  assert.ok(
+    deployYml.indexOf('actions/upload-pages-artifact@v4') > 0 &&
+      deployYml.indexOf('actions/upload-pages-artifact@v4') < deployYml.indexOf('\n  deploy:'),
+    'upload-pages-artifact@v4 must run in verify before deploy job'
+  );
+  assert.match(deployYml, /artifact_name:\s*\$\{\{\s*needs\.verify\.outputs\.pages_artifact\s*\}\}/);
+  assert.match(deployYml, /pages:\s*write/);
+  assert.match(deployYml, /id-token:\s*write/);
 });
 
 test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete account UI, and audit fixes', () => {
