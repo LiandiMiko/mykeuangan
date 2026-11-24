@@ -15,8 +15,11 @@
     "assets:native": "node scripts/prepare-native-assets.mjs",
     "playstore:assets": "node scripts/generate-playstore-assets.mjs",
     "cap:init:android": "npx cap add android && node scripts/patch-android-project.mjs",
-    "cap:assets": "node scripts/prepare-native-assets.mjs && npx @capacitor/assets generate --android",
+    "cap:assets": "node scripts/prepare-native-assets.mjs && npx capacitor-assets generate --android",
     "cap:sync": "npm run build:prod && npx cap sync android && node scripts/patch-android-project.mjs",
+    "cap:apk": "node scripts/build-android.mjs debug-apk",
+    "cap:apk:release": "node scripts/build-android.mjs release-apk",
+    "cap:aab": "node scripts/build-android.mjs release-aab",
     "cap:open": "npx cap open android"
   },
   "dependencies": {

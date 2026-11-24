@@ -55,50 +55,53 @@ Sebelum uji login Google di HP Android:
 
 ### 3A. Opsi Cepat: Cloud Build APK & AAB via GitHub Actions (Tanpa Install Android Studio)
 
-Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` untuk diunduh langsung:
+Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (lockfile-free tanpa `cache: npm` + caching Gradle lewat `gradle/actions/setup-gradle@v4`) yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` dengan nama berversi (`MyKeuGuech-v3.18.0-*.apk`):
 
-1. **Buat test APK untuk HP Android Anda:**
-   - Buka repo GitHub → tab **Actions** → pilih **Build Android APK & AAB (Capacitor 8)** → klik **Run workflow** → pilih `build_type: debug-apk` → tunggu selesai → unduh artifact **`mykeuguech-android-debug-apk`** (`app-debug.apk`) dan **`mykeuguech-playstore-assets`** (`icon-512.png` & `feature-graphic-1024x500.png`).
-2. **Untuk build Signed Release `.aab` di Cloud (opsional, untuk upload Play Console):**
+1. **Buat test APK untuk HP Android Anda (`debug-apk`):**
+   - Buka repo GitHub → tab **Actions** → pilih **Build Android APK & AAB (Capacitor 8)** → klik **Run workflow** → pilih **`debug-apk`** *(default — tidak butuh keystore)* → tunggu ±3–5 menit → unduh artifact **`mykeuguech-android-debug-apk`** (`MyKeuGuech-v3.18.0-debug.apk`) dan **`mykeuguech-playstore-assets`** (`icon-512.png` & `feature-graphic-1024x500.png`), atau cek panduan ringkas di **Step Summary** run tersebut.
+2. **Untuk build Signed Release `.apk` (`release-apk`), `.aab` (`release-aab`), atau `all` di Cloud:**
    - Buat file `.jks` dengan `keytool` (lihat Bagian 5), konversi ke Base64 di PowerShell:
      ```powershell
      [Convert]::ToBase64String([IO.File]::ReadAllBytes("android/mykeuguech-upload.jks")) | Set-Clipboard
      ```
-   - Tambahkan **4 GitHub Repository Secrets** (*Settings → Secrets and variables → Actions*):
+   - Tambahkan **4 GitHub Repository Secrets** (*Settings → Secrets and variables → Actions → Secrets*):
      - `ANDROID_KEYSTORE_BASE64` (hasil Base64 dari clipboard)
      - `ANDROID_KEYSTORE_PASSWORD`
      - `ANDROID_KEY_ALIAS` (mis. `mykeuguech-upload`)
      - `ANDROID_KEY_PASSWORD`
-   - Jalankan workflow dengan `build_type: release-aab` (atau push tag `v3.18.0`) lalu unduh **`mykeuguech-android-release-aab`**.
+   - Jalankan workflow dengan `build_type: release-apk`, `release-aab`, atau `all` (atau push tag `v3.18.0`) lalu unduh artifact **`mykeuguech-android-release-apk`** (`MyKeuGuech-v3.18.0-release.apk`) / **`mykeuguech-android-release-aab`** (`MyKeuGuech-v3.18.0-release.aab`).
 
-> Pastikan GitHub Repository Variables (`SUPABASE_URL` & `SUPABASE_ANON_KEY`) sudah terisi jika `web/config.js` tidak di-commit ke Git.
+> Pastikan GitHub Repository Variables (`SUPABASE_URL` & `SUPABASE_ANON_KEY` di *Settings → Secrets and variables → Actions → Variables*) sudah terisi jika `web/config.js` belum tersedia; workflow akan langsung memberi pesan jelas bila kedua variable tersebut kosong.
 
-### 3B. Opsi Lokal Windows: Setup Project Android (Android Studio)
+### 3B. Opsi Lokal Windows: Build 1-Perintah `.apk` / `.aab`
 
-Jalankan perintah berikut secara berurutan di root repository:
+Setelah prasyarat Bagian 1 (Node.js 22+, JDK 21, Android SDK 36) terpasang, jalankan dari root repository:
 
 ```powershell
-# 1. Install dependensi Capacitor 8
+# 1. Install dependensi Capacitor 8 (cukup sekali atau saat package.json berubah)
 npm install
 
-# 2. Unduh vendor lokal (Chart.js, Phosphor, SweetAlert2, Flatpickr, jsPDF, Inter, Supabase JS)
-#    + kompilasi Tailwind CSS + bundle dist/
-npm run build:prod
-
-# 3. Buat aset grafis Play Store (playstore-assets/icon-512.png & feature-graphic-1024x500.png)
-npm run playstore:assets
-
-# 4. Buat folder android/ dan terapkan patch Target API 36 + deep link + keystore hook
-npm run cap:init:android
-
-# 5. Generate ikon adaptif & splash screen Android
-npm run cap:assets
+# 2. Build Debug APK 1 perintah (otomatis build:prod + cap add/sync + patch API 36 + gradlew assembleDebug)
+npm run cap:apk
 ```
 
-Untuk pembaruan kode berikutnya, cukup jalankan:
+File APK langsung disalin ke `release\MyKeuGuech-v3.18.0-debug.apk` (folder `release/` otomatis diabaikan Git).
+
+Jika ingin build bertahap secara manual atau membuka proyek di Android Studio:
 
 ```powershell
+npm run build:prod
+npm run playstore:assets
+npm run cap:init:android
+npm run cap:assets
 npm run cap:sync
+```
+
+Untuk build signed produksi 1-perintah di Windows setelah menyiapkan `android/keystore.properties` (Bagian 5):
+
+```powershell
+npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.18.0-release.apk
+npm run cap:aab           # hasil: release\MyKeuGuech-v3.18.0-release.aab
 ```
 
 ---

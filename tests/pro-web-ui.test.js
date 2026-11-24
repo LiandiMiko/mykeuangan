@@ -387,6 +387,23 @@ test('wave v3.18 configures cloud Android CI, Play Store release kit, gradle pat
   assert.match(androidBuildYml, /playstore:assets/);
   assert.match(androidBuildYml, /ANDROID_KEYSTORE_BASE64/);
   assert.match(androidBuildYml, /rm -f android\/mykeuguech-upload\.jks/);
+  assert.doesNotMatch(androidBuildYml, /cache:\s*['"]?npm['"]?/);
+  assert.match(androidBuildYml, /assembleRelease/);
+  assert.match(androidBuildYml, /setup-gradle@v4/);
+  assert.match(androidBuildYml, /GITHUB_STEP_SUMMARY/);
+  assert.match(androidBuildYml, /MyKeuGuech-v/);
+
+  const buildAndroidMjs = fs.readFileSync('scripts/build-android.mjs', 'utf8');
+  const pkgScripts = JSON.parse(fs.readFileSync('package.json', 'utf8')).scripts || {};
+  const nativeBridgeJs = fs.readFileSync('web/native-bridge.js', 'utf8');
+  assert.match(buildAndroidMjs, /assembleDebug/);
+  assert.match(buildAndroidMjs, /assembleRelease/);
+  assert.match(buildAndroidMjs, /bundleRelease/);
+  assert.ok(pkgScripts['cap:apk'] && pkgScripts['cap:apk:release'] && pkgScripts['cap:aab']);
+  assert.match(pkgScripts['cap:assets'], /capacitor-assets/);
+  assert.match(gitignore, /release\//);
+  assert.match(nativeBridgeJs, /getLaunchUrl/);
+  assert.match(nativeBridgeJs, /lastHandledOAuthUrl/);
 
   assert.match(patchScript, /withInputStream/);
   assert.match(patchScript, /rootProject\.file\(keystoreProps\.getProperty\("storeFile"\)\)/);

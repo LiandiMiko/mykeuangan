@@ -127,15 +127,17 @@ mykeuangan/
 │   ├── generate_icons.mjs         # Generator ikon PNG PWA dari Node.js
 │   ├── generate-playstore-assets.mjs # Generator ikon Play Store 512x512 & feature graphic 1024x500
 │   ├── prepare-native-assets.mjs  # Generator ikon adaptif 1024px & splash screen 2732px Android
-│   └── patch-android-project.mjs  # Patch SDK API 36, deep link OAuth & release keystore gradle
+│   ├── patch-android-project.mjs  # Patch SDK API 36, deep link OAuth & release keystore gradle
+│   └── build-android.mjs          # Build lokal 1-perintah APK/AAB (cap:apk, cap:apk:release, cap:aab)
 │
 ├── capacitor.config.json          # Konfigurasi Capacitor 8 (com.mykeuguech.app, SystemBars, Splash)
-├── package.json                   # Skrip npm standar & Play Store Android build (`cap:sync`, `vendors:fetch`)
+├── package.json                   # Skrip npm standar & Play Store Android build (`cap:sync`, `cap:apk`, `vendors:fetch`)
 ├── tailwind.config.js      # Konfigurasi build Tailwind CSS statis
 ├── build.mjs               # Build script: src/* + web/*.js → dist/index.html
 └── .github/
     └── workflows/
-        └── deploy.yml      # GitHub Actions: test, build & deploy ke Pages
+        ├── android-build.yml # Cloud build APK & AAB Android Capacitor 8 (API 36)
+        └── deploy.yml        # GitHub Actions: test, build & deploy ke Pages
 ```
 
 ---
@@ -432,7 +434,7 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ## 📝 Changelog — What's New in v2.0
 
 ### 25 November 2026: Wave v3.18 (Cloud Build Android .apk/.aab, Kit Rilis Play Store, + Buat Budget & Bot /cari)
-- **Cloud Build Android CI & Perbaikan Gradle Patcher (`.github/workflows/android-build.yml`, `scripts/patch-android-project.mjs`, `.gitignore`)**: Menambahkan workflow GitHub Actions Android (JDK 21 + Android SDK 36 + Capacitor 8) untuk membangun `app-debug.apk` maupun signed `app-release.aab` langsung di cloud tanpa harus menginstall Android Studio terlebih dahulu, serta memperbaiki Groovy `withInputStream` dan path `rootProject.file()` pada konfigurasi keystore Gradle.
+- **Cloud Build Android CI, Fix Lockfile, 1-Command `.apk` & Cold-Start OAuth (`.github/workflows/android-build.yml`, `scripts/build-android.mjs`, `scripts/patch-android-project.mjs`, `web/native-bridge.js`, `package.json`, `.gitignore`)**: Menambahkan workflow GitHub Actions Android (JDK 21 + Android SDK 36 + Gradle cache) bebas ketergantungan `package-lock.json` (`cache: npm` dihapus agar tidak gagal saat setup) dengan output berversi `MyKeuGuech-v3.18.0-debug.apk`, `-release.apk`, & `-release.aab` serta ringkasan unduh `GITHUB_STEP_SUMMARY`; menambahkan skrip build lokal 1-perintah `npm run cap:apk` / `cap:apk:release` / `cap:aab`, pemulihan cold-start Google OAuth via `App.getLaunchUrl()`, serta memperbaiki Groovy `withInputStream` & `rootProject.file()` di `patch-android-project.mjs`.
 - **Generator Aset & Kit Kepatuhan Play Store (`scripts/generate-playstore-assets.mjs`, `docs/PLAYSTORE_LISTING_KIT.md`, `docs/ANDROID_PLAYSTORE_GUIDE.md`, `package.json`)**: Menambahkan perintah `npm run playstore:assets` untuk menghasilkan `playstore-assets/icon-512.png` (512×512) dan `playstore-assets/feature-graphic-1024x500.png` (1024×500), kit teks Store Listing ID/EN + jawaban Data Safety/Financial Features/App Access, serta alur terpadu dari migrasi SQL ke rilis Play Console.
 - **1-Klik + Buat Budget & Upgrade Bot Telegram (`web/ui-budget.js`, `supabase/functions/telegram-bot/{planning,commands,index}.ts`)**: Menambahkan chip **`+ Budget <Kategori>`** berprediksi nominal di panel *Pengeluaran di Luar Budget*, mempercantik `/budget` Telegram dengan progres bar `▓░` + ringkasan transaksi luar budget, serta menambahkan perintah **`/cari`** (`handleCari`) untuk mencari riwayat transaksi langsung dari Telegram.
 

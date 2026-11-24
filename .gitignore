@@ -12,3 +12,4 @@ android/build/
 android/app/build/
 assets/
 playstore-assets/
+release/

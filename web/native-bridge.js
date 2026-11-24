@@ -9,6 +9,7 @@
   const HOSTED_WEB_ORIGIN = 'https://liandimiko.github.io/mykeuangan';
   const LEGAL_RELATIVE_PAGES = new Set(['privacy.html', 'terms.html', 'delete-account.html']);
   let lastBackPressedAt = 0;
+  let lastHandledOAuthUrl = '';
 
   function isNativeApp() {
     return Boolean(root.Capacitor && typeof root.Capacitor.isNativePlatform === 'function' && root.Capacitor.isNativePlatform());
@@ -149,12 +150,14 @@
   }
 
   async function handleNativeAppUrlOpen(rawUrl) {
-    if (!String(rawUrl || '').startsWith(NATIVE_AUTH_REDIRECT_URL)) return;
+    const url = String(rawUrl || '');
+    if (!url.startsWith(NATIVE_AUTH_REDIRECT_URL) || url === lastHandledOAuthUrl) return;
+    lastHandledOAuthUrl = url;
     const Browser = getCapPlugin('Browser');
     if (Browser && typeof Browser.close === 'function') {
       try { await Browser.close(); } catch (_) { /* ignore */ }
     }
-    const parsed = parseOAuthCallbackParams(rawUrl);
+    const parsed = parseOAuthCallbackParams(url);
     if (parsed.error) {
       const notice = root.__mkSb && root.__mkSb.showCoreNotice;
       if (typeof notice === 'function') notice('Login Google Gagal', parsed.error, { closable: true });
@@ -177,6 +180,16 @@
       const notice = root.__mkSb && root.__mkSb.showCoreNotice;
       if (typeof notice === 'function') notice('Login Google Gagal', (err && err.message) || String(err), { closable: true });
     }
+  }
+
+  async function checkNativeLaunchUrl() {
+    if (!isNativeApp()) return;
+    const App = getCapPlugin('App');
+    if (!App || typeof App.getLaunchUrl !== 'function') return;
+    try {
+      const launch = await App.getLaunchUrl();
+      if (launch && launch.url) await handleNativeAppUrlOpen(launch.url);
+    } catch (_) { /* ignore */ }
   }
 
   function showNativeExitToast() {
@@ -266,6 +279,7 @@
   if (root.document && typeof root.document.addEventListener === 'function') {
     root.document.addEventListener('DOMContentLoaded', () => {
       initNativeBridge();
+      checkNativeLaunchUrl();
       if (isNativeApp()) {
         root.document.getElementById('pwaInstallWrap')?.classList.add('hidden');
         syncNativeSystemBars(root.document.documentElement.classList.contains('dark'));
@@ -283,6 +297,7 @@
     hideNativeSplash,
     parseOAuthCallbackParams,
     startNativeOAuth,
+    checkNativeLaunchUrl,
     handleAndroidBackButton
   });
 })(typeof window !== 'undefined' ? window : globalThis);
