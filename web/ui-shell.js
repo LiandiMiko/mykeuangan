@@ -70,6 +70,7 @@
     document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
       meta.setAttribute('content', color);
     });
+    if (typeof root.syncNativeSystemBars === 'function') root.syncNativeSystemBars(isDark);
   }
 
   function setTheme(t) {
@@ -272,6 +273,7 @@
     }
     switchView('dashboard');
     renderAll();
+    if (typeof root.hideNativeSplash === 'function') root.hideNativeSplash();
   }
 
   async function loadInitialAppData() {

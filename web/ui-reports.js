@@ -247,11 +247,17 @@
   }
 
   function downloadTransactionTemplate() {
-    const blob = new Blob(['tanggal,tipe,kategori,nominal,keterangan,dompet\r\n'], { type: 'text/csv;charset=utf-8' });
+    const content = 'tanggal,tipe,kategori,nominal,keterangan,dompet\r\n';
+    const filename = 'template-transaksi-mykeuguech.csv';
+    if (typeof root.saveOrShareFile === 'function') {
+      root.saveOrShareFile(content, filename, 'text/csv;charset=utf-8');
+      return;
+    }
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'template-transaksi-mykeuguech.csv';
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
   }

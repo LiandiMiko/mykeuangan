@@ -3,5 +3,11 @@ node_modules/
 .env
 .env.*
 *.local
-web/vendor/tailwind.min.css
-
+web/vendor/
+android/keystore.properties
+*.jks
+*.keystore
+android/.gradle/
+android/build/
+android/app/build/
+assets/

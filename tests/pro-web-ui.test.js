@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 const indexHtml = fs.readFileSync('src/Index.html', 'utf8');
 const dashboardHtml = fs.readFileSync('src/dashboard.html', 'utf8');
@@ -160,7 +161,7 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
   assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
   assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
-  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.15</);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.16</);
   assert.match(updatesHtml, /datetime="2026-11-23"/);
 
   assert.match(botCoreTs, /AbortSignal\.timeout/);
@@ -222,6 +223,108 @@ test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete accou
   assert.match(uiReportsJs, /template-transaksi-mykeuguech\.csv/);
   assert.doesNotMatch(uiReportsJs, /template-transaksi-mykeuangan\.csv/);
   assert.match(swJs, /targetCacheKey/);
-  assert.match(updatesHtml, /data-latest-release="2026-11-24-v3\.15"/);
-  assert.match(updatesHtml, /Menampilkan 16 rilis/);
+  assert.match(updatesHtml, /data-latest-release="2026-11-25-v3\.16"/);
+  assert.match(updatesHtml, /Menampilkan 17 rilis/);
+});
+
+test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android bridge, and config fixes', () => {
+  const nativeBridgeJs = fs.readFileSync('web/native-bridge.js', 'utf8');
+  const webSandbox = { console, document: null };
+  webSandbox.window = webSandbox;
+  vm.runInNewContext(nativeBridgeJs, webSandbox);
+  assert.equal(webSandbox.isNativeApp(), false);
+  assert.equal(webSandbox.getNativePlatform(), 'web');
+  assert.equal(webSandbox.NATIVE_AUTH_REDIRECT_URL, 'com.mykeuguech.app://auth-callback');
+  assert.deepEqual(webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?code=pkce_123'), {
+    code: 'pkce_123',
+    accessToken: '',
+    refreshToken: '',
+    error: ''
+  });
+  assert.deepEqual(webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback#access_token=at_1&refresh_token=rt_2'), {
+    code: '',
+    accessToken: 'at_1',
+    refreshToken: 'rt_2',
+    error: ''
+  });
+  assert.deepEqual(webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?error=access_denied&error_description=User%20cancelled'), {
+    code: '',
+    accessToken: '',
+    refreshToken: '',
+    error: 'User cancelled'
+  });
+
+  const nativeClassAdded = [];
+  const nativeListeners = [];
+  const nativeSandbox = {
+    console,
+    document: {
+      documentElement: {
+        classList: {
+          add: (...cls) => nativeClassAdded.push(...cls),
+          contains: () => false
+        }
+      },
+      addEventListener: () => {}
+    },
+    localStorage: { getItem: () => 'light' },
+    Capacitor: {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: { App: { addListener: (ev) => nativeListeners.push(ev) } }
+    }
+  };
+  nativeSandbox.window = nativeSandbox;
+  vm.runInNewContext(nativeBridgeJs, nativeSandbox);
+  assert.equal(nativeSandbox.isNativeApp(), true);
+  assert.equal(nativeSandbox.getNativePlatform(), 'android');
+  assert.ok(nativeClassAdded.includes('mk-native-app'));
+  assert.ok(nativeClassAdded.includes('mk-platform-android'));
+  assert.deepEqual(nativeListeners, ['backButton', 'appUrlOpen']);
+
+  [
+    'scripts/fetch-vendors.mjs',
+    'scripts/prepare-native-assets.mjs',
+    'scripts/patch-android-project.mjs',
+    'capacitor.config.json',
+    'docs/ANDROID_PLAYSTORE_GUIDE.md'
+  ].forEach((file) => assert.ok(fs.existsSync(file), `${file} must exist`));
+
+  const capCfg = JSON.parse(fs.readFileSync('capacitor.config.json', 'utf8'));
+  assert.equal(capCfg.appId, 'com.mykeuguech.app');
+  assert.equal(capCfg.webDir, 'dist');
+  assert.equal(capCfg.server.androidScheme, 'https');
+  assert.equal(capCfg.plugins.SystemBars.insetsHandling, 'css');
+
+  const patchScript = fs.readFileSync('scripts/patch-android-project.mjs', 'utf8');
+  assert.match(patchScript, /targetSdkVersion = 36/);
+  assert.match(patchScript, /compileSdkVersion = 36/);
+  assert.match(patchScript, /android:allowBackup="false"/);
+
+  const deleteHtml = fs.readFileSync('web/delete-account.html', 'utf8');
+  assert.match(deleteHtml, /window\.APP_CONFIG/);
+  assert.match(deleteHtml, /SUPABASE_URL/);
+
+  const deployYml = fs.readFileSync('.github/workflows/deploy.yml', 'utf8');
+  assert.match(deployYml, /window\.APP_CONFIG/);
+  assert.match(deployYml, /scripts\/fetch-vendors\.mjs/);
+
+  assert.match(buildMjs, /native-bridge\.js/);
+  assert.match(buildMjs, /rewriteLocalVendorTags/);
+  assert.match(fs.readFileSync('web/sw.js', 'utf8'), /__VENDOR_ASSETS__/);
+  assert.match(indexHtml, /isCapNative/);
+  assert.match(stylesHtml, /--safe-area-inset-top/);
+  assert.match(stylesHtml, /--safe-area-inset-bottom/);
+  assert.match(stylesHtml, /\.mk-native-app #pwaInstallWrap/);
+  assert.match(fs.readFileSync('web/ui-export.js', 'utf8'), /saveOrShareFile/);
+  assert.match(fs.readFileSync('web/ui-feat-backup.js', 'utf8'), /saveOrShareFile/);
+  assert.match(fs.readFileSync('web/ui-reports.js', 'utf8'), /saveOrShareFile/);
+  assert.match(fs.readFileSync('web/supabase-auth.js', 'utf8'), /startNativeOAuth/);
+  assert.match(fs.readFileSync('web/supabase-auth.js', 'utf8'), /__mkHandleNativeAuthSession/);
+  assert.match(fs.readFileSync('web/ui-feat-account.js', 'utf8'), /localStorage\.getItem\('lang'\) === 'en'/);
+
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  assert.equal(pkg.version, '3.16.0');
+  assert.ok(pkg.dependencies && pkg.dependencies['@capacitor/core']);
+  assert.ok(pkg.scripts && pkg.scripts['cap:sync'] && pkg.scripts['vendors:fetch']);
 });

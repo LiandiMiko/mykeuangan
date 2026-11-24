@@ -37,9 +37,9 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
 | **Keuangan** | Transaksi + Scan Struk AI, header mobile satu baris, kalender interaktif, pencarian/filter dompet/paginasi laporan, impor CSV & e-statement bank, ekspor CSV/Excel/PDF, kelola kategori & dompet, transaksi rutin, jatuh tempo utang/piutang |
 | **Target** | Target tabungan dengan kalkulator rekomendasi setoran bulanan otomatis, alokasi langsung dari dompet, nominal terkumpul, tenggat opsional |
 | **Aset** | Portofolio Crypto, Emas (gram), Valas USD, Saham/Reksa Dana dengan auto refresh harga, beli/top-up dari dompet, dan cairkan/jual ke dompet |
-| **Multi-User** | Registrasi mandiri (min. 8 karakter), login/register dark mode, lupa password via email |
+| **Multi-User** | Registrasi mandiri (min. 8 karakter), Google Sign-In OAuth, login/register dark mode, lupa password via email, hapus akun mandiri |
 | **Admin Panel** | Statistik global platform, cari & filter user, suspend/aktifkan akun, proteksi self-lockout/admin terakhir |
-| **PWA** | Bisa di-install di HP/desktop; shell statis offline + antrean transaksi offline IndexedDB auto-sync saat online, Pusat Notifikasi Lonceng in-app |
+| **PWA & Android** | Web PWA offline + snapshot IndexedDB + bundel vendor lokal; build Android Capacitor 8 (API 36), Back button bertahap, Share Sheet ekspor & deep link OAuth |
 | **Telegram** | Notifikasi, query saldo, dan baca foto struk + voice note AI via Gemini 2.5 Flash; pairing via OTP mandiri + tombol salin perintah |
 | **AI** | Analisis arus keuangan, Scan Struk Vision, & Tanya Jawab / Simulasi Keuangan on-demand dengan Google Gemini 2.5 Flash |
 | **Keamanan** | XSS sanitization, RLS Supabase, constant-time secret verification, purge cache saat logout |
@@ -69,14 +69,18 @@ mykeuangan/
 ├── web/                    # Static web assets & modular JS
 │   ├── config.js           # ⚠️ Supabase URL + Anon Key (lihat catatan keamanan)
 │   ├── manifest.webmanifest # PWA manifest
+│   ├── privacy.html         # Halaman Kebijakan Privasi publik
+│   ├── terms.html           # Halaman Syarat & Ketentuan publik
+│   ├── delete-account.html  # Halaman hapus akun mandiri publik
 │   ├── tailwind-input.css   # Entry CSS untuk kompilasi statis Tailwind CSS
-│   ├── sw.js                # Service Worker (Network-First + SKIP_WAITING & cache busting)
+│   ├── sw.js                # Service Worker (Network-First + SKIP_WAITING & precache vendor)
+│   ├── native-bridge.js     # Bridge Capacitor Android (Back, Share Sheet, SystemBars, OAuth)
 │   ├── finance-analysis*.js # Analisis siklus, burn rate forecast, AI prompt, portofolio & backup
 │   ├── finance-pro.js       # Quick-Add parser, #tag, auto-kategori, rekap tahunan & simulator
 │   ├── transaction-import.js# Parser dan validasi impor CSV
 │   ├── supabase-*.js        # Core, Auth UI (i18n), Records, Planning, Portfolio, Admin & callServer
 │   ├── ui-*.js              # 15 modul UI inti hasil modularisasi script.html
-│   ├── ui-feat-*.js         # 10 modul fitur PWA/offline/charts/modals hasil modularisasi features-v21
+│   ├── ui-feat-*.js         # 11 modul fitur PWA/offline/cache/charts/modals hasil modularisasi
 │   ├── ui-pro-*.js          # 5 modul pro hasil modularisasi features-v35 (quick, palette, reports, insights, hooks)
 │   └── icons/               # PWA icons (192px, 512px, maskable)
 │
@@ -88,6 +92,8 @@ mykeuangan/
 │   ├── functions/
 │   │   ├── admin-password/ # Admin-only password reset (JWT required)
 │   │   │   └── index.ts
+│   │   ├── delete-account/ # Self-service permanent account deletion (JWT + confirmation)
+│   │   │   └── index.ts
 │   │   └── telegram-bot/   # Edge Function Deno (core, wallets, ai, planning, commands, jobs, index)
 │   │       └── index.ts
 │   └── migrations/
@@ -98,22 +104,30 @@ mykeuangan/
 │       ├── 20261116000000_financial_goals_and_transaction_search.sql
 │       ├── 20261117000000_wallets_asset_purchases.sql
 │       ├── 20261118000000_comprehensive_upgrade.sql
-│       └── 20261120000000_hardening_assets_profile_wallets.sql
+│       ├── 20261120000000_hardening_assets_profile_wallets.sql
+│       └── 20261124000000_oauth_onboarding_display_name.sql # Google OAuth display_name fallback
+│
+├── docs/
+│   └── ANDROID_PLAYSTORE_GUIDE.md # Panduan build Android Capacitor 8 (API 36) & Play Console
 │
 ├── tests/
 │   ├── calendar-render.test.js    # Verifikasi grid & inisialisasi kalender
 │   ├── finance-analysis.test.js   # Siklus, insight budget, dan progres target
 │   ├── finance-pro.test.js        # Quick-Add, #tag, auto-kategori, rekap tahunan & kalkulator lokal
 │   ├── i18n-build.test.js         # Paritas ID/EN, logout keys, SW SKIP_WAITING & build config
-│   ├── pro-web-ui.test.js         # Bottom nav, Bento dashboard, toolbar & mobile Laporan
+│   ├── pro-web-ui.test.js         # Bottom nav, Bento dashboard, toolbar, Android bridge & CI
 │   ├── transaction-import.test.js # Parsing dan validasi impor CSV
 │   └── updates-view.test.js       # Halaman pembaruan publik & pelacakan rilis baru
 │
 ├── scripts/
-│   ├── check-syntax.mjs    # Verifikasi syntax seluruh web/*.js & build scripts
-│   └── generate_icons.mjs  # Generator ikon PNG dari Node.js
+│   ├── check-syntax.mjs           # Verifikasi syntax seluruh web/*.js & scripts/*.mjs
+│   ├── fetch-vendors.mjs          # Unduh aset vendor ter-pin ke web/vendor/ untuk mode offline
+│   ├── generate_icons.mjs         # Generator ikon PNG PWA dari Node.js
+│   ├── prepare-native-assets.mjs  # Generator ikon adaptif 1024px & splash screen 2732px Android
+│   └── patch-android-project.mjs  # Patch SDK API 36, deep link OAuth & release keystore gradle
 │
-├── package.json            # Skrip npm standar (`check`, `dev`, `test`, `build:css`, `build`, `build:prod`)
+├── capacitor.config.json          # Konfigurasi Capacitor 8 (com.mykeuguech.app, SystemBars, Splash)
+├── package.json                   # Skrip npm standar & Play Store Android build (`cap:sync`, `vendors:fetch`)
 ├── tailwind.config.js      # Konfigurasi build Tailwind CSS statis
 ├── build.mjs               # Build script: src/* + web/*.js → dist/index.html
 └── .github/
@@ -396,6 +410,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Wave v3.16 (Bundel Vendor Offline 100%, Bridge Native Android & Setup Capacitor 8 API 36)
+- **Bundel Vendor Lokal 100% Offline (`scripts/fetch-vendors.mjs`, `build.mjs`, `web/sw.js`, `.github/workflows/deploy.yml`, `.gitignore`)**: Mengunduh versi ter-pin Supabase JS, Chart.js, SweetAlert2, Flatpickr, jsPDF, ikon Phosphor `.woff2`, dan font Inter ke `web/vendor/` lalu disalin ke `dist/vendor/`, ditulis ulang dari tag CDN di `dist/index.html`, dan diprecache ke Service Worker.
+- **Bridge Native Android & Kualitas EN (`web/native-bridge.js`, `src/Index.html`, `src/styles.html`, `web/ui-shell.js`, `web/supabase-auth.js`, `web/ui-export.js`, `web/ui-feat-backup.js`, `web/ui-reports.js`, `web/ui-feat-hooks.js`, `web/ui-feat-account.js`)**: Menangani tombol *Back* Android bertahap, ekspor file CSV/Excel/PDF/Backup JSON via Android Share Sheet (`saveOrShareFile()`), deep link Google OAuth `com.mykeuguech.app://auth-callback`, penyembunyian prompt install PWA + skip registrasi SW di native app, CSS `SystemBars` (`--safe-area-inset-*`), serta dukungan bahasa EN pada modal Pengaturan Akun, PIN Lock, Catat Cepat, dan Ekspor.
+- **Capacitor 8 Android API 36 & Perbaikan Config (`capacitor.config.json`, `package.json`, `scripts/prepare-native-assets.mjs`, `scripts/patch-android-project.mjs`, `docs/ANDROID_PLAYSTORE_GUIDE.md`, `web/delete-account.html`)**: Menyiapkan konfigurasi & skrip build Android 16 (API 36), generator ikon adaptif & splash screen, panduan upload keystore + rilis Play Store, dan memperbaiki pembacaan `window.APP_CONFIG` pada `web/delete-account.html` & fallback CI workflow.
 
 ### 24 November 2026: Wave v3.15 (Google Sign-In OAuth, Kesiapan Legal Play Store, Hapus Akun Mandiri & True Offline Read Cache)
 - **Upgrade Auth & Onboarding (`web/supabase-auth-ui.js`, `web/supabase-auth.js`, `supabase/migrations/20261124000000_oauth_onboarding_display_name.sql`)**: Menambahkan tombol **Lanjutkan dengan Google** (`signInWithOAuth`), memperbaiki alur lupa kata sandi (`redirectTo` + `PASSWORD_RECOVERY` modal ganti password), memperbarui trigger `handle_new_user()` agar mengambil `full_name` / `name` dari metadata Google OAuth, serta menyertakan cache profil lokal aman (`mk_cached_profile_v1`) saat membuka aplikasi offline.

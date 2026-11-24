@@ -7,11 +7,13 @@ import path from 'node:path';
 const SRC = 'src';
 const WEB = 'web';
 const OUT = 'dist';
+const VENDOR_ROOT = path.join(WEB, 'vendor');
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const SUPABASE_JS_FALLBACK = 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
-const VENDOR = path.join('web', 'vendor', 'supabase.js');
+const VENDOR = path.join(VENDOR_ROOT, 'supabase.js');
 
 const WEB_MODULES = [
+  'native-bridge.js',
   'finance-analysis-core.js',
   'finance-analysis-ai.js',
   'finance-analysis-portfolio.js',
@@ -72,6 +74,18 @@ const SUPABASE_MODULES = [
   'supabase-api.js'
 ];
 
+const CDN_TO_LOCAL_VENDOR = [
+  ['https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js', 'sweetalert2.all.min.js'],
+  ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css', 'flatpickr.min.css'],
+  ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/style.css', 'monthSelect-style.css'],
+  ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', 'flatpickr.min.js'],
+  ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js', 'monthSelect-index.js'],
+  ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/id.js', 'flatpickr-id.js'],
+  ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf.umd.min.js'],
+  ['https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js', 'jspdf.plugin.autotable.min.js'],
+  ['https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js', 'chart.umd.min.js']
+];
+
 function read(name) {
   const file = path.join(SRC, name + '.html');
   if (!fs.existsSync(file)) {
@@ -87,13 +101,84 @@ function readInlineScripts(files) {
 }
 
 function resolveSupabaseTag() {
-  if (!fs.existsSync(VENDOR)) {
-    return `<script src="${SUPABASE_JS}" crossorigin="anonymous"></script>\n` +
-      `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}" crossorigin="anonymous"><\\/script>')</script>`;
+  if (fs.existsSync(VENDOR) && fs.statSync(VENDOR).size > 0) {
+    return '<script src="./vendor/supabase.js"></script>';
   }
-  const code = fs.readFileSync(VENDOR, 'utf8');
-  if (/<\/script/i.test(code)) throw new Error('web/vendor/supabase.js berisi </script>, tidak bisa di-inline.');
-  return `<script>\n${code}\n</script>`;
+  return `<script src="${SUPABASE_JS}" crossorigin="anonymous"></script>\n` +
+    `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}" crossorigin="anonymous"><\\/script>')</script>`;
+}
+
+function rewriteLocalVendorTags(html) {
+  let out = html;
+  const interCss = path.join(VENDOR_ROOT, 'inter', 'inter.css');
+  if (fs.existsSync(interCss)) {
+    out = out.replace(
+      /<link[^>]*href="https:\/\/fonts\.googleapis\.com\/css2\?family=Inter:[^"]*"[^>]*>/i,
+      '<link rel="stylesheet" href="./vendor/inter/inter.css">'
+    );
+  }
+  const phWeights = ['regular', 'bold', 'fill'];
+  if (phWeights.every((w) => fs.existsSync(path.join(VENDOR_ROOT, 'phosphor', w, 'style.css')))) {
+    const links = phWeights.map((w) => `<link rel="stylesheet" href="./vendor/phosphor/${w}/style.css">`).join('\n');
+    out = out.replace(/<script[^>]*src="https:\/\/unpkg\.com\/@phosphor-icons\/web@2\.1\.1"[^>]*><\/script>/i, links);
+  }
+  for (const [cdnUrl, relFile] of CDN_TO_LOCAL_VENDOR) {
+    const full = path.join(VENDOR_ROOT, relFile);
+    if (fs.existsSync(full) && fs.statSync(full).size > 0) {
+      out = out.replaceAll(`${cdnUrl}" crossorigin="anonymous"`, `./vendor/${relFile}"`);
+      out = out.replaceAll(cdnUrl, `./vendor/${relFile}`);
+    }
+  }
+  return out;
+}
+
+function copyVendorDir(srcDir, dstDir, relBase) {
+  if (!fs.existsSync(srcDir)) return [];
+  const collected = [];
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name === 'tailwind.min.css') continue;
+    const srcPath = path.join(srcDir, entry.name);
+    const dstPath = path.join(dstDir, entry.name);
+    const relPath = `${relBase}/${entry.name}`;
+    if (entry.isDirectory()) {
+      collected.push(...copyVendorDir(srcPath, dstPath, relPath));
+    } else if (entry.isFile()) {
+      fs.mkdirSync(dstDir, { recursive: true });
+      fs.copyFileSync(srcPath, dstPath);
+      collected.push(relPath);
+    }
+  }
+  return collected;
+}
+
+function buildHtmlBundle(config) {
+  let html = read('Index');
+  html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
+    if (name === 'scripts') {
+      return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${readInlineScripts(UI_CORE_MODULES)}\n` +
+        `<script>\n${config}\n</script>\n${readInlineScripts(SUPABASE_MODULES)}`;
+    }
+    if (name === 'features-v21') return readInlineScripts(UI_FEATURES_MODULES);
+    if (name === 'features-v35') return readInlineScripts(UI_PRO_MODULES);
+    return read(name);
+  });
+
+  const tailwindVendorPath = path.join(VENDOR_ROOT, 'tailwind.min.css');
+  if (fs.existsSync(tailwindVendorPath)) {
+    const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
+    const playCdnRegex = /<script[^>]*src="https:\/\/cdn\.tailwindcss\.com"[^>]*><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i;
+    if (!playCdnRegex.test(html)) {
+      throw new Error('Play CDN Tailwind block tidak ditemukan di src/styles.html untuk diganti CSS statis.');
+    }
+    html = html.replace(playCdnRegex, `<style>\n${compiledTailwind}\n</style>`);
+    html = html.replace(
+      /(<meta\s+http-equiv="Content-Security-Policy"\s+content="[^"]*?)(\s*'unsafe-eval')([^"]*?)(\s+https:\/\/cdn\.tailwindcss\.com)([^"]*")/i,
+      '$1$3$5'
+    );
+  }
+  html = rewriteLocalVendorTags(html);
+  if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?>) yang belum diganti.');
+  return html;
 }
 
 const cfgFile = path.join(WEB, 'config.js');
@@ -103,47 +188,24 @@ if (!fs.existsSync(cfgFile)) {
 const config = fs.readFileSync(cfgFile, 'utf8');
 if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placeholder GANTI-… — isi URL dan anon key Supabase dulu.');
 
-let html = read('Index');
-html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
-  if (name === 'scripts') {
-    return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${readInlineScripts(UI_CORE_MODULES)}\n` +
-      `<script>\n${config}\n</script>\n${readInlineScripts(SUPABASE_MODULES)}`;
-  }
-  if (name === 'features-v21') {
-    return readInlineScripts(UI_FEATURES_MODULES);
-  }
-  if (name === 'features-v35') {
-    return readInlineScripts(UI_PRO_MODULES);
-  }
-  return read(name);
-});
-
-const tailwindVendorPath = path.join(WEB, 'vendor', 'tailwind.min.css');
-if (fs.existsSync(tailwindVendorPath)) {
-  const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
-  const playCdnRegex = /<script[^>]*src="https:\/\/cdn\.tailwindcss\.com"[^>]*><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i;
-  if (!playCdnRegex.test(html)) {
-    throw new Error('Play CDN Tailwind block tidak ditemukan di src/styles.html untuk diganti CSS statis.');
-  }
-  html = html.replace(playCdnRegex, `<style>\n${compiledTailwind}\n</style>`);
-  html = html.replace(
-    /(<meta\s+http-equiv="Content-Security-Policy"\s+content="[^"]*?)(\s*'unsafe-eval')([^"]*?)(\s+https:\/\/cdn\.tailwindcss\.com)([^"]*")/i,
-    '$1$3$5'
-  );
-}
-if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?>) yang belum diganti.');
-
+const html = buildHtmlBundle(config);
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
+
+fs.rmSync(path.join(OUT, 'vendor'), { recursive: true, force: true });
+const vendorAssets = copyVendorDir(VENDOR_ROOT, path.join(OUT, 'vendor'), './vendor');
 
 if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
   fs.copyFileSync(path.join(WEB, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
 }
 if (fs.existsSync(path.join(WEB, 'sw.js'))) {
-  const swSource = fs.readFileSync(path.join(WEB, 'sw.js'), 'utf8').replaceAll('__BUILD_ID__', buildId);
+  const vendorReplacement = vendorAssets.length ? ',\n  ' + vendorAssets.map((p) => JSON.stringify(p)).join(',\n  ') : '';
+  const swSource = fs.readFileSync(path.join(WEB, 'sw.js'), 'utf8')
+    .replaceAll('__BUILD_ID__', buildId)
+    .replace('/* __VENDOR_ASSETS__ */', vendorReplacement);
   fs.writeFileSync(path.join(OUT, 'sw.js'), swSource);
-  process.stdout.write(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId})\n`);
+  process.stdout.write(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId}, ${vendorAssets.length} vendor assets)\n`);
 }
 const iconsSrc = path.join(WEB, 'icons');
 const iconsDst = path.join(OUT, 'icons');

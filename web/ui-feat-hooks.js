@@ -280,7 +280,10 @@
     wrapNavigationHooks();
   }
 
+  const isCapNative = () => typeof root.isNativeApp === 'function' && root.isNativeApp();
+
   root.addEventListener('beforeinstallprompt', (e) => {
+    if (isCapNative()) return;
     e.preventDefault();
     root._deferredPwaPrompt = e;
     document.getElementById('pwaInstallWrap')?.classList.remove('hidden');
@@ -296,7 +299,7 @@
     if (typeof root.refreshUpdatesBadge === 'function') root.refreshUpdatesBadge();
     setTimeout(() => { if (typeof root.filterUpdatesList === 'function') root.filterUpdatesList(); }, 120);
     const isStandalone = (root.matchMedia && root.matchMedia('(display-mode: standalone)').matches) || root.navigator.standalone === true;
-    if (!isStandalone && (root._deferredPwaPrompt || /iphone|ipad|ipod/i.test(navigator.userAgent || ''))) {
+    if (!isStandalone && !isCapNative() && (root._deferredPwaPrompt || /iphone|ipad|ipod/i.test(navigator.userAgent || ''))) {
       document.getElementById('pwaInstallWrap')?.classList.remove('hidden');
     }
     if (navigator.onLine && typeof root.flushOfflineQueue === 'function') {

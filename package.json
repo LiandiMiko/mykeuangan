@@ -1,15 +1,34 @@
 {
   "name": "mykeuangan",
-  "version": "3.15.0",
+  "version": "3.16.0",
   "private": true,
-  "description": "MyKeuGuech — Personal Finance SaaS & PWA powered by Vanilla JS and Supabase",
+  "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
   "scripts": {
     "check:syntax": "node scripts/check-syntax.mjs",
     "test": "node --test",
     "check": "npm run check:syntax && npm run test",
     "dev": "npx --yes serve dist -l 4173",
+    "vendors:fetch": "node scripts/fetch-vendors.mjs",
     "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i web/tailwind-input.css -o web/vendor/tailwind.min.css --minify",
     "build": "node build.mjs",
-    "build:prod": "npm run check && npm run build:css && npm run build"
+    "build:prod": "npm run check && npm run vendors:fetch && npm run build:css && npm run build",
+    "assets:native": "node scripts/prepare-native-assets.mjs",
+    "cap:init:android": "npx cap add android && node scripts/patch-android-project.mjs",
+    "cap:assets": "node scripts/prepare-native-assets.mjs && npx @capacitor/assets generate --android",
+    "cap:sync": "npm run build:prod && npx cap sync android && node scripts/patch-android-project.mjs",
+    "cap:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/splash-screen": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.0.0"
   }
 }

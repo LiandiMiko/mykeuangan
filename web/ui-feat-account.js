@@ -12,6 +12,9 @@
   let pinPromptShown = false;
   let pinLastHiddenAt = 0;
 
+  const isEn = () => localStorage.getItem('lang') === 'en';
+  const txMsg = (idStr, enStr) => (isEn() ? enStr : idStr);
+
   function readPinLockState() {
     try {
       const raw = localStorage.getItem(PIN_LOCK_STATE_KEY);
@@ -45,16 +48,21 @@
     if (!savedHash) return true;
     const waitSec = getPinCooldownSeconds();
     if (waitSec > 0) {
-      await Swal.fire({ icon: 'warning', title: 'PIN Terkunci Sementara', text: `Coba lagi dalam ${waitSec} detik.`, customClass: { popup: getSwalClass() } });
+      await Swal.fire({
+        icon: 'warning',
+        title: txMsg('PIN Terkunci Sementara', 'PIN Temporarily Locked'),
+        text: txMsg(`Coba lagi dalam ${waitSec} detik.`, `Try again in ${waitSec} seconds.`),
+        customClass: { popup: getSwalClass() }
+      });
       return false;
     }
     const res = await Swal.fire({
       title,
       input: 'password',
       inputAttributes: { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' },
-      inputPlaceholder: 'Masukkan PIN saat ini',
+      inputPlaceholder: txMsg('Masukkan PIN saat ini', 'Enter current PIN'),
       showCancelButton: true,
-      confirmButtonText: 'Verifikasi',
+      confirmButtonText: txMsg('Verifikasi', 'Verify'),
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     });
@@ -64,8 +72,11 @@
       return true;
     }
     const next = recordFailedPinAttempt();
-    const hint = next.lockedUntil ? 'Terlalu banyak percobaan salah. Tunggu 60 detik.' : `PIN saat ini salah (sisa ${Math.max(0, MAX_PIN_ATTEMPTS - next.attempts)} percobaan).`;
-    await Swal.fire({ icon: 'error', title: 'Verifikasi Gagal', text: hint, customClass: { popup: getSwalClass() } });
+    const left = Math.max(0, MAX_PIN_ATTEMPTS - next.attempts);
+    const hint = next.lockedUntil
+      ? txMsg('Terlalu banyak percobaan salah. Tunggu 60 detik.', 'Too many wrong attempts. Wait 60 seconds.')
+      : txMsg(`PIN saat ini salah (sisa ${left} percobaan).`, `Incorrect current PIN (${left} attempts left).`);
+    await Swal.fire({ icon: 'error', title: txMsg('Verifikasi Gagal', 'Verification Failed'), text: hint, customClass: { popup: getSwalClass() } });
     return false;
   }
 
@@ -110,71 +121,86 @@
     return false;
   }
 
+  function buildAccountSettingsHtml(hasPin) {
+    const pinStatus = hasPin ? txMsg('Aktif', 'Active') : txMsg('Belum diatur', 'Not set');
+    const pinPlaceholder = hasPin
+      ? txMsg('Kosongkan jika tetap / ketik PIN baru', 'Leave blank to keep / enter new PIN')
+      : txMsg('Contoh: 1234', 'Example: 1234');
+    return `
+      <div class="text-left space-y-3 text-xs">
+        <div>
+          <label for="acc-display-name" class="block font-bold text-slate-500 mb-1">${txMsg('Nama Tampilan', 'Display Name')}</label>
+          <input id="acc-display-name" class="swal2-input" style="margin:0;width:100%" maxlength="60" value="${escapeHtmlJS(root.sessionUser || '')}">
+        </div>
+        <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+          <label for="acc-pin-input" class="block font-bold text-slate-500 mb-1">${txMsg('PIN Kunci Aplikasi Lokal (4–6 digit,', 'Local App Lock PIN (4–6 digits,')} ${pinStatus})</label>
+          <input id="acc-pin-input" type="password" inputmode="numeric" maxlength="6" class="swal2-input" style="margin:0;width:100%" placeholder="${pinPlaceholder}">
+        </div>
+        <div class="flex flex-wrap gap-2 pt-2">
+          <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>${txMsg('Ganti Password', 'Change Password')}</span></button>
+          ${hasPin ? `<button type="button" id="acc-clear-pin-btn" class="min-h-11 py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5"><i class="ph ph-lock-open" aria-hidden="true"></i> <span>${txMsg('Hapus PIN', 'Remove PIN')}</span></button>` : ''}
+        </div>
+        <div class="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            ${txMsg('Dokumen legal:', 'Legal documents:')}
+            <a href="privacy.html" target="_blank" rel="noopener noreferrer" class="text-brand dark:text-brand-ink font-semibold underline">${txMsg('Kebijakan Privasi', 'Privacy Policy')}</a> ·
+            <a href="terms.html" target="_blank" rel="noopener noreferrer" class="text-brand dark:text-brand-ink font-semibold underline">${txMsg('Syarat &amp; Ketentuan', 'Terms &amp; Conditions')}</a>
+          </p>
+          <button type="button" id="acc-delete-account-btn" class="w-full min-h-11 py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors">
+            <i class="ph ph-trash" aria-hidden="true"></i> <span>${txMsg('Hapus Akun &amp; Data Permanen', 'Delete Account &amp; Data Permanently')}</span>
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function bindAccountModalEvents() {
+    const clr = document.getElementById('acc-clear-pin-btn');
+    if (clr) {
+      clr.addEventListener('click', async () => {
+        Swal.close();
+        if (!(await promptVerifyCurrentPin(txMsg('Verifikasi PIN untuk Menghapus', 'Verify PIN to Remove')))) return;
+        localStorage.removeItem('mk_app_pin_hash');
+        localStorage.removeItem('mk_app_pin_salt');
+        writePinLockState({ attempts: 0, lockedUntil: 0 });
+        sessionStorage.removeItem('mk_pin_unlocked');
+        Swal.fire({ icon: 'info', title: txMsg('PIN aplikasi dihapus', 'App PIN removed'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      });
+    }
+    const delBtn = document.getElementById('acc-delete-account-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', () => {
+        Swal.close();
+        deleteOwnAccountFlow();
+      });
+    }
+  }
+
   async function openAccountSettingsModal() {
     const hasPin = Boolean(localStorage.getItem('mk_app_pin_hash'));
     const res = await Swal.fire({
-      title: 'Pengaturan Akun & Keamanan',
-      html: `
-        <div class="text-left space-y-3 text-xs">
-          <div>
-            <label for="acc-display-name" class="block font-bold text-slate-500 mb-1">Nama Tampilan</label>
-            <input id="acc-display-name" class="swal2-input" style="margin:0;width:100%" maxlength="60" value="${escapeHtmlJS(root.sessionUser || '')}">
-          </div>
-          <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
-            <label for="acc-pin-input" class="block font-bold text-slate-500 mb-1">PIN Kunci Aplikasi Lokal (4–6 digit, ${hasPin ? 'Aktif' : 'Belum diatur'})</label>
-            <input id="acc-pin-input" type="password" inputmode="numeric" maxlength="6" class="swal2-input" style="margin:0;width:100%" placeholder="${hasPin ? 'Kosongkan jika tetap / ketik PIN baru' : 'Contoh: 1234'}">
-          </div>
-          <div class="flex flex-wrap gap-2 pt-2">
-            <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>Ganti Password</span></button>
-            ${hasPin ? '<button type="button" id="acc-clear-pin-btn" class="min-h-11 py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5"><i class="ph ph-lock-open" aria-hidden="true"></i> <span>Hapus PIN</span></button>' : ''}
-          </div>
-          <div class="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
-            <p class="text-[11px] text-slate-500 dark:text-slate-400">
-              Dokumen legal:
-              <a href="privacy.html" target="_blank" rel="noopener noreferrer" class="text-brand dark:text-brand-ink font-semibold underline">Kebijakan Privasi</a> ·
-              <a href="terms.html" target="_blank" rel="noopener noreferrer" class="text-brand dark:text-brand-ink font-semibold underline">Syarat &amp; Ketentuan</a>
-            </p>
-            <button type="button" id="acc-delete-account-btn" class="w-full min-h-11 py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors">
-              <i class="ph ph-trash" aria-hidden="true"></i> <span>Hapus Akun &amp; Data Permanen</span>
-            </button>
-          </div>
-        </div>`,
+      title: txMsg('Pengaturan Akun & Keamanan', 'Account & Security Settings'),
+      html: buildAccountSettingsHtml(hasPin),
       showCancelButton: true,
       confirmButtonText: t('btn.simpan'),
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
-      didOpen: () => {
-        const clr = document.getElementById('acc-clear-pin-btn');
-        if (clr) {
-          clr.addEventListener('click', async () => {
-            Swal.close();
-            if (!(await promptVerifyCurrentPin('Verifikasi PIN untuk Menghapus'))) return;
-            localStorage.removeItem('mk_app_pin_hash');
-            localStorage.removeItem('mk_app_pin_salt');
-            writePinLockState({ attempts: 0, lockedUntil: 0 });
-            sessionStorage.removeItem('mk_pin_unlocked');
-            Swal.fire({ icon: 'info', title: 'PIN aplikasi dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
-          });
-        }
-        const delBtn = document.getElementById('acc-delete-account-btn');
-        if (delBtn) {
-          delBtn.addEventListener('click', () => {
-            Swal.close();
-            deleteOwnAccountFlow();
-          });
-        }
-      },
+      didOpen: bindAccountModalEvents,
       preConfirm: () => {
         const displayName = (document.getElementById('acc-display-name').value || '').trim();
         const pin = (document.getElementById('acc-pin-input').value || '').trim();
-        if (displayName.length < 2) { Swal.showValidationMessage('Nama tampilan minimal 2 karakter.'); return false; }
-        if (pin && !/^\d{4,6}$/.test(pin)) { Swal.showValidationMessage('PIN harus 4 sampai 6 angka.'); return false; }
+        if (displayName.length < 2) {
+          Swal.showValidationMessage(txMsg('Nama tampilan minimal 2 karakter.', 'Display name must be at least 2 characters.'));
+          return false;
+        }
+        if (pin && !/^\d{4,6}$/.test(pin)) {
+          Swal.showValidationMessage(txMsg('PIN harus 4 sampai 6 angka.', 'PIN must be 4 to 6 digits.'));
+          return false;
+        }
         return { displayName, pin };
       }
     });
-
     if (!res.isConfirmed || !res.value) return;
-    if (res.value.pin && hasPin && !(await promptVerifyCurrentPin('Verifikasi PIN Saat Ini'))) return;
+    if (res.value.pin && hasPin && !(await promptVerifyCurrentPin(txMsg('Verifikasi PIN Saat Ini', 'Verify Current PIN')))) return;
     await applyAccountSettingsUpdate(res.value);
   }
 
@@ -194,52 +220,78 @@
         writePinLockState({ attempts: 0, lockedUntil: 0 });
         sessionStorage.setItem('mk_pin_unlocked', '1');
       }
-      Swal.fire({ icon: 'success', title: 'Pengaturan akun tersimpan', timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'success', title: txMsg('Pengaturan akun tersimpan', 'Account settings saved'), timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
     }
   }
 
   async function deleteOwnAccountFlow() {
+    const keyword = txMsg('HAPUS', 'DELETE');
     const confirmRes = await Swal.fire({
       icon: 'warning',
-      title: 'Hapus Akun Permanen?',
+      title: txMsg('Hapus Akun Permanen?', 'Delete Account Permanently?'),
       html: `
         <div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300">
-          <p>Seluruh transaksi, dompet, aset, anggaran, jadwal rutin, dan profil Anda akan <strong>dihapus permanen</strong> dan tidak bisa dipulihkan.</p>
-          <label for="del-acc-confirm" class="block font-bold pt-1">Ketik <span class="text-rose-600">HAPUS</span> untuk konfirmasi</label>
-          <input id="del-acc-confirm" type="text" autocomplete="off" class="swal2-input" style="margin:0;width:100%" placeholder="HAPUS">
+          <p>${txMsg('Seluruh transaksi, dompet, aset, anggaran, jadwal rutin, dan profil Anda akan <strong>dihapus permanen</strong> dan tidak bisa dipulihkan.', 'All your transactions, wallets, assets, budgets, recurring items, and profile will be <strong>permanently deleted</strong> and cannot be recovered.')}</p>
+          <label for="del-acc-confirm" class="block font-bold pt-1">${txMsg('Ketik', 'Type')} <span class="text-rose-600">${keyword}</span> ${txMsg('untuk konfirmasi', 'to confirm')}</label>
+          <input id="del-acc-confirm" type="text" autocomplete="off" class="swal2-input" style="margin:0;width:100%" placeholder="${keyword}">
         </div>`,
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
-      confirmButtonText: 'Hapus Akun Permanen',
+      confirmButtonText: txMsg('Hapus Akun Permanen', 'Delete Permanently'),
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       preConfirm: () => {
         const v = String((document.getElementById('del-acc-confirm') || {}).value || '').trim().toUpperCase();
         if (v !== 'HAPUS' && v !== 'DELETE') {
-          Swal.showValidationMessage('Ketik HAPUS terlebih dahulu.');
+          Swal.showValidationMessage(txMsg('Ketik HAPUS terlebih dahulu.', 'Type DELETE first to confirm.'));
           return false;
         }
         return v;
       }
     });
     if (!confirmRes.isConfirmed || !confirmRes.value) return;
-    Swal.fire({
-      title: 'Menghapus akun...',
-      text: 'Mohon tunggu sebentar.',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-      customClass: { popup: getSwalClass() }
-    });
+    Swal.fire({ title: txMsg('Menghapus akun...', 'Deleting account...'), text: txMsg('Mohon tunggu sebentar.', 'Please wait a moment.'), allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { popup: getSwalClass() } });
     try {
       await callServer('api_deleteOwnAccount', confirmRes.value);
-      await Swal.fire({ icon: 'success', title: 'Akun Dihapus', text: 'Seluruh data Anda telah dihapus permanen.', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      await Swal.fire({ icon: 'success', title: txMsg('Akun Dihapus', 'Account Deleted'), text: txMsg('Seluruh data Anda telah dihapus permanen.', 'All of your data has been permanently deleted.'), timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       if (typeof root.logout === 'function') await root.logout();
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
-      else Swal.fire({ icon: 'error', title: 'Gagal Menghapus Akun', text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      else Swal.fire({ icon: 'error', title: txMsg('Gagal Menghapus Akun', 'Failed to Delete Account'), text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
     }
+  }
+
+  function showPinCooldownAlert(waitSec) {
+    return Swal.fire({
+      icon: 'warning',
+      title: txMsg('PIN Terkunci Sementara', 'PIN Temporarily Locked'),
+      text: txMsg(`Terlalu banyak percobaan salah. Coba lagi dalam ${waitSec} detik.`, `Too many wrong attempts. Try again in ${waitSec} seconds.`),
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showDenyButton: true,
+      denyButtonText: txMsg('Keluar', 'Sign Out'),
+      denyButtonColor: '#64748b',
+      confirmButtonText: txMsg('Coba Lagi', 'Try Again'),
+      customClass: { popup: getSwalClass() }
+    });
+  }
+
+  function promptAppPinInput() {
+    return Swal.fire({
+      title: txMsg('Masukkan PIN Aplikasi', 'Enter App PIN'),
+      input: 'password',
+      inputAttributes: { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' },
+      inputPlaceholder: txMsg('PIN 4–6 digit', '4–6 digit PIN'),
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showDenyButton: true,
+      denyButtonText: txMsg('Keluar', 'Sign Out'),
+      denyButtonColor: '#64748b',
+      confirmButtonText: txMsg('Buka Kunci', 'Unlock'),
+      customClass: { popup: getSwalClass() }
+    });
   }
 
   async function verifyAppPinIfEnabled() {
@@ -252,48 +304,23 @@
       while (true) {
         const waitSec = getPinCooldownSeconds();
         if (waitSec > 0) {
-          const waitRes = await Swal.fire({
-            icon: 'warning',
-            title: 'PIN Terkunci Sementara',
-            text: `Terlalu banyak percobaan salah. Coba lagi dalam ${waitSec} detik.`,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            showDenyButton: true,
-            denyButtonText: 'Keluar',
-            denyButtonColor: '#64748b',
-            confirmButtonText: 'Coba Lagi',
-            customClass: { popup: getSwalClass() }
-          });
+          const waitRes = await showPinCooldownAlert(waitSec);
           if (waitRes.isDenied) { if (typeof root.logout === 'function') root.logout(); return; }
           continue;
         }
-        const res = await Swal.fire({
-          title: 'Masukkan PIN Aplikasi',
-          input: 'password',
-          inputAttributes: { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' },
-          inputPlaceholder: 'PIN 4–6 digit',
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showDenyButton: true,
-          denyButtonText: 'Keluar',
-          denyButtonColor: '#64748b',
-          confirmButtonText: 'Buka Kunci',
-          customClass: { popup: getSwalClass() }
-        });
-        if (res.isDenied) {
-          if (typeof root.logout === 'function') root.logout();
-          return;
-        }
+        const res = await promptAppPinInput();
+        if (res.isDenied) { if (typeof root.logout === 'function') root.logout(); return; }
         if (await verifyPinMatches(String(res.value || '').trim(), savedHash)) {
           writePinLockState({ attempts: 0, lockedUntil: 0 });
           sessionStorage.setItem('mk_pin_unlocked', '1');
           break;
         }
         const st = recordFailedPinAttempt();
+        const left = Math.max(0, MAX_PIN_ATTEMPTS - st.attempts);
         await Swal.fire({
           icon: 'error',
-          title: 'PIN salah',
-          text: st.lockedUntil ? 'Batas percobaan tercapai. Terkunci 60 detik.' : `Sisa ${Math.max(0, MAX_PIN_ATTEMPTS - st.attempts)} percobaan.`,
+          title: txMsg('PIN salah', 'Incorrect PIN'),
+          text: st.lockedUntil ? txMsg('Batas percobaan tercapai. Terkunci 60 detik.', 'Attempt limit reached. Locked for 60 seconds.') : txMsg(`Sisa ${left} percobaan.`, `${left} attempts left.`),
           timer: 1300,
           showConfirmButton: false,
           customClass: { popup: getSwalClass() }
@@ -307,24 +334,24 @@
 
   async function openQuickAddMenu() {
     return Swal.fire({
-      title: 'Catat Cepat',
+      title: txMsg('Catat Cepat', 'Quick Entry'),
       html: `
         <div class="grid grid-cols-2 gap-3 text-xs font-bold">
           <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center"><i class="ph-bold ph-minus-circle text-xl" aria-hidden="true"></i></span>
-            <span>Pengeluaran</span><span class="text-[11px] font-medium opacity-80">Catat biaya harian</span>
+            <span>${txMsg('Pengeluaran', 'Expense')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Catat biaya harian', 'Record daily spending')}</span>
           </button>
           <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center"><i class="ph-bold ph-plus-circle text-xl" aria-hidden="true"></i></span>
-            <span>Pemasukan</span><span class="text-[11px] font-medium opacity-80">Gaji atau pendapatan</span>
+            <span>${txMsg('Pemasukan', 'Income')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Gaji atau pendapatan', 'Salary or earnings')}</span>
           </button>
           <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-brand/15 flex items-center justify-center"><i class="ph-bold ph-camera text-xl" aria-hidden="true"></i></span>
-            <span>Scan Struk AI</span><span class="text-[11px] font-medium opacity-80">Foto nota belanja</span>
+            <span>${txMsg('Scan Struk AI', 'AI Receipt Scan')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Foto nota belanja', 'Snap shopping receipt')}</span>
           </button>
           <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
             <span class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-700 flex items-center justify-center"><i class="ph-bold ph-arrows-left-right text-xl" aria-hidden="true"></i></span>
-            <span>Transfer Dompet</span><span class="text-[11px] font-medium opacity-80">Pindah antar saldo</span>
+            <span>${txMsg('Transfer Dompet', 'Wallet Transfer')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Pindah antar saldo', 'Move funds between wallets')}</span>
           </button>
         </div>`,
       showConfirmButton: false,
@@ -355,9 +382,9 @@
     }
     Swal.fire({
       icon: 'info',
-      title: 'Pasang di Layar Utama',
-      html: '<p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">Di <strong>iOS Safari</strong>, ketuk ikon <strong>Bagikan (Share)</strong> di bawah lalu pilih <strong>Add to Home Screen</strong>. Di <strong>Chrome/Edge</strong>, buka menu browser lalu pilih <strong>Install App</strong>.</p>',
-      confirmButtonText: 'Mengerti',
+      title: txMsg('Pasang di Layar Utama', 'Install to Home Screen'),
+      html: `<p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">${txMsg('Di <strong>iOS Safari</strong>, ketuk ikon <strong>Bagikan (Share)</strong> di bawah lalu pilih <strong>Add to Home Screen</strong>. Di <strong>Chrome/Edge</strong>, buka menu browser lalu pilih <strong>Install App</strong>.', 'On <strong>iOS Safari</strong>, tap the <strong>Share</strong> icon below then select <strong>Add to Home Screen</strong>. On <strong>Chrome/Edge</strong>, open the browser menu and select <strong>Install App</strong>.')}</p>`,
+      confirmButtonText: txMsg('Mengerti', 'Got it'),
       customClass: { popup: getSwalClass() }
     });
   }

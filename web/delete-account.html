@@ -62,20 +62,22 @@
   <!-- __MYKEU_CONFIG__ -->
   <script>
     (function () {
-      var cfg = window.__MYKEU_CONFIG__ || {};
+      var cfg = window.APP_CONFIG || window.__MYKEU_CONFIG__ || {};
+      var sbUrl = cfg.SUPABASE_URL || cfg.supabaseUrl || '';
+      var sbAnonKey = cfg.SUPABASE_ANON_KEY || cfg.supabaseAnonKey || '';
       var statusEl = document.getElementById('delStatus');
       var form = document.getElementById('delForm');
       var btn = document.getElementById('delSubmitBtn');
       var sessionBanner = document.getElementById('sessionBanner');
       var activeEmail = document.getElementById('activeEmail');
       var credFields = document.getElementById('credFields');
-      if (!window.supabase || !cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+      if (!window.supabase || !sbUrl || !sbAnonKey) {
         statusEl.textContent = 'Konfigurasi Supabase belum dimuat.';
         statusEl.className = 'status err';
         btn.disabled = true;
         return;
       }
-      var sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      var sb = window.supabase.createClient(sbUrl, sbAnonKey);
       var hasActiveSession = false;
 
       sb.auth.getSession().then(function (res) {

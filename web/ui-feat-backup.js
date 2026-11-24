@@ -5,6 +5,20 @@
 (function (root) {
   'use strict';
 
+  function downloadOrShareText(content, filename, mimeType) {
+    if (typeof root.saveOrShareFile === 'function') {
+      root.saveOrShareFile(content, filename, mimeType);
+      return;
+    }
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportExcel() {
     const { txs, period } = getFilteredReportTransactions();
     if (!txs.length) {
@@ -35,13 +49,7 @@
         </table>
       </body></html>`;
 
-    const blob = new Blob(['\ufeff' + tableDoc], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.xls`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadOrShareText('\ufeff' + tableDoc, `Laporan_Keuangan_${sessionUser}_${period || 'All'}.xls`, 'application/vnd.ms-excel;charset=utf-8');
   }
 
   function exportBackupJson() {
@@ -63,13 +71,7 @@
       debtDueDates: DB.debtDueDates || {},
       transactions: DB.transactions || []
     };
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Backup_MyKeuGuech_${sessionUser}_${todayStr}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadOrShareText(JSON.stringify(snapshot, null, 2), `Backup_MyKeuGuech_${sessionUser}_${todayStr}.json`, 'application/json;charset=utf-8');
   }
 
   function triggerRestoreJson() {

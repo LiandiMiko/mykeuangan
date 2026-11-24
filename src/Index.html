@@ -81,7 +81,7 @@
       <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
     </span>
     <span class="flex items-center gap-1.5 shrink-0">
-      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-extrabold leading-none">v3.15</span>
+      <span id="navUpdatesVersion" class="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-extrabold leading-none">v3.16</span>
       <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
     </span>
   </button>
@@ -268,7 +268,8 @@
   <?!= include('features-v21'); ?>
   <?!= include('features-v35'); ?>
   <script>
-    if ('serviceWorker' in navigator) {
+    const isCapNative = Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    if ('serviceWorker' in navigator && !isCapNative) {
       let swReloading = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!swReloading && document.getElementById('pwaUpdateToast')) {

@@ -144,6 +144,7 @@
         return;
       }
       el.remove();
+      activeLoginEl = null;
       finishLogin(data.session);
     } else if (submitMode === 'register') {
       const pass = el.querySelector('#mkPass').value;
@@ -166,6 +167,7 @@
       }
       if (data.session) {
         el.remove();
+        activeLoginEl = null;
         finishLogin(data.session);
       } else {
         errEl.style.color = '#10b981';
@@ -183,10 +185,13 @@
     }
   }
 
+  let activeLoginEl = null;
+
   function showLogin() {
     const authUi = window.__mkAuthUi || {};
     const theme = authUi.createAuthTheme();
     const el = document.createElement('div');
+    activeLoginEl = el;
     if (theme.savedTheme) el.className = theme.savedTheme;
     el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif;overflow-y:auto;' +
       (theme.isDark ? 'background:radial-gradient(circle at top,#1e293b 0%,#020617 70%)' : 'background:radial-gradient(circle at top,#eef2ff 0%,#f1f5f9 75%)');
@@ -218,10 +223,11 @@
           gBtn.disabled = true;
           gBtn.style.opacity = '0.7';
           try {
-            const { error } = await sb.auth.signInWithOAuth({
-              provider: 'google',
-              options: { redirectTo: authRedirectUrl() }
-            });
+            const useNativeOAuth = typeof window.isNativeApp === 'function' && window.isNativeApp() &&
+              typeof window.startNativeOAuth === 'function';
+            const { error } = useNativeOAuth
+              ? await window.startNativeOAuth(sb, 'google')
+              : await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: authRedirectUrl() } });
             if (error && errEl) errEl.textContent = (isAuthEn() ? 'Google Sign-In failed: ' : 'Login Google gagal: ') + error.message;
           } catch (oauthErr) {
             if (errEl) errEl.textContent = (isAuthEn() ? 'Google Sign-In failed: ' : 'Login Google gagal: ') + (oauthErr.message || String(oauthErr));
@@ -281,7 +287,16 @@
 
     document.body.appendChild(el);
     renderForm();
+    if (typeof window.hideNativeSplash === 'function') window.hideNativeSplash();
   }
+
+  window.__mkHandleNativeAuthSession = function (session) {
+    if (activeLoginEl) {
+      activeLoginEl.remove();
+      activeLoginEl = null;
+    }
+    finishLogin(session);
+  };
 
   window.logout = async function () {
     try {

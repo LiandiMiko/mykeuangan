@@ -12,9 +12,10 @@
   }
 
   function exportCSV() {
+    const en = localStorage.getItem('lang') === 'en';
     const { txs, period } = getFilteredReportTransactions();
     if (txs.length === 0) {
-      Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'warning', title: en ? 'Empty' : 'Kosong', text: en ? 'No data available to export' : 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
       return;
     }
     const header = ['tanggal', 'tipe', 'kategori', 'nominal', 'keterangan', 'dompet'];
@@ -28,11 +29,17 @@
         csvEscapeCell(walletName(r.walletId))
       ].join(','))
     );
-    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const filename = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.csv`;
+    const csvContent = '\ufeff' + lines.join('\r\n');
+    if (typeof root.saveOrShareFile === 'function') {
+      root.saveOrShareFile(csvContent, filename, 'text/csv;charset=utf-8');
+      return;
+    }
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.csv`;
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -88,13 +95,14 @@
   }
 
   function exportPDF() {
+    const en = localStorage.getItem('lang') === 'en';
     const { txs, period } = getFilteredReportTransactions();
     if (txs.length === 0) {
-      Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'warning', title: en ? 'Empty' : 'Kosong', text: en ? 'No data available to export' : 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
       return;
     }
     if (!root.jspdf || !root.jspdf.jsPDF) {
-      Swal.fire({ icon: 'info', title: 'Modul PDF belum siap', text: 'Tunggu beberapa detik atau muat ulang halaman.', customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'info', title: en ? 'PDF module not ready' : 'Modul PDF belum siap', text: en ? 'Please wait a moment or reload the page.' : 'Tunggu beberapa detik atau muat ulang halaman.', customClass: { popup: getSwalClass() } });
       return;
     }
 
@@ -147,7 +155,12 @@
       doc.setTextColor(148, 163, 184);
       doc.text(`Halaman ${i} dari ${pageCount} | Dicetak oleh MyKeuGuech`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
     }
-    doc.save(`Laporan_Keuangan_${sessionUser}_${period || 'All'}.pdf`);
+    const pdfFilename = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.pdf`;
+    if (typeof root.isNativeApp === 'function' && root.isNativeApp() && typeof root.saveOrShareFile === 'function') {
+      root.saveOrShareFile(doc.output('blob'), pdfFilename, 'application/pdf');
+    } else {
+      doc.save(pdfFilename);
+    }
   }
 
   Object.assign(root, { csvEscapeCell, exportCSV, exportPDF });
