@@ -251,7 +251,7 @@
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'template-transaksi-mykeuangan.csv';
+    anchor.download = 'template-transaksi-mykeuguech.csv';
     anchor.click();
     URL.revokeObjectURL(url);
   }

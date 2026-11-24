@@ -214,6 +214,7 @@
     DB.transfers = data.transfers || [];
     DB.goals = data.goals || [];
     DB.recurring = data.recurring || [];
+    DB.debtDueDates = data.debtDueDates || DB.debtDueDates || {};
     const uEl = document.getElementById('ui-username');
     const rEl = document.getElementById('ui-role');
     if (uEl) uEl.innerText = root.sessionUser;
@@ -238,24 +239,62 @@
     `);
   }
 
+  function showOfflineCacheBanner(savedAt) {
+    const banner = document.getElementById('appLoadErrorBanner');
+    if (!banner) return;
+    let timeText = 'sebelumnya';
+    if (savedAt) {
+      try {
+        timeText = new Date(savedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+      } catch (_) {
+        timeText = String(savedAt).slice(0, 16).replace('T', ' ');
+      }
+    }
+    banner.classList.remove('hide');
+    renderHtml(banner, `
+      <div role="status" class="rounded-3xl border border-amber-300/80 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-extrabold text-amber-800 dark:text-amber-300">Mode Offline · Data Cache Lokal</p>
+          <p class="text-xs text-amber-700/90 dark:text-amber-400 mt-0.5">Menampilkan data tersimpan terakhir (${escapeHtmlJS(timeText)}). Catatan baru tetap tersimpan ke antrean offline.</p>
+        </div>
+        <button type="button" onclick="retryInitialAppLoad()" class="min-h-11 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0">
+          Coba Sinkronkan
+        </button>
+      </div>
+    `);
+  }
+
+  function finishReadyUiState() {
+    root.isDataReady = true;
+    if (!controlsInitialized) {
+      initPickersAndControls();
+      controlsInitialized = true;
+    }
+    switchView('dashboard');
+    renderAll();
+  }
+
   async function loadInitialAppData() {
     const banner = document.getElementById('appLoadErrorBanner');
     try {
       const data = await callServer('getInitialData');
       applyLoadedInitialData(data);
+      if (typeof root.saveOfflineSnapshot === 'function') root.saveOfflineSnapshot(data);
       if (banner) {
         banner.classList.add('hide');
         banner.textContent = '';
       }
-      root.isDataReady = true;
-      if (!controlsInitialized) {
-        initPickersAndControls();
-        controlsInitialized = true;
-      }
-      switchView('dashboard');
-      renderAll();
+      finishReadyUiState();
       refreshMarketPricesInBackground();
     } catch (e) {
+      const cached = typeof root.loadOfflineSnapshot === 'function' ? await root.loadOfflineSnapshot() : null;
+      if (cached && cached.data) {
+        const merged = typeof root.mergeQueuedOfflineTx === 'function' ? root.mergeQueuedOfflineTx(cached.data) : cached.data;
+        applyLoadedInitialData(merged);
+        finishReadyUiState();
+        showOfflineCacheBanner(cached.savedAt);
+        return;
+      }
       root.isDataReady = false;
       console.error('[INIT] error:', e);
       showLoadFailureBanner(e);

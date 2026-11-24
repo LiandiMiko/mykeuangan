@@ -265,8 +265,9 @@ Di **Supabase → Authentication → Settings**:
 | **Redirect URLs** | Tambahkan URL Pages/domain kamu |
 
 > ⚠️ **Berbeda dari setup lama**: versi sebelumnya menyarankan `Allow sign up = OFF`. Untuk multi-user, harus **ON**.
+> 💡 **Produksi & Google Play Store**: Aktifkan provider **Google OAuth** (*Authentication → Providers → Google*) dan pasang **Custom SMTP** gratis (seperti Brevo/Resend) di *Authentication → SMTP Settings* untuk menghilangkan batas 2 email/jam dan pembatasan penerima pada built-in SMTP Free Tier Supabase.
 
-### 4. Deploy Edge Function Telegram Bot
+### 4. Deploy Edge Functions
 
 Prasyarat: install [Supabase CLI](https://supabase.com/docs/guides/cli)
 
@@ -286,8 +287,9 @@ supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,http://localhos
 # Deploy edge function (--no-verify-jwt agar bot bisa akses tanpa auth header)
 supabase functions deploy telegram-bot --no-verify-jwt
 
-# Reset password pengguna harus tetap memakai verifikasi JWT bawaan
+# Reset password admin & hapus akun mandiri tetap memakai verifikasi JWT bawaan
 supabase functions deploy admin-password
+supabase functions deploy delete-account
 ```
 
 Lalu daftarkan webhook bot ke Telegram:
@@ -394,6 +396,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 24 November 2026: Wave v3.15 (Google Sign-In OAuth, Kesiapan Legal Play Store, Hapus Akun Mandiri & True Offline Read Cache)
+- **Upgrade Auth & Onboarding (`web/supabase-auth-ui.js`, `web/supabase-auth.js`, `supabase/migrations/20261124000000_oauth_onboarding_display_name.sql`)**: Menambahkan tombol **Lanjutkan dengan Google** (`signInWithOAuth`), memperbaiki alur lupa kata sandi (`redirectTo` + `PASSWORD_RECOVERY` modal ganti password), memperbarui trigger `handle_new_user()` agar mengambil `full_name` / `name` dari metadata Google OAuth, serta menyertakan cache profil lokal aman (`mk_cached_profile_v1`) saat membuka aplikasi offline.
+- **Kepatuhan Google Play Store (`supabase/functions/delete-account/index.ts`, `web/delete-account.html`, `web/privacy.html`, `web/terms.html`, `web/supabase-admin.js`, `web/ui-feat-account.js`, `build.mjs`, `web/manifest.webmanifest`)**: Menambahkan Edge Function `delete-account` dengan validasi konfirmasi + guard admin aktif terakhir, alur hapus akun mandiri di Pengaturan Akun maupun halaman web publik `delete-account.html`, halaman hukum `privacy.html` & `terms.html` yang dibundel oleh `build.mjs`, serta `"id": "./index.html"` pada `manifest.webmanifest`.
+- **True Offline Read Cache, PIN Hardening & Bugfix Audit (`web/ui-feat-offline.js`, `web/ui-feat-cache.js`, `web/ui-shell.js`, `web/ui-state.js`, `web/sw.js`, `web/supabase-records.js`, `web/ui-export.js`, `web/ui-reports.js`)**: Menambahkan IndexedDB snapshot store `offline_snapshot` v2 agar PWA menampilkan data tersimpan terakhir saat dibuka offline (`Mode Offline · Data Cache Lokal`), memperketat PIN lokal (cooldown brute-force 60 detik, verifikasi PIN lama saat hapus/ganti PIN, dan auto-lock setelah 2 menit idle), memisahkan cache HTML halaman legal di Service Worker, serta memperbaiki dedup `keterangan` case-insensitive di `supabase-records.js`, total PDF bebas kategori Utang/Piutang di `ui-export.js`, dan nama file `template-transaksi-mykeuguech.csv`.
 
 ### 23 November 2026: Wave v3.14 (Ketahanan PWA Offline, Impor CSV Multi-Bank, Restore JSON 8 Koleksi, Bot Timeout & CI Verify)
 - **Bugfix Core Frontend, Chart & Aset (`web/ui-dashboard.js`, `web/ui-feat-hooks.js`, `web/ui-pro-hooks.js`, `web/ui-shell.js`, `web/supabase-auth.js`, `web/ui-assets.js`, `web/ui-feat-charts.js`, `web/ui-feat-ai.js`, `web/ui-asset-ops.js`, `web/ui-pro-quick.js`)**: Mengekspor `buildEmptyTxPlaceholder()` agar state kosong Histori berjalan mulus, memblokir shortcut keyboard huruf saat `#mkCommandPalette` aktif & membatasi `Escape`, membersihkan `mk_last_market_refresh_ts` saat logout, menambahkan dukungan `prefers-reduced-motion` pada `Chart.defaults`, `window.scrollTo`, serta seluruh chart, menempatkan legend donut chart di bawah pada layar HP (`< 640px`), menghapus dead code `runAiFinancialChat()` lama di `ui-feat-ai.js`, memformat nominal IDR di modal Top-Up/Withdraw Aset, serta memfilter kategori & menambah pemilih dompet pada modal Template Cepat.

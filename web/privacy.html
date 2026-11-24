@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Kebijakan Privasi — MyKeuGuech</title>
+  <style>
+    :root { --bg:#f8fafc; --card:#ffffff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --brand:#4f46e5; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#020617; --card:#0f172a; --text:#f8fafc; --muted:#94a3b8; --border:#1e293b; --brand:#818cf8; }
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; }
+    main { max-width:780px; margin:0 auto; padding:28px 18px 56px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:26px 24px; }
+    h1 { margin:0 0 6px; font-size:24px; letter-spacing:-0.02em; }
+    h2 { margin:24px 0 8px; font-size:16px; }
+    p, li { color:var(--muted); font-size:14.5px; }
+    ul { padding-left:20px; }
+    .top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+    .badge { display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(79,70,229,0.12); color:var(--brand); font-size:12px; font-weight:700; }
+    a { color:var(--brand); font-weight:600; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top">
+      <a href="./index.html">&larr; Kembali ke MyKeuGuech</a>
+      <span class="badge">Diperbarui: 24 November 2026</span>
+    </div>
+    <article class="card">
+      <h1>Kebijakan Privasi MyKeuGuech</h1>
+      <p>MyKeuGuech menghormati privasi data finansial pribadi Anda. Dokumen ini menjelaskan data apa saja yang dikumpulkan, cara penyimpanan, dan kontrol penuh yang Anda miliki atas akun Anda.</p>
+
+      <h2>1. Data yang Dikumpulkan</h2>
+      <ul>
+        <li><strong>Identitas Akun:</strong> Alamat email serta nama tampilan (*display name*) saat mendaftar lewat email atau Google Sign-In.</li>
+        <li><strong>Catatan Keuangan Pribadi:</strong> Data yang Anda masukkan sendiri berupa transaksi, kategori, dompet &amp; transfer, anggaran bulanan, jadwal rutin, target keuangan, aset portofolio, serta catatan utang/piutang.</li>
+        <li><strong>Integrasi Opsional:</strong> ID chat Telegram (hanya jika Anda menautkan akun via kode OTP pairing).</li>
+      </ul>
+
+      <h2>2. Penyimpanan Lokal &amp; Offline Cache</h2>
+      <p>Aplikasi menyimpan salinan lokal sementara di perangkat Anda (<code>IndexedDB</code>, <code>localStorage</code>, dan <code>Service Worker</code> cache) untuk antrean transaksi offline, cache bacaan terakhir saat tanpa internet, preferensi tema/bahasa, serta PIN kunci lokal opsional. Jika Anda mengisi API Key Gemini secara opsional, key disimpan lokal di perangkat Anda dan hanya dikirim ke <code>generativelanguage.googleapis.com</code> saat Anda menekan fitur Analisis/Chat AI atau Scan Struk.</p>
+
+      <h2>3. Isolasi Data &amp; Tidak Ada Penjualan Data</h2>
+      <p>Seluruh data tersimpan pada database Supabase yang dilindungi <em>Row Level Security (RLS)</em> per pengguna melalui koneksi HTTPS terenkripsi. MyKeuGuech <strong>tidak menjual, menyewakan, atau membagikan</strong> data transaksi Anda ke pengiklan ataupun pihak ketiga komersial.</p>
+
+      <h2>4. Hak Ekspor &amp; Penghapusan Akun Permanen</h2>
+      <ul>
+        <li>Anda dapat mengekspor data kapan saja lewat menu <strong>Laporan &amp; Ekspor</strong> (CSV, Excel, PDF, dan Backup JSON).</li>
+        <li>Anda dapat menghapus akun beserta seluruh data finansial secara permanen lewat menu <strong>Pengaturan Akun &amp; PIN &rarr; Hapus Akun Permanen</strong> di dalam aplikasi, atau melalui halaman web <a href="./delete-account.html">Hapus Akun MyKeuGuech</a>.</li>
+      </ul>
+
+      <h2>5. Summary in English</h2>
+      <p><strong>MyKeuGuech</strong> collects your email, display name, and user-entered personal finance records solely to sync your budget, wallets, assets, and optional Telegram bot across devices using encrypted HTTPS and per-user Row Level Security. We never sell user data. You may export your data or permanently delete your account and all associated records at any time from Account Settings or <a href="./delete-account.html">the Account Deletion page</a>.</p>
+
+      <p style="margin-top:22px"><a href="./terms.html">Baca Syarat &amp; Ketentuan &rarr;</a></p>
+    </article>
+  </main>
+</body>
+</html>

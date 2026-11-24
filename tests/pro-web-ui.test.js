@@ -160,9 +160,8 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
   assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
   assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
-  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.14</);
-  assert.match(updatesHtml, /data-latest-release="2026-11-23-v3\.14"/);
-  assert.match(updatesHtml, /Menampilkan 15 rilis/);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.15</);
+  assert.match(updatesHtml, /datetime="2026-11-23"/);
 
   assert.match(botCoreTs, /AbortSignal\.timeout/);
   assert.match(botCoreTs, /gteFilter/);
@@ -178,4 +177,41 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(deployYml, /\bdeploy:/);
   assert.match(deployYml, /needs:\s*verify/);
   assert.match(deployYml, /node-version:\s*22/);
+});
+
+test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete account UI, and audit fixes', () => {
+  const uiFeatOfflineJs = fs.readFileSync('web/ui-feat-offline.js', 'utf8');
+  const uiFeatCacheJs = fs.readFileSync('web/ui-feat-cache.js', 'utf8');
+  const uiShellJs = fs.readFileSync('web/ui-shell.js', 'utf8');
+  const uiStateJs = fs.readFileSync('web/ui-state.js', 'utf8');
+  const uiFeatAccountJs = fs.readFileSync('web/ui-feat-account.js', 'utf8');
+  const supabaseAdminJs = fs.readFileSync('web/supabase-admin.js', 'utf8');
+  const supabaseRecordsJs = fs.readFileSync('web/supabase-records.js', 'utf8');
+  const uiExportJs = fs.readFileSync('web/ui-export.js', 'utf8');
+  const uiReportsJs = fs.readFileSync('web/ui-reports.js', 'utf8');
+  const swJs = fs.readFileSync('web/sw.js', 'utf8');
+  const updatesHtml = fs.readFileSync('src/updates.html', 'utf8');
+
+  assert.match(uiFeatOfflineJs, /offline_snapshot/);
+  assert.match(uiFeatOfflineJs, /IDB_VERSION\s*=\s*2/);
+  assert.match(uiFeatCacheJs, /saveOfflineSnapshot/);
+  assert.match(uiFeatCacheJs, /loadOfflineSnapshot/);
+  assert.match(uiFeatCacheJs, /mergeQueuedOfflineTx/);
+  assert.match(uiShellJs, /loadOfflineSnapshot/);
+  assert.match(uiShellJs, /showOfflineCacheBanner/);
+  assert.match(uiStateJs, /saveOfflineSnapshot/);
+
+  assert.match(uiFeatAccountJs, /MAX_PIN_ATTEMPTS/);
+  assert.match(uiFeatAccountJs, /promptVerifyCurrentPin/);
+  assert.match(uiFeatAccountJs, /AUTO_LOCK_IDLE_MS/);
+  assert.match(uiFeatAccountJs, /deleteOwnAccountFlow/);
+  assert.match(supabaseAdminJs, /api_deleteOwnAccount/);
+
+  assert.match(supabaseRecordsJs, /tx\.keterangan\s*\|\|\s*''\)\.trim\(\)\.toLocaleLowerCase\(\)/);
+  assert.match(uiExportJs, /cat\.startsWith\('Utang'\)/);
+  assert.match(uiReportsJs, /template-transaksi-mykeuguech\.csv/);
+  assert.doesNotMatch(uiReportsJs, /template-transaksi-mykeuangan\.csv/);
+  assert.match(swJs, /targetCacheKey/);
+  assert.match(updatesHtml, /data-latest-release="2026-11-24-v3\.15"/);
+  assert.match(updatesHtml, /Menampilkan 16 rilis/);
 });

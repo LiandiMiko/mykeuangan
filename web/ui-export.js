@@ -105,6 +105,8 @@
     let totalMasuk = 0;
     let totalKeluar = 0;
     txs.forEach((r) => {
+      const cat = String(r.kategori || '');
+      if (cat.startsWith('Utang') || cat.startsWith('Piutang')) return;
       if (r.tipe === 'Pemasukan') totalMasuk += r.nominal;
       else totalKeluar += r.nominal;
     });

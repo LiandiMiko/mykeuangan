@@ -163,4 +163,32 @@ test('edge functions support multi-origin CORS, bulk sync removes all IDs, and a
   assert.match(proReports, /deletedTransactionIds/);
   assert.doesNotMatch(supabaseAuth, /\balert\(/);
   assert.doesNotMatch(supabaseCore, /\balert\(/);
+  assert.doesNotMatch(fs.readFileSync('web/supabase-auth-ui.js', 'utf8'), /\balert\(/);
+});
+
+test('wave v3.15 configures Play Store compliance, Google OAuth, account deletion, and offline snapshot cache', () => {
+  const deleteFn = fs.readFileSync('supabase/functions/delete-account/index.ts', 'utf8');
+  const oauthMigration = fs.readFileSync('supabase/migrations/20261124000000_oauth_onboarding_display_name.sql', 'utf8');
+  const supabaseAuthUi = fs.readFileSync('web/supabase-auth-ui.js', 'utf8');
+  const supabaseAuth = fs.readFileSync('web/supabase-auth.js', 'utf8');
+  const buildMjs = fs.readFileSync('build.mjs', 'utf8');
+  const manifest = JSON.parse(fs.readFileSync('web/manifest.webmanifest', 'utf8'));
+
+  assert.match(deleteFn, /deleteUser/);
+  assert.match(deleteFn, /buildCorsHeaders/);
+  assert.match(oauthMigration, /full_name/);
+  assert.match(supabaseAuthUi, /mkGoogleBtn/);
+  assert.match(supabaseAuthUi, /privacy\.html/);
+  assert.match(supabaseAuthUi, /showPasswordRecoveryModal/);
+  assert.match(supabaseAuth, /signInWithOAuth/);
+  assert.match(supabaseAuth, /PASSWORD_RECOVERY/);
+  assert.match(supabaseAuth, /redirectTo/);
+  assert.match(supabaseAuth, /mk_cached_profile_v1/);
+
+  assert.ok(fs.existsSync('web/privacy.html'), 'web/privacy.html must exist');
+  assert.ok(fs.existsSync('web/terms.html'), 'web/terms.html must exist');
+  assert.ok(fs.existsSync('web/delete-account.html'), 'web/delete-account.html must exist');
+  assert.match(buildMjs, /delete-account\.html/);
+  assert.match(buildMjs, /privacy\.html/);
+  assert.equal(manifest.id, './index.html');
 });

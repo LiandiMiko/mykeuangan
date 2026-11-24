@@ -5,6 +5,25 @@
   if (!core) return;
   const { sb, fail, fetchAll, setSetting } = core;
 
+  async function invokeEdgeFunction(fnName, body, fallbackErr) {
+    const { data, error } = await sb.functions.invoke(fnName, { body });
+    if (error) {
+      let message = error.message || fallbackErr;
+      const response = error.context;
+      if (response && typeof response.json === 'function') {
+        try {
+          const details = await response.json();
+          if (details && typeof details.error === 'string') message = details.error;
+        } catch (parseError) {
+          console.error(`Gagal membaca detail error ${fnName}:`, parseError);
+        }
+      }
+      throw new Error(message);
+    }
+    if (!data || data.success !== true) throw new Error((data && data.error) || fallbackErr);
+    return data;
+  }
+
   Object.assign(core.handlers, {
     async api_getAdminData() {
       if (window.sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
@@ -86,21 +105,7 @@
       if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
         throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
       }
-      const { data, error } = await sb.functions.invoke('admin-password', { body: { userId, password } });
-      if (error) {
-        let message = error.message || 'Reset password gagal.';
-        const response = error.context;
-        if (response && typeof response.json === 'function') {
-          try {
-            const details = await response.json();
-            if (details && typeof details.error === 'string') message = details.error;
-          } catch (parseError) {
-            console.error('Gagal membaca detail error admin-password:', parseError);
-          }
-        }
-        throw new Error(message);
-      }
-      if (!data || data.success !== true) throw new Error((data && data.error) || 'Reset password gagal.');
+      await invokeEdgeFunction('admin-password', { userId, password }, 'Reset password gagal.');
     },
 
     async api_generateTelegramOTP() {
@@ -130,6 +135,15 @@
       }
       await setSetting('debtDueDates', JSON.stringify(clean));
       return { debtDueDates: clean };
+    },
+
+    async api_deleteOwnAccount(confirmation) {
+      const confirmToken = String(confirmation || '').trim().toUpperCase();
+      if (confirmToken !== 'HAPUS' && confirmToken !== 'DELETE') {
+        throw new Error('Ketik HAPUS untuk mengonfirmasi penghapusan akun.');
+      }
+      await invokeEdgeFunction('delete-account', { confirmation: confirmToken }, 'Penghapusan akun gagal.');
+      return true;
     }
   });
 })();

@@ -53,18 +53,20 @@ self.addEventListener('fetch', (event) => {
 
   if (isHtmlRequest) {
     const htmlCacheKey = './index.html';
+    const isMainAppHtml = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+    const targetCacheKey = isMainAppHtml ? htmlCacheKey : url.pathname;
     event.respondWith(
       fetch(event.request)
         .then((networkRes) => {
           if (networkRes && networkRes.status === 200) {
             const clone = networkRes.clone();
             event.waitUntil(
-              caches.open(CACHE_NAME).then((cache) => cache.put(htmlCacheKey, clone))
+              caches.open(CACHE_NAME).then((cache) => cache.put(targetCacheKey, clone))
             );
           }
           return networkRes;
         })
-        .catch(() => caches.match(htmlCacheKey).then((hit) => hit || caches.match('./')))
+        .catch(() => caches.match(targetCacheKey).then((hit) => hit || (isMainAppHtml ? caches.match('./') : caches.match(htmlCacheKey))))
     );
     return;
   }

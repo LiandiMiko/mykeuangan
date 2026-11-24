@@ -7,7 +7,9 @@
 
   const OFFLINE_QUEUE_KEY = 'mk_offline_tx_queue_v1';
   const IDB_NAME = 'mykeuangan_offline_db';
+  const IDB_VERSION = 2;
   const IDB_STORE = 'pending_transactions';
+  const IDB_SNAPSHOT_STORE = 'offline_snapshot';
   const MAX_OFFLINE_RETRIES = 3;
   let isFlushingOffline = false;
   let offlineDbPromise = null;
@@ -35,11 +37,14 @@
     if (offlineDbPromise) return offlineDbPromise;
     offlineDbPromise = new Promise((resolve) => {
       try {
-        const req = root.indexedDB.open(IDB_NAME, 1);
+        const req = root.indexedDB.open(IDB_NAME, IDB_VERSION);
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains(IDB_STORE)) {
             db.createObjectStore(IDB_STORE, { keyPath: 'localId' });
+          }
+          if (!db.objectStoreNames.contains(IDB_SNAPSHOT_STORE)) {
+            db.createObjectStore(IDB_SNAPSHOT_STORE, { keyPath: 'key' });
           }
         };
         req.onsuccess = () => {
@@ -343,5 +348,8 @@
   root.updateNetworkStatusPill = updateNetworkStatusPill;
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.readLocalQueue = readLocalQueue;
+  root.__mkFeat.openOfflineDb = openOfflineDb;
+  root.__mkFeat.IDB_SNAPSHOT_STORE = IDB_SNAPSHOT_STORE;
+  root.__mkFeat.buildOfflineTransactionResponse = buildOfflineTransactionResponse;
   root.__mkFeat.waitAndWrapCallServer = waitAndWrapCallServer;
 })(typeof window !== 'undefined' ? window : globalThis);

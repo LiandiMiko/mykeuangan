@@ -2,6 +2,7 @@
   "name": "MyKeuGuech — Kelola Finansial Cerdas",
   "short_name": "MyKeuGuech",
   "description": "Aplikasi pencatatan keuangan pribadi, budgeting, portofolio aset, dan manajemen utang/piutang.",
+  "id": "./index.html",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

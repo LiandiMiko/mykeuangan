@@ -10,7 +10,7 @@
     tx.tipe,
     String(tx.kategori || '').trim().toLocaleLowerCase(),
     Number(tx.nominal),
-    String(tx.keterangan || '').trim(),
+    String(tx.keterangan || '').trim().toLocaleLowerCase(),
     tx.walletId || defaultWalletId || ''
   ].join('\u001f');
 

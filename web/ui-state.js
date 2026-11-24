@@ -317,6 +317,7 @@
     }
     if (typeof updateDashboardTitle === 'function') updateDashboardTitle();
     renderAll();
+    if (typeof root.saveOfflineSnapshot === 'function' && root.isDataReady) root.saveOfflineSnapshot(root.DB);
   }
 
   Object.assign(root, {

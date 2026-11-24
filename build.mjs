@@ -41,6 +41,7 @@ const UI_CORE_MODULES = [
 
 const UI_FEATURES_MODULES = [
   'ui-feat-offline.js',
+  'ui-feat-cache.js',
   'ui-feat-ai.js',
   'ui-feat-charts.js',
   'ui-feat-updates.js',
@@ -62,6 +63,7 @@ const UI_PRO_MODULES = [
 
 const SUPABASE_MODULES = [
   'supabase-core.js',
+  'supabase-auth-ui.js',
   'supabase-auth.js',
   'supabase-records.js',
   'supabase-planning.js',
@@ -150,6 +152,18 @@ if (fs.existsSync(iconsSrc)) {
   for (const f of fs.readdirSync(iconsSrc)) {
     fs.copyFileSync(path.join(iconsSrc, f), path.join(iconsDst, f));
   }
+}
+
+for (const staticPage of ['privacy.html', 'terms.html']) {
+  const srcPage = path.join(WEB, staticPage);
+  if (fs.existsSync(srcPage)) fs.copyFileSync(srcPage, path.join(OUT, staticPage));
+}
+const deletePageSrc = path.join(WEB, 'delete-account.html');
+if (fs.existsSync(deletePageSrc)) {
+  const deleteHtml = fs.readFileSync(deletePageSrc, 'utf8')
+    .replace('<!-- __SUPABASE_SCRIPT__ -->', resolveSupabaseTag())
+    .replace('<!-- __MYKEU_CONFIG__ -->', `<script>\n${config}\n</script>`);
+  fs.writeFileSync(path.join(OUT, 'delete-account.html'), deleteHtml);
 }
 
 process.stdout.write(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB)\n`);
