@@ -7,7 +7,7 @@ import { confirmPreview, handleMediaMessage, handleInsight } from './ai.ts';
 import { handleBudget, checkBudgetAlert, handleRecurring } from './planning.ts';
 import {
   handleStatus, handleSaldo, handleBulan, handleTambah, handleFreeText,
-  handleKategori, handleHapus, handleUndo, handleBatch,
+  handleKategori, handleHapus, handleUndo, handleBatch, handleCari,
 } from './commands.ts';
 import { buildCorsHeaders, handleJob } from './jobs.ts';
 
@@ -90,7 +90,7 @@ async function handleMessage(c: Ctx, msg: Any) {
     '💡 insight ai': () => handleInsight(c),
     '💡 insight': () => handleInsight(c),
     '📝 tambah transaksi': () => send(c.chat, '📝 Ketik bebas (mis. <i>kopi 25rb</i>) atau rekam voice note.', tambahKb()),
-    '❓ bantuan': () => send(c.chat, '<b>❓ Bantuan</b>\n• <i>kopi 25rb</i>\n• <code>/tarik 500rb</code>\n• <code>/transfer bca cash 200rb</code>\n• <code>/utang pinjam Budi 500rb</code>', mainKb()),
+    '❓ bantuan': () => send(c.chat, '<b>❓ Bantuan</b>\n• <i>kopi 25rb</i>\n• <code>/cari laundry</code>\n• <code>/tarik 500rb</code>\n• <code>/transfer bca cash 200rb</code>\n• <code>/utang pinjam Budi 500rb</code>', mainKb()),
     '🔙 menu utama': () => send(c.chat, '🏠 <b>Menu Utama</b>', mainKb()),
     '🟢 pemasukan': () => send(c.chat, '🟢 Contoh: <code>/tambah Pemasukan Gaji 5000000</code>', tambahKb()),
     '🔴 pengeluaran': () => send(c.chat, '🔴 Contoh: <code>/tambah Pengeluaran Makanan 25000</code>', tambahKb()),
@@ -107,6 +107,7 @@ async function handleMessage(c: Ctx, msg: Any) {
   if (['/help', 'help', 'bantuan', '/menu', 'menu'].includes(cmd)) return send(c.chat, '🏠 <b>Menu Utama</b>', mainKb());
   if (cmd === '/insight' || cmd === 'insight' || cmd === '/analisis') return handleInsight(c);
   if (/^\/?(kategori)(\s|$)/i.test(text)) return handleKategori(c, text.replace(/^\/?kategori\s*/i, '').trim());
+  if (/^\/?(cari|search)(\s|$)/i.test(text)) return handleCari(c, text.replace(/^\/?(cari|search)\s*/i, ''));
   if (/^\/?(tambah)\s/i.test(text)) return handleTambah(c, text.replace(/^\/?tambah\s*/i, ''));
   if (/^\/?budget(\s|$)/i.test(text)) return handleBudget(c, text.replace(/^\/?budget\s*/i, ''));
   if (/^\/?recurring(\s|$)/i.test(text)) return handleRecurring(c, text.replace(/^\/?recurring\s*/i, ''));

@@ -161,7 +161,7 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
   assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
   assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
-  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.17</);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.18</);
   assert.match(updatesHtml, /datetime="2026-11-23"/);
 
   assert.match(botCoreTs, /AbortSignal\.timeout/);
@@ -223,8 +223,8 @@ test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete accou
   assert.match(uiReportsJs, /template-transaksi-mykeuguech\.csv/);
   assert.doesNotMatch(uiReportsJs, /template-transaksi-mykeuangan\.csv/);
   assert.match(swJs, /targetCacheKey/);
-  assert.match(updatesHtml, /data-latest-release="2026-11-25-v3\.17"/);
-  assert.match(updatesHtml, /Menampilkan 18 rilis/);
+  assert.match(updatesHtml, /data-latest-release="2026-11-25-v3\.18"/);
+  assert.match(updatesHtml, /Menampilkan 19 rilis/);
 });
 
 test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android bridge, and config fixes', () => {
@@ -324,7 +324,7 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.match(fs.readFileSync('web/ui-feat-account.js', 'utf8'), /localStorage\.getItem\('lang'\) === 'en'/);
 
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  assert.equal(pkg.version, '3.17.0');
+  assert.equal(pkg.version, '3.18.0');
   assert.ok(pkg.dependencies && pkg.dependencies['@capacitor/core']);
   assert.ok(pkg.scripts && pkg.scripts['cap:sync'] && pkg.scripts['vendors:fetch']);
 });
@@ -366,4 +366,47 @@ test('wave v3.17 normalizes category matching across budgeting, forms, reports, 
   assert.match(migrationSql, /default_wallet/);
   assert.match(migrationSql, /rename_category_with_transactions/);
   assert.match(migrationSql, /on conflict \(user_id, kategori, bulan\)/);
+});
+
+test('wave v3.18 configures cloud Android CI, Play Store release kit, gradle patch fixes, and budgeting/bot upgrades', () => {
+  const androidBuildYml = fs.readFileSync('.github/workflows/android-build.yml', 'utf8');
+  const patchScript = fs.readFileSync('scripts/patch-android-project.mjs', 'utf8');
+  const playAssetsScript = fs.readFileSync('scripts/generate-playstore-assets.mjs', 'utf8');
+  const listingKit = fs.readFileSync('docs/PLAYSTORE_LISTING_KIT.md', 'utf8');
+  const playGuide = fs.readFileSync('docs/ANDROID_PLAYSTORE_GUIDE.md', 'utf8');
+  const gitignore = fs.readFileSync('.gitignore', 'utf8');
+  const uiBudgetJs = fs.readFileSync('web/ui-budget.js', 'utf8');
+  const botPlanningTs = fs.readFileSync('supabase/functions/telegram-bot/planning.ts', 'utf8');
+  const botCommandsTs = fs.readFileSync('supabase/functions/telegram-bot/commands.ts', 'utf8');
+  const botIndexTs = fs.readFileSync('supabase/functions/telegram-bot/index.ts', 'utf8');
+
+  assert.match(androidBuildYml, /platforms;android-36/);
+  assert.match(androidBuildYml, /java-version:\s*21/);
+  assert.match(androidBuildYml, /assembleDebug/);
+  assert.match(androidBuildYml, /bundleRelease/);
+  assert.match(androidBuildYml, /playstore:assets/);
+  assert.match(androidBuildYml, /ANDROID_KEYSTORE_BASE64/);
+  assert.match(androidBuildYml, /rm -f android\/mykeuguech-upload\.jks/);
+
+  assert.match(patchScript, /withInputStream/);
+  assert.match(patchScript, /rootProject\.file\(keystoreProps\.getProperty\("storeFile"\)\)/);
+  assert.doesNotMatch(patchScript, /new FileInputStream/);
+
+  assert.match(playAssetsScript, /icon-512\.png/);
+  assert.match(playAssetsScript, /feature-graphic-1024x500\.png/);
+  assert.match(gitignore, /playstore-assets\//);
+
+  assert.match(listingKit, /https:\/\/liandimiko\.github\.io\/mykeuangan\/privacy\.html/);
+  assert.match(listingKit, /https:\/\/liandimiko\.github\.io\/mykeuangan\/delete-account\.html/);
+  assert.match(listingKit, /Data Safety/);
+  assert.match(listingKit, /Financial Features Declaration/);
+  assert.match(playGuide, /android-build\.yml/);
+  assert.match(playGuide, /PLAYSTORE_LISTING_KIT\.md/);
+
+  assert.match(uiBudgetJs, /data-unbudgeted-create-cat/);
+  assert.match(uiBudgetJs, /data-unbudgeted-suggested/);
+  assert.match(botPlanningTs, /function budgetBar/);
+  assert.match(botPlanningTs, /Di luar budget:/);
+  assert.match(botCommandsTs, /export async function handleCari/);
+  assert.match(botIndexTs, /cari\|search/);
 });

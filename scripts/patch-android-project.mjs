@@ -30,16 +30,15 @@ function patchAndroidManifest(filePath) {
     xml = xml.replace(/<application\b/, '<application\n        android:allowBackup="false"');
   }
   if (!xml.includes(`android:scheme="${DEEP_LINK_SCHEME}"`)) {
-    const intentFilter = [
-      '            <intent-filter>',
-      '                <action android:name="android.intent.action.VIEW" />',
-      '                <category android:name="android.intent.category.DEFAULT" />',
-      '                <category android:name="android.intent.category.BROWSABLE" />',
-      `                <data android:scheme="${DEEP_LINK_SCHEME}" android:host="${DEEP_LINK_HOST}" />`,
-      '            </intent-filter>',
-      '        </activity>'
-    ].join('\n');
-    xml = xml.replace('        </activity>', intentFilter);
+    xml = xml.replace(/([ \t]*)<\/activity>/, (_, indent) => [
+      `${indent}    <intent-filter>`,
+      `${indent}        <action android:name="android.intent.action.VIEW" />`,
+      `${indent}        <category android:name="android.intent.category.DEFAULT" />`,
+      `${indent}        <category android:name="android.intent.category.BROWSABLE" />`,
+      `${indent}        <data android:scheme="${DEEP_LINK_SCHEME}" android:host="${DEEP_LINK_HOST}" />`,
+      `${indent}    </intent-filter>`,
+      `${indent}</activity>`
+    ].join('\n'));
   }
   fs.writeFileSync(filePath, xml);
 }
@@ -57,7 +56,7 @@ function patchAppBuildGradle(filePath, versionInfo) {
       'def keystorePropsFile = rootProject.file("keystore.properties")',
       'def keystoreProps = new Properties()',
       'if (keystorePropsFile.exists()) {',
-      '    keystoreProps.load(new FileInputStream(keystorePropsFile))',
+      '    keystorePropsFile.withInputStream { keystoreProps.load(it) }',
       '}',
       '',
       'android {'
@@ -68,7 +67,7 @@ function patchAppBuildGradle(filePath, versionInfo) {
       '    signingConfigs {',
       '        release {',
       '            if (keystorePropsFile.exists()) {',
-      '                storeFile file(keystoreProps.getProperty("storeFile"))',
+      '                storeFile rootProject.file(keystoreProps.getProperty("storeFile"))',
       '                storePassword keystoreProps.getProperty("storePassword")',
       '                keyAlias keystoreProps.getProperty("keyAlias")',
       '                keyPassword keystoreProps.getProperty("keyPassword")',

@@ -4,6 +4,21 @@ Panduan ini menyiapkan aplikasi Android **MyKeuGuech** (`com.mykeuguech.app`) be
 
 ---
 
+## 0. Sinkronisasi Backend & Web Sebelum Build Android (Wave v3.17–v3.18)
+
+Sebelum membangun `.apk` atau `.aab`, pastikan server Supabase & web sudah selaras dengan kode terbaru:
+
+1. **Jalankan migrasi SQL terbaru** di **Supabase Dashboard → SQL Editor** (jika belum):
+   - `supabase/migrations/20261124000000_oauth_onboarding_display_name.sql`
+   - `supabase/migrations/20261125000000_normalize_categories_and_search.sql` (menormalkan kategori & filter dompet utama)
+2. **Deploy ulang Edge Function Telegram Bot** (bila dipakai):
+   ```powershell
+   npx supabase functions deploy telegram-bot
+   ```
+3. **Push ke GitHub (`main`)** agar situs web PWA (`privacy.html`, `terms.html`, `delete-account.html`) ikut terbarui.
+
+---
+
 ## 1. Prasyarat Lingkungan Lokal (Windows)
 
 Pastikan toolchain berikut sudah terpasang agar Gradle & Capacitor 8 berjalan lancar:
@@ -36,7 +51,29 @@ Sebelum uji login Google di HP Android:
 
 ---
 
-## 3. Setup Awal Project Android (Sekali Saja)
+## 3. Build Android — Cloud GitHub Actions vs Lokal Windows
+
+### 3A. Opsi Cepat: Cloud Build APK & AAB via GitHub Actions (Tanpa Install Android Studio)
+
+Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` untuk diunduh langsung:
+
+1. **Buat test APK untuk HP Android Anda:**
+   - Buka repo GitHub → tab **Actions** → pilih **Build Android APK & AAB (Capacitor 8)** → klik **Run workflow** → pilih `build_type: debug-apk` → tunggu selesai → unduh artifact **`mykeuguech-android-debug-apk`** (`app-debug.apk`) dan **`mykeuguech-playstore-assets`** (`icon-512.png` & `feature-graphic-1024x500.png`).
+2. **Untuk build Signed Release `.aab` di Cloud (opsional, untuk upload Play Console):**
+   - Buat file `.jks` dengan `keytool` (lihat Bagian 5), konversi ke Base64 di PowerShell:
+     ```powershell
+     [Convert]::ToBase64String([IO.File]::ReadAllBytes("android/mykeuguech-upload.jks")) | Set-Clipboard
+     ```
+   - Tambahkan **4 GitHub Repository Secrets** (*Settings → Secrets and variables → Actions*):
+     - `ANDROID_KEYSTORE_BASE64` (hasil Base64 dari clipboard)
+     - `ANDROID_KEYSTORE_PASSWORD`
+     - `ANDROID_KEY_ALIAS` (mis. `mykeuguech-upload`)
+     - `ANDROID_KEY_PASSWORD`
+   - Jalankan workflow dengan `build_type: release-aab` (atau push tag `v3.18.0`) lalu unduh **`mykeuguech-android-release-aab`**.
+
+> Pastikan GitHub Repository Variables (`SUPABASE_URL` & `SUPABASE_ANON_KEY`) sudah terisi jika `web/config.js` tidak di-commit ke Git.
+
+### 3B. Opsi Lokal Windows: Setup Project Android (Android Studio)
 
 Jalankan perintah berikut secara berurutan di root repository:
 
@@ -48,10 +85,13 @@ npm install
 #    + kompilasi Tailwind CSS + bundle dist/
 npm run build:prod
 
-# 3. Buat folder android/ dan terapkan patch Target API 36 + deep link + keystore hook
+# 3. Buat aset grafis Play Store (playstore-assets/icon-512.png & feature-graphic-1024x500.png)
+npm run playstore:assets
+
+# 4. Buat folder android/ dan terapkan patch Target API 36 + deep link + keystore hook
 npm run cap:init:android
 
-# 4. Generate ikon adaptif & splash screen Android
+# 5. Generate ikon adaptif & splash screen Android
 npm run cap:assets
 ```
 
@@ -106,8 +146,10 @@ Jangan pernah meng-commit file `.jks`, `.keystore`, atau `android/keystore.prope
 
 ## 6. Checklist Pengajuan Google Play Console (Fase 4)
 
+> Gunakan teks & jawaban siap salin lengkap di **[docs/PLAYSTORE_LISTING_KIT.md](./PLAYSTORE_LISTING_KIT.md)**.
+
 1. **Google Play Console Account** (biaya registrasi satu kali USD 25 + verifikasi identitas KTP/DUNS).
-2. **Store Listing:** Nama `MyKeuGuech`, ikon `512x512`, feature graphic `1024x500`, minimal 4 screenshot HP Indonesia/English.
+2. **Store Listing:** Nama `MyKeuGuech: Keuangan & Budget`, unggah `playstore-assets/icon-512.png` (`512x512`) & `playstore-assets/feature-graphic-1024x500.png` (`1024x500`), plus minimal 4 screenshot HP Indonesia/English.
 3. **App Content & Kepatuhan:**
    - **Privacy Policy URL:** `https://liandimiko.github.io/mykeuangan/privacy.html`
    - **Account Deletion URL:** `https://liandimiko.github.io/mykeuangan/delete-account.html`

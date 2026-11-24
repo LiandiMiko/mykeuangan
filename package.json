@@ -1,6 +1,6 @@
 {
   "name": "mykeuangan",
-  "version": "3.17.0",
+  "version": "3.18.0",
   "private": true,
   "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
   "scripts": {
@@ -13,6 +13,7 @@
     "build": "node build.mjs",
     "build:prod": "npm run check && npm run vendors:fetch && npm run build:css && npm run build",
     "assets:native": "node scripts/prepare-native-assets.mjs",
+    "playstore:assets": "node scripts/generate-playstore-assets.mjs",
     "cap:init:android": "npx cap add android && node scripts/patch-android-project.mjs",
     "cap:assets": "node scripts/prepare-native-assets.mjs && npx @capacitor/assets generate --android",
     "cap:sync": "npm run build:prod && npx cap sync android && node scripts/patch-android-project.mjs",

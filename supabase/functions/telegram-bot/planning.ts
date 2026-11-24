@@ -3,6 +3,11 @@ import {
   periodLabel, isFlow, inPeriod, loadCore, actualFor, getBudgets, send, mainKb,
 } from './core.ts';
 
+function budgetBar(pct: number): string {
+  const filled = Math.max(0, Math.min(10, Math.round(pct / 10)));
+  return '▓'.repeat(filled) + '░'.repeat(10 - filled);
+}
+
 async function showBudgets(c: Ctx) {
   const { trx, pd, period } = await loadCore(c.uid);
   const label = periodLabel(period, pd);
@@ -19,10 +24,29 @@ async function showBudgets(c: Ctx) {
     const sisa = plan - actual;
     totalPlan += plan; totalActual += actual;
     const icon = pct > 100 ? '🔴' : pct >= 80 ? '🟡' : '🟢';
-    s += `${icon} <b>${esc(b.kategori)}</b>\n   ${rp(actual)} / ${rp(plan)} (${pct.toFixed(0)}%)\n   ${sisa >= 0 ? 'Sisa: +' : 'Over: -'}${rp(Math.abs(sisa))}\n\n`;
+    s += `${icon} <b>${esc(b.kategori)}</b>\n   <code>${budgetBar(pct)}</code> ${pct.toFixed(0)}%\n   ${rp(actual)} / ${rp(plan)}\n   ${sisa >= 0 ? 'Sisa: +' : 'Over: -'}${rp(Math.abs(sisa))}\n\n`;
   }
+  const budgetedKeys = new Set(budgets.map((b) => normalizeCatKey(b.kategori)));
+  const unbudgetedTx = trx.filter((t) =>
+    t.tipe === 'Pengeluaran' && isFlow(t.kategori) &&
+    inPeriod(String(t.tanggal), period, pd) && !budgetedKeys.has(normalizeCatKey(t.kategori))
+  );
   const totalPct = totalPlan > 0 ? (totalActual / totalPlan) * 100 : 0;
   s += `━━━━━━━━━━━━━━━━\n📈 <b>Total:</b> ${totalPct.toFixed(0)}% terpakai\n📥 Actual: ${rp(totalActual)}\n🎯 Plan: ${rp(totalPlan)}`;
+  if (unbudgetedTx.length > 0) {
+    const unbMap = new Map<string, { label: string; total: number }>();
+    let unbTotal = 0;
+    for (const t of unbudgetedTx) {
+      const amt = Number(t.nominal) || 0;
+      unbTotal += amt;
+      const clean = String(t.kategori || '').trim() || 'Lainnya';
+      const k = normalizeCatKey(clean);
+      const prev = unbMap.get(k);
+      if (prev) prev.total += amt; else unbMap.set(k, { label: clean, total: amt });
+    }
+    const topUnb = Array.from(unbMap.values()).sort((a, b) => b.total - a.total).slice(0, 3).map((x) => esc(x.label)).join(', ');
+    s += `\n\n📦 Di luar budget: <b>${rp(unbTotal)}</b> (${unbudgetedTx.length} trx: ${topUnb})`;
+  }
   await send(c.chat, s, mainKb());
 }
 

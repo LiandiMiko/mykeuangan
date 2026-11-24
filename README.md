@@ -109,7 +109,8 @@ mykeuangan/
 │       └── 20261125000000_normalize_categories_and_search.sql # Normalisasi kategori & filter dompet utama
 │
 ├── docs/
-│   └── ANDROID_PLAYSTORE_GUIDE.md # Panduan build Android Capacitor 8 (API 36) & Play Console
+│   ├── ANDROID_PLAYSTORE_GUIDE.md # Panduan build Android Capacitor 8 (API 36) & Play Console
+│   └── PLAYSTORE_LISTING_KIT.md   # Kit teks Store Listing ID/EN, Data Safety & deklarasi Play Console
 │
 ├── tests/
 │   ├── calendar-render.test.js    # Verifikasi grid & inisialisasi kalender
@@ -124,6 +125,7 @@ mykeuangan/
 │   ├── check-syntax.mjs           # Verifikasi syntax seluruh web/*.js & scripts/*.mjs
 │   ├── fetch-vendors.mjs          # Unduh aset vendor ter-pin ke web/vendor/ untuk mode offline
 │   ├── generate_icons.mjs         # Generator ikon PNG PWA dari Node.js
+│   ├── generate-playstore-assets.mjs # Generator ikon Play Store 512x512 & feature graphic 1024x500
 │   ├── prepare-native-assets.mjs  # Generator ikon adaptif 1024px & splash screen 2732px Android
 │   └── patch-android-project.mjs  # Patch SDK API 36, deep link OAuth & release keystore gradle
 │
@@ -428,6 +430,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Wave v3.18 (Cloud Build Android .apk/.aab, Kit Rilis Play Store, + Buat Budget & Bot /cari)
+- **Cloud Build Android CI & Perbaikan Gradle Patcher (`.github/workflows/android-build.yml`, `scripts/patch-android-project.mjs`, `.gitignore`)**: Menambahkan workflow GitHub Actions Android (JDK 21 + Android SDK 36 + Capacitor 8) untuk membangun `app-debug.apk` maupun signed `app-release.aab` langsung di cloud tanpa harus menginstall Android Studio terlebih dahulu, serta memperbaiki Groovy `withInputStream` dan path `rootProject.file()` pada konfigurasi keystore Gradle.
+- **Generator Aset & Kit Kepatuhan Play Store (`scripts/generate-playstore-assets.mjs`, `docs/PLAYSTORE_LISTING_KIT.md`, `docs/ANDROID_PLAYSTORE_GUIDE.md`, `package.json`)**: Menambahkan perintah `npm run playstore:assets` untuk menghasilkan `playstore-assets/icon-512.png` (512×512) dan `playstore-assets/feature-graphic-1024x500.png` (1024×500), kit teks Store Listing ID/EN + jawaban Data Safety/Financial Features/App Access, serta alur terpadu dari migrasi SQL ke rilis Play Console.
+- **1-Klik + Buat Budget & Upgrade Bot Telegram (`web/ui-budget.js`, `supabase/functions/telegram-bot/{planning,commands,index}.ts`)**: Menambahkan chip **`+ Budget <Kategori>`** berprediksi nominal di panel *Pengeluaran di Luar Budget*, mempercantik `/budget` Telegram dengan progres bar `▓░` + ringkasan transaksi luar budget, serta menambahkan perintah **`/cari`** (`handleCari`) untuk mencari riwayat transaksi langsung dari Telegram.
 
 ### 25 November 2026: Wave v3.17 (Normalisasi Kategori Lintas Fitur, Auto-Kategori Kata Utuh & Audit Budgeting)
 - **Normalisasi Kategori Budgeting & Panel Luar Budget (`web/finance-analysis-core.js`, `web/finance-analysis-portfolio.js`, `web/ui-budget.js`, `web/finance-pro.js`)**: Menyelaraskan pencocokan kategori secara *case-insensitive* dan tanpa spasi di `summarizePeriod()`, `aggregateWalletAndPeriodFlows()`, `recommendCategoryBudgets()`, `computeAnnualRecap()`, `compareTwoPeriods()`, dan `renderBudgeting()` agar varian seperti `laundry` / `Laundry ` otomatis terhitung ke kartu budget `Laundry`, plus kartu lipat **Pengeluaran di Luar Budget** untuk memeriksa dan mengedit transaksi yang keluar dari kategori budget.

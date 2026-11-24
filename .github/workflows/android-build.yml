@@ -1,0 +1,124 @@
+name: Build Android APK & AAB (Capacitor 8)
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Jenis paket Android yang ingin dibangun
+        required: true
+        default: debug-apk
+        type: choice
+        options:
+          - debug-apk
+          - release-aab
+          - both
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 (API 36) SDK & Build-Tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install npm dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Siapkan web/config.js (fallback env vars)
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          node -e "const fs=require('fs'); if(!fs.existsSync('web/config.js') && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY){ fs.writeFileSync('web/config.js', 'window.APP_CONFIG = ' + JSON.stringify({ SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY }) + ';\n'); }"
+
+      - name: Build production web bundle
+        run: npm run build:prod
+
+      - name: Generate Play Store graphic assets (512x512 & 1024x500)
+        run: npm run playstore:assets
+
+      - name: Upload Play Store assets artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mykeuguech-playstore-assets
+          path: playstore-assets/
+          retention-days: 30
+
+      - name: Initialize, patch, and sync Capacitor Android (API 36)
+        run: |
+          npx cap add android
+          node scripts/patch-android-project.mjs
+          npm run cap:assets
+          npx cap sync android
+          node scripts/patch-android-project.mjs
+          chmod +x android/gradlew
+
+      - name: Build Debug APK (untuk test langsung di HP)
+        if: inputs.build_type != 'release-aab'
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload Debug APK artifact
+        if: inputs.build_type != 'release-aab'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mykeuguech-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Build Signed Release AAB (Google Play Console)
+        id: release_aab
+        if: inputs.build_type == 'release-aab' || inputs.build_type == 'both'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "has_aab=false" >> "$GITHUB_OUTPUT"
+            if [ "${{ inputs.build_type }}" = "release-aab" ]; then
+              echo "::error::Secrets keystore Android belum lengkap (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Lihat docs/ANDROID_PLAYSTORE_GUIDE.md."
+              exit 1
+            fi
+            echo "::warning::Secrets keystore belum diatur; build release AAB dilewati dan hanya debug APK yang dibuat."
+            exit 0
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/mykeuguech-upload.jks
+          node -e "const fs=require('fs'); fs.writeFileSync('android/keystore.properties', ['storeFile=mykeuguech-upload.jks', 'storePassword=' + process.env.ANDROID_KEYSTORE_PASSWORD, 'keyAlias=' + process.env.ANDROID_KEY_ALIAS, 'keyPassword=' + process.env.ANDROID_KEY_PASSWORD, ''].join('\n'));"
+          cd android
+          ./gradlew bundleRelease
+          echo "has_aab=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Release AAB artifact
+        if: steps.release_aab.outputs.has_aab == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mykeuguech-android-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Bersihkan file keystore sementara
+        if: always()
+        run: rm -f android/mykeuguech-upload.jks android/keystore.properties

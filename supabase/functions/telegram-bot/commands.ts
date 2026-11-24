@@ -186,3 +186,20 @@ export async function handleBatch(c: Ctx, fullText: string) {
   const tOut = rows.filter((r) => r.tipe === 'Pengeluaran').reduce((a, r) => a + r.nominal, 0);
   await send(c.chat, `✅ <b>${rows.length} transaksi tersimpan!</b>\n\n📥 ${rp(tIn)} · 📤 ${rp(tOut)}${errors.length ? `\n⚠️ ${errors.length} baris dilewati.` : ''}`, mainKb());
 }
+
+export async function handleCari(c: Ctx, arg: string) {
+  const q = String(arg || '').trim();
+  if (!q) return send(c.chat, '🔍 Format: <code>/cari [kata kunci]</code>\nContoh: <code>/cari laundry</code>', mainKb());
+  const trx = await fetchAll('transactions', 'tanggal,tipe,kategori,nominal,keterangan', c.uid, ['tanggal', 'id']);
+  const qLow = q.toLowerCase();
+  const hits = trx.filter((t) => `${t.kategori || ''} ${t.keterangan || ''}`.toLowerCase().includes(qLow)).reverse();
+  if (!hits.length) return send(c.chat, `🔎 Tidak ditemukan transaksi untuk "<b>${esc(q)}</b>".`, mainKb());
+  const total = hits.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0);
+  const lines = hits.slice(0, 12).map((t) => {
+    const icon = t.tipe === 'Pemasukan' ? '🟢' : '🔴';
+    const note = t.keterangan && t.keterangan !== 'Via Telegram' ? ` · <i>${esc(String(t.keterangan).slice(0, 32))}</i>` : '';
+    return `${icon} <code>${String(t.tanggal).slice(0, 10)}</code> <b>${esc(t.kategori)}</b> ${rp(Number(t.nominal))}${note}`;
+  });
+  const more = hits.length > 12 ? `\n\n... +${hits.length - 12} transaksi lainnya.` : '';
+  await send(c.chat, `🔍 <b>Hasil Cari "${esc(q)}"</b> (${hits.length} trx · ${rp(total)})\n\n${lines.join('\n')}${more}`, mainKb());
+}

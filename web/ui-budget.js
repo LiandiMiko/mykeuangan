@@ -218,30 +218,12 @@
 
   function getBudgetStatusInfo(pct) {
     if (pct > 100) {
-      return {
-        text: t('budget.over'),
-        icon: 'warning-circle',
-        iconWrapClass: 'bg-rose-50 dark:bg-rose-500/10 text-rose-500',
-        textClass: 'text-rose-600 dark:text-rose-400',
-        progressClass: 'bg-rose-500'
-      };
+      return { text: t('budget.over'), icon: 'warning-circle', iconWrapClass: 'bg-rose-50 dark:bg-rose-500/10 text-rose-500', textClass: 'text-rose-600 dark:text-rose-400', progressClass: 'bg-rose-500' };
     }
     if (pct >= 80) {
-      return {
-        text: t('budget.warning'),
-        icon: 'warning',
-        iconWrapClass: 'bg-amber-50 dark:bg-amber-500/10 text-amber-500',
-        textClass: 'text-amber-600 dark:text-amber-400',
-        progressClass: 'bg-amber-500'
-      };
+      return { text: t('budget.warning'), icon: 'warning', iconWrapClass: 'bg-amber-50 dark:bg-amber-500/10 text-amber-500', textClass: 'text-amber-600 dark:text-amber-400', progressClass: 'bg-amber-500' };
     }
-    return {
-      text: t('budget.aman'),
-      icon: 'check-circle',
-      iconWrapClass: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500',
-      textClass: 'text-emerald-600 dark:text-emerald-400',
-      progressClass: 'bg-emerald-500'
-    };
+    return { text: t('budget.aman'), icon: 'check-circle', iconWrapClass: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500', textClass: 'text-emerald-600 dark:text-emerald-400', progressClass: 'bg-emerald-500' };
   }
 
   function buildBudgetTxListHtml(catTxns, showCategoryBadge) {
@@ -327,11 +309,31 @@
       </div>`;
   }
 
+  function buildUnbudgetedCategoryChips(unbudgetedTxs) {
+    const byCat = new Map();
+    unbudgetedTxs.forEach((tx) => {
+      const label = String((tx && tx.kategori) || '').trim() || 'Lainnya';
+      const key = normalizeBudgetCatKey(label) || 'lainnya';
+      const entry = byCat.get(key) || { label, total: 0 };
+      entry.total += Number(tx.nominal) || 0;
+      byCat.set(key, entry);
+    });
+    return Array.from(byCat.values())
+      .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
+      .map((item) => {
+        const suggested = Math.max(10000, Math.ceil(item.total / 10000) * 10000);
+        return `<button type="button" data-unbudgeted-create-cat="${escapeHtmlJS(item.label)}" data-unbudgeted-suggested="${suggested}" class="min-h-8 px-2.5 py-1 rounded-xl bg-brand/10 text-brand dark:text-brand-ink hover:bg-brand hover:text-white text-[11px] font-bold transition-colors">+ Budget ${escapeHtmlJS(item.label)}</button>`;
+      }).join('');
+  }
+
   function buildUnbudgetedSectionHtml(unbudgetedTxs) {
     if (!unbudgetedTxs.length) return '';
     const total = unbudgetedTxs.reduce((sum, tx) => sum + (Number(tx.nominal) || 0), 0);
     const isExpanded = expandedBudgets.has('__unbudgeted__');
     const catsCount = new Set(unbudgetedTxs.map((tx) => normalizeBudgetCatKey(tx.kategori))).size;
+    const chipHtml = isExpanded
+      ? `<div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-1.5">${buildUnbudgetedCategoryChips(unbudgetedTxs)}</div>`
+      : '';
     return `
       <div class="transition-colors ${isExpanded ? 'bg-amber-50/40 dark:bg-amber-950/10' : ''}">
         <div class="p-4 sm:p-5">
@@ -353,7 +355,7 @@
             <span class="text-sm font-black tabular-nums text-slate-800 dark:text-white shrink-0">${formatRupiah(total).replace(',00', '')}</span>
           </button>
         </div>
-        ${isExpanded ? `<div class="px-4 sm:px-5 pb-4 sm:pb-5">${buildBudgetTxListHtml(unbudgetedTxs, true)}</div>` : ''}
+        ${isExpanded ? `<div class="px-4 sm:px-5 pb-4 sm:pb-5">${chipHtml}${buildBudgetTxListHtml(unbudgetedTxs, true)}</div>` : ''}
       </div>`;
   }
 
@@ -364,6 +366,9 @@
     });
     container.querySelectorAll('[data-budget-transaction]').forEach((button) => {
       button.addEventListener('click', () => editTransaction(button.dataset.budgetTransaction));
+    });
+    container.querySelectorAll('[data-unbudgeted-create-cat]').forEach((button) => {
+      button.addEventListener('click', () => editBudgetInline('', button.dataset.unbudgetedCreateCat, Number(button.dataset.unbudgetedSuggested) || 0));
     });
     container.querySelectorAll('[data-budget-action]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -424,13 +429,5 @@
     bindBudgetListEvents(container, budgets);
   }
 
-  Object.assign(root, {
-    saveBudget,
-    deleteBudget,
-    copyBudgetFromLastMonth,
-    editBudgetInline,
-    toggleBudgetExpand,
-    renderBudgetAnalysis,
-    renderBudgeting
-  });
+  Object.assign(root, { saveBudget, deleteBudget, copyBudgetFromLastMonth, editBudgetInline, toggleBudgetExpand, renderBudgetAnalysis, renderBudgeting });
 })(typeof window !== 'undefined' ? window : globalThis);
