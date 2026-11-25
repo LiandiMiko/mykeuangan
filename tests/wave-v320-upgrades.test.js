@@ -45,12 +45,12 @@ test('wave v3.20 preserves native Android classes across setTheme() and fixes na
 test('wave v3.20 evaluates nominal arithmetic expressions safely and preserves IDR formatting', () => {
   const uiStateJs = fs.readFileSync('web/ui-state.js', 'utf8');
   const sandbox = {
-    window: {},
     renderAll: () => {},
     updateDashboardTitle: () => {},
     localStorage: { getItem: () => '0', setItem: () => {} },
     document: { documentElement: { classList: { contains: () => false } } }
   };
+  sandbox.window = sandbox;
   vm.runInNewContext(uiStateJs, sandbox);
 
   assert.equal(sandbox.evaluateNominalExpression('25000+15000'), 40000);
@@ -114,7 +114,7 @@ test('wave v3.20 encrypts and decrypts backup snapshots with AES-GCM PBKDF2', as
   assert.ok(envelope.ciphertext && envelope.iv && envelope.salt);
 
   const decrypted = await sandbox.decryptBackupPayload(envelope, 'rahasia-kuat');
-  assert.deepEqual(decrypted, sample);
+  assert.deepEqual(JSON.parse(JSON.stringify(decrypted)), sample);
   await assert.rejects(() => sandbox.decryptBackupPayload(envelope, 'sandi-salah'));
 });
 
