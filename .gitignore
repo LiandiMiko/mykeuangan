@@ -5,6 +5,7 @@ node_modules/
 *.local
 web/vendor/
 android/keystore.properties
+android/debug-keystore.properties
 *.jks
 *.keystore
 android/.gradle/

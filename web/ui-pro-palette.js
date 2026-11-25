@@ -71,11 +71,11 @@
     renderHtml(listEl, cmdFiltered.map((it, idx) => `
       <button type="button" data-cmd-idx="${idx}"
               class="w-full px-3.5 py-2.5 rounded-xl text-left flex items-center justify-between gap-2 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
-        <span class="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-100">
-          <i class="ph ${escapeHtmlJS(it.icon)} text-base text-brand dark:text-brand-ink" aria-hidden="true"></i>
-          <span>${escapeHtmlJS(it.label)}</span>
+        <span class="min-w-0 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+          <i class="ph ${escapeHtmlJS(it.icon)} text-base text-brand dark:text-brand-ink shrink-0" aria-hidden="true"></i>
+          <span class="truncate">${escapeHtmlJS(it.label)}</span>
         </span>
-        <span class="text-[11px] text-slate-400">${escapeHtmlJS(it.hint)}</span>
+        <span class="shrink-0 max-w-[42%] truncate text-[11px] text-slate-400">${escapeHtmlJS(it.hint)}</span>
       </button>
     `).join(''));
     listEl.querySelectorAll('[data-cmd-idx]').forEach((btn) => {
@@ -110,8 +110,8 @@
           <kbd class="hidden sm:inline-block px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400">ESC</kbd>
           <button id="mkCmdCloseBtn" type="button" aria-label="Tutup perintah cepat" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"><i class="ph ph-x text-base" aria-hidden="true"></i></button>
         </div>
-        <div id="mkCmdList" class="p-2 overflow-y-auto space-y-0.5"></div>
-        <div class="px-3.5 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+        <div id="mkCmdList" class="p-2 pb-3 sm:pb-2 overflow-y-auto space-y-0.5"></div>
+        <div class="hidden sm:flex px-3.5 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
           <span>Gunakan <b class="font-semibold text-slate-700 dark:text-slate-200">&uarr;&darr;</b> navigasi &bull; <b class="font-semibold text-slate-700 dark:text-slate-200">Enter</b> pilih</span>
           <span><b class="font-semibold text-slate-700 dark:text-slate-200">Ctrl+K</b> buka cepat</span>
         </div>

@@ -132,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.3');
+  assert.equal(pkg.version, '3.20.4');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
@@ -564,6 +564,18 @@ test('v3.20.3: Popup polish fixes dark-mode icon masks, colored deny contrast, l
   assert.match(walletsJs, /cancelButtonText:\s*'Batal'/);
   assert.match(onboardingJs, /renderStepIndicator/);
   assert.match(stylesHtml, /#swal-payroll\.swal2-input/);
+  assert.match(stylesHtml, /\.swal2-close\s*\{[^}]*position:\s*absolute\s*!important;/);
+  assert.match(stylesHtml, /@media\s*\(max-width:\s*639px\)\s*\{\s*\.swal2-container\.swal2-center\s*\{[^}]*display:\s*flex\s*!important;[^}]*justify-content:\s*flex-end\s*!important;/);
+  assert.match(stylesHtml, /place-self:\s*end stretch\s*!important;/);
+  assert.match(stylesHtml, /margin:\s*auto 0 0 0\s*!important;/);
+  assert.match(stylesHtml, /align-items:\s*stretch\s*!important;/);
+  assert.match(stylesHtml, /position:\s*sticky;\s*bottom:\s*0;/);
+  assert.match(stylesHtml, /border-radius:\s*28px\s*!important;/);
+  assert.match(stylesHtml, /@media\s*\(max-width:\s*639px\)\s*\{\s*\.swal2-container\.swal2-center\s*\{[\s\S]*--safe-area-inset-bottom[\s\S]*overflow:\s*hidden\s*!important;/);
+  assert.match(stylesHtml, /\.mk-native-app\s+\.swal2-container\.swal2-center\s*\{[\s\S]*padding-bottom:[\s\S]*--safe-area-inset-bottom/);
+  assert.match(stylesHtml, /max-height:\s*min\(86dvh,\s*100%\)\s*!important;/);
+  assert.match(stylesHtml, /\.swal2-actions\s*\{[\s\S]*border-radius:\s*0 0 28px 28px;/);
+  assert.match(paletteJs, /class="hidden sm:flex px-3\.5 py-2/);
 });
 
 test('v3.20.3: openCommandPalette binds #mkCmdCloseBtn after appendChild and restores focus without null crash', () => {
@@ -687,4 +699,66 @@ test('v3.20.3: buildEnrichedAiSnapshot populates portfolio fields in browser IIF
     assert.ok(enriched.spendingBehavior && enriched.spendingBehavior.fixedExpenseTotal === 300000, `expected spendingBehavior in ${order} mode`);
     assert.ok(enriched.portfolioAllocation && enriched.portfolioAllocation.total > 0, `expected portfolioAllocation in ${order} mode`);
   }
+});
+
+test('v3.20.4: Android APK signing uses explicit debug-keystore.properties, apksigner verification gate, and 5-day keepalive', async () => {
+  const mod = await import(pathToFileURL(path.resolve('scripts/patch-android-project.mjs')).href);
+  const templates = [
+    {
+      name: 'default-capacitor-buildTypes',
+      gradle: 'android {\n    defaultConfig {\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n        }\n    }\n}\ndependencies {\n    implementation "androidx.appcompat:appcompat:1.7.0"\n}\n'
+    },
+    {
+      name: 'explicit-debug-and-release-buildTypes',
+      gradle: 'android {\n    defaultConfig {\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        debug {\n        }\n        release {\n        }\n    }\n}\ndependencies {\n    implementation "androidx.appcompat:appcompat:1.7.0"\n}\n'
+    }
+  ];
+
+  for (const tpl of templates) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mykeu-signing-'));
+    try {
+      const manifestPath = path.join(tmpDir, 'app', 'src', 'main', 'AndroidManifest.xml');
+      const gradlePath = path.join(tmpDir, 'app', 'build.gradle');
+      const varsPath = path.join(tmpDir, 'variables.gradle');
+      const mainActPath = path.join(tmpDir, 'app', 'src', 'main', 'java', 'com', 'mykeuguech', 'app', 'MainActivity.java');
+      fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+      fs.mkdirSync(path.dirname(mainActPath), { recursive: true });
+
+      fs.writeFileSync(varsPath, 'minSdkVersion = 22\ncompileSdkVersion = 34\ntargetSdkVersion = 34\n');
+      fs.writeFileSync(manifestPath, '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <application>\n        <activity android:name=".MainActivity">\n        </activity>\n    </application>\n</manifest>\n');
+      fs.writeFileSync(gradlePath, tpl.gradle);
+      fs.writeFileSync(mainActPath, 'package com.mykeuguech.app;\n\nimport com.getcapacitor.BridgeActivity;\n\npublic class MainActivity extends BridgeActivity {}\n');
+
+      const vInfo1 = mod.patchAndroidProject(tmpDir, '3.20.4');
+      const vInfo2 = mod.patchAndroidProject(tmpDir, '3.20.4');
+      assert.equal(vInfo1.versionCode, 32004, tpl.name);
+      assert.equal(vInfo2.versionName, '3.20.4', tpl.name);
+
+      const patchedGradle = fs.readFileSync(gradlePath, 'utf8');
+      assert.match(patchedGradle, /versionCode 32004/, tpl.name);
+      assert.match(patchedGradle, /versionName "3\.20\.4"/, tpl.name);
+      assert.match(patchedGradle, /debug-keystore\.properties/, tpl.name);
+      assert.match(patchedGradle, /signingConfigs\s*\{[\s\S]*debug\s*\{[\s\S]*release\s*\{/, tpl.name);
+      assert.equal((patchedGradle.match(/signingConfig signingConfigs\.debug/g) || []).length, 1, tpl.name);
+      assert.equal((patchedGradle.match(/signingConfig signingConfigs\.release/g) || []).length, 1, tpl.name);
+      assert.equal((patchedGradle.match(/\bdebug\s*\{/g) || []).length, 2, tpl.name);
+      assert.equal((patchedGradle.match(/\brelease\s*\{/g) || []).length, 2, tpl.name);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  const workflow = fs.readFileSync('.github/workflows/android-build.yml', 'utf8');
+  assert.match(workflow, /ANDROID_USER_HOME/);
+  assert.match(workflow, /debug-keystore\.properties/);
+  assert.match(workflow, /ci-debug\.keystore/);
+  assert.match(workflow, /apksigner/);
+  assert.match(workflow, /verify --print-certs/);
+  assert.match(workflow, /keepalive-keystore-cache/);
+  assert.match(workflow, /cron:/);
+  assert.match(workflow, /ANDROID_DEBUG_KEYSTORE_BASE64/);
+  assert.match(workflow, /rm -f [^\n]*android\/ci-debug\.keystore[^\n]*android\/debug-keystore\.properties/);
+
+  const gitignore = fs.readFileSync('.gitignore', 'utf8');
+  assert.match(gitignore, /^android\/debug-keystore\.properties$/m);
 });

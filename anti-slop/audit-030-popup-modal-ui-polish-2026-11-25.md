@@ -50,3 +50,42 @@ Status: Complete (Seluruh perbaikan CSS popup/bottom sheet dan template modal te
 ## Belum Diverifikasi
 
 - Uji visual dan interaksi langsung di browser desktop/mobile terautentikasi (membuka seluruh varian modal: sukses mode gelap, 3-tombol edit dompet/kalender, kalkulator, rebalance, command palette, onboarding, dan toast PWA).
+
+
+---
+
+## Follow-Up Audit Mobile & Verifikasi Chrome CDP (2026-11-26)
+
+### Akar Masalah Tambahan yang Ditemukan di Viewport Mobile (`390×844` & `360×800`)
+1. **Bottom sheet SweetAlert2 mengambang di tengah layar**: `sweetalert2@11.14.5/dist/sweetalert2.css` memakai `display: grid` dan `grid-column: 2; grid-row: 2; place-self: center center;` pada `.swal2-container.swal2-center`, sehingga aturan `align-items: flex-end !important;` sebelumnya tidak menambatkan modal ke tepi bawah.
+2. **Tombol `.swal2-close` mendorong judul turun ~45px**: Tombol silang masih ikut flow grid SweetAlert2 di baris judul.
+3. **Bar tombol `.swal2-actions` terdorong keluar layar pada sheet tinggi**: Di modal panjang (`openAnnualRecapModal`), tombol `Tutup` berada di bawah batas `90dvh` sebelum scroll (`top: 867px` di viewport `800px`).
+4. **Spasi & overflow template modal mobile**:
+   - Command Palette (`#mkCmdList`): saat bar pintasan keyboard desktop disembunyikan di mobile (`hidden sm:flex`), item terbawah menempel tepat di tepi bulat bawah; selain itu `#mkCmdCloseBtn` sempat gagal bind saat dipanggil sebelum `document.body.appendChild(wrap)`.
+   - `Rekap 12 Siklus` & perbandingan periode (`web/ui-pro-reports.js`): nominal `+0` kanan mepet scrollbar dan kartu KPI 3 kolom menyempit di `360px`, serta toolbar tanggal tidak membungkus di layar kecil.
+   - Ringkasan harian kalender (`web/ui-calendar.js`): nominal masih menampilkan `,00` dan belum `tabular-nums`.
+   - Load-order IIFE AI (`web/finance-analysis-ai.js` & `build.mjs`): referensi langsung `FinanceAnalysisPortfolio` rentan saat urutan bundle dimuat ulang.
+
+### Perubahan Lanjutan
+- `src/styles.html`: Menambahkan `display: flex !important; flex-direction: column !important; justify-content: flex-end !important;` serta `place-self: end stretch !important; margin: auto 0 0 0 !important;` di `@media (max-width: 639px)`, `position: absolute !important` pada `.swal2-close`, bar `.swal2-actions` `position: sticky; bottom: 0; background: var(--mk-surface-elevated);` dengan `:has(> .swal2-actions:not([style*="display: none"])) { padding-bottom: 0 !important; }`, serta `min-width: 0; overflow-x: clip !important` pada `.swal2-html-container` dan lebar/padding responsif `#swal-payroll`.
+- `web/ui-pro-palette.js`: Memasang handler `#mkCmdCloseBtn.onclick` setelah `appendChild`, menambah `min-w-0` + `truncate`, `hidden sm:flex` pada bar pintasan keyboard desktop, serta `p-2 pb-3 sm:pb-2` pada `#mkCmdList`.
+- `web/ui-pro-reports.js`: Mengubah toolbar filter ke `grid-cols-2 sm:flex`, menambah `pr-2` pada pembungkus gulir `Rekap 12 Siklus`, dan mengubah grid kartu perbandingan ke `grid-cols-1 sm:grid-cols-3`.
+- `web/ui-calendar.js`: Memangkas akhiran `,00` dan menambahkan `tabular-nums` pada tampilan nominal kalender harian.
+- `web/ui-pro-insights.js`: Menambahkan cincin fokus eksplisit (`focus:outline-none focus:ring-2 focus:ring-brand`) pada input kalkulator & rebalance.
+- `web/finance-analysis-ai.js` & `build.mjs`: Lazy-resolve `FinanceAnalysisPortfolio` dan menaikkan `finance-analysis-portfolio.js` sebelum `finance-analysis-ai.js` di `WEB_MODULES`.
+- `tests/wave-v320-upgrades.test.js`: Menambah pengujian DOM runtime `openCommandPalette()`, urutan IIFE `buildEnrichedAiSnapshot()`, dan asersi CSS mobile bottom-sheet / sticky actions.
+
+### Verifikasi Visual Chrome Headless CDP (`dist/index.html`)
+Diperiksa via Chrome Headless (`390×844` dan `360×800`) setelah build ulang:
+- Semua 11 skenario bottom sheet (`qa-1` s/d `qa-4`, `qa-6` s/d `qa-12`): `bottomGap: 0`, `scrollOverflowX: false`.
+- `qa-1-3btn-form-390.png`: Sheet tertambat penuh di tepi bawah (`390×502`), drag handle terpusat, tombol silang tidak mendorong judul, 2 tombol sejajar (`Batal`, `Simpan`) + 1 tombol penuh (`Hapus Dompet`).
+- `qa-2-dark-success-360.png`: Animasi centang hijau mode gelap bersih tanpa kotak masker putih pada `900ms`.
+- `qa-4-loading-360.png`: Spinner loading bersih tanpa garis pembatas atas.
+- `qa-5-palette-360.png`: Command Palette berjarak aman dari notch atas (`top: 56px`), tombol tutup sejajar, daftar bersih dengan spasi bawah (`pb-3`) dan tanpa footer pintasan keyboard di mobile.
+- `qa-11-recap-360.png`: Filter 2 kolom + tombol penuh `Bandingkan`, jarak aman antara `+0` dan scrollbar (`pr-2`), dan tombol sticky `Tutup` tetap terlihat di tepi bawah viewport (`top: 736px` pada sheet `720px` di layar `800px`).
+
+---
+
+## Penyesuaian Floating Sheet 4-Sudut Membulat iQOO 15R (`v3.20.4`)
+- **Masalah perangkat edge-to-edge**: Pada HP berlayar melengkung dengan gesture/nav bar bawah (iQOO 15R 6.59" `1260×2750` / 19.5:9 Android 15/16), sheet menempel `bottom: 0` dengan `border-radius: 28px 28px 0 0` dan `overflow-y: auto` pada `.swal2-container` terpotong di sudut bawah layar.
+- **Perbaikan (`src/styles.html`)**: Mengubah `.swal2-container.swal2-center` mobile ke `overflow: hidden !important;` + padding 4 sisi memakai `--safe-area-inset-*` + floor native `.mk-native-app`, mengubah `.swal2-popup:not(.swal2-toast)` ke kartu mengambang `border-radius: 28px !important; border: 1px solid var(--mk-outline-subtle) !important; max-height: min(86dvh, 100%) !important;`, membundel sudut bawah sticky `.swal2-actions` (`border-radius: 0 0 28px 28px;`), membulatkan tombol `16px`, serta memberi `padding-bottom` safe-area pada `#mkCommandPalette`.

@@ -175,6 +175,79 @@ export function patchAndroidManifest(filePath) {
   fs.writeFileSync(filePath, xml);
 }
 
+const KEYSTORE_PROPS_HEADER = [
+  '// MYKEU_KEYSTORE_PATCH',
+  'def keystorePropsFile = rootProject.file("keystore.properties")',
+  'def keystoreProps = new Properties()',
+  'if (keystorePropsFile.exists()) {',
+  '    keystorePropsFile.withInputStream { keystoreProps.load(it) }',
+  '}',
+  'def debugKeystorePropsFile = rootProject.file("debug-keystore.properties")',
+  'def debugKeystoreProps = new Properties()',
+  'if (debugKeystorePropsFile.exists()) {',
+  '    debugKeystorePropsFile.withInputStream { debugKeystoreProps.load(it) }',
+  '}',
+  '',
+  'android {'
+].join('\n');
+
+const SIGNING_CONFIGS_BLOCK = [
+  '    signingConfigs {',
+  '        debug {',
+  '            if (debugKeystorePropsFile.exists()) {',
+  '                storeFile rootProject.file(debugKeystoreProps.getProperty("storeFile"))',
+  '                storePassword debugKeystoreProps.getProperty("storePassword")',
+  '                keyAlias debugKeystoreProps.getProperty("keyAlias")',
+  '                keyPassword debugKeystoreProps.getProperty("keyPassword")',
+  '            }',
+  '        }',
+  '        release {',
+  '            if (keystorePropsFile.exists()) {',
+  '                storeFile rootProject.file(keystoreProps.getProperty("storeFile"))',
+  '                storePassword keystoreProps.getProperty("storePassword")',
+  '                keyAlias keystoreProps.getProperty("keyAlias")',
+  '                keyPassword keystoreProps.getProperty("keyPassword")',
+  '            }',
+  '        }',
+  '    }',
+  '    buildTypes {'
+].join('\n');
+
+function findMatchingBraceEnd(str, openBraceIdx) {
+  let depth = 0;
+  for (let i = openBraceIdx; i < str.length; i++) {
+    if (str[i] === '{') depth++;
+    else if (str[i] === '}' && --depth === 0) return i + 1;
+  }
+  return -1;
+}
+
+function injectBuildTypesSigning(gradle) {
+  const btMatch = /\bbuildTypes\s*\{/.exec(gradle);
+  if (!btMatch) return gradle;
+  const btEnd = findMatchingBraceEnd(gradle, btMatch.index + btMatch[0].length - 1);
+  if (btEnd <= btMatch.index) return gradle;
+  let btBlock = gradle.slice(btMatch.index, btEnd);
+  if (/\brelease\s*\{/.test(btBlock) && !btBlock.includes('signingConfigs.release')) {
+    btBlock = btBlock.replace(
+      /(\brelease\s*\{)/,
+      '$1\n            if (keystorePropsFile.exists()) { signingConfig signingConfigs.release }'
+    );
+  }
+  if (/\bdebug\s*\{/.test(btBlock) && !btBlock.includes('signingConfigs.debug')) {
+    btBlock = btBlock.replace(
+      /(\bdebug\s*\{)/,
+      '$1\n            if (debugKeystorePropsFile.exists()) { signingConfig signingConfigs.debug }'
+    );
+  } else if (!btBlock.includes('signingConfigs.debug')) {
+    btBlock = btBlock.replace(
+      /(buildTypes\s*\{)/,
+      '$1\n        debug {\n            if (debugKeystorePropsFile.exists()) { signingConfig signingConfigs.debug }\n        }'
+    );
+  }
+  return gradle.slice(0, btMatch.index) + btBlock + gradle.slice(btEnd);
+}
+
 export function patchAppBuildGradle(filePath, versionInfo) {
   if (!fs.existsSync(filePath)) return;
   let gradle = fs.readFileSync(filePath, 'utf8');
@@ -183,36 +256,9 @@ export function patchAppBuildGradle(filePath, versionInfo) {
     .replace(/versionName\s+"[^"]*"/, `versionName "${versionInfo.versionName}"`);
 
   if (!gradle.includes('MYKEU_KEYSTORE_PATCH')) {
-    const header = [
-      '// MYKEU_KEYSTORE_PATCH',
-      'def keystorePropsFile = rootProject.file("keystore.properties")',
-      'def keystoreProps = new Properties()',
-      'if (keystorePropsFile.exists()) {',
-      '    keystorePropsFile.withInputStream { keystoreProps.load(it) }',
-      '}',
-      '',
-      'android {'
-    ].join('\n');
-    gradle = gradle.replace(/^android\s*\{/m, header);
-
-    const signingBlock = [
-      '    signingConfigs {',
-      '        release {',
-      '            if (keystorePropsFile.exists()) {',
-      '                storeFile rootProject.file(keystoreProps.getProperty("storeFile"))',
-      '                storePassword keystoreProps.getProperty("storePassword")',
-      '                keyAlias keystoreProps.getProperty("keyAlias")',
-      '                keyPassword keystoreProps.getProperty("keyPassword")',
-      '            }',
-      '        }',
-      '    }',
-      '    buildTypes {'
-    ].join('\n');
-    gradle = gradle.replace(/\n\s*buildTypes\s*\{/, `\n${signingBlock}`);
-    gradle = gradle.replace(
-      /(buildTypes\s*\{[\s\S]*?release\s*\{)/,
-      '$1\n            if (keystorePropsFile.exists()) { signingConfig signingConfigs.release }'
-    );
+    gradle = gradle.replace(/^android\s*\{/m, KEYSTORE_PROPS_HEADER);
+    gradle = injectBuildTypesSigning(gradle);
+    gradle = gradle.replace(/\n\s*buildTypes\s*\{/, `\n${SIGNING_CONFIGS_BLOCK}`);
   }
   if (!gradle.includes('androidx.biometric:biometric')) {
     gradle = gradle.replace(/^dependencies\s*\{/m, `dependencies {\n    ${BIOMETRIC_DEP}`);

@@ -1,27 +1,33 @@
 <!-- ================= RIWAYAT PEMBARUAN ================= -->
-<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-25-v3.20.3" data-latest-version="v3.20.3">
+<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-26-v3.20.4"
+  data-latest-version="v3.20.4">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div class="flex items-start gap-3">
-      <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
+      <div
+        class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
         <i class="ph ph-megaphone-simple text-lg sm:text-2xl" aria-hidden="true"></i>
       </div>
       <div>
-        <h2 id="updates-page-title" class="text-lg sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="updates.title">Riwayat Pembaruan</h2>
-        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuGuech.</p>
+        <h2 id="updates-page-title"
+          class="text-lg sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+          data-i18n="updates.title">Riwayat Pembaruan</h2>
+        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan
+          fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuGuech.</p>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <span class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
+      <span
+        class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
-        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.3</strong></span>
+        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.4</strong></span>
       </span>
       <button type="button" id="btnCheckAppUpdate" onclick="checkRemoteAppUpdate({ manual: true })"
-              class="min-h-11 px-3.5 py-2 rounded-2xl bg-brand text-white hover:opacity-95 text-xs font-bold transition-opacity flex items-center gap-1.5 shadow-xs">
+        class="min-h-11 px-3.5 py-2 rounded-2xl bg-brand text-white hover:opacity-95 text-xs font-bold transition-opacity flex items-center gap-1.5 shadow-xs">
         <i class="ph ph-arrows-clockwise text-sm" aria-hidden="true"></i>
         <span id="btnCheckAppUpdateText" data-i18n="updates.check_now">Cek Pembaruan</span>
       </button>
       <button type="button" id="btnToggleAllReleases" onclick="toggleAllReleaseDetails()"
-              class="min-h-11 px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
+        class="min-h-11 px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
         <i class="ph ph-arrows-out-line-vertical text-sm" aria-hidden="true"></i>
         <span id="btnToggleAllReleasesText" data-i18n="updates.expand_all">Buka Semua</span>
       </button>
@@ -29,69 +35,101 @@
   </div>
 
   <!-- REMOTE UPDATE BANNER -->
-  <div id="remoteUpdateBanner" class="bg-brand/10 border border-brand/25 rounded-2xl sm:rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hide" role="status" aria-live="polite">
+  <div id="remoteUpdateBanner"
+    class="bg-brand/10 border border-brand/25 rounded-2xl sm:rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hide"
+    role="status" aria-live="polite">
     <div class="flex items-start gap-3 min-w-0">
       <div class="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center shrink-0">
         <i class="ph-bold ph-rocket-launch text-lg" aria-hidden="true"></i>
       </div>
       <div class="min-w-0">
         <h3 id="remoteUpdateBannerTitle" class="text-sm font-extrabold text-slate-900 dark:text-white"></h3>
-        <p id="remoteUpdateBannerMeta" class="text-xs text-slate-600 dark:text-slate-300 mt-0.5" data-i18n="updates.banner_desc">Versi baru aplikasi sudah tersedia. Segera perbarui agar fitur &amp; keamanan tetap mutakhir.</p>
+        <p id="remoteUpdateBannerMeta" class="text-xs text-slate-600 dark:text-slate-300 mt-0.5"
+          data-i18n="updates.banner_desc">Versi baru aplikasi sudah tersedia. Segera perbarui agar fitur &amp; keamanan
+          tetap mutakhir.</p>
       </div>
     </div>
     <button type="button" onclick="checkRemoteAppUpdate({ manual: true })"
-            class="min-h-11 px-4 py-2 rounded-2xl bg-brand text-white text-xs font-bold hover:opacity-95 transition-opacity shrink-0 shadow-xs"
-            data-i18n="updates.update_now">Update Sekarang</button>
+      class="min-h-11 px-4 py-2 rounded-2xl bg-brand text-white text-xs font-bold hover:opacity-95 transition-opacity shrink-0 shadow-xs"
+      data-i18n="updates.update_now">Update Sekarang</button>
   </div>
 
   <!-- SEARCH & TOPIC FILTER -->
-  <div class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 mk-card-surface p-4 sm:p-5 space-y-3">
+  <div
+    class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 mk-card-surface p-4 sm:p-5 space-y-3">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div class="relative flex-1">
-        <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true"></i>
+        <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"
+          aria-hidden="true"></i>
         <input id="updatesSearchInput" type="search" enterkeyhint="search" oninput="filterUpdatesList()"
-               placeholder="Cari fitur, mis. kalender, telegram, emas..."
-               data-i18n-placeholder="updates.search_placeholder"
-               aria-label="Cari riwayat pembaruan"
-               class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
+          placeholder="Cari fitur, mis. kalender, telegram, emas..." data-i18n-placeholder="updates.search_placeholder"
+          aria-label="Cari riwayat pembaruan"
+          class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
       </div>
-      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums" aria-live="polite">Menampilkan 24 rilis</p>
+      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums"
+        aria-live="polite">Menampilkan 25 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
-      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-brand text-white shadow-xs" data-i18n="updates.filter_all">Semua</button>
-      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
-      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
-      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
-      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
+      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')"
+        class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-brand text-white shadow-xs"
+        data-i18n="updates.filter_all">Semua</button>
+      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')"
+        class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+        data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
+      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')"
+        class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+        data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
+      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')"
+        class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+        data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
+      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')"
+        class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+        data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
     </div>
   </div>
 
   <!-- RELEASE LIST -->
   <section id="updatesList" class="space-y-4" aria-labelledby="updates-page-title">
     <!-- LATEST RELEASE (OPEN CARD) -->
-    <article data-release-card data-release-id="2026-11-25-v3.20.3" data-topics="security assets reports ai"
-             class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-brand/30 dark:border-brand/40 mk-card-surface p-4 sm:p-6">
+    <article data-release-card data-release-id="2026-11-26-v3.20.4" data-topics="security ai"
+      class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-brand/30 dark:border-brand/40 mk-card-surface p-4 sm:p-6">
       <div class="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-6">
         <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
           <div class="flex flex-wrap items-center gap-1.5 mb-2">
-            <span class="px-2 py-0.5 rounded-full bg-brand text-white text-[10px] font-extrabold uppercase tracking-wider" data-i18n="updates.badge_latest">Terbaru</span>
-            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.20.3</span>
+            <span
+              class="px-2 py-0.5 rounded-full bg-brand text-white text-[10px] font-extrabold uppercase tracking-wider"
+              data-i18n="updates.badge_latest">Terbaru</span>
+            <span
+              class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.20.4</span>
           </div>
-          <time datetime="2026-11-25" class="block text-brand dark:text-brand-ink">
-            <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink tabular-nums">25</span>
+          <time datetime="2026-11-26" class="block text-brand dark:text-brand-ink">
+            <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink tabular-nums">26</span>
             <span class="mt-2 block text-sm font-semibold text-slate-500 dark:text-slate-400">November 2026</span>
           </time>
         </div>
         <div class="min-w-0">
-          <h3 class="text-base font-bold text-slate-800 dark:text-white">Update v3.20.3: Perbaikan Kontras Dark Mode, Layout Bottom Sheet &amp; Polish Modal Form</h3>
+          <h3 class="text-base font-bold text-slate-800 dark:text-white">Update v3.20.4: Perbaikan Update Timpa
+            (In-Place) APK Android &amp; Polish Popup Mobile</h3>
           <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Kontras, Ikon &amp; Bottom Sheet</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Menghapus kotak putih masker SweetAlert2 pada ikon sukses di mode gelap (<code>var(--mk-surface-elevated)</code>), memperbaiki teks gelap tak terbaca pada tombol <code>.swal2-deny</code> berwarna (<code>editWallet</code>, <code>configureGeminiApiKey</code>, kalender, PIN lock), menyembunyikan garis pembatas saat loading spinner aktif, memusatkan drag handle bottom sheet mobile (<code>grid-column: 1 / -1</code>), merapikan pembungkusan 3 tombol aksi di layar sempit, menambahkan batas gulir <code>max-height: 88dvh</code>, serta menyelaraskan <code>color-scheme: dark</code> pada widget kontrol di <code>src/styles.html</code>.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Signing APK In-Place</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menambatkan <code>signingConfigs.debug</code> ke
+                <code>android/debug-keystore.properties</code> di <code>scripts/patch-android-project.mjs</code>,
+                mengekspor <code>ANDROID_USER_HOME</code>, menambah dukungan secret opsional
+                <code>ANDROID_DEBUG_KEYSTORE_BASE64</code>, jadwal keepalive cache 5 hari, serta gate wajib
+                <code>apksigner verify --print-certs</code> di <code>.github/workflows/android-build.yml</code> agar APK
+                baru (<code>versionCode 32004</code>+) bisa langsung menimpa versi sebelumnya tanpa uninstall.</dd>
             </div>
             <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Modal Form &amp; Bahasa Konsisten</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Menambahkan label eksplisit, tab tersegmentasi &amp; badge total 100% langsung di modal Kalkulator &amp; Rebalance (<code>web/ui-pro-insights.js</code>), tombol tutup sentuh &amp; margin safe-area pada Command Palette (<code>web/ui-pro-palette.js</code>), lebar toast PWA responsif di HP (<code>web/ui-pro-quick.js</code>), warna dark-mode bersih di modal salin budget (<code>web/ui-budget.js</code>), indikator 3 langkah onboarding (<code>web/ui-feat-onboarding.js</code>), serta tombol aksi berbahasa Indonesia dan pengelompokan field di modal utang, kategori, aset, transfer, dan ganti password admin.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Popup &amp; Sheet Mobile</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menyesuaikan popup mobile untuk layar melengkung
+                edge-to-edge (iQOO 15R) menjadi floating bottom sheet membulat 4 sisi (<code>border-radius: 28px</code>)
+                dengan jarak aman gesture/nav bar bawah (<code>--safe-area-inset-bottom</code> &amp;
+                <code>overflow: hidden</code>), tombol <code>.swal2-close</code> absolut, bar aksi
+                <code>.swal2-actions</code> sticky bersudut membulat, spasi bawah <code>#mkCmdList</code> &amp; fokus
+                Command Palette (<code>web/ui-pro-palette.js</code>), spasi scrollbar &amp; grid responsif Rekap Tahunan
+                (<code>web/ui-pro-reports.js</code>), serta nominal kalender tanpa <code>,00</code> dengan
+                <code>tabular-nums</code> (<code>web/ui-calendar.js</code>).</dd>
             </div>
           </dl>
         </div>
@@ -99,763 +137,1187 @@
     </article>
 
     <!-- PREVIOUS RELEASES (COLLAPSIBLE ACCORDION) -->
-    <details data-release-card data-release-details data-topics="ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+    <details data-release-card data-release-details data-topics="security assets reports ai"
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20.2</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20.3</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Update v3.20.2: Upgrade Gemini 4 Hydrogen, Interactions API, Enriched AI &amp; Redesign Popup</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Update v3.20.3:
+            Perbaikan Kontras Dark Mode, Layout Bottom Sheet &amp; Polish Modal Form</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">2
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
+        </div>
+      </summary>
+      <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
+        <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Kontras, Ikon &amp; Bottom Sheet</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Menambatkan bottom sheet mobile rapat ke tepi bawah layar
+              (<code>display: flex</code> &amp; <code>place-self: end stretch</code>), mengapungkan tombol tutup
+              <code>.swal2-close</code> ke pojok kanan atas tanpa mendorong judul turun, serta menempelkan bar tombol
+              aksi <code>.swal2-actions</code> di bawah layar saat sheet panjang digulir
+              (<code>position: sticky</code>). Turut menghapus kotak masker putih ikon sukses di mode gelap
+              (<code>var(--mk-surface-elevated)</code>), memperbaiki kontras tombol <code>.swal2-deny</code>,
+              menyembunyikan garis atas spinner loading, merapikan tombol 1/2/3 aksi &amp; input payroll, serta
+              menyelaraskan <code>color-scheme: dark</code> di <code>src/styles.html</code>.</dd>
+          </div>
+          <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Modal Pro, Kalender &amp; Bahasa</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Merapikan padding bawah daftar Command Palette di HP
+              (<code>#mkCmdList</code>), menautkan klik tombol tutup <code>#mkCmdCloseBtn</code> &amp; penyelarasan
+              baris terpotong (<code>web/ui-pro-palette.js</code>), membuat filter &amp; kartu perbandingan periode di
+              Rekap Tahunan responsif lengkap dengan spasi scrollbar (<code>web/ui-pro-reports.js</code>), serta
+              memangkas akhiran <code>,00</code> pada ringkasan harian kalender dengan <code>tabular-nums</code>
+              (<code>web/ui-calendar.js</code>). Melengkapi label eksplisit, tab tersegmentasi &amp; cincin fokus di
+              Kalkulator/Rebalance (<code>web/ui-pro-insights.js</code>), toast PWA responsif, salin budget, onboarding,
+              dan modal form berbahasa Indonesia.</dd>
+          </div>
+        </dl>
+      </div>
+    </details>
+    <details data-release-card data-release-details data-topics="ai"
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+          <div class="flex items-center gap-2 shrink-0">
+            <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20.2</span>
+          </div>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Update v3.20.2: Upgrade
+            Gemini 4 Hydrogen, Interactions API, Enriched AI &amp; Redesign Popup</h3>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Gemini 4 &amp; Interactions API</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memigrasikan AI web dan Bot Telegram ke model terbaru <code>gemini-4-hydrogen</code> via endpoint <code>/v1/interactions</code> dengan mode privat (<code>store: false</code>), migrasi otomatis model usang (<code>gemini-2.5-flash</code> / <code>2.0-flash</code>), kontrol <code>thinking_level</code>, penghapusan parameter usang (<code>temperature</code> / <code>thinkingBudget: 0</code>), serta dropdown pemilih model preset (Hydrogen, Flash-Lite 3.5, Argon, Neon, Carbon) di <code>web/ui-ai.js</code> dan <code>supabase/functions/telegram-bot/ai.ts</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memigrasikan AI web dan Bot Telegram ke model terbaru
+              <code>gemini-4-hydrogen</code> via endpoint <code>/v1/interactions</code> dengan mode privat
+              (<code>store: false</code>), migrasi otomatis model usang (<code>gemini-2.5-flash</code> /
+              <code>2.0-flash</code>), kontrol <code>thinking_level</code>, penghapusan parameter usang
+              (<code>temperature</code> / <code>thinkingBudget: 0</code>), serta dropdown pemilih model preset
+              (Hydrogen, Flash-Lite 3.5, Argon, Neon, Carbon) di <code>web/ui-ai.js</code> dan
+              <code>supabase/functions/telegram-bot/ai.ts</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Konteks Kaya &amp; Fix Chat</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan snapshot komprehensif (rasio dana darurat, rasio utang, <em>cashflow runway</em>, anomali belanja, alokasi portofolio, tren 3 siklus, target, dan daftar utang) di <code>web/finance-analysis-ai.js</code>, memperbaiki bug terpotongnya pertanyaan chat di atas 500 karakter lewat stateless multi-turn <code>steps</code> (<code>buildAiChatSteps()</code>), mempercantik rendering Markdown aman bebas XSS + tombol salin, serta menajamkan OCR struk IDR (Grand Total &amp; pemisah ribuan titik).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan snapshot komprehensif (rasio dana darurat, rasio
+              utang, <em>cashflow runway</em>, anomali belanja, alokasi portofolio, tren 3 siklus, target, dan daftar
+              utang) di <code>web/finance-analysis-ai.js</code>, memperbaiki bug terpotongnya pertanyaan chat di atas
+              500 karakter lewat stateless multi-turn <code>steps</code> (<code>buildAiChatSteps()</code>), mempercantik
+              rendering Markdown aman bebas XSS + tombol salin, serta menajamkan OCR struk IDR (Grand Total &amp;
+              pemisah ribuan titik).</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Redesign Popup &amp; Modal</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Merombak total tampilan popup SweetAlert2, mobile bottom sheet (<code>&le; 639px</code>), backdrop blur, chevron dropdown kustom, pil validasi rose, fokus tanpa halo abu-abu, tombol brand &amp; batal kontras tinggi, animasi desktop ringan (<code>mkModalIn</code>/<code>mkModalOut</code>), serta merapikan layout form dan Command Palette di <code>src/styles.html</code>, <code>web/ui-asset-ops.js</code>, <code>web/ui-wallets.js</code>, <code>web/ui-feat-modals.js</code>, <code>web/ui-dashboard.js</code>, <code>web/ui-recurring.js</code>, <code>web/ui-pro-reports.js</code>, dan <code>web/ui-pro-palette.js</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Merombak total tampilan popup SweetAlert2, mobile bottom
+              sheet (<code>&le; 639px</code>), backdrop blur, chevron dropdown kustom, pil validasi rose, fokus tanpa
+              halo abu-abu, tombol brand &amp; batal kontras tinggi, animasi desktop ringan
+              (<code>mkModalIn</code>/<code>mkModalOut</code>), serta merapikan layout form dan Command Palette di
+              <code>src/styles.html</code>, <code>web/ui-asset-ops.js</code>, <code>web/ui-wallets.js</code>,
+              <code>web/ui-feat-modals.js</code>, <code>web/ui-dashboard.js</code>, <code>web/ui-recurring.js</code>,
+              <code>web/ui-pro-reports.js</code>, dan <code>web/ui-pro-palette.js</code>.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets"
-             class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20.1</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20.1</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Hotfix v3.20.1: Native Android BiometricPrompt &amp; Refresh Harga Aset Multi-Sumber</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Hotfix v3.20.1: Native
+            Android BiometricPrompt &amp; Refresh Harga Aset Multi-Sumber</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">2 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">2
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Sidik Jari Android Native</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan plugin Capacitor native <code>NativeBiometricPlugin.java</code> berbasis <code>androidx.biometric:biometric:1.1.0</code>, pendaftaran <code>registerPlugin()</code> di <code>MainActivity.java</code> sebelum <code>super.onCreate()</code>, izin <code>USE_BIOMETRIC</code>, tombol <strong>Buka dengan Sidik Jari</strong> di dialog PIN, serta pemisahan error WebView Android dan WebAuthn (<code>web/ui-feat-native-ux.js</code>, <code>web/ui-feat-account.js</code>).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan plugin Capacitor native
+              <code>NativeBiometricPlugin.java</code> berbasis <code>androidx.biometric:biometric:1.1.0</code>,
+              pendaftaran <code>registerPlugin()</code> di <code>MainActivity.java</code> sebelum
+              <code>super.onCreate()</code>, izin <code>USE_BIOMETRIC</code>, tombol <strong>Buka dengan Sidik
+                Jari</strong> di dialog PIN, serta pemisahan error WebView Android dan WebAuthn
+              (<code>web/ui-feat-native-ux.js</code>, <code>web/ui-feat-account.js</code>).</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Refresh Harga Multi-Sumber</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan fallback klien otomatis (<code>fawazahmed0/currency-api</code> + CoinGecko) di <code>web/supabase-portfolio.js</code>, perluasan 50+ simbol crypto &amp; fallback Binance USDT + origin Capacitor di Edge Function <code>telegram-bot</code>, nilai awal crypto manual yang akurat, izin CSP &amp; bypass Service Worker, serta pesan status di <code>web/ui-assets.js</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan fallback klien otomatis
+              (<code>fawazahmed0/currency-api</code> + CoinGecko) di <code>web/supabase-portfolio.js</code>, perluasan
+              50+ simbol crypto &amp; fallback Binance USDT + origin Capacitor di Edge Function
+              <code>telegram-bot</code>, nilai awal crypto manual yang akurat, izin CSP &amp; bypass Service Worker,
+              serta pesan status di <code>web/ui-assets.js</code>.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.20</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.20: Native Android Stack (Kamera OCR, Haptics, Biometrik, Pull-to-Refresh), Cashflow Runway, Kalkulator Nominal &amp; Admin Panel v2</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.20: Native
+            Android Stack (Kamera OCR, Haptics, Biometrik, Pull-to-Refresh), Cashflow Runway, Kalkulator Nominal &amp;
+            Admin Panel v2</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Native Android &amp; Keystore</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki <code>setTheme()</code> agar kelas <code>mk-native-app</code> tetap terjaga, menambahkan <strong>Kamera Struk Native</strong> (<code>@capacitor/camera</code>), getaran taktil (<code>@capacitor/haptics</code>), pengingat harian &amp; tagihan <code>@capacitor/local-notifications</code> (<code>POST_NOTIFICATIONS</code>), <em>Pull-to-Refresh</em> + kunci biometrik sidik jari/WebAuthn (<code>web/ui-feat-native-ux.js</code>), serta utilitas <code>npm run cap:keystore</code> (<code>scripts/setup-android-keystore.mjs</code>).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki <code>setTheme()</code> agar kelas
+              <code>mk-native-app</code> tetap terjaga, menambahkan <strong>Kamera Struk Native</strong>
+              (<code>@capacitor/camera</code>), getaran taktil (<code>@capacitor/haptics</code>), pengingat harian &amp;
+              tagihan <code>@capacitor/local-notifications</code> (<code>POST_NOTIFICATIONS</code>),
+              <em>Pull-to-Refresh</em> + kunci biometrik sidik jari/WebAuthn (<code>web/ui-feat-native-ux.js</code>),
+              serta utilitas <code>npm run cap:keystore</code> (<code>scripts/setup-android-keystore.mjs</code>).</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Runway, Kalkulator &amp; Offline Penuh</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan strip <strong>Cashflow Runway</strong> + batas aman harian (<code>computeCashflowRunway()</code>), opsi <strong>Auto-Catat Tagihan Rutin</strong>, wizard onboarding 3 langkah pengguna baru (<code>web/ui-feat-onboarding.js</code>), kalkulator mini aman tanpa <code>eval</code> pada input nominal (<code>25000+15000</code>, <code>180.000/3</code>), serta perluasan antrean offline untuk edit, hapus, dan transfer dompet (<code>web/ui-feat-offline.js</code>).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan strip <strong>Cashflow Runway</strong> + batas
+              aman harian (<code>computeCashflowRunway()</code>), opsi <strong>Auto-Catat Tagihan Rutin</strong>, wizard
+              onboarding 3 langkah pengguna baru (<code>web/ui-feat-onboarding.js</code>), kalkulator mini aman tanpa
+              <code>eval</code> pada input nominal (<code>25000+15000</code>, <code>180.000/3</code>), serta perluasan
+              antrean offline untuk edit, hapus, dan transfer dompet (<code>web/ui-feat-offline.js</code>).</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Admin Panel v2 &amp; Backup AES-GCM</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan aksi <strong>Putus Telegram</strong>, <strong>Hapus Akun Pengguna</strong>, dan <strong>Log Aktivitas Admin</strong> (<code>supabase/functions/admin-user-ops</code> + migrasi <code>20261125120000_admin_audit_and_telegram_unlink.sql</code>), serta opsi backup JSON terenkripsi kata sandi <strong>PBKDF2 + AES-GCM 256-bit</strong> (<code>web/ui-feat-backup.js</code>).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan aksi <strong>Putus Telegram</strong>,
+              <strong>Hapus Akun Pengguna</strong>, dan <strong>Log Aktivitas Admin</strong>
+              (<code>supabase/functions/admin-user-ops</code> + migrasi
+              <code>20261125120000_admin_audit_and_telegram_unlink.sql</code>), serta opsi backup JSON terenkripsi kata
+              sandi <strong>PBKDF2 + AES-GCM 256-bit</strong> (<code>web/ui-feat-backup.js</code>).</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="reports ai security"
-             class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.19</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.19</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.19: Standar Tampilan Android Material Design 3, Bottom Sheet Dialog, Popup Update &amp; Hotfix v3.19.1</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.19: Standar
+            Tampilan Android Material Design 3, Bottom Sheet Dialog, Popup Update &amp; Hotfix v3.19.1</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Material 3 &amp; Bottom Sheet (v3.19.1)</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan sistem permukaan tonal Material 3 (kanvas siang <code>#f2f5f9</code> &amp; OLED gelap <code>#080d17</code>), navigasi bawah kapsul 56&times;32dp, drawer samping beradius <code>28px</code>, serta mengubah seluruh modal konfirmasi, input, dan Pusat Notifikasi SweetAlert2 menjadi <strong>Android Bottom Sheet</strong> otomatis di layar HP lengkap dengan <em>drag handle</em>, scoping animasi <code>.swal2-show</code>/<code>.swal2-hide</code> agar dialog selalu menutup mulus pada tombol <strong>Tutup</strong> &amp; <em>Back</em> Android (hotfix <code>v3.19.1</code>), dan pemulihan kontainer macet di <code>handleAndroidBackButton()</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan sistem permukaan tonal Material 3 (kanvas siang
+              <code>#f2f5f9</code> &amp; OLED gelap <code>#080d17</code>), navigasi bawah kapsul 56&times;32dp, drawer
+              samping beradius <code>28px</code>, serta mengubah seluruh modal konfirmasi, input, dan Pusat Notifikasi
+              SweetAlert2 menjadi <strong>Android Bottom Sheet</strong> otomatis di layar HP lengkap dengan <em>drag
+                handle</em>, scoping animasi <code>.swal2-show</code>/<code>.swal2-hide</code> agar dialog selalu
+              menutup mulus pada tombol <strong>Tutup</strong> &amp; <em>Back</em> Android (hotfix
+              <code>v3.19.1</code>), dan pemulihan kontainer macet di <code>handleAndroidBackButton()</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Proporsi Mobile 360dp &amp; Form</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menata ulang KPI Strip Hero Net Worth menjadi 2 tingkat agar nominal tidak terpotong di HP, menambahkan badge lingkaran hari ini di Kalender, meluaskan baris transaksi Dashboard, serta melengkapi Form Transaksi dengan tombol simpan melayang (<em>sticky thumb-zone</em>), ikon panah dropdown, dan rail chip nominal.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menata ulang KPI Strip Hero Net Worth menjadi 2 tingkat agar
+              nominal tidak terpotong di HP, menambahkan badge lingkaran hari ini di Kalender, meluaskan baris transaksi
+              Dashboard, serta melengkapi Form Transaksi dengan tombol simpan melayang (<em>sticky thumb-zone</em>),
+              ikon panah dropdown, dan rail chip nominal.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Konsistensi Seluruh Halaman</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan header kompak, grid tombol 2 kolom simetris, target sentuh 44–48dp pada seluruh halaman (Histori, Budgeting, Tabungan &amp; Aset, Laporan, Analisis AI, Utang/Piutang, Admin), serta meningkatkan kartu login beradius <code>28px</code> dengan bantalan <em>safe-area</em> Android.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan header kompak, grid tombol 2 kolom simetris,
+              target sentuh 44–48dp pada seluruh halaman (Histori, Budgeting, Tabungan &amp; Aset, Laporan, Analisis AI,
+              Utang/Piutang, Admin), serta meningkatkan kartu login beradius <code>28px</code> dengan bantalan
+              <em>safe-area</em> Android.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Popup Update Otomatis &amp; Releases</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan penerbitan manifes <code>version.json</code> otomatis saat build (<code>build.mjs</code>), pengecekan versi jarak jauh non-blokir dengan popup Material 3 Bottom Sheet mode opsional/wajib update plus tombol <strong>Cek Pembaruan</strong> (<code>web/ui-feat-updates.js</code>), serta publikasi <code>.apk</code> ke GitHub Releases lewat <code>.github/workflows/android-build.yml</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan penerbitan manifes <code>version.json</code>
+              otomatis saat build (<code>build.mjs</code>), pengecekan versi jarak jauh non-blokir dengan popup Material
+              3 Bottom Sheet mode opsional/wajib update plus tombol <strong>Cek Pembaruan</strong>
+              (<code>web/ui-feat-updates.js</code>), serta publikasi <code>.apk</code> ke GitHub Releases lewat
+              <code>.github/workflows/android-build.yml</code>.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="reports ai security"
-             class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.18</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.18</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.18: Cloud Build Android (.apk/.aab), Kit Rilis Play Store, + Buat Budget &amp; Bot /cari</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.18: Cloud Build
+            Android (.apk/.aab), Kit Rilis Play Store, + Buat Budget &amp; Bot /cari</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Cloud Android CI &amp; Fix Gradle</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan workflow GitHub Actions <code>.github/workflows/android-build.yml</code> bebas ketergantungan <code>package-lock.json</code> (Android 16 API 36 + JDK 21 + Gradle cache) untuk build <code>MyKeuGuech-v3.18.0-debug.apk</code>, signed <code>-release.apk</code>, dan <code>-release.aab</code>, skrip lokal 1-perintah <code>npm run cap:apk</code> (<code>scripts/build-android.mjs</code>), pemulihan cold-start Google OAuth lewat <code>App.getLaunchUrl()</code> (<code>web/native-bridge.js</code>), serta memperbaiki bug Groovy <code>withInputStream</code> &amp; <code>rootProject.file()</code> di <code>scripts/patch-android-project.mjs</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan workflow GitHub Actions
+              <code>.github/workflows/android-build.yml</code> bebas ketergantungan <code>package-lock.json</code>
+              (Android 16 API 36 + JDK 21 + Gradle cache) untuk build <code>MyKeuGuech-v3.18.0-debug.apk</code>, signed
+              <code>-release.apk</code>, dan <code>-release.aab</code>, skrip lokal 1-perintah
+              <code>npm run cap:apk</code> (<code>scripts/build-android.mjs</code>), pemulihan cold-start Google OAuth
+              lewat <code>App.getLaunchUrl()</code> (<code>web/native-bridge.js</code>), serta memperbaiki bug Groovy
+              <code>withInputStream</code> &amp; <code>rootProject.file()</code> di
+              <code>scripts/patch-android-project.mjs</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Aset Grafis &amp; Kit Play Store</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan generator aset Play Store (<code>scripts/generate-playstore-assets.mjs</code> &rarr; <code>icon-512.png</code> 512&times;512 &amp; <code>feature-graphic-1024x500.png</code> 1024&times;500) beserta kit deklarasi &amp; deskripsi toko dwibahasa ID/EN di <code>docs/PLAYSTORE_LISTING_KIT.md</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan generator aset Play Store
+              (<code>scripts/generate-playstore-assets.mjs</code> &rarr; <code>icon-512.png</code> 512&times;512 &amp;
+              <code>feature-graphic-1024x500.png</code> 1024&times;500) beserta kit deklarasi &amp; deskripsi toko
+              dwibahasa ID/EN di <code>docs/PLAYSTORE_LISTING_KIT.md</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">+ Buat Budget &amp; Bot Telegram</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan chip 1-klik <strong>+ Budget &lt;Kategori&gt;</strong> langsung dari panel <em>Pengeluaran di Luar Budget</em> (<code>web/ui-budget.js</code>), serta progres bar <code>▓░</code> + total luar budget pada <code>/budget</code> dan perintah pencarian cepat <code>/cari</code> pada bot Telegram.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan chip 1-klik <strong>+ Budget
+                &lt;Kategori&gt;</strong> langsung dari panel <em>Pengeluaran di Luar Budget</em>
+              (<code>web/ui-budget.js</code>), serta progres bar <code>▓░</code> + total luar budget pada
+              <code>/budget</code> dan perintah pencarian cepat <code>/cari</code> pada bot Telegram.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.17</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.17</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.17: Normalisasi Kategori Lintas Fitur, Auto-Kategori Kata Utuh &amp; Audit Budgeting</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.17: Normalisasi
+            Kategori Lintas Fitur, Auto-Kategori Kata Utuh &amp; Audit Budgeting</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Akurasi Budgeting &amp; Luar Budget</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyamakan pencocokan kategori secara <em>case-insensitive</em> dan tanpa spasi berlebih di <code>web/finance-analysis-core.js</code>, <code>web/ui-budget.js</code>, <code>web/finance-analysis-portfolio.js</code>, serta Rekap Tahunan &amp; Perbandingan agar transaksi seperti <code>laundry</code>/<code>Laundry </code> tetap masuk ke kartu budget <code>Laundry</code>, disertai panel <strong>Pengeluaran di Luar Budget</strong> agar transaksi yang salah kategori langsung terlihat dan bisa diedit.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyamakan pencocokan kategori secara
+              <em>case-insensitive</em> dan tanpa spasi berlebih di <code>web/finance-analysis-core.js</code>,
+              <code>web/ui-budget.js</code>, <code>web/finance-analysis-portfolio.js</code>, serta Rekap Tahunan &amp;
+              Perbandingan agar transaksi seperti <code>laundry</code>/<code>Laundry </code> tetap masuk ke kartu budget
+              <code>Laundry</code>, disertai panel <strong>Pengeluaran di Luar Budget</strong> agar transaksi yang salah
+              kategori langsung terlihat dan bisa diedit.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Quick-Add, CSV, Form &amp; Laporan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Mengubah pencocokan auto-kategori (<code>web/finance-pro.js</code>) memakai batas kata utuh serta memprioritaskan aturan kustom &amp; kategori milik pengguna sebelum aturan bawaan (mencegah kata seperti <code>pakaian</code> cocok ke <code>kai</code>/Transportasi), mengamankan <code>editTransaction()</code> agar tidak menimpa kategori yang terhapus, menormalkan kategori CSV/Laporan/Restore JSON, dan menyamakan filter dompet utama Laporan.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Mengubah pencocokan auto-kategori
+              (<code>web/finance-pro.js</code>) memakai batas kata utuh serta memprioritaskan aturan kustom &amp;
+              kategori milik pengguna sebelum aturan bawaan (mencegah kata seperti <code>pakaian</code> cocok ke
+              <code>kai</code>/Transportasi), mengamankan <code>editTransaction()</code> agar tidak menimpa kategori
+              yang terhapus, menormalkan kategori CSV/Laporan/Restore JSON, dan menyamakan filter dompet utama Laporan.
+            </dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Telegram Bot &amp; Migrasi SQL</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan <code>normalizeCatKey()</code> &amp; <code>resolveUserCategory()</code> pada <code>telegram-bot</code> agar input AI Gemini, <code>/tambah</code>, <code>/batch</code>, <code>/budget</code>, dan <code>/recurring</code> menyelaraskan huruf besar-kecil kategori user, serta migrasi <code>20261125000000_normalize_categories_and_search.sql</code> untuk RPC pencarian &amp; pembersihan data lama.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan <code>normalizeCatKey()</code> &amp;
+              <code>resolveUserCategory()</code> pada <code>telegram-bot</code> agar input AI Gemini,
+              <code>/tambah</code>, <code>/batch</code>, <code>/budget</code>, dan <code>/recurring</code> menyelaraskan
+              huruf besar-kecil kategori user, serta migrasi
+              <code>20261125000000_normalize_categories_and_search.sql</code> untuk RPC pencarian &amp; pembersihan data
+              lama.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.16</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.16</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.16: Bundel Vendor Offline 100%, Bridge Native Android &amp; Setup Capacitor 8 (API 36)</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.16: Bundel
+            Vendor Offline 100%, Bridge Native Android &amp; Setup Capacitor 8 (API 36)</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Bundel Vendor Offline</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menghadirkan <code>scripts/fetch-vendors.mjs</code> &amp; integrasi <code>build.mjs</code> / <code>web/sw.js</code> untuk membundel lokal Supabase JS, Chart.js, SweetAlert2, Flatpickr, jsPDF, ikon Phosphor <code>.woff2</code>, dan font Inter agar versi Web PWA maupun Android berjalan penuh saat offline.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menghadirkan <code>scripts/fetch-vendors.mjs</code> &amp;
+              integrasi <code>build.mjs</code> / <code>web/sw.js</code> untuk membundel lokal Supabase JS, Chart.js,
+              SweetAlert2, Flatpickr, jsPDF, ikon Phosphor <code>.woff2</code>, dan font Inter agar versi Web PWA maupun
+              Android berjalan penuh saat offline.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Bridge Native Android</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan <code>web/native-bridge.js</code> untuk tombol <em>Back</em> Android bertahap (tutup modal/drawer &rarr; Dashboard &rarr; keluar 2&times;), ekspor CSV/Excel/PDF/JSON lewat native Share Sheet (<code>saveOrShareFile()</code>), deep link Google OAuth (<code>com.mykeuguech.app://auth-callback</code>), penyembunyian prompt PWA di app native, dukungan CSS <code>SystemBars</code>, dan terjemahan EN modal akun.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan <code>web/native-bridge.js</code> untuk tombol
+              <em>Back</em> Android bertahap (tutup modal/drawer &rarr; Dashboard &rarr; keluar 2&times;), ekspor
+              CSV/Excel/PDF/JSON lewat native Share Sheet (<code>saveOrShareFile()</code>), deep link Google OAuth
+              (<code>com.mykeuguech.app://auth-callback</code>), penyembunyian prompt PWA di app native, dukungan CSS
+              <code>SystemBars</code>, dan terjemahan EN modal akun.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Capacitor 8 &amp; Fix Config</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyiapkan <code>capacitor.config.json</code>, generator ikon adaptif/splash (<code>scripts/prepare-native-assets.mjs</code>), patch proyek Android API 36 (<code>scripts/patch-android-project.mjs</code>), panduan rilis Play Store (<code>docs/ANDROID_PLAYSTORE_GUIDE.md</code>), serta perbaikan pembacaan <code>window.APP_CONFIG</code> di <code>web/delete-account.html</code> dan CI workflow.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyiapkan <code>capacitor.config.json</code>, generator ikon
+              adaptif/splash (<code>scripts/prepare-native-assets.mjs</code>), patch proyek Android API 36
+              (<code>scripts/patch-android-project.mjs</code>), panduan rilis Play Store
+              (<code>docs/ANDROID_PLAYSTORE_GUIDE.md</code>), serta perbaikan pembacaan <code>window.APP_CONFIG</code>
+              di <code>web/delete-account.html</code> dan CI workflow.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-24" class="text-xs font-bold text-slate-500 dark:text-slate-400">24 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.15</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.15</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.15: Kesiapan Play Store (Google Sign-In, Hapus Akun, Privasi/Syarat) &amp; True Offline Read Cache</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.15: Kesiapan
+            Play Store (Google Sign-In, Hapus Akun, Privasi/Syarat) &amp; True Offline Read Cache</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Google Sign-In &amp; Recovery</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan login/daftar 1-klik via <strong>Google Sign-In</strong> (mengurangi ketergantungan kuota email SMTP), dukungan nama tampilan OAuth di trigger onboarding, perbaikan alur <code>PASSWORD_RECOVERY</code> &amp; <code>redirectTo</code> saat reset kata sandi, serta cache profil offline aman (<code>mk_cached_profile_v1</code>).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan login/daftar 1-klik via <strong>Google
+                Sign-In</strong> (mengurangi ketergantungan kuota email SMTP), dukungan nama tampilan OAuth di trigger
+              onboarding, perbaikan alur <code>PASSWORD_RECOVERY</code> &amp; <code>redirectTo</code> saat reset kata
+              sandi, serta cache profil offline aman (<code>mk_cached_profile_v1</code>).</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Hapus Akun &amp; Legal Play Store</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menghadirkan Edge Function <code>delete-account</code> lengkap dengan penjagaan admin aktif terakhir, alur <strong>Hapus Akun &amp; Data Permanen</strong> langsung di Pengaturan Akun, serta halaman web publik <code>privacy.html</code>, <code>terms.html</code>, dan <code>delete-account.html</code> + manifest <code>"id"</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menghadirkan Edge Function <code>delete-account</code>
+              lengkap dengan penjagaan admin aktif terakhir, alur <strong>Hapus Akun &amp; Data Permanen</strong>
+              langsung di Pengaturan Akun, serta halaman web publik <code>privacy.html</code>, <code>terms.html</code>,
+              dan <code>delete-account.html</code> + manifest <code>"id"</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Offline Cache, PIN &amp; Audit</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyimpan snapshot bacaan di IndexedDB (<code>offline_snapshot</code>) agar aplikasi tetap menampilkan data terakhir saat dibuka offline, memperketat PIN lokal (cooldown 60 dtk setelah 5x salah, verifikasi PIN saat hapus/ganti, auto-lock 2 menit idle), serta menyelaraskan dedup <code>keterangan</code> server, total PDF tanpa utang, dan nama template CSV.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyimpan snapshot bacaan di IndexedDB
+              (<code>offline_snapshot</code>) agar aplikasi tetap menampilkan data terakhir saat dibuka offline,
+              memperketat PIN lokal (cooldown 60 dtk setelah 5x salah, verifikasi PIN saat hapus/ganti, auto-lock 2
+              menit idle), serta menyelaraskan dedup <code>keterangan</code> server, total PDF tanpa utang, dan nama
+              template CSV.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-23" class="text-xs font-bold text-slate-500 dark:text-slate-400">23 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.14</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.14</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.14: Ketahanan PWA Offline, Impor CSV Multi-Bank, Restore JSON 8 Koleksi, Bot Timeout &amp; CI Verify</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.14: Ketahanan
+            PWA Offline, Impor CSV Multi-Bank, Restore JSON 8 Koleksi, Bot Timeout &amp; CI Verify</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Perbaikan UI, Chart &amp; Aset</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Mengekspor <code>buildEmptyTxPlaceholder()</code> untuk tampilan kosong Histori, menjaga shortcut huruf saat Command Palette terbuka, membersihkan <code>mk_last_market_refresh_ts</code> ketika logout, mendukung <code>prefers-reduced-motion</code> &amp; legend responsif di seluruh Chart.js, memformat input nominal IDR di modal Top-Up/Pencairan Aset, serta memfilter kategori + dompet tujuan pada Template Cepat.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Mengekspor <code>buildEmptyTxPlaceholder()</code> untuk
+              tampilan kosong Histori, menjaga shortcut huruf saat Command Palette terbuka, membersihkan
+              <code>mk_last_market_refresh_ts</code> ketika logout, mendukung <code>prefers-reduced-motion</code> &amp;
+              legend responsif di seluruh Chart.js, memformat input nominal IDR di modal Top-Up/Pencairan Aset, serta
+              memfilter kategori + dompet tujuan pada Template Cepat.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">PWA Offline, CSV &amp; Restore</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Mem-precache seluruh ikon PWA, menormalkan cache HTML <code>/?action=...</code>, memakai ulang koneksi IndexedDB + batas coba ulang 3x item antrean gagal (<code>Gagal (N)</code> dengan opsi <strong>Coba Ulang</strong> / <strong>Buang Gagal</strong>), meningkatkan parser CSV mutasi bank (preambel multi-baris, <code>IDR</code>, tanda kurung akuntansi, suffix <code>DB/CR</code>), dukungan <code>Rp</code> pada Quick-Add &amp; tanda <code>capped</code> kalkulator utang, serta Backup/Restore JSON aditif 8 koleksi lengkap dengan pemetaan ulang ID dompet.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Mem-precache seluruh ikon PWA, menormalkan cache HTML
+              <code>/?action=...</code>, memakai ulang koneksi IndexedDB + batas coba ulang 3x item antrean gagal
+              (<code>Gagal (N)</code> dengan opsi <strong>Coba Ulang</strong> / <strong>Buang Gagal</strong>),
+              meningkatkan parser CSV mutasi bank (preambel multi-baris, <code>IDR</code>, tanda kurung akuntansi,
+              suffix <code>DB/CR</code>), dukungan <code>Rp</code> pada Quick-Add &amp; tanda <code>capped</code>
+              kalkulator utang, serta Backup/Restore JSON aditif 8 koleksi lengkap dengan pemetaan ulang ID dompet.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Telegram Bot &amp; CI/CD Node 22</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan branding <strong>MyKeuGuech Bot</strong>, menambah batas timeout <code>AbortSignal.timeout()</code> pada seluruh panggilan Telegram/Gemini/CoinGecko, memperluas dukungan kripto (<code>POL</code>, <code>SUI</code>, <code>TON</code>, <code>LTC</code>, <code>BCH</code>, <code>NEAR</code>, <code>APT</code>, <code>RENDER</code>), memangkas beban kueri cron harian/mingguan lewat filter tanggal server, serta memisah pipeline GitHub Actions ke job <code>verify</code> (PR + push) dan <code>deploy</code> pada Node 22.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan branding <strong>MyKeuGuech Bot</strong>,
+              menambah batas timeout <code>AbortSignal.timeout()</code> pada seluruh panggilan
+              Telegram/Gemini/CoinGecko, memperluas dukungan kripto (<code>POL</code>, <code>SUI</code>,
+              <code>TON</code>, <code>LTC</code>, <code>BCH</code>, <code>NEAR</code>, <code>APT</code>,
+              <code>RENDER</code>), memangkas beban kueri cron harian/mingguan lewat filter tanggal server, serta
+              memisah pipeline GitHub Actions ke job <code>verify</code> (PR + push) dan <code>deploy</code> pada Node
+              22.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-22" class="text-xs font-bold text-slate-500 dark:text-slate-400">22 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.13</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.13</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.13: Rebrand MyKeuGuech, Mobile-Native CSS, Motion Craft, Form Inline Validation &amp; WCAG Polish</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.13: Rebrand
+            MyKeuGuech, Mobile-Native CSS, Motion Craft, Form Inline Validation &amp; WCAG Polish</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Branding &amp; Kontras WCAG</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan nama produk menjadi <strong>MyKeuGuech</strong> di UI, manifest PWA, PDF, backup JSON, notifikasi browser &amp; panduan bot; merapikan hierarki heading &amp; landmark, menambah tombol info <code>showNetWorthInfo()</code> serta toggle privasi <code>#heroHideNominalBtn</code> di Hero Dashboard, dan menaikkan kontras mode terang + angka <code>tabular-nums</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan nama produk menjadi <strong>MyKeuGuech</strong>
+              di UI, manifest PWA, PDF, backup JSON, notifikasi browser &amp; panduan bot; merapikan hierarki heading
+              &amp; landmark, menambah tombol info <code>showNetWorthInfo()</code> serta toggle privasi
+              <code>#heroHideNominalBtn</code> di Hero Dashboard, dan menaikkan kontras mode terang + angka
+              <code>tabular-nums</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile-Native &amp; Form UX</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Viewport <code>viewport-fit=cover</code> + <code>interactive-widget=resizes-content</code>, tinggi layar <code>100dvh</code>, <code>hoverOnlyWhenSupported</code>, ukuran font input minimal <code>16px</code> di perangkat sentuh (anti auto-zoom), target sentuh ≥ 40–44px, validasi inline aksesibel form transaksi (<code>novalidate</code> &amp; <code>aria-invalid</code>), pemformatan Rupiah terpadu di seluruh modal, tombol <strong>Reset Filter</strong> di Histori &amp; Laporan, serta kartu mobile Admin (<code>#adm-user-mobile-list</code>).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Viewport <code>viewport-fit=cover</code> +
+              <code>interactive-widget=resizes-content</code>, tinggi layar <code>100dvh</code>,
+              <code>hoverOnlyWhenSupported</code>, ukuran font input minimal <code>16px</code> di perangkat sentuh (anti
+              auto-zoom), target sentuh ≥ 40–44px, validasi inline aksesibel form transaksi (<code>novalidate</code>
+              &amp; <code>aria-invalid</code>), pemformatan Rupiah terpadu di seluruh modal, tombol <strong>Reset
+                Filter</strong> di Histori &amp; Laporan, serta kartu mobile Admin (<code>#adm-user-mobile-list</code>).
+            </dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Motion Craft &amp; Kontrol Aman</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Mengganti seluruh <code>transition-all</code> menjadi transisi properti spesifik bertoken easing (<code>--ease-out</code>, <code>--ease-drawer</code>), menyempurnakan toast <strong>Undo 6 detik</strong> berprogress bar yang jeda saat hover/focus/tab tersembunyi setelah konfirmasi singkat hapus transaksi, focus-trap &amp; focus-restore pada Command Palette instan 0ms dan drawer sidebar, serta dukungan penuh <code>prefers-reduced-motion</code> &amp; <code>prefers-reduced-transparency</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Mengganti seluruh <code>transition-all</code> menjadi
+              transisi properti spesifik bertoken easing (<code>--ease-out</code>, <code>--ease-drawer</code>),
+              menyempurnakan toast <strong>Undo 6 detik</strong> berprogress bar yang jeda saat hover/focus/tab
+              tersembunyi setelah konfirmasi singkat hapus transaksi, focus-trap &amp; focus-restore pada Command
+              Palette instan 0ms dan drawer sidebar, serta dukungan penuh <code>prefers-reduced-motion</code> &amp;
+              <code>prefers-reduced-transparency</code>.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-21" class="text-xs font-bold text-slate-500 dark:text-slate-400">21 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.12</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.12</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.12: Modularisasi 100% Frontend (30 Modul UI), Input Nominal Terformat, Undo Delete, Burn Rate Forecast &amp; Multi-Origin CORS</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.12:
+            Modularisasi 100% Frontend (30 Modul UI), Input Nominal Terformat, Undo Delete, Burn Rate Forecast &amp;
+            Multi-Origin CORS</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Fix Sinkronisasi &amp; Ketahanan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki bug sinkronisasi aksi massal Laporan (<code>addedTransactions</code> &amp; <code>deletedTransactionIds</code> agar seluruh baris ter-update langsung tanpa reload), mengganti <code>alert()</code> native dengan modal/banner DOM aman, menambah banner retry saat gagal muat awal agar tidak menampilkan <code>Rp 0</code> palsu, serta indikator status jaringan <code>Offline / Sync</code> di header.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki bug sinkronisasi aksi massal Laporan
+              (<code>addedTransactions</code> &amp; <code>deletedTransactionIds</code> agar seluruh baris ter-update
+              langsung tanpa reload), mengganti <code>alert()</code> native dengan modal/banner DOM aman, menambah
+              banner retry saat gagal muat awal agar tidak menampilkan <code>Rp 0</code> palsu, serta indikator status
+              jaringan <code>Offline / Sync</code> di header.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">UX Fintech &amp; Analitik Baru</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan format pemisah ribuan otomatis pada input nominal transaksi, split bill &amp; budget lengkap dengan chip nominal cepat (<code>+25rb</code>–<code>+500rb</code>), toast <strong>Batalkan (Undo)</strong> 6 detik setelah menghapus transaksi, kartu <strong>Burn Rate &amp; Proyeksi Akhir Siklus</strong> di Budgeting, Skeleton Loader saat startup, serta Layar Login dwibahasa ID/EN dengan indikator kekuatan kata sandi.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan format pemisah ribuan otomatis pada input nominal
+              transaksi, split bill &amp; budget lengkap dengan chip nominal cepat
+              (<code>+25rb</code>–<code>+500rb</code>), toast <strong>Batalkan (Undo)</strong> 6 detik setelah menghapus
+              transaksi, kartu <strong>Burn Rate &amp; Proyeksi Akhir Siklus</strong> di Budgeting, Skeleton Loader saat
+              startup, serta Layar Login dwibahasa ID/EN dengan indikator kekuatan kata sandi.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">100% Modular &amp; Multi-Origin CORS</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memecah <code>features-v35.html</code> (~1.143 baris JS) ke <strong>5 modul <code>web/ui-pro-*.js</code></strong> (total 30 modul UI) tanpa menyisakan JS inline aplikasi di HTML, membersihkan cache AI saat pindah periode &amp; duplikasi strip rebalance, mendukung multi-origin <code>ALLOWED_ORIGIN</code> di Edge Functions (<code>Vary: Origin</code>), serta menambah <code>scripts/check-syntax.mjs</code> + dukungan aksesibilitas <code>prefers-reduced-motion</code> &amp; <code>aria-current</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memecah <code>features-v35.html</code> (~1.143 baris JS) ke
+              <strong>5 modul <code>web/ui-pro-*.js</code></strong> (total 30 modul UI) tanpa menyisakan JS inline
+              aplikasi di HTML, membersihkan cache AI saat pindah periode &amp; duplikasi strip rebalance, mendukung
+              multi-origin <code>ALLOWED_ORIGIN</code> di Edge Functions (<code>Vary: Origin</code>), serta menambah
+              <code>scripts/check-syntax.mjs</code> + dukungan aksesibilitas <code>prefers-reduced-motion</code> &amp;
+              <code>aria-current</code>.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.11</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.11</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.11: Forensic Hardening, Modularisasi Frontend Penuh (25 Modul UI), Perbaikan Static Tailwind &amp; Upgrade Bot AI</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.11: Forensic
+            Hardening, Modularisasi Frontend Penuh (25 Modul UI), Perbaikan Static Tailwind &amp; Upgrade Bot AI</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Fix Produksi &amp; Keamanan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Mengganti kelas interpolasi dinamis pada kartu Budgeting ke kelas statis penuh agar tidak hilang saat build Tailwind produksi, memperketat <code>escapeAttrJS()</code> terhadap HTML-entity decoding XSS &amp; newline, memusatkan rendering HTML ke helper <code>renderHtml()</code> (<code>DOMParser</code> + hapus <code>&lt;script&gt;</code>) &amp; <code>renderSelectOptions()</code> DOM murni, mengetatkan CSP produksi (tanpa <code>unsafe-eval</code>), serta menambah guardrail pada <code>build.mjs</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Mengganti kelas interpolasi dinamis pada kartu Budgeting ke
+              kelas statis penuh agar tidak hilang saat build Tailwind produksi, memperketat <code>escapeAttrJS()</code>
+              terhadap HTML-entity decoding XSS &amp; newline, memusatkan rendering HTML ke helper
+              <code>renderHtml()</code> (<code>DOMParser</code> + hapus <code>&lt;script&gt;</code>) &amp;
+              <code>renderSelectOptions()</code> DOM murni, mengetatkan CSP produksi (tanpa <code>unsafe-eval</code>),
+              serta menambah guardrail pada <code>build.mjs</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Performa &amp; PWA Offline</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memindahkan auto-refresh harga pasar saat startup ke background non-blocking ber-cooldown 10 menit, menyempurnakan Service Worker <code>sw.js</code> (hanya mengecualikan host Gemini API agar Google Fonts ter-cache, fallback <code>503</code> bersih, precache ikon), dan memindahkan font Inter ke <code>&lt;link&gt;</code> non-blocking.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memindahkan auto-refresh harga pasar saat startup ke
+              background non-blocking ber-cooldown 10 menit, menyempurnakan Service Worker <code>sw.js</code> (hanya
+              mengecualikan host Gemini API agar Google Fonts ter-cache, fallback <code>503</code> bersih, precache
+              ikon), dan memindahkan font Inter ke <code>&lt;link&gt;</code> non-blocking.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Bot Telegram &amp; i18n</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menambahkan loop fallback model + safe JSON parse di <code>/insight</code> dengan default <code>gemini-2.5-flash</code>, deteksi dompet e-wallet/kustom otomatis, dukungan tanggal <code>1..31</code> pada <code>/recurring add</code>, laporan akurat <code>/budget copy</code>, serta helper <code>updateDashboardTitle()</code> agar mode Inggris (EN) tidak tertimpa.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan loop fallback model + safe JSON parse di
+              <code>/insight</code> dengan default <code>gemini-2.5-flash</code>, deteksi dompet e-wallet/kustom
+              otomatis, dukungan tanggal <code>1..31</code> pada <code>/recurring add</code>, laporan akurat
+              <code>/budget copy</code>, serta helper <code>updateDashboardTitle()</code> agar mode Inggris (EN) tidak
+              tertimpa.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Modularisasi Frontend Penuh</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memecah seluruh ~6.200 baris JS inline dari <code>script.html</code> &amp; <code>features-v21.html</code> ke <strong>25 modul fokus <code>web/ui-*.js</code></strong> (&lt;330 baris), menghapus duplikat dead code, menambah <code>package.json</code>, serta memperluas test regresi.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memecah seluruh ~6.200 baris JS inline dari
+              <code>script.html</code> &amp; <code>features-v21.html</code> ke <strong>25 modul fokus
+                <code>web/ui-*.js</code></strong> (&lt;330 baris), menghapus duplikat dead code, menambah
+              <code>package.json</code>, serta memperluas test regresi.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.10</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.10</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.10: Modularisasi Total, Static Tailwind CI, Laporan Mobile Cards, Redesign Auth, Keamanan &amp; PWA Polish</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.10:
+            Modularisasi Total, Static Tailwind CI, Laporan Mobile Cards, Redesign Auth, Keamanan &amp; PWA Polish</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Performa &amp; PWA</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Kompilasi CSS Tailwind v3.4.17 statis di pipeline CI build + sinkronisasi penuh Service Worker <code>SKIP_WAITING</code> / <code>controllerchange</code> sehingga pembaruan aplikasi lebih cepat, bebas FOUC, dan siap offline penuh.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Kompilasi CSS Tailwind v3.4.17 statis di pipeline CI build +
+              sinkronisasi penuh Service Worker <code>SKIP_WAITING</code> / <code>controllerchange</code> sehingga
+              pembaruan aplikasi lebih cepat, bebas FOUC, dan siap offline penuh.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Keamanan &amp; Auth UI</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Penambahan header meta <code>Content-Security-Policy</code> &amp; <code>Referrer-Policy</code>, pembersihan seluruh <strong>13 key <code>localStorage</code></strong> saat logout, serta tampilan baru layar Login/Register mengikuti tema warna dan mode gelap pengguna.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Penambahan header meta <code>Content-Security-Policy</code>
+              &amp; <code>Referrer-Policy</code>, pembersihan seluruh <strong>13 key <code>localStorage</code></strong>
+              saat logout, serta tampilan baru layar Login/Register mengikuti tema warna dan mode gelap pengguna.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile &amp; Navigasi Pro</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Daftar kartu mobile khusus di halaman Laporan (<code>#list-laporan-mobile</code>) lengkap dengan sinkronisasi checkbox aksi massal, navigasi keyboard <code>ArrowUp/ArrowDown/Enter</code> di Command Palette, perapian kalender Bento, serta test paritas ID/EN.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Daftar kartu mobile khusus di halaman Laporan
+              (<code>#list-laporan-mobile</code>) lengkap dengan sinkronisasi checkbox aksi massal, navigasi keyboard
+              <code>ArrowUp/ArrowDown/Enter</code> di Command Palette, perapian kalender Bento, serta test paritas
+              ID/EN.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Arsitektur Modular</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memecah modul analisis finansial, wrapper Supabase, dan bot Telegram menjadi file modular ringkas (&lt;320 baris) serta membersihkan seluruh log debug produksi.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memecah modul analisis finansial, wrapper Supabase, dan bot
+              Telegram menjadi file modular ringkas (&lt;320 baris) serta membersihkan seluruh log debug produksi.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="reports assets"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.9</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.9</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.9: UI/UX Cohesion, Executive Bento Dashboard, Redesign Mobile Navbar &amp; Perbaikan 13 Ikon Phosphor</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.9: UI/UX
+            Cohesion, Executive Bento Dashboard, Redesign Mobile Navbar &amp; Perbaikan 13 Ikon Phosphor</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile Bottom Nav</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menata ulang <code>#mobileBottomNav</code> menjadi grid 5 kolom simetris (<code>grid-cols-5</code>) dengan pill tab aktif, tombol tengah <strong>+ Catat</strong> berlogo crisp (<code>ph-bold ph-plus</code>) + ring border, popup aksi cepat berikon lengkap, dan auto-hide saat membuka form transaksi.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menata ulang <code>#mobileBottomNav</code> menjadi grid 5
+              kolom simetris (<code>grid-cols-5</code>) dengan pill tab aktif, tombol tengah <strong>+ Catat</strong>
+              berlogo crisp (<code>ph-bold ph-plus</code>) + ring border, popup aksi cepat berikon lengkap, dan
+              auto-hide saat membuka form transaksi.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Perbaikan 13 Ikon</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki 13 kelas ikon Phosphor v2.1.1 yang sebelumnya blank (<code>ph-*-bold</code> → <code>ph-bold ph-*</code>) di Bottom Nav, Quick-Add Dashboard, Dompet, Aset, Budgeting, Target, Rutin, Form Transaksi, dan Utang/Piutang, plus test regresi otomatis.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Memperbaiki 13 kelas ikon Phosphor v2.1.1 yang sebelumnya
+              blank (<code>ph-*-bold</code> → <code>ph-bold ph-*</code>) di Bottom Nav, Quick-Add Dashboard, Dompet,
+              Aset, Budgeting, Target, Rutin, Form Transaksi, dan Utang/Piutang, plus test regresi otomatis.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Executive Bento Dashboard</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menata ulang Dashboard menjadi 3 zona ringkas tanpa menumpuk: Hero Net Worth menyatu dengan 3 KPI Arus Kas, baris Quick-Add + template scroll horizontal 1 baris, serta Bento 2 kolom (Kalender di kiri, daftar Dompet ramping &amp; ringkasan Utang/Piutang di kanan).</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menata ulang Dashboard menjadi 3 zona ringkas tanpa menumpuk:
+              Hero Net Worth menyatu dengan 3 KPI Arus Kas, baris Quick-Add + template scroll horizontal 1 baris, serta
+              Bento 2 kolom (Kalender di kiri, daftar Dompet ramping &amp; ringkasan Utang/Piutang di kanan).</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Keseragaman UI/UX</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan header atas mobile, ikon tile + tipografi judul di seluruh halaman, radius kartu (<code>rounded-3xl</code>) &amp; tombol (<code>rounded-xl</code>), padding form mobile, dropdown Laporan aman viewport, dan perbaikan CI test rekap tahunan &amp; impor CSV.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan header atas mobile, ikon tile + tipografi judul
+              di seluruh halaman, radius kartu (<code>rounded-3xl</code>) &amp; tombol (<code>rounded-xl</code>),
+              padding form mobile, dropdown Laporan aman viewport, dan perbaikan CI test rekap tahunan &amp; impor CSV.
+            </dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.8</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.8</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.5–v3.8: Mobile Bottom Nav, Quick-Add Kilat, #Tag &amp; Auto-Kategori, Bulk Laporan, Rekap Tahunan, Kalkulator Lokal &amp; AI Multi-Turn</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.5–v3.8: Mobile
+            Bottom Nav, Quick-Add Kilat, #Tag &amp; Auto-Kategori, Bulk Laporan, Rekap Tahunan, Kalkulator Lokal &amp;
+            AI Multi-Turn</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Mobile UX &amp; Catat Kilat</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Navigasi bawah 5 tab khusus HP (<code>#mobileBottomNav</code>), input kilat 1 baris ala Telegram (<code>"kopi 25rb bca #kantor"</code>) + template cepat 1-ketuk, dropdown rapi di Laporan, toast update PWA otomatis, dan <strong>Command Palette (Ctrl+K)</strong>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Navigasi bawah 5 tab khusus HP
+              (<code>#mobileBottomNav</code>), input kilat 1 baris ala Telegram (<code>"kopi 25rb bca #kantor"</code>) +
+              template cepat 1-ketuk, dropdown rapi di Laporan, toast update PWA otomatis, dan <strong>Command Palette
+                (Ctrl+K)</strong>.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Fitur Pro &amp; Analitik</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Dukungan filter <code>#tag</code> lintas kategori di Histori &amp; Laporan, aturan <strong>Auto-Kategori</strong> kustom untuk Quick-Add &amp; impor bank CSV, aksi massal checkbox di Laporan, serta <strong>Rekap Tahunan 12 Siklus &amp; Perbandingan Periode</strong>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Dukungan filter <code>#tag</code> lintas kategori di Histori
+              &amp; Laporan, aturan <strong>Auto-Kategori</strong> kustom untuk Quick-Add &amp; impor bank CSV, aksi
+              massal checkbox di Laporan, serta <strong>Rekap Tahunan 12 Siklus &amp; Perbandingan Periode</strong>.
+            </dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Kalkulator, AI &amp; Portofolio</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Kalkulator lokal (<strong>Lunas Utang Snowball/Avalanche</strong>, <strong>Bunga Majemuk</strong>, <strong>Cicilan vs Tunai</strong>), AI Chat multi-turn + cache analisis siklus aktif, <strong>Target Alokasi &amp; Rebalance</strong> portofolio, dan Web Notification opt-in.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Kalkulator lokal (<strong>Lunas Utang
+                Snowball/Avalanche</strong>, <strong>Bunga Majemuk</strong>, <strong>Cicilan vs Tunai</strong>), AI Chat
+              multi-turn + cache analisis siklus aktif, <strong>Target Alokasi &amp; Rebalance</strong> portofolio, dan
+              Web Notification opt-in.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Performa &amp; Kualitas</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Preconnect font/CDN, <code>defer</code> jsPDF, refactor modul JS bersih (<code>web/finance-pro.js</code>), serta skor kualitas kode <code>aislop</code> naik dari <code>67</code> ke <code>78/100</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Preconnect font/CDN, <code>defer</code> jsPDF, refactor modul
+              JS bersih (<code>web/finance-pro.js</code>), serta skor kualitas kode <code>aislop</code> naik dari
+              <code>67</code> ke <code>78/100</code>.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-20" class="text-xs font-bold text-slate-500 dark:text-slate-400">20 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.4</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.4</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.4: Security Hardening, Atomic Asset/Wallet RPCs, Telegram Bot, Print Statement, Kalender &amp; PWA Cache Busting</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.4: Security
+            Hardening, Atomic Asset/Wallet RPCs, Telegram Bot, Print Statement, Kalender &amp; PWA Cache Busting</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Keamanan &amp; Privasi</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Pembersihan rahasia cron di <code>supabase/schedule.sql</code> (wajib rotasi <code>CRON_SECRET</code>), pembersihan menyeluruh storage &amp; IndexedDB saat logout, PIN Lock PBKDF2-SHA256 tersalt, perlindungan formula injection CSV/XLS, serta HTML escaping modal SweetAlert2.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Pembersihan rahasia cron di
+              <code>supabase/schedule.sql</code> (wajib rotasi <code>CRON_SECRET</code>), pembersihan menyeluruh storage
+              &amp; IndexedDB saat logout, PIN Lock PBKDF2-SHA256 tersalt, perlindungan formula injection CSV/XLS, serta
+              HTML escaping modal SweetAlert2.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">RPC Aset &amp; Profil</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Migrasi <code>20261120000000_hardening_assets_profile_wallets.sql</code>: RPC atomik pembelian/top-up/pencairan untuk Crypto, Emas, USD, dan Saham, RPC <code>update_own_display_name</code> untuk non-admin, serta <code>delete_wallet</code> yang menjaga histori saldo.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Migrasi
+              <code>20261120000000_hardening_assets_profile_wallets.sql</code>: RPC atomik pembelian/top-up/pencairan
+              untuk Crypto, Emas, USD, dan Saham, RPC <code>update_own_display_name</code> untuk non-admin, serta
+              <code>delete_wallet</code> yang menjaga histori saldo.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Kalender, Rutin &amp; Cetak</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Sinkronisasi periode &amp; filter hitungan Kalender, akurasi deteksi jatuh tempo tagihan rutin + update <code>last_run</code>, perbaikan modal &amp; layout <code>@media print</code> Ringkasan 1 Halaman, serta perbaikan grafik Net Worth.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Sinkronisasi periode &amp; filter hitungan Kalender, akurasi
+              deteksi jatuh tempo tagihan rutin + update <code>last_run</code>, perbaikan modal &amp; layout
+              <code>@media print</code> Ringkasan 1 Halaman, serta perbaikan grafik Net Worth.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Bot Telegram &amp; PWA</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Koreksi kategori <code>/utang</code> (<code>UtangPerson</code> + entitas), pairing OTP atomik, filter user aktif &amp; tanggal akhir bulan (<code>29..31</code>) pada cron, fallback Gemini terdeduplikasi, dan Network-First HTML + hash cache-busting PWA di <code>web/sw.js</code>.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Koreksi kategori <code>/utang</code>
+              (<code>UtangPerson</code> + entitas), pairing OTP atomik, filter user aktif &amp; tanggal akhir bulan
+              (<code>29..31</code>) pada cron, fallback Gemini terdeduplikasi, dan Network-First HTML + hash
+              cache-busting PWA di <code>web/sw.js</code>.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Riwayat Pembaruan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Halaman Riwayat Pembaruan kini dapat diakses semua pengguna langsung dari menu sidebar, lengkap dengan filter topik, pencarian cepat, accordion rilis lama, dan indikator pembaruan baru.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Halaman Riwayat Pembaruan kini dapat diakses semua pengguna
+              langsung dari menu sidebar, lengkap dengan filter topik, pencarian cepat, accordion rilis lama, dan
+              indikator pembaruan baru.</dd>
           </div>
         </dl>
       </div>
     </details>
     <details data-release-card data-release-details data-topics="assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.3</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.3</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.3: Batch Catat Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak &amp; Filter Kalender</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.3: Batch Catat
+            Rutin, Net Worth Evolution, Bot Telegram Transfer/Utang, Ringkasan Cetak &amp; Filter Kalender</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Otomasi &amp; Tagihan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Banner pengingat tagihan rutin jatuh tempo di Dashboard dengan tombol 1-klik <strong>⚡ Catat Semua Sekaligus</strong> untuk membukukan seluruh kewajiban tanpa input berulang.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Banner pengingat tagihan rutin jatuh tempo di Dashboard
+              dengan tombol 1-klik <strong>⚡ Catat Semua Sekaligus</strong> untuk membukukan seluruh kewajiban tanpa
+              input berulang.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Evolusi Net Worth</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Grafik tren riwayat kekayaan bersih (Net Worth) 6 siklus ke belakang di Tabungan &amp; Investasi berbasis rekonstruksi kas riil.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Grafik tren riwayat kekayaan bersih (Net Worth) 6 siklus ke
+              belakang di Tabungan &amp; Investasi berbasis rekonstruksi kas riil.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Bot Telegram</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Perintah baru <code>/transfer [dari] [ke] [nominal]</code>, <code>/utang [pinjam|bayar]</code>, dan <code>/piutang [beri|terima]</code> untuk kelola mutasi dompet serta utang piutang langsung dari Telegram.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Perintah baru <code>/transfer [dari] [ke] [nominal]</code>,
+              <code>/utang [pinjam|bayar]</code>, dan <code>/piutang [beri|terima]</code> untuk kelola mutasi dompet
+              serta utang piutang langsung dari Telegram.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Ringkasan Cetak</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Modal <em>1-Page Executive Statement</em> siap cetak di menu Laporan &amp; Ekspor mencakup posisi neraca, arus kas, rasio kesehatan, dan top pengeluaran.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Modal <em>1-Page Executive Statement</em> siap cetak di menu
+              Laporan &amp; Ekspor mencakup posisi neraca, arus kas, rasio kesehatan, dan top pengeluaran.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Kalender &amp; Target</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Filter cepat kalender finansial (Semua / 🔴 Keluar / 🟢 Masuk) dan kalkulator proyeksi pencapaian target keuangan (Milestone Projection) otomatis.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Filter cepat kalender finansial (Semua / 🔴 Keluar / 🟢
+              Masuk) dan kalkulator proyeksi pencapaian target keuangan (Milestone Projection) otomatis.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.2</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.2</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.2: Top-Up/Jual Emas &amp; USD, Alokasi Portofolio, Anomaly Detector, Restore JSON &amp; PWA Shortcuts</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.2: Top-Up/Jual
+            Emas &amp; USD, Alokasi Portofolio, Anomaly Detector, Restore JSON &amp; PWA Shortcuts</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Aset &amp; Transaksi</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Top-up &amp; pencairan parsial berbasiskan unit (gram / USD) untuk aset Emas &amp; Valas USD, pemilih tanggal (date picker) pada Transfer Dompet dan Utang/Piutang, serta tombol eksekusi cepat 1-klik <strong>⚡ Catat</strong> pada kartu Tagihan Rutin.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Top-up &amp; pencairan parsial berbasiskan unit (gram / USD)
+              untuk aset Emas &amp; Valas USD, pemilih tanggal (date picker) pada Transfer Dompet dan Utang/Piutang,
+              serta tombol eksekusi cepat 1-klik <strong>⚡ Catat</strong> pada kartu Tagihan Rutin.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Analitik Portofolio &amp; Budget</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Bar Alokasi &amp; Diversifikasi Portofolio 5 kelas aset di Tabungan &amp; Investasi, serta deteksi Beban Biaya Rutin (Fixed Cost Ratio) &amp; Lonjakan Pengeluaran otomatis di Budgeting.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Bar Alokasi &amp; Diversifikasi Portofolio 5 kelas aset di
+              Tabungan &amp; Investasi, serta deteksi Beban Biaya Rutin (Fixed Cost Ratio) &amp; Lonjakan Pengeluaran
+              otomatis di Budgeting.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Restore JSON &amp; PWA</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Pemulihan/merge data Backup JSON anti-duplikat di Laporan &amp; Ekspor, 4 PWA App Shortcuts pada ikon aplikasi, tombol Install PWA di sidebar, dan upgrade default Gemini ke <code>gemini-3.8-flash</code> dengan auto-fallback.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Pemulihan/merge data Backup JSON anti-duplikat di Laporan
+              &amp; Ekspor, 4 PWA App Shortcuts pada ikon aplikasi, tombol Install PWA di sidebar, dan upgrade default
+              Gemini ke <code>gemini-3.8-flash</code> dengan auto-fallback.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.1</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.1</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.1: Rincian Dompet, Rasio Finansial, Split Bill, Backup &amp; PIN</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.1: Rincian
+            Dompet, Rasio Finansial, Split Bill, Backup &amp; PIN</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Dompet &amp; Histori</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Klik kartu dompet di Dashboard untuk melihat rincian mutasi &amp; transaksi terakhir; tambah pencarian &amp; filter dompet di halaman Histori Transaksi serta tombol Catat Cepat di HP dan shortcut keyboard.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Klik kartu dompet di Dashboard untuk melihat rincian mutasi
+              &amp; transaksi terakhir; tambah pencarian &amp; filter dompet di halaman Histori Transaksi serta tombol
+              Catat Cepat di HP dan shortcut keyboard.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Rasio, Budget &amp; Split</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Panel 3 rasio kesehatan finansial (Dana Darurat, Savings Rate, Rasio Utang) di Tabungan &amp; Investasi, Generator Rekomendasi Budget Otomatis 3 siklus, dan Split Bill patungan ke Piutang di form transaksi.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Panel 3 rasio kesehatan finansial (Dana Darurat, Savings
+              Rate, Rasio Utang) di Tabungan &amp; Investasi, Generator Rekomendasi Budget Otomatis 3 siklus, dan Split
+              Bill patungan ke Piutang di form transaksi.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Laporan &amp; Backup JSON</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Tambahkan kolom Dompet di tabel web dan ekspor PDF Laporan, serta tombol unduh Backup JSON seluruh data akun.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Tambahkan kolom Dompet di tabel web dan ekspor PDF Laporan,
+              serta tombol unduh Backup JSON seluruh data akun.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Profil &amp; PIN Lock</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Semua pengguna dapat mengubah nama tampilan, mengganti password, serta menyalakan kunci PIN 4–6 digit lokal langsung dari kartu profil di sidebar.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Semua pengguna dapat mengubah nama tampilan, mengganti
+              password, serta menyalakan kunci PIN 4–6 digit lokal langsung dari kartu profil di sidebar.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v2.1–v3.0</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v2.1–v3.0</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Roadmap v2.1–v3.0: AI Multimodal, Grafik Budgeting, Notifikasi &amp; Offline Sync</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Roadmap v2.1–v3.0: AI
+            Multimodal, Grafik Budgeting, Notifikasi &amp; Offline Sync</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Scan Struk &amp; AI Chat</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Scan foto struk belanja otomatis di Form Transaksi maupun Bot Telegram (termasuk Voice Note) via Gemini 2.5 Flash, serta Tanya &amp; Simulasi Keuangan AI on-demand.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Scan foto struk belanja otomatis di Form Transaksi maupun Bot
+              Telegram (termasuk Voice Note) via Gemini 2.5 Flash, serta Tanya &amp; Simulasi Keuangan AI on-demand.
+            </dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Grafik &amp; Kalkulator Target</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Donut Chart kategori pengeluaran, Bar Chart arus kas 6 bulan vs budget, serta kalkulator saran tabungan bulanan per target di Budgeting.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Donut Chart kategori pengeluaran, Bar Chart arus kas 6 bulan
+              vs budget, serta kalkulator saran tabungan bulanan per target di Budgeting.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Notifikasi &amp; Offline PWA</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Ikon lonceng Pusat Notifikasi (alert budget, tagihan rutin H-3, target mendesak, &amp; antrean offline) dengan auto-sync transaksi IndexedDB saat kembali online.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Ikon lonceng Pusat Notifikasi (alert budget, tagihan rutin
+              H-3, target mendesak, &amp; antrean offline) dengan auto-sync transaksi IndexedDB saat kembali online.
+            </dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Aset, Bank CSV, Excel &amp; Utang</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Dukungan Emas (gram), Valas USD (auto kurs &amp; harga), Saham/Reksa Dana, impor e-statement bank (BCA/Mandiri), ekspor Excel (.xls), jatuh tempo utang, dan header mobile satu baris.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Dukungan Emas (gram), Valas USD (auto kurs &amp; harga),
+              Saham/Reksa Dana, impor e-statement bank (BCA/Mandiri), ekspor Excel (.xls), jatuh tempo utang, dan header
+              mobile satu baris.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="security assets reports ai"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-18" class="text-xs font-bold text-slate-500 dark:text-slate-400">18 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v2.0</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v2.0</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Comprehensive Upgrade, Tata Letak Modular &amp; On-Demand Gemini AI</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Comprehensive Upgrade,
+            Tata Letak Modular &amp; On-Demand Gemini AI</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">6 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">6
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Analisis AI Gemini</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Halaman khusus Analisis AI on-demand memakai Gemini 2.5 Flash; API key disimpan lokal di browser dan hanya berjalan saat tombol analisis ditekan.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Halaman khusus Analisis AI on-demand memakai Gemini 2.5
+              Flash; API key disimpan lokal di browser dan hanya berjalan saat tombol analisis ditekan.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Budgeting, Target &amp; Rutin</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Halaman Budgeting kini mencakup anggaran kategori, insight 6 bulan, Target Keuangan (alokasi tabungan dari dompet), serta Tagihan &amp; Transaksi Rutin bulanan.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Halaman Budgeting kini mencakup anggaran kategori, insight 6
+              bulan, Target Keuangan (alokasi tabungan dari dompet), serta Tagihan &amp; Transaksi Rutin bulanan.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Tabungan &amp; Investasi</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Halaman khusus Tabungan &amp; Investasi berisi portofolio aset (beli/cairkan ke dompet), grafik 30 hari, serta Riwayat Transfer Terakhir antar dompet.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Halaman khusus Tabungan &amp; Investasi berisi portofolio
+              aset (beli/cairkan ke dompet), grafik 30 hari, serta Riwayat Transfer Terakhir antar dompet.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Histori, Laporan &amp; Kalender</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Halaman khusus Histori Transaksi siklus, filter dompet &amp; ekspor CSV terfilter pada Laporan, dan klik tanggal pada kalender untuk melihat atau menambah transaksi.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Halaman khusus Histori Transaksi siklus, filter dompet &amp;
+              ekspor CSV terfilter pada Laporan, dan klik tanggal pada kalender untuk melihat atau menambah transaksi.
+            </dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Tampilan &amp; Tema</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Dashboard fokus pada Arus Kas &amp; Saldo, Dompet, Utang &amp; Piutang, dan Kalender. Sistem tema warna berlaku menyeluruh di mode terang maupun gelap beserta pembaruan logo dan detail visual.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Dashboard fokus pada Arus Kas &amp; Saldo, Dompet, Utang
+              &amp; Piutang, dan Kalender. Sistem tema warna berlaku menyeluruh di mode terang maupun gelap beserta
+              pembaruan logo dan detail visual.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Keamanan &amp; Admin</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Statistik global admin, cari/filter pengguna, proteksi self-lockout, bypass cache API pada Service Worker, dark mode login &amp; modal, dan verifikasi secret timing-safe.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Statistik global admin, cari/filter pengguna, proteksi
+              self-lockout, bypass cache API pada Service Worker, dark mode login &amp; modal, dan verifikasi secret
+              timing-safe.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="assets"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-17" class="text-xs font-bold text-slate-500 dark:text-slate-400">17 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v1.2</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v1.2</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Dompet dan pembelian aset</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Dompet dan pembelian
+            aset</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Dompet</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Tambah dompet bank, e-wallet, atau tunai, lalu transfer saldo antar dompet.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Tambah dompet bank, e-wallet, atau tunai, lalu transfer saldo
+              antar dompet.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Pembelian aset</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Pilih dompet sumber. Pembelian masuk ke transaksi pengeluaran kategori Investasi dan menambah nilai aset.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Pilih dompet sumber. Pembelian masuk ke transaksi pengeluaran
+              kategori Investasi dan menambah nilai aset.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Kategori</dt>
@@ -863,55 +1325,68 @@
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Header mobile</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Nama aplikasi dan kontrol periode, payday, nominal, serta tema ditata ulang agar tidak bertumpuk.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Nama aplikasi dan kontrol periode, payday, nominal, serta
+              tema ditata ulang agar tidak bertumpuk.</dd>
           </div>
         </dl>
       </div>
     </details>
 
     <details data-release-card data-release-details data-topics="reports"
-             class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+      class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
             <time datetime="2026-11-17" class="text-xs font-bold text-slate-500 dark:text-slate-400">17 Nov 2026</time>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v1.1</span>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v1.1</span>
           </div>
-          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Laporan, impor, target, dan insight keuangan</h3>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Laporan, impor, target,
+            dan insight keuangan</h3>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5 item</span>
-          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">5
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
         </div>
       </summary>
       <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
         <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
           <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Laporan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Filter tanggal, tipe, kategori, dan pencarian. Hasil berhalaman, dan ekspor PDF mengikuti filter.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Filter tanggal, tipe, kategori, dan pencarian. Hasil
+              berhalaman, dan ekspor PDF mengikuti filter.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Impor CSV</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Pratinjau dan validasi sebelum impor, maksimal 500 transaksi, lalu duplikat dilewati.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Pratinjau dan validasi sebelum impor, maksimal 500 transaksi,
+              lalu duplikat dilewati.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Target keuangan</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Catat nominal terkumpul, nominal tujuan, dan tenggat opsional.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Catat nominal terkumpul, nominal tujuan, dan tenggat
+              opsional.</dd>
           </div>
           <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Budgeting</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Bandingkan pengeluaran dengan periode sebelumnya, lalu lihat kategori terbesar dan yang melewati anggaran.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Bandingkan pengeluaran dengan periode sebelumnya, lalu lihat
+              kategori terbesar dan yang melewati anggaran.</dd>
           </div>
           <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
             <dt class="font-semibold text-slate-700 dark:text-slate-200">Panel admin</dt>
-            <dd class="text-slate-600 dark:text-slate-300">Riwayat rilis aplikasi ditambahkan ke sistem pelacakan rilis.</dd>
+            <dd class="text-slate-600 dark:text-slate-300">Riwayat rilis aplikasi ditambahkan ke sistem pelacakan rilis.
+            </dd>
           </div>
         </dl>
       </div>
     </details>
   </section>
 
-  <div id="updatesEmptyState" class="hide bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+  <div id="updatesEmptyState"
+    class="hide bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
     <i class="ph ph-magnifying-glass text-2xl block mx-auto mb-2 opacity-60" aria-hidden="true"></i>
     <span data-i18n="updates.empty">Tidak ada catatan pembaruan yang cocok dengan filter atau pencarian.</span>
   </div>

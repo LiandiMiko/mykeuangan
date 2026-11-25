@@ -1,5 +1,7 @@
 name: Build Android APK & AAB (Capacitor 8)
 on:
+  schedule:
+    - cron: '0 3 */5 * *'
   workflow_dispatch:
     inputs:
       build_type:
@@ -31,7 +33,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  keepalive-keystore-cache:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh persistent CI debug keystore cache TTL
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
   build-android:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +70,7 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_USER_HOME=$HOME/.android" >> "$GITHUB_ENV"
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | sort -V | tail -n 1)"
           if [ -z "$SDKMANAGER" ]; then
             echo "::error::sdkmanager tidak ditemukan di $SDK_ROOT/cmdline-tools."
@@ -113,9 +127,13 @@ jobs:
 
       - name: Ensure persistent CI debug keystore
         if: steps.cfg.outputs.build_type == 'debug-apk' || steps.cfg.outputs.build_type == 'all'
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
           mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
+            printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+          elif [ ! -f "$HOME/.android/debug.keystore" ]; then
             keytool -genkeypair -v \
               -keystore "$HOME/.android/debug.keystore" \
               -storepass android \
@@ -137,9 +155,24 @@ jobs:
       - name: Build Debug APK (untuk test langsung di HP)
         if: steps.cfg.outputs.build_type == 'debug-apk' || steps.cfg.outputs.build_type == 'all'
         run: |
-          DEBUG_SHA256="$({ keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android 2>/dev/null | awk '/SHA-?256:/ {print $2; exit}'; } || true)"
-          echo "DEBUG_CERT_SHA256=${DEBUG_SHA256:-unavailable}" >> "$GITHUB_ENV"
+          cp "$HOME/.android/debug.keystore" android/ci-debug.keystore
+          printf '%s\n' \
+            'storeFile=ci-debug.keystore' \
+            'storePassword=android' \
+            'keyAlias=androiddebugkey' \
+            'keyPassword=android' \
+            > android/debug-keystore.properties
+          EXPECTED_SHA256="$({ keytool -list -v -keystore android/ci-debug.keystore -alias androiddebugkey -storepass android 2>/dev/null | awk '/^[[:space:]]*SHA-?256:/ {print $2; exit}'; } || true)"
+          EXPECTED_NORM="$(printf '%s' "$EXPECTED_SHA256" | tr -d ': \r\n' | tr '[:lower:]' '[:upper:]')"
           (cd android && ./gradlew assembleDebug)
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk > /tmp/debug-certs.txt
+          ACTUAL_HEX="$(awk '/Signer #1 certificate SHA-256 digest:/ {print $NF; exit}' /tmp/debug-certs.txt | tr -d ': \r\n' | tr '[:lower:]' '[:upper:]')"
+          if [ -z "$EXPECTED_NORM" ] || [ -z "$ACTUAL_HEX" ] || [ "$ACTUAL_HEX" != "$EXPECTED_NORM" ]; then
+            echo "::error::Sertifikat debug APK ($ACTUAL_HEX) tidak cocok dengan keystore persisten ($EXPECTED_NORM)."
+            exit 1
+          fi
+          echo "DEBUG_CERT_SHA256=${EXPECTED_SHA256}" >> "$GITHUB_ENV"
           mkdir -p release
           cp android/app/build/outputs/apk/debug/app-debug.apk "release/MyKeuGuech-v${{ steps.cfg.outputs.version }}-debug.apk"
 
@@ -173,7 +206,8 @@ jobs:
             exit 0
           fi
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/mykeuguech-upload.jks
-          RELEASE_SHA256="$({ keytool -list -v -keystore android/mykeuguech-upload.jks -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" 2>/dev/null | awk '/SHA-?256:/ {print $2; exit}'; } || true)"
+          RELEASE_SHA256="$({ keytool -list -v -keystore android/mykeuguech-upload.jks -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" 2>/dev/null | awk '/^[[:space:]]*SHA-?256:/ {print $2; exit}'; } || true)"
+          RELEASE_NORM="$(printf '%s' "$RELEASE_SHA256" | tr -d ': \r\n' | tr '[:lower:]' '[:upper:]')"
           echo "RELEASE_CERT_SHA256=${RELEASE_SHA256:-unavailable}" >> "$GITHUB_ENV"
           node -e "const fs=require('fs'); fs.writeFileSync('android/keystore.properties', ['storeFile=mykeuguech-upload.jks', 'storePassword=' + process.env.ANDROID_KEYSTORE_PASSWORD, 'keyAlias=' + process.env.ANDROID_KEY_ALIAS, 'keyPassword=' + process.env.ANDROID_KEY_PASSWORD, ''].join('\n'));"
           HAS_APK=false
@@ -181,6 +215,13 @@ jobs:
           mkdir -p release
           if [ "$BUILD_TYPE" = "release-apk" ] || [ "$BUILD_TYPE" = "all" ]; then
             (cd android && ./gradlew assembleRelease)
+            APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+            "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk > /tmp/release-certs.txt
+            ACTUAL_REL_HEX="$(awk '/Signer #1 certificate SHA-256 digest:/ {print $NF; exit}' /tmp/release-certs.txt | tr -d ': \r\n' | tr '[:lower:]' '[:upper:]')"
+            if [ -z "$RELEASE_NORM" ] || [ -z "$ACTUAL_REL_HEX" ] || [ "$ACTUAL_REL_HEX" != "$RELEASE_NORM" ]; then
+              echo "::error::Sertifikat release APK ($ACTUAL_REL_HEX) tidak cocok dengan upload keystore ($RELEASE_NORM)."
+              exit 1
+            fi
             cp android/app/build/outputs/apk/release/app-release.apk "release/MyKeuGuech-v${APP_VERSION}-release.apk"
             HAS_APK=true
           fi
@@ -210,7 +251,7 @@ jobs:
 
       - name: Bersihkan file keystore sementara
         if: always()
-        run: rm -f android/mykeuguech-upload.jks android/keystore.properties
+        run: rm -f android/mykeuguech-upload.jks android/keystore.properties android/ci-debug.keystore android/debug-keystore.properties
 
       - name: Publish APK to GitHub Releases
         if: success() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || inputs.publish_release == true)
@@ -221,10 +262,10 @@ jobs:
           shopt -s nullglob
           RELEASE_APKS=(release/*-release.apk)
           APKS=("${RELEASE_APKS[@]}")
-          IS_RELEASE_APK=true
+          export IS_RELEASE_APK=true
           if [ ${#APKS[@]} -eq 0 ]; then
             APKS=(release/*.apk)
-            IS_RELEASE_APK=false
+            export IS_RELEASE_APK=false
           fi
           if [ ${#APKS[@]} -eq 0 ]; then
             echo "::warning::Tidak ada berkas .apk di release/ untuk dipublikasikan ke GitHub Releases."
@@ -237,13 +278,21 @@ jobs:
           node - <<'EOF' > /tmp/release-notes.md
           const fs = require('fs');
           const m = JSON.parse(fs.readFileSync('dist/version.json', 'utf8'));
+          const isRel = process.env.IS_RELEASE_APK === 'true';
+          const signTrack = isRel ? 'Signed Release Keystore (Permanen)' : 'Persistent CI Debug Keystore';
+          const certSha = isRel
+            ? (process.env.RELEASE_CERT_SHA256 || 'unavailable')
+            : (process.env.DEBUG_CERT_SHA256 || 'unavailable');
           const lines = ['## ' + (m.releaseTitle || ('MyKeuGuech v' + m.version)), ''];
           (m.notes || []).forEach((n) => lines.push('- ' + n));
           lines.push(
             '',
-            '### Cara Update di Android',
+            '### Signing & Cara Update di Android',
+            '- **Signing Track**: ' + signTrack,
+            '- **Signing Cert SHA-256**: `' + certSha + '`',
+            '',
             '1. Unduh berkas `.apk` di bagian **Assets** di bawah.',
-            '2. Buka berkas APK lalu pilih **Update / Pasang** (tanpa uninstall agar pengaturan lokal tetap tersimpan).'
+            '2. Buka berkas APK lalu pilih **Update / Pasang** untuk langsung menimpa tanpa uninstall (berlaku antarrilis yang memakai sertifikat SHA-256 sama; khusus pengguna APK build lama sebelum `v3.20.4`, uninstall 1x terlebih dahulu agar build berikutnya bisa selalu ditimpa).'
           );
           process.stdout.write(lines.join('\n') + '\n');
           EOF
@@ -263,10 +312,10 @@ jobs:
           HAS_RELEASE_APK: ${{ steps.release_pkg.outputs.has_release_apk }}
         run: |
           if [ "$HAS_RELEASE_APK" = "true" ]; then
-            SIGN_TRACK="Signed Release Keystore (Permanen)"
+            SIGN_TRACK="Signed Release Keystore (Permanen, apksigner verified)"
             CERT_SHA256="${RELEASE_CERT_SHA256:-unavailable}"
           else
-            SIGN_TRACK="Cached CI Debug Keystore (konsisten selama cache 7 hari aktif)"
+            SIGN_TRACK="Persistent CI Debug Keystore (explicit signingConfigs.debug + apksigner verified + 5-day keepalive)"
             CERT_SHA256="${DEBUG_CERT_SHA256:-unavailable}"
           fi
           {
@@ -281,8 +330,8 @@ jobs:
             echo ""
             echo "### Langkah Install & Uji di HP Android"
             echo "1. Unduh artifact **mykeuguech-android-release-apk** / **mykeuguech-android-debug-apk** di bawah halaman run ini, atau langsung dari **GitHub Releases** (\`releases/latest\`)."
-            echo "2. Buka \`.apk\` di HP Android untuk menimpa versi sebelumnya tanpa uninstall (selama APK lama di HP memakai sertifikat SHA-256 yang sama; jika sebelumnya terpasang build lama sebelum cache/release keystore aktif, uninstall 1x lalu install build ini)."
+            echo "2. Buka \`.apk\` di HP Android untuk menimpa versi sebelumnya tanpa uninstall (berlaku untuk semua build dengan sertifikat SHA-256 sama sejak \`v3.20.4\`; jika masih terpasang APK lama sebelum \`v3.20.4\`, uninstall 1x lalu install build ini)."
             echo "3. Setiap push ke \`main\`, tag \`v*\`, atau opsi \`publish_release\` otomatis menerbitkan berkas \`.apk\` ke **GitHub Releases** (\`releases/latest\`) untuk popup in-app update."
-            echo "4. Untuk signature permanen lintas bulan & rilis Play Store, generate upload keystore via \`npm run cap:keystore\` lalu isi 4 GitHub Secrets (\`ANDROID_KEYSTORE_*\`)."
+            echo "4. Untuk signature permanen independen dari cache 7 hari CI (termasuk rilis Play Store), buat upload keystore via \`npm run cap:keystore\` lalu isi 4 GitHub Secrets (\`ANDROID_KEYSTORE_*\`)."
             echo "5. Pastikan Redirect URL Supabase Auth sudah menyertakan \`com.mykeuguech.app://auth-callback\` agar Login Google kembali ke aplikasi."
           } >> "$GITHUB_STEP_SUMMARY"

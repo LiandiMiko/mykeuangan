@@ -194,7 +194,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
           <p class="font-bold mb-2">Rekap 12 Siklus</p>
-          <div class="max-h-52 overflow-y-auto"><table class="w-full"><tbody>${monthRows}</tbody></table></div>
+          <div class="max-h-52 overflow-y-auto pr-2"><table class="w-full"><tbody>${monthRows}</tbody></table></div>
         </div>
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
           <p class="font-bold">Top Pengeluaran ${escapeHtmlJS(recap.year)}</p>
@@ -213,7 +213,7 @@
     const cmp = FinancePro.compareTwoPeriods(DB.transactions || [], DB.budgets || [], pA, pB, DB.payrollDay, FinanceAnalysis);
     const fmt = (n) => formatRupiah(n).replace(',00', '');
     renderHtml(box, `
-      <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs mb-3">
         <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(pA)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseA))}</p></div>
         <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(pB)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseB))}</p></div>
         <div class="p-3 rounded-xl bg-brand/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Selisih Keluar</p><p class="font-black tabular-nums">${cmp.expenseB - cmp.expenseA >= 0 ? '+' : '-'}${escapeHtmlJS(fmt(Math.abs(cmp.expenseB - cmp.expenseA)))}</p></div>
@@ -240,15 +240,15 @@
       width: 680,
       html: `
         <div class="text-left space-y-3">
-          <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
-            <select id="recapYearSel" aria-label="Pilih Tahun Rekap" class="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand" onchange="renderAnnualRecapBody(this.value)">
+          <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
+            <select id="recapYearSel" aria-label="Pilih Tahun Rekap" class="col-span-2 sm:w-auto min-w-0 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand" onchange="renderAnnualRecapBody(this.value)">
               ${years.map((y) => `<option value="${escapeHtmlJS(y)}" ${y === curYear ? 'selected' : ''}>Tahun ${escapeHtmlJS(y)}</option>`).join('')}
             </select>
-            <span class="text-slate-500 dark:text-slate-400 font-medium px-1">atau bandingkan:</span>
-            <input id="cmpPeriodA" aria-label="Periode pertama" type="month" value="${escapeHtmlJS(prevPeriod)}" class="h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
-            <span class="text-slate-500 dark:text-slate-400 font-semibold">vs</span>
-            <input id="cmpPeriodB" aria-label="Periode kedua" type="month" value="${escapeHtmlJS(curPeriod)}" class="h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
-            <button type="button" onclick="renderPeriodCompareBody()" class="h-9 px-3.5 rounded-xl bg-brand text-white font-bold hover:opacity-95 transition-opacity">Bandingkan</button>
+            <span class="col-span-2 sm:w-auto text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium px-0.5">atau bandingkan:</span>
+            <input id="cmpPeriodA" aria-label="Periode pertama" type="month" value="${escapeHtmlJS(prevPeriod)}" class="w-full sm:w-auto min-w-0 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
+            <span class="hidden sm:inline text-slate-500 dark:text-slate-400 font-semibold">vs</span>
+            <input id="cmpPeriodB" aria-label="Periode kedua" type="month" value="${escapeHtmlJS(curPeriod)}" class="w-full sm:w-auto min-w-0 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
+            <button type="button" onclick="renderPeriodCompareBody()" class="col-span-2 sm:w-auto h-9 px-3.5 rounded-xl bg-brand text-white font-bold hover:opacity-95 transition-opacity">Bandingkan</button>
           </div>
           <div id="annualRecapBody"></div>
         </div>
