@@ -2,6 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const os = require('node:os');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { webcrypto } = require('node:crypto');
 
 const FinanceAnalysis = require('../web/finance-analysis.js');
@@ -129,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.0');
+  assert.equal(pkg.version, '3.20.1');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
@@ -150,4 +153,225 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   assert.match(adminJs, /Hapus Akun/);
   assert.match(buildMjs, /ui-feat-native-ux\.js/);
   assert.match(buildMjs, /ui-feat-onboarding\.js/);
+});
+
+test('hotfix v3.20.1 patches Android NativeBiometricPlugin idempotently before super.onCreate()', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mykeu-android-patch-'));
+  try {
+    const manifestPath = path.join(tmpDir, 'app', 'src', 'main', 'AndroidManifest.xml');
+    const gradlePath = path.join(tmpDir, 'app', 'build.gradle');
+    const varsPath = path.join(tmpDir, 'variables.gradle');
+    const mainActPath = path.join(tmpDir, 'app', 'src', 'main', 'java', 'com', 'mykeuguech', 'app', 'MainActivity.java');
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(path.dirname(mainActPath), { recursive: true });
+
+    fs.writeFileSync(varsPath, 'minSdkVersion = 22\ncompileSdkVersion = 34\ntargetSdkVersion = 34\n');
+    fs.writeFileSync(manifestPath, '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <application>\n        <activity android:name=".MainActivity">\n        </activity>\n    </application>\n</manifest>\n');
+    fs.writeFileSync(gradlePath, 'android {\n    defaultConfig {\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        release {\n        }\n    }\n}\ndependencies {\n    implementation "androidx.appcompat:appcompat:1.7.0"\n}\n');
+    fs.writeFileSync(mainActPath, 'package com.mykeuguech.app;\n\nimport com.getcapacitor.BridgeActivity;\n\npublic class MainActivity extends BridgeActivity {}\n');
+
+    const mod = await import(pathToFileURL(path.resolve('scripts/patch-android-project.mjs')).href);
+    mod.patchAndroidProject(tmpDir, '3.20.1');
+    mod.patchAndroidProject(tmpDir, '3.20.1');
+
+    const manifest = fs.readFileSync(manifestPath, 'utf8');
+    const gradle = fs.readFileSync(gradlePath, 'utf8');
+    const mainAct = fs.readFileSync(mainActPath, 'utf8');
+    const pluginPath = path.join(path.dirname(mainActPath), 'NativeBiometricPlugin.java');
+
+    assert.match(manifest, /android\.permission\.USE_BIOMETRIC/);
+    assert.match(manifest, /android\.permission\.USE_FINGERPRINT/);
+    assert.equal(manifest.match(/android\.permission\.USE_BIOMETRIC/g).length, 1);
+    assert.match(gradle, /androidx\.biometric:biometric:1\.1\.0/);
+    assert.equal(gradle.match(/androidx\.biometric:biometric/g).length, 1);
+    assert.ok(fs.existsSync(pluginPath), 'NativeBiometricPlugin.java must be created');
+    assert.match(fs.readFileSync(pluginPath, 'utf8'), /@CapacitorPlugin\(name = "NativeBiometric"\)/);
+
+    const regIdx = mainAct.indexOf('registerPlugin(NativeBiometricPlugin.class);');
+    const superIdx = mainAct.indexOf('super.onCreate(savedInstanceState);');
+    assert.ok(regIdx > 0 && superIdx > regIdx, 'registerPlugin must run before super.onCreate()');
+    assert.equal(mainAct.match(/registerPlugin\(NativeBiometricPlugin\.class\)/g).length, 1);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('hotfix v3.20.1 handles native Capacitor biometric verification and WebAuthn rpId safety', async () => {
+  const nativeUxJs = fs.readFileSync('web/ui-feat-native-ux.js', 'utf8');
+  const storage = new Map([['mk_biometric_pin_enabled', '1']]);
+  let verifyCalls = 0;
+
+  const nativePlugin = {
+    isAvailable: async () => ({ isAvailable: false, reason: 'none_enrolled' }),
+    verifyIdentity: async (opts) => {
+      verifyCalls += 1;
+      assert.equal(opts.title, 'MyKeuGuech');
+      return { verified: true };
+    }
+  };
+  const nativeSandbox = {
+    Capacitor: {
+      isNativePlatform: () => true,
+      isPluginAvailable: (n) => n === 'NativeBiometric',
+      Plugins: {},
+      registerPlugin: (n) => (n === 'NativeBiometric' ? nativePlugin : null)
+    },
+    localStorage: {
+      getItem: (k) => (storage.has(k) ? storage.get(k) : null),
+      setItem: (k, v) => storage.set(k, String(v)),
+      removeItem: (k) => storage.delete(k)
+    },
+    document: { addEventListener: () => {} },
+    Swal: { isVisible: () => false, fire: async () => ({}) }
+  };
+  nativeSandbox.window = nativeSandbox;
+  vm.runInNewContext(nativeUxJs, nativeSandbox);
+
+  const avail = await nativeSandbox.checkBiometricAvailability();
+  assert.equal(avail.supported, false);
+  assert.equal(avail.reason, 'none_enrolled');
+  assert.match(nativeSandbox.formatBiometricFailureReason(avail.reason), /Belum ada sidik jari/);
+
+  assert.equal(await nativeSandbox.tryBiometricUnlock(), true);
+  assert.equal(verifyCalls, 1);
+
+  let capturedGetOpts = null;
+  const webSandbox = {
+    crypto: webcrypto,
+    isSecureContext: true,
+    location: { hostname: '127.0.0.1' },
+    PublicKeyCredential: { isUserVerifyingPlatformAuthenticatorAvailable: async () => true },
+    navigator: {
+      credentials: {
+        get: async (opts) => {
+          capturedGetOpts = opts;
+          return { id: 'ok' };
+        }
+      }
+    },
+    localStorage: {
+      getItem: (k) => (k === 'mk_biometric_pin_enabled' ? '1' : (k === 'mk_biometric_cred_id' ? 'AQID' : null)),
+      setItem: () => {},
+      removeItem: () => {}
+    },
+    document: { addEventListener: () => {} },
+    atob: (b64) => Buffer.from(b64, 'base64').toString('binary'),
+    btoa: (bin) => Buffer.from(bin, 'binary').toString('base64')
+  };
+  webSandbox.window = webSandbox;
+  vm.runInNewContext(nativeUxJs, webSandbox);
+
+  assert.equal(webSandbox.resolveWebAuthnRpId(), undefined);
+  assert.equal(await webSandbox.tryBiometricUnlock(), true);
+  assert.equal(capturedGetOpts.publicKey.rpId, undefined);
+  assert.deepEqual([...capturedGetOpts.publicKey.allowCredentials[0].transports], ['internal']);
+});
+
+test('hotfix v3.20.1 falls back to client currency-api on Edge Function failure and computes manual crypto value', async () => {
+  const portfolioJs = fs.readFileSync('web/supabase-portfolio.js', 'utf8');
+  const indexHtml = fs.readFileSync('src/Index.html', 'utf8');
+  const swJs = fs.readFileSync('web/sw.js', 'utf8');
+  const jobsTs = fs.readFileSync('supabase/functions/telegram-bot/jobs.ts', 'utf8');
+
+  assert.match(indexHtml, /https:\/\/api\.coingecko\.com/);
+  assert.match(indexHtml, /https:\/\/latest\.currency-api\.pages\.dev/);
+  assert.match(swJs, /api\.coingecko\.com/);
+  assert.match(swJs, /currency-api/);
+  assert.match(jobsTs, /currency-api/);
+  assert.match(jobsTs, /api\.binance\.com/);
+  assert.match(jobsTs, /https:\/\/localhost/);
+
+  const assetRows = [
+    { id: 'a1', name: 'Bitcoin', type: 'Crypto', symbol: 'BTC', quantity: 0.5, buy_price: 900000000, value: 450000000 },
+    { id: 'a2', name: 'Antam', type: 'Emas', symbol: 'XAU', quantity: 10, buy_price: 1300000, value: 13000000 },
+    { id: 'a3', name: 'Tabungan USD', type: 'USD', symbol: 'USD', quantity: 100, buy_price: 15500, value: 1550000 }
+  ];
+  const insertedManual = [];
+  const upsertedSnapshots = [];
+
+  const createTableQuery = (table) => ({
+    select: () => ({
+      range: () => ({ order: () => ({ order: async () => ({ data: assetRows, error: null }) }) }),
+      gte: () => ({ order: async () => ({ data: upsertedSnapshots, error: null }) })
+    }),
+    insert: async (payload) => {
+      if (table === 'assets') insertedManual.push(payload);
+      return { error: null };
+    },
+    update: (patch) => ({
+      eq: async (_, id) => {
+        const row = assetRows.find((r) => r.id === id);
+        if (row && table === 'assets') Object.assign(row, patch);
+        return { error: null };
+      }
+    }),
+    upsert: async (row) => {
+      if (table === 'portfolio_snapshots') upsertedSnapshots.push(row);
+      return { error: null };
+    }
+  });
+
+  const coreSandbox = {
+    sb: {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'u-1' } } } }) },
+      from: (table) => createTableQuery(table),
+      functions: {
+        invoke: async () => ({ data: null, error: { message: 'FunctionsFetchError: CORS failed' } })
+      }
+    },
+    fail: (e) => { if (e) throw new Error(e.message || String(e)); },
+    num: (v) => Number(v) || 0,
+    ymd: () => '2026-11-25',
+    syncPeriod: async () => '2026-11',
+    trxFromRow: (r) => r,
+    fetchAll: async () => assetRows,
+    fetchCategoriesOnly: async () => ({ categories: { pemasukan: [], pengeluaran: [] } }),
+    fetchWalletsOnly: async () => ({ wallets: [] }),
+    fetchWalletsAndTransfers: async () => ({ wallets: [], transfers: [] }),
+    fetchAssetsOnly: async () => ({
+      assets: assetRows.map((a) => ({
+        id: a.id, name: a.name, type: a.type, symbol: a.symbol,
+        quantity: a.quantity, buyPrice: a.buy_price, value: a.value
+      }))
+    }),
+    handlers: {}
+  };
+
+  const sandbox = {
+    window: { __mkSb: coreSandbox },
+    navigator: { onLine: true },
+    fetch: async (url) => {
+      if (String(url).includes('coingecko')) return { ok: false, status: 429 };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          idr: { usd: 1 / 16000, btc: 1 / 1500000000, xau: 1 / 46655215.2 }
+        })
+      };
+    },
+    Promise,
+    Set,
+    Number,
+    Math,
+    Date
+  };
+  vm.runInNewContext(portfolioJs, sandbox);
+
+  const refreshed = await coreSandbox.handlers.api_refreshPrices();
+  assert.equal(refreshed.refreshMeta.source, 'direct');
+  assert.equal(refreshed.refreshMeta.updated, 3);
+  assert.equal(assetRows[0].value, 750000000);
+  assert.equal(assetRows[1].value, 15000000);
+  assert.equal(assetRows[2].value, 1600000);
+  assert.equal(upsertedSnapshots.length, 1);
+
+  await coreSandbox.handlers.api_addAssetV2({ name: 'Solana', type: 'Crypto', symbol: 'SOL', quantity: 2, buyPrice: 3000000, value: 0 });
+  assert.equal(insertedManual[0].value, 6000000);
+
+  const backupRows = [...assetRows];
+  assetRows.length = 0;
+  const emptyRes = await coreSandbox.handlers.api_refreshPrices();
+  assert.equal(emptyRes.refreshMeta.noMarketAssets, true);
+  assetRows.push(...backupRows);
 });

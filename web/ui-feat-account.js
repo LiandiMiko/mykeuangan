@@ -17,8 +17,7 @@
 
   function readPinLockState() {
     try {
-      const raw = localStorage.getItem(PIN_LOCK_STATE_KEY);
-      const parsed = raw ? JSON.parse(raw) : null;
+      const parsed = JSON.parse(localStorage.getItem(PIN_LOCK_STATE_KEY) || 'null');
       if (parsed && typeof parsed === 'object') {
         return { attempts: Number(parsed.attempts) || 0, lockedUntil: Number(parsed.lockedUntil) || 0 };
       }
@@ -28,6 +27,11 @@
 
   function writePinLockState(state) {
     try { localStorage.setItem(PIN_LOCK_STATE_KEY, JSON.stringify(state)); } catch (_) { /* ignore */ }
+  }
+
+  function markPinUnlocked() {
+    writePinLockState({ attempts: 0, lockedUntil: 0 });
+    sessionStorage.setItem('mk_pin_unlocked', '1');
   }
 
   function recordFailedPinAttempt() {
@@ -161,18 +165,15 @@
         if (!(await promptVerifyCurrentPin(txMsg('Verifikasi PIN untuk Menghapus', 'Verify PIN to Remove')))) return;
         localStorage.removeItem('mk_app_pin_hash');
         localStorage.removeItem('mk_app_pin_salt');
+        localStorage.removeItem('mk_biometric_pin_enabled');
+        localStorage.removeItem('mk_biometric_cred_id');
         writePinLockState({ attempts: 0, lockedUntil: 0 });
         sessionStorage.removeItem('mk_pin_unlocked');
         Swal.fire({ icon: 'info', title: txMsg('PIN aplikasi dihapus', 'App PIN removed'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       });
     }
     const delBtn = document.getElementById('acc-delete-account-btn');
-    if (delBtn) {
-      delBtn.addEventListener('click', () => {
-        Swal.close();
-        deleteOwnAccountFlow();
-      });
-    }
+    if (delBtn) delBtn.addEventListener('click', () => { Swal.close(); deleteOwnAccountFlow(); });
     if (root.__mkFeat && typeof root.__mkFeat.decorateAccountBiometricRow === 'function') {
       root.__mkFeat.decorateAccountBiometricRow(Boolean(localStorage.getItem('mk_app_pin_hash')));
     }
@@ -220,8 +221,7 @@
       }
       if (val.pin) {
         localStorage.setItem('mk_app_pin_hash', await hashPin(val.pin));
-        writePinLockState({ attempts: 0, lockedUntil: 0 });
-        sessionStorage.setItem('mk_pin_unlocked', '1');
+        markPinUnlocked();
       }
       Swal.fire({ icon: 'success', title: txMsg('Pengaturan akun tersimpan', 'Account settings saved'), timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (err) {
@@ -266,34 +266,37 @@
     }
   }
 
+  const basePinLockAlertOpts = () => ({
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showDenyButton: true,
+    denyButtonText: txMsg('Keluar', 'Sign Out'),
+    denyButtonColor: '#64748b',
+    customClass: { popup: getSwalClass() }
+  });
+
   function showPinCooldownAlert(waitSec) {
     return Swal.fire({
+      ...basePinLockAlertOpts(),
       icon: 'warning',
       title: txMsg('PIN Terkunci Sementara', 'PIN Temporarily Locked'),
       text: txMsg(`Terlalu banyak percobaan salah. Coba lagi dalam ${waitSec} detik.`, `Too many wrong attempts. Try again in ${waitSec} seconds.`),
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showDenyButton: true,
-      denyButtonText: txMsg('Keluar', 'Sign Out'),
-      denyButtonColor: '#64748b',
-      confirmButtonText: txMsg('Coba Lagi', 'Try Again'),
-      customClass: { popup: getSwalClass() }
+      confirmButtonText: txMsg('Coba Lagi', 'Try Again')
     });
   }
 
-  function promptAppPinInput() {
+  function promptAppPinInput(onBiometricSuccess) {
+    const feat = root.__mkFeat || {};
     return Swal.fire({
+      ...basePinLockAlertOpts(),
       title: txMsg('Masukkan PIN Aplikasi', 'Enter App PIN'),
       input: 'password',
       inputAttributes: { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' },
       inputPlaceholder: txMsg('PIN 4–6 digit', '4–6 digit PIN'),
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showDenyButton: true,
-      denyButtonText: txMsg('Keluar', 'Sign Out'),
-      denyButtonColor: '#64748b',
       confirmButtonText: txMsg('Buka Kunci', 'Unlock'),
-      customClass: { popup: getSwalClass() }
+      didOpen: () => {
+        if (typeof feat.decoratePinModalBiometricButton === 'function') feat.decoratePinModalBiometricButton(onBiometricSuccess);
+      }
     });
   }
 
@@ -305,8 +308,7 @@
     if (mainEl) mainEl.classList.add('blur-md', 'pointer-events-none');
     try {
       if (root.__mkFeat && typeof root.__mkFeat.tryBiometricUnlock === 'function' && await root.__mkFeat.tryBiometricUnlock()) {
-        writePinLockState({ attempts: 0, lockedUntil: 0 });
-        sessionStorage.setItem('mk_pin_unlocked', '1');
+        markPinUnlocked();
         return;
       }
       while (true) {
@@ -316,23 +318,15 @@
           if (waitRes.isDenied) { if (typeof root.logout === 'function') root.logout(); return; }
           continue;
         }
-        const res = await promptAppPinInput();
+        let unlockedByBio = false;
+        const res = await promptAppPinInput(() => { unlockedByBio = true; Swal.close(); });
+        if (unlockedByBio) { markPinUnlocked(); break; }
         if (res.isDenied) { if (typeof root.logout === 'function') root.logout(); return; }
-        if (await verifyPinMatches(String(res.value || '').trim(), savedHash)) {
-          writePinLockState({ attempts: 0, lockedUntil: 0 });
-          sessionStorage.setItem('mk_pin_unlocked', '1');
-          break;
-        }
+        if (await verifyPinMatches(String(res.value || '').trim(), savedHash)) { markPinUnlocked(); break; }
         const st = recordFailedPinAttempt();
         const left = Math.max(0, MAX_PIN_ATTEMPTS - st.attempts);
-        await Swal.fire({
-          icon: 'error',
-          title: txMsg('PIN salah', 'Incorrect PIN'),
-          text: st.lockedUntil ? txMsg('Batas percobaan tercapai. Terkunci 60 detik.', 'Attempt limit reached. Locked for 60 seconds.') : txMsg(`Sisa ${left} percobaan.`, `${left} attempts left.`),
-          timer: 1300,
-          showConfirmButton: false,
-          customClass: { popup: getSwalClass() }
-        });
+        const msg = st.lockedUntil ? txMsg('Batas percobaan tercapai. Terkunci 60 detik.', 'Attempt limit reached. Locked for 60 seconds.') : txMsg(`Sisa ${left} percobaan.`, `${left} attempts left.`);
+        await Swal.fire({ icon: 'error', title: txMsg('PIN salah', 'Incorrect PIN'), text: msg, timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       }
     } finally {
       pinPromptShown = false;
@@ -340,28 +334,22 @@
     }
   }
 
+  function buildQuickMenuCard(id, cardCls, iconCls, iconName, title, sub) {
+    return `<button type="button" id="${id}" class="p-4 rounded-2xl border flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors ${cardCls}">` +
+      `<span class="w-10 h-10 rounded-xl flex items-center justify-center ${iconCls}"><i class="ph-bold ph-${iconName} text-xl" aria-hidden="true"></i></span>` +
+      `<span>${title}</span><span class="text-[11px] font-medium opacity-80">${sub}</span></button>`;
+  }
+
   async function openQuickAddMenu() {
+    const cards = [
+      buildQuickMenuCard('fab-out', 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40', 'bg-rose-100 dark:bg-rose-500/20', 'minus-circle', txMsg('Pengeluaran', 'Expense'), txMsg('Catat biaya harian', 'Record daily spending')),
+      buildQuickMenuCard('fab-in', 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40', 'bg-emerald-100 dark:bg-emerald-500/20', 'plus-circle', txMsg('Pemasukan', 'Income'), txMsg('Gaji atau pendapatan', 'Salary or earnings')),
+      buildQuickMenuCard('fab-ocr', 'bg-brand/10 text-brand dark:text-brand-ink border-brand/25', 'bg-brand/15', 'camera', txMsg('Scan Struk AI', 'AI Receipt Scan'), txMsg('Foto nota belanja', 'Snap shopping receipt')),
+      buildQuickMenuCard('fab-tf', 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700', 'bg-slate-200/80 dark:bg-slate-700', 'arrows-left-right', txMsg('Transfer Dompet', 'Wallet Transfer'), txMsg('Pindah antar saldo', 'Move funds between wallets'))
+    ].join('');
     return Swal.fire({
       title: txMsg('Catat Cepat', 'Quick Entry'),
-      html: `
-        <div class="grid grid-cols-2 gap-3 text-xs font-bold">
-          <button type="button" id="fab-out" class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
-            <span class="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center"><i class="ph-bold ph-minus-circle text-xl" aria-hidden="true"></i></span>
-            <span>${txMsg('Pengeluaran', 'Expense')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Catat biaya harian', 'Record daily spending')}</span>
-          </button>
-          <button type="button" id="fab-in" class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
-            <span class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center"><i class="ph-bold ph-plus-circle text-xl" aria-hidden="true"></i></span>
-            <span>${txMsg('Pemasukan', 'Income')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Gaji atau pendapatan', 'Salary or earnings')}</span>
-          </button>
-          <button type="button" id="fab-ocr" class="p-4 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
-            <span class="w-10 h-10 rounded-xl bg-brand/15 flex items-center justify-center"><i class="ph-bold ph-camera text-xl" aria-hidden="true"></i></span>
-            <span>${txMsg('Scan Struk AI', 'AI Receipt Scan')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Foto nota belanja', 'Snap shopping receipt')}</span>
-          </button>
-          <button type="button" id="fab-tf" class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors">
-            <span class="w-10 h-10 rounded-xl bg-slate-200/80 dark:bg-slate-700 flex items-center justify-center"><i class="ph-bold ph-arrows-left-right text-xl" aria-hidden="true"></i></span>
-            <span>${txMsg('Transfer Dompet', 'Wallet Transfer')}</span><span class="text-[11px] font-medium opacity-80">${txMsg('Pindah antar saldo', 'Move funds between wallets')}</span>
-          </button>
-        </div>`,
+      html: `<div class="grid grid-cols-2 gap-3 text-xs font-bold">${cards}</div>`,
       showConfirmButton: false,
       showCancelButton: true,
       cancelButtonText: t('btn.tutup'),
@@ -428,8 +416,16 @@
     }
   });
 
+  async function saveInitialAppPin(pin) {
+    if (localStorage.getItem('mk_app_pin_hash') || !/^\d{4,6}$/.test(String(pin || ''))) return false;
+    localStorage.setItem('mk_app_pin_hash', await hashPin(String(pin)));
+    markPinUnlocked();
+    return true;
+  }
+
   Object.assign(root, { openAccountSettingsModal, deleteOwnAccountFlow, openQuickAddMenu, installPwaApp });
   root.__mkFeat = root.__mkFeat || {};
+  root.__mkFeat.saveInitialAppPin = saveInitialAppPin;
   root.__mkFeat.verifyAppPinIfEnabled = verifyAppPinIfEnabled;
   root.__mkFeat.handlePwaShortcutAction = handlePwaShortcutAction;
 })(typeof window !== 'undefined' ? window : globalThis);

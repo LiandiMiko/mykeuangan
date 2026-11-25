@@ -209,6 +209,10 @@
   }
 
   async function refreshAssetPrices() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      Swal.fire({ icon: 'warning', title: 'Sedang Offline', text: 'Hubungkan koneksi internet untuk menyegarkan harga pasar.', customClass: { popup: getSwalClass() } });
+      return;
+    }
     Swal.fire({
       title: 'Refresh harga aset...',
       allowOutsideClick: false,
@@ -218,9 +222,35 @@
     try {
       const data = await callServer('api_refreshPrices');
       await refreshFromServer(data);
-      Swal.fire({ icon: 'success', title: 'Harga diupdate!', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      const meta = (data && data.refreshMeta) || {};
+      if (meta.noMarketAssets) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Tidak ada aset harga otomatis',
+          text: 'Hanya aset Crypto, Emas (gram), dan Valas USD dengan jumlah unit > 0 yang diperbarui otomatis.',
+          customClass: { popup: getSwalClass() }
+        });
+        return;
+      }
+      if (meta.updated > 0 && Array.isArray(meta.missing) && meta.missing.length) {
+        Swal.fire({
+          icon: 'success',
+          title: `${meta.updated} aset diperbarui`,
+          text: 'Simbol belum tersedia: ' + meta.missing.join(', '),
+          customClass: { popup: getSwalClass() }
+        });
+        return;
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Harga diupdate!',
+        text: meta.updated > 0 ? `${meta.updated} aset diperbarui sesuai harga pasar.` : undefined,
+        timer: 1400,
+        showConfirmButton: false,
+        customClass: { popup: getSwalClass() }
+      });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal refresh', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal refresh', text: String((e && e.message) || e), customClass: { popup: getSwalClass() } });
     }
   }
 

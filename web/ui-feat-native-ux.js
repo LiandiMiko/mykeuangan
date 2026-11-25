@@ -26,26 +26,62 @@
     return out;
   }
 
-  function getNativeBiometricPlugin() {
-    return (root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.NativeBiometric) || null;
+  function isNativePlatform() {
+    return Boolean(root.Capacitor && typeof root.Capacitor.isNativePlatform === 'function' && root.Capacitor.isNativePlatform());
   }
 
-  async function isBiometricUnlockSupported() {
+  function getNativeBiometricPlugin() {
+    const cap = root.Capacitor;
+    if (!cap) return null;
+    if (cap.Plugins && cap.Plugins.NativeBiometric) return cap.Plugins.NativeBiometric;
+    if (isNativePlatform() && typeof cap.registerPlugin === 'function' &&
+        (typeof cap.isPluginAvailable !== 'function' || cap.isPluginAvailable('NativeBiometric'))) {
+      try {
+        const plugin = cap.registerPlugin('NativeBiometric');
+        if (plugin) {
+          cap.Plugins = cap.Plugins || {};
+          cap.Plugins.NativeBiometric = plugin;
+          return plugin;
+        }
+      } catch (_) { /* ignore missing native registration */ }
+    }
+    return null;
+  }
+
+  function resolveWebAuthnRpId() {
+    const host = (root.location && root.location.hostname) ? String(root.location.hostname).trim() : '';
+    if (!host || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.includes(':')) return undefined;
+    return host;
+  }
+
+  async function checkBiometricAvailability() {
+    const isNative = isNativePlatform();
     const nativeBio = getNativeBiometricPlugin();
     if (nativeBio && typeof nativeBio.isAvailable === 'function') {
       try {
         const res = await nativeBio.isAvailable();
-        if (res && res.isAvailable) return true;
-      } catch (_) { /* fallback to WebAuthn */ }
+        if (res && res.isAvailable) return { supported: true, mode: 'native', reason: 'available' };
+        if (isNative) return { supported: false, mode: 'native', reason: (res && res.reason) || 'unavailable' };
+      } catch (err) {
+        if (isNative) return { supported: false, mode: 'native', reason: (err && (err.code || err.message)) || 'unavailable' };
+      }
     }
+    if (isNative) return { supported: false, mode: 'native_missing', reason: 'native_plugin_missing' };
+    if (root.isSecureContext === false) return { supported: false, mode: 'web', reason: 'insecure_context' };
     if (!root.PublicKeyCredential || typeof root.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
-      return false;
+      return { supported: false, mode: 'web', reason: 'no_webauthn' };
     }
     try {
-      return await root.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      const ok = await root.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      return { supported: Boolean(ok), mode: 'web', reason: ok ? 'available' : 'no_platform_authenticator' };
     } catch (_) {
-      return false;
+      return { supported: false, mode: 'web', reason: 'no_platform_authenticator' };
     }
+  }
+
+  async function isBiometricUnlockSupported() {
+    const res = await checkBiometricAvailability();
+    return Boolean(res.supported);
   }
 
   function isBiometricUnlockEnabled() {
@@ -56,18 +92,47 @@
     }
   }
 
+  function formatBiometricFailureReason(reasonOrErr) {
+    const code = String((reasonOrErr && (reasonOrErr.code || reasonOrErr.name)) || reasonOrErr || '');
+    const rawMsg = String((reasonOrErr && reasonOrErr.message) || reasonOrErr || '');
+    const map = {
+      none_enrolled: msg('Belum ada sidik jari/biometrik terdaftar di pengaturan perangkat.', 'No fingerprint/biometric is enrolled in device settings.'),
+      no_hardware: msg('Perangkat ini tidak memiliki sensor sidik jari atau biometrik.', 'This device has no biometric hardware.'),
+      hw_unavailable: msg('Sensor biometrik sedang sibuk atau tidak tersedia sementara.', 'Biometric sensor is temporarily unavailable.'),
+      native_plugin_missing: msg('Modul biometrik native belum aktif di build aplikasi ini. Perbarui APK terbaru.', 'Native biometric module is missing in this build. Install the latest APK.'),
+      insecure_context: msg('Kunci sidik jari di web memerlukan koneksi HTTPS yang aman.', 'Web biometric unlock requires a secure HTTPS connection.'),
+      no_webauthn: msg('Browser atau WebView ini belum mendukung kunci biometrik.', 'This browser or WebView does not support biometric unlock.'),
+      no_platform_authenticator: msg('Perangkat atau browser belum mengaktifkan autentikator sidik jari/layar kunci.', 'Platform biometric authenticator is unavailable on this device.'),
+      SecurityError: msg('Origin saat ini tidak diizinkan untuk kunci biometrik WebAuthn.', 'Current origin is not permitted for WebAuthn biometrics.')
+    };
+    if (map[code]) return map[code];
+    if (code === 'NotAllowedError' || code === '10' || code === '13' || /cancel|abort|timeout/i.test(rawMsg)) {
+      return msg('Verifikasi biometrik dibatalkan atau waktu habis.', 'Biometric verification was cancelled or timed out.');
+    }
+    return rawMsg || msg('Gagal mengaktifkan kunci biometrik.', 'Failed to activate biometric unlock.');
+  }
+
+  async function waitSwalClosed() {
+    if (typeof Swal === 'undefined' || typeof document === 'undefined') return;
+    if (Swal.isVisible() || document.querySelector('.swal2-popup.swal2-hide')) {
+      await new Promise((resolve) => setTimeout(resolve, 180));
+    }
+  }
+
   async function enrollWebAuthnCredential() {
     if (!navigator.credentials || typeof navigator.credentials.create !== 'function') return '';
     const challenge = new Uint8Array(32);
     crypto.getRandomValues(challenge);
     const userBytes = new TextEncoder().encode(String(root.sessionUser || 'mykeuguech-user').slice(0, 48));
+    const rpId = resolveWebAuthnRpId();
+    const rp = rpId ? { name: 'MyKeuGuech', id: rpId } : { name: 'MyKeuGuech' };
     const cred = await navigator.credentials.create({
       publicKey: {
         challenge,
-        rp: { name: 'MyKeuGuech', id: (root.location && root.location.hostname) || 'localhost' },
+        rp,
         user: { id: userBytes, name: String(root.sessionUser || 'user'), displayName: String(root.sessionUser || 'User') },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+        authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', userVerification: 'required' },
         timeout: 45000
       }
     });
@@ -76,32 +141,36 @@
 
   async function tryBiometricUnlock() {
     if (!isBiometricUnlockEnabled()) return false;
+    const isNative = isNativePlatform();
     const nativeBio = getNativeBiometricPlugin();
     if (nativeBio && typeof nativeBio.verifyIdentity === 'function') {
       try {
         await nativeBio.verifyIdentity({
-          reason: msg('Buka kunci MyKeuGuech', 'Unlock MyKeuGuech'),
           title: 'MyKeuGuech',
-          subtitle: msg('Verifikasi sidik jari atau wajah', 'Verify fingerprint or face')
+          subtitle: msg('Verifikasi sidik jari atau wajah', 'Verify fingerprint or face'),
+          reason: msg('Buka kunci MyKeuGuech', 'Unlock MyKeuGuech'),
+          negativeButtonText: msg('Gunakan PIN', 'Use PIN')
         });
         return true;
       } catch (_) {
         return false;
       }
     }
+    if (isNative) return false;
     const credId = localStorage.getItem(BIOMETRIC_CRED_KEY) || '';
     if (!credId || !navigator.credentials || typeof navigator.credentials.get !== 'function') return false;
     try {
       const challenge = new Uint8Array(32);
       crypto.getRandomValues(challenge);
-      const assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          allowCredentials: [{ type: 'public-key', id: base64UrlToBytes(credId) }],
-          userVerification: 'required',
-          timeout: 45000
-        }
-      });
+      const rpId = resolveWebAuthnRpId();
+      const publicKey = {
+        challenge,
+        allowCredentials: [{ type: 'public-key', id: base64UrlToBytes(credId), transports: ['internal'] }],
+        userVerification: 'required',
+        timeout: 45000
+      };
+      if (rpId) publicKey.rpId = rpId;
+      const assertion = await navigator.credentials.get({ publicKey });
       return Boolean(assertion);
     } catch (_) {
       return false;
@@ -110,35 +179,86 @@
 
   async function toggleBiometricUnlock() {
     if (!localStorage.getItem('mk_app_pin_hash')) {
+      await waitSwalClosed();
       Swal.fire({ icon: 'info', title: msg('Atur PIN Dulu', 'Set PIN First'), text: msg('Simpan PIN 4–6 digit terlebih dahulu sebelum mengaktifkan biometrik.', 'Save a 4–6 digit PIN before enabling biometrics.'), customClass: { popup: getSwalClass() } });
       return;
     }
     if (isBiometricUnlockEnabled()) {
       localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
       localStorage.removeItem(BIOMETRIC_CRED_KEY);
+      await waitSwalClosed();
       Swal.fire({ icon: 'info', title: msg('Biometrik dimatikan', 'Biometrics disabled'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       return;
     }
-    const supported = await isBiometricUnlockSupported();
-    if (!supported) {
-      Swal.fire({ icon: 'warning', title: msg('Tidak Didukung', 'Unsupported'), text: msg('Perangkat atau WebView belum mendukung kunci biometrik.', 'Device or WebView does not support biometric unlock.'), customClass: { popup: getSwalClass() } });
+    const avail = await checkBiometricAvailability();
+    if (!avail.supported) {
+      await waitSwalClosed();
+      Swal.fire({ icon: 'warning', title: msg('Tidak Didukung', 'Unsupported'), text: formatBiometricFailureReason(avail.reason), customClass: { popup: getSwalClass() } });
       return;
     }
     try {
       const nativeBio = getNativeBiometricPlugin();
       if (nativeBio && typeof nativeBio.verifyIdentity === 'function') {
-        await nativeBio.verifyIdentity({ reason: msg('Aktifkan kunci biometrik', 'Enable biometric lock'), title: 'MyKeuGuech' });
+        await nativeBio.verifyIdentity({
+          title: 'MyKeuGuech',
+          subtitle: msg('Aktifkan kunci biometrik', 'Enable biometric lock'),
+          reason: msg('Tempelkan sidik jari untuk mengaktifkan buka kunci biometrik', 'Verify biometric to enable fingerprint unlock'),
+          negativeButtonText: msg('Batal', 'Cancel')
+        });
       } else {
         const credId = await enrollWebAuthnCredential();
-        if (!credId) throw new Error('Kredensial biometrik gagal dibuat.');
+        if (!credId) throw new Error(msg('Kredensial biometrik gagal dibuat.', 'Failed to create biometric credential.'));
         localStorage.setItem(BIOMETRIC_CRED_KEY, credId);
       }
       localStorage.setItem(BIOMETRIC_ENABLED_KEY, '1');
       if (typeof root.triggerHaptic === 'function') root.triggerHaptic('success');
+      await waitSwalClosed();
       Swal.fire({ icon: 'success', title: msg('Biometrik Aktif!', 'Biometrics Enabled!'), timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (err) {
-      Swal.fire({ icon: 'warning', title: msg('Gagal Mengaktifkan', 'Activation Failed'), text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      await waitSwalClosed();
+      Swal.fire({ icon: 'warning', title: msg('Gagal Mengaktifkan', 'Activation Failed'), text: formatBiometricFailureReason(err), customClass: { popup: getSwalClass() } });
     }
+  }
+
+  function decoratePinModalBiometricButton(onSuccess) {
+    if (!isBiometricUnlockEnabled() || typeof document === 'undefined' || typeof Swal === 'undefined') return;
+    const popup = typeof Swal.getPopup === 'function' ? Swal.getPopup() : null;
+    if (!popup || popup.querySelector('#mk-pin-bio-btn')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'mk-pin-bio-wrap';
+    wrap.className = 'mt-3';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'mk-pin-bio-btn';
+    btn.className = 'w-full min-h-10 py-2 px-3 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold inline-flex items-center justify-center gap-1.5';
+    const icon = document.createElement('i');
+    icon.className = 'ph ph-fingerprint text-base';
+    icon.setAttribute('aria-hidden', 'true');
+    const lbl = document.createElement('span');
+    lbl.textContent = msg('Buka dengan Sidik Jari', 'Unlock with Biometrics');
+    btn.append(icon, lbl);
+    wrap.appendChild(btn);
+    const actions = popup.querySelector('.swal2-actions');
+    if (actions) popup.insertBefore(wrap, actions);
+    else popup.appendChild(wrap);
+    bindPinModalBiometricRetry(onSuccess);
+  }
+
+  function bindPinModalBiometricRetry(onSuccess) {
+    const btn = typeof document !== 'undefined' ? document.getElementById('mk-pin-bio-btn') : null;
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try {
+        if (await tryBiometricUnlock()) {
+          if (typeof onSuccess === 'function') onSuccess();
+        }
+      } finally {
+        if (document.body && document.body.contains(btn)) btn.disabled = false;
+      }
+    });
   }
 
   function decorateAccountBiometricRow(hasPin) {
@@ -161,7 +281,15 @@
     const bioLabel = document.createElement('span');
     bioLabel.textContent = bioOn ? msg('Biometrik: Aktif', 'Biometrics: On') : msg('Aktifkan Sidik Jari', 'Enable Biometrics');
     bioBtn.append(bioIcon, bioLabel);
-    bioBtn.addEventListener('click', async () => { Swal.close(); await toggleBiometricUnlock(); });
+    bioBtn.addEventListener('click', async () => {
+      const typedPin = String(pinInput.value || '').trim();
+      const feat = root.__mkFeat || {};
+      if (!localStorage.getItem('mk_app_pin_hash') && /^\d{4,6}$/.test(typedPin) && typeof feat.saveInitialAppPin === 'function') {
+        await feat.saveInitialAppPin(typedPin);
+      }
+      Swal.close();
+      await toggleBiometricUnlock();
+    });
 
     const guideBtn = document.createElement('button');
     guideBtn.type = 'button';
@@ -258,8 +386,20 @@
     if (btn && typeof root.triggerHaptic === 'function') root.triggerHaptic('light');
   });
 
-  Object.assign(root, { isBiometricUnlockSupported, isBiometricUnlockEnabled, toggleBiometricUnlock, tryBiometricUnlock });
+  Object.assign(root, {
+    isBiometricUnlockSupported,
+    checkBiometricAvailability,
+    isBiometricUnlockEnabled,
+    toggleBiometricUnlock,
+    tryBiometricUnlock,
+    resolveWebAuthnRpId,
+    formatBiometricFailureReason
+  });
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.tryBiometricUnlock = tryBiometricUnlock;
+  root.__mkFeat.isBiometricUnlockEnabled = isBiometricUnlockEnabled;
+  root.__mkFeat.checkBiometricAvailability = checkBiometricAvailability;
+  root.__mkFeat.bindPinModalBiometricRetry = bindPinModalBiometricRetry;
+  root.__mkFeat.decoratePinModalBiometricButton = decoratePinModalBiometricButton;
   root.__mkFeat.decorateAccountBiometricRow = decorateAccountBiometricRow;
 })(typeof window !== 'undefined' ? window : globalThis);

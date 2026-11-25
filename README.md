@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.0** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini AI · Security Hardened
+> **v3.20.1** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 2.5 Flash**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.0-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.1-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -471,6 +471,10 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Hotfix v3.20.1 (Native Android BiometricPrompt & Refresh Harga Aset Multi-Sumber)
+- **Native Android BiometricPrompt & Perbaikan Sidik Jari (`scripts/patch-android-project.mjs`, `web/ui-feat-native-ux.js`, `web/ui-feat-account.js`)**: Menambahkan plugin Capacitor native `NativeBiometricPlugin.java` (`androidx.biometric:biometric:1.1.0`) dengan pendaftaran di `MainActivity.java` sebelum `super.onCreate()`, izin `USE_BIOMETRIC`/`USE_FINGERPRINT` di `AndroidManifest.xml`, registrasi `Capacitor.registerPlugin('NativeBiometric')`, pembersihan status biometrik saat PIN dihapus, tombol ulang **Buka dengan Sidik Jari** di layar kunci PIN, serta pemisahan jalur error WebView Android vs WebAuthn.
+- **Refresh Harga Aset Multi-Sumber & Fallback Klien (`web/supabase-portfolio.js`, `web/ui-assets.js`, `supabase/functions/telegram-bot/jobs.ts`, `src/Index.html`, `web/sw.js`)**: Menambahkan fallback klien langsung (`fawazahmed0/currency-api` + CoinGecko) dan perluasan 50+ simbol crypto, Binance USDT ticker, serta origin Capacitor (`https://localhost`) di Edge Function `telegram-bot`, memperbaiki kalkulasi nilai awal crypto manual, mengizinkan endpoint pasar di CSP & bypass cache SW, serta menampilkan pesan informatif saat offline atau belum ada aset harga otomatis.
 
 ### 25 November 2026: Wave v3.20 (Native Android Stack, Cashflow Runway, Kalkulator Nominal, Offline Queue Penuh & Admin Panel v2)
 - **Fix Tema Android, Notifikasi Native, Kamera OCR, Haptics, Pull-to-Refresh, Biometrik & Keystore (`web/ui-shell.js`, `web/native-bridge.js`, `web/ui-feat-ai.js`, `web/ui-feat-native-ux.js`, `web/ui-pro-hooks.js`, `web/ui-feat-account.js`, `scripts/patch-android-project.mjs`, `scripts/setup-android-keystore.mjs`)**: Memperbaiki `setTheme()` agar tidak menghapus kelas `mk-native-app`, menambahkan pengingat Android 20:00 & tagihan jatuh tempo (`@capacitor/local-notifications`), kamera Scan Struk native (`@capacitor/camera`), getaran taktil (`@capacitor/haptics`), *Pull-to-Refresh* + buka kunci biometrik sidik jari/WebAuthn, serta skrip helper `npm run cap:keystore`.

@@ -1,17 +1,139 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const ANDROID_DIR = 'android';
 const DEEP_LINK_SCHEME = 'com.mykeuguech.app';
 const DEEP_LINK_HOST = 'auth-callback';
+const BIOMETRIC_DEP = 'implementation "androidx.biometric:biometric:1.1.0"';
 
-function computeAndroidVersion(pkgVersion) {
+const NATIVE_BIOMETRIC_PLUGIN_JAVA = `package com.mykeuguech.app;
+
+import androidx.annotation.NonNull;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
+
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+@CapacitorPlugin(name = "NativeBiometric")
+public class NativeBiometricPlugin extends Plugin {
+
+    private String mapStatusReason(int statusCode) {
+        switch (statusCode) {
+            case BiometricManager.BIOMETRIC_SUCCESS:
+                return "available";
+            case BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED:
+                return "none_enrolled";
+            case BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE:
+                return "no_hardware";
+            case BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE:
+                return "hw_unavailable";
+            default:
+                return "unavailable";
+        }
+    }
+
+    @PluginMethod
+    public void isAvailable(PluginCall call) {
+        BiometricManager manager = BiometricManager.from(getContext());
+        int statusCode = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK);
+        JSObject result = new JSObject();
+        result.put("isAvailable", statusCode == BiometricManager.BIOMETRIC_SUCCESS);
+        result.put("statusCode", statusCode);
+        result.put("reason", mapStatusReason(statusCode));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void verifyIdentity(PluginCall call) {
+        FragmentActivity activity = getActivity();
+        if (activity == null || activity.isFinishing()) {
+            call.reject("Activity unavailable", "unavailable");
+            return;
+        }
+        BiometricManager manager = BiometricManager.from(activity);
+        int statusCode = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK);
+        if (statusCode != BiometricManager.BIOMETRIC_SUCCESS) {
+            call.reject("Biometric unavailable", mapStatusReason(statusCode));
+            return;
+        }
+
+        String rawTitle = call.getString("title", "MyKeuGuech");
+        String title = (rawTitle == null || rawTitle.trim().isEmpty()) ? "MyKeuGuech" : rawTitle.trim();
+        String rawSubtitle = call.getString("subtitle", "");
+        String subtitle = rawSubtitle == null ? "" : rawSubtitle.trim();
+        String rawReason = call.getString("reason", "");
+        String reason = rawReason == null ? "" : rawReason.trim();
+        String rawNeg = call.getString("negativeButtonText", "Gunakan PIN");
+        String negativeText = (rawNeg == null || rawNeg.trim().isEmpty()) ? "Gunakan PIN" : rawNeg.trim();
+
+        AtomicBoolean settled = new AtomicBoolean(false);
+        activity.runOnUiThread(() -> {
+            try {
+                Executor executor = ContextCompat.getMainExecutor(activity);
+                BiometricPrompt prompt = new BiometricPrompt(activity, executor, new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                        super.onAuthenticationError(errorCode, errString);
+                        if (settled.compareAndSet(false, true)) {
+                            call.reject(errString.toString(), String.valueOf(errorCode));
+                        }
+                    }
+
+                    @Override
+                    public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                        super.onAuthenticationSucceeded(result);
+                        if (settled.compareAndSet(false, true)) {
+                            JSObject ret = new JSObject();
+                            ret.put("verified", true);
+                            call.resolve(ret);
+                        }
+                    }
+
+                    @Override
+                    public void onAuthenticationFailed() {
+                        super.onAuthenticationFailed();
+                    }
+                });
+
+                BiometricPrompt.PromptInfo.Builder builder = new BiometricPrompt.PromptInfo.Builder()
+                        .setTitle(title)
+                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+                        .setNegativeButtonText(negativeText);
+                if (!subtitle.isEmpty()) {
+                    builder.setSubtitle(subtitle);
+                }
+                if (!reason.isEmpty()) {
+                    builder.setDescription(reason);
+                }
+                prompt.authenticate(builder.build());
+            } catch (Exception ex) {
+                if (settled.compareAndSet(false, true)) {
+                    String msg = ex.getMessage() != null ? ex.getMessage() : "Biometric prompt failed";
+                    call.reject(msg, "prompt_error");
+                }
+            }
+        });
+    }
+}
+`;
+
+export function computeAndroidVersion(pkgVersion) {
   const parts = String(pkgVersion || '1.0.0').split('.').map((n) => parseInt(n, 10) || 0);
   const [major = 1, minor = 0, patch = 0] = parts;
   return { versionName: `${major}.${minor}.${patch}`, versionCode: major * 10000 + minor * 100 + patch };
 }
 
-function patchVariablesGradle(filePath) {
+export function patchVariablesGradle(filePath) {
   if (!fs.existsSync(filePath)) return;
   let text = fs.readFileSync(filePath, 'utf8');
   text = text
@@ -21,7 +143,7 @@ function patchVariablesGradle(filePath) {
   fs.writeFileSync(filePath, text);
 }
 
-function patchAndroidManifest(filePath) {
+export function patchAndroidManifest(filePath) {
   if (!fs.existsSync(filePath)) return;
   let xml = fs.readFileSync(filePath, 'utf8');
   if (/android:allowBackup="[^"]*"/.test(xml)) {
@@ -29,8 +151,15 @@ function patchAndroidManifest(filePath) {
   } else {
     xml = xml.replace(/<application\b/, '<application\n        android:allowBackup="false"');
   }
-  if (!xml.includes('android.permission.POST_NOTIFICATIONS')) {
-    xml = xml.replace(/<application\b/, '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application');
+  const permissions = [
+    'android.permission.POST_NOTIFICATIONS',
+    'android.permission.USE_BIOMETRIC',
+    'android.permission.USE_FINGERPRINT'
+  ];
+  for (const perm of permissions) {
+    if (!xml.includes(perm)) {
+      xml = xml.replace(/<application\b/, `<uses-permission android:name="${perm}" />\n    <application`);
+    }
   }
   if (!xml.includes(`android:scheme="${DEEP_LINK_SCHEME}"`)) {
     xml = xml.replace(/([ \t]*)<\/activity>/, (_, indent) => [
@@ -46,7 +175,7 @@ function patchAndroidManifest(filePath) {
   fs.writeFileSync(filePath, xml);
 }
 
-function patchAppBuildGradle(filePath, versionInfo) {
+export function patchAppBuildGradle(filePath, versionInfo) {
   if (!fs.existsSync(filePath)) return;
   let gradle = fs.readFileSync(filePath, 'utf8');
   gradle = gradle
@@ -85,11 +214,51 @@ function patchAppBuildGradle(filePath, versionInfo) {
       '$1\n            if (keystorePropsFile.exists()) { signingConfig signingConfigs.release }'
     );
   }
+  if (!gradle.includes('androidx.biometric:biometric')) {
+    gradle = gradle.replace(/^dependencies\s*\{/m, `dependencies {\n    ${BIOMETRIC_DEP}`);
+  }
   fs.writeFileSync(filePath, gradle);
 }
 
-function writeKeystoreExample() {
-  const dest = path.join(ANDROID_DIR, 'keystore.properties.example');
+export function writeNativeBiometricPlugin(androidDir) {
+  const dest = path.join(androidDir, 'app', 'src', 'main', 'java', 'com', 'mykeuguech', 'app', 'NativeBiometricPlugin.java');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, NATIVE_BIOMETRIC_PLUGIN_JAVA);
+  return dest;
+}
+
+export function patchMainActivity(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  let java = fs.readFileSync(filePath, 'utf8');
+  if (java.includes('NativeBiometricPlugin')) return;
+  if (!java.includes('import android.os.Bundle;')) {
+    if (java.includes('import com.getcapacitor.BridgeActivity;')) {
+      java = java.replace('import com.getcapacitor.BridgeActivity;', 'import android.os.Bundle;\nimport com.getcapacitor.BridgeActivity;');
+    } else {
+      java = java.replace(/(package\s+[^;]+;)/, '$1\n\nimport android.os.Bundle;');
+    }
+  }
+  if (/super\.onCreate\s*\(/.test(java)) {
+    java = java.replace(/([ \t]*)(super\.onCreate\s*\()/, '$1registerPlugin(NativeBiometricPlugin.class);\n$1$2');
+  } else {
+    java = java.replace(
+      /public\s+class\s+MainActivity\s+extends\s+BridgeActivity\s*\{[\s\S]*?\}/,
+      [
+        'public class MainActivity extends BridgeActivity {',
+        '    @Override',
+        '    public void onCreate(Bundle savedInstanceState) {',
+        '        registerPlugin(NativeBiometricPlugin.class);',
+        '        super.onCreate(savedInstanceState);',
+        '    }',
+        '}'
+      ].join('\n')
+    );
+  }
+  fs.writeFileSync(filePath, java);
+}
+
+function writeKeystoreExample(androidDir) {
+  const dest = path.join(androidDir, 'keystore.properties.example');
   const content = [
     'storeFile=mykeuguech-upload.jks',
     'storePassword=GANTI_PASSWORD_KEYSTORE',
@@ -100,18 +269,28 @@ function writeKeystoreExample() {
   fs.writeFileSync(dest, content);
 }
 
+export function patchAndroidProject(androidDir = ANDROID_DIR, pkgVersion = null) {
+  const versionInfo = computeAndroidVersion(
+    pkgVersion || JSON.parse(fs.readFileSync('package.json', 'utf8')).version
+  );
+  patchVariablesGradle(path.join(androidDir, 'variables.gradle'));
+  patchAndroidManifest(path.join(androidDir, 'app', 'src', 'main', 'AndroidManifest.xml'));
+  patchAppBuildGradle(path.join(androidDir, 'app', 'build.gradle'), versionInfo);
+  writeNativeBiometricPlugin(androidDir);
+  patchMainActivity(path.join(androidDir, 'app', 'src', 'main', 'java', 'com', 'mykeuguech', 'app', 'MainActivity.java'));
+  writeKeystoreExample(androidDir);
+  return versionInfo;
+}
+
 function main() {
   if (!fs.existsSync(ANDROID_DIR)) {
     process.stdout.write('ℹ️ Folder android/ belum ditemukan. Jalankan "npm install && npm run cap:init:android" terlebih dahulu.\n');
     return;
   }
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  const versionInfo = computeAndroidVersion(pkg.version);
-  patchVariablesGradle(path.join(ANDROID_DIR, 'variables.gradle'));
-  patchAndroidManifest(path.join(ANDROID_DIR, 'app', 'src', 'main', 'AndroidManifest.xml'));
-  patchAppBuildGradle(path.join(ANDROID_DIR, 'app', 'build.gradle'), versionInfo);
-  writeKeystoreExample();
-  process.stdout.write(`✅ Android project patched (API 36, v${versionInfo.versionName} / code ${versionInfo.versionCode}, OAuth deep link + release keystore hook).\n`);
+  const versionInfo = patchAndroidProject(ANDROID_DIR);
+  process.stdout.write(`✅ Android project patched (API 36, v${versionInfo.versionName} / code ${versionInfo.versionCode}, NativeBiometric + OAuth deep link + release keystore hook).\n`);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

@@ -4,11 +4,14 @@ import {
 } from './core.ts';
 import { getWallets } from './wallets.ts';
 
+const NATIVE_WEBVIEW_ORIGINS = new Set(['https://localhost', 'capacitor://localhost', 'http://localhost']);
+
 function resolveAllowedOrigin(req: Request): string {
+  const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
+  if (reqOrigin && NATIVE_WEBVIEW_ORIGINS.has(reqOrigin)) return reqOrigin;
   const raw = Deno.env.get('ALLOWED_ORIGIN') || '*';
   const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
   if (!list.length || list.includes('*')) return '*';
-  const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
   if (reqOrigin && list.includes(reqOrigin)) return reqOrigin;
   return list[0];
 }
@@ -32,7 +35,12 @@ const CRYPTO_MAP: Record<string, string> = {
   DOT: 'polkadot', MATIC: 'matic-network', POL: 'polygon-ecosystem-token', USDT: 'tether', USDC: 'usd-coin', BNB: 'binancecoin', XRP: 'ripple',
   DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink', PEPE: 'pepe', SHIB: 'shiba-inu', ARB: 'arbitrum', OP: 'optimism',
   SUI: 'sui', TON: 'the-open-network', LTC: 'litecoin', BCH: 'bitcoin-cash', NEAR: 'near', APT: 'aptos', RENDER: 'render-token',
-  PAXG: 'pax-gold',
+  PAXG: 'pax-gold', TRX: 'tron', XLM: 'stellar', UNI: 'uniswap', AAVE: 'aave', ATOM: 'cosmos', FIL: 'filecoin',
+  ICP: 'internet-computer', ETC: 'ethereum-classic', HBAR: 'hedera-hashgraph', VET: 'vechain', ALGO: 'algorand',
+  INJ: 'injective-protocol', SEI: 'sei-network', TIA: 'celestia', STX: 'blockstack', WIF: 'dogwifcoin',
+  BONK: 'bonk', FLOKI: 'floki', FET: 'fetch-ai', ENA: 'ethena', KAS: 'kaspa', BGB: 'bitget-token',
+  OKB: 'okb', CRO: 'crypto-com-chain', MNT: 'mantle', WBTC: 'wrapped-bitcoin', XAUT: 'tether-gold',
+  HYPE: 'hyperliquid', PI: 'pi-network',
 };
 
 async function chatsOf(uid?: string): Promise<{ chat_id: number; user_id: string }[]> {
@@ -49,21 +57,92 @@ async function getActiveUserIds(): Promise<Set<string>> {
   return new Set((data ?? []).map((p: { id: string }) => p.id));
 }
 
-async function fetchPricesIDR(symbols: string[]): Promise<Record<string, number>> {
-  const wanted = [...new Set(symbols.map((s) => s.toUpperCase()))].filter((s) => CRYPTO_MAP[s]);
-  const ids = [...new Set([...wanted.map((s) => CRYPTO_MAP[s]), 'tether'])];
+async function fetchCoinGeckoSimple(ids: string[], useKey: boolean): Promise<Record<string, { idr?: number; usd?: number }> | null> {
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd` +
-    (CG_KEY ? `&x_cg_demo_api_key=${encodeURIComponent(CG_KEY)}` : '');
-  const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!r.ok) throw new Error('CoinGecko HTTP ' + r.status);
-  const j = await r.json();
-  const usdIdr = Number(j.tether?.idr) || 16000;
-  const out: Record<string, number> = { USD: usdIdr };
-  for (const s of wanted) {
-    const d = j[CRYPTO_MAP[s]];
-    if (d?.idr) out[s] = Number(d.idr);
-    else if (d?.usd) out[s] = Math.round(Number(d.usd) * usdIdr);
+    (useKey && CG_KEY ? `&x_cg_demo_api_key=${encodeURIComponent(CG_KEY)}` : '');
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (useKey && CG_KEY && (r.status === 401 || r.status === 403)) return fetchCoinGeckoSimple(ids, false);
+  if (!r.ok) return null;
+  return await r.json();
+}
+
+async function fetchCurrencyApiIdr(): Promise<Record<string, number> | null> {
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/idr.min.json',
+    'https://latest.currency-api.pages.dev/v1/currencies/idr.min.json',
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j?.idr && typeof j.idr === 'object') return j.idr as Record<string, number>;
+    } catch { /* try next mirror */ }
   }
+  return null;
+}
+
+async function fetchBinanceUsdt(sym: string): Promise<number> {
+  try {
+    const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(sym + 'USDT')}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) return 0;
+    const j = await r.json();
+    return Number(j?.price) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function fetchPricesIDR(symbols: string[]): Promise<Record<string, number>> {
+  const reqSyms = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+  const wanted = reqSyms.filter((s) => CRYPTO_MAP[s]);
+  const ids = [...new Set([...wanted.map((s) => CRYPTO_MAP[s]), 'tether', 'pax-gold'])];
+  const out: Record<string, number> = {};
+  let hasProvider = false;
+
+  try {
+    const cg = await fetchCoinGeckoSimple(ids, true);
+    if (cg) {
+      hasProvider = true;
+      const usdIdr = Number(cg.tether?.idr) || 0;
+      if (usdIdr > 0) out.USD = usdIdr;
+      for (const s of [...wanted, 'PAXG']) {
+        const d = cg[CRYPTO_MAP[s]];
+        if (d?.idr) out[s] = Number(d.idr);
+        else if (d?.usd && usdIdr > 0) out[s] = Math.round(Number(d.usd) * usdIdr);
+      }
+    }
+  } catch { /* fallback below */ }
+
+  const needFallback = !out.USD || !out.XAU || reqSyms.some((s) => !out[s]);
+  if (needFallback) {
+    const idrRates = await fetchCurrencyApiIdr();
+    if (idrRates) {
+      hasProvider = true;
+      const rateToIdr = (code: string) => (Number(idrRates[code]) > 0 ? 1 / Number(idrRates[code]) : 0);
+      if (!out.USD) { const u = rateToIdr('usd'); if (u > 0) out.USD = Math.round(u); }
+      if (!out.XAU) { const g = rateToIdr('xau'); if (g > 0) out.XAU = g; }
+      if (!out.PAXG) { const p = rateToIdr('paxg'); if (p > 0) out.PAXG = p; }
+      for (const s of reqSyms) {
+        if (!out[s]) { const v = rateToIdr(s.toLowerCase()); if (v > 0) out[s] = v; }
+      }
+    }
+  }
+
+  const missingSyms = reqSyms.filter((s) => s !== 'XAU' && s !== 'USD' && !out[s]).slice(0, 8);
+  if (missingSyms.length > 0 && out.USD > 0) {
+    const settled = await Promise.allSettled(missingSyms.map(async (s) => [s, await fetchBinanceUsdt(s)] as const));
+    for (const res of settled) {
+      if (res.status === 'fulfilled' && res.value[1] > 0) {
+        hasProvider = true;
+        out[res.value[0]] = Math.round(res.value[1] * out.USD);
+      }
+    }
+  }
+
+  if (!hasProvider) throw new Error('Layanan harga pasar tidak dapat dijangkau sementara. Coba lagi.');
   return out;
 }
 
@@ -97,19 +176,20 @@ async function updateAssetGroup(rows: Any[], uid: string, unitRate: number, symK
 
 async function refreshPrices(uid: string) {
   const assets = await fetchAll('assets', 'id,type,symbol,quantity', uid, ['id']);
-  const cryptos = assets.filter((a) => String(a.type).toLowerCase() === 'crypto' && a.symbol);
+  const cryptos = assets.filter((a) => String(a.type).toLowerCase() === 'crypto' && a.symbol && Number(a.quantity) > 0);
   const golds = assets.filter((a) => String(a.type).toLowerCase() === 'emas' && Number(a.quantity) > 0);
   const usds = assets.filter((a) => String(a.type).toLowerCase() === 'usd' && Number(a.quantity) > 0);
   if (cryptos.length === 0 && golds.length === 0 && usds.length === 0) return { updated: 0, missing: [] as string[] };
 
-  const prices = await fetchPricesIDR([...cryptos.map((a) => String(a.symbol)), ...(golds.length ? ['PAXG'] : [])]);
+  const prices = await fetchPricesIDR([...cryptos.map((a) => String(a.symbol)), ...(golds.length ? ['XAU', 'PAXG'] : [])]);
   let updated = 0;
   const missing = new Set<string>();
   for (const a of cryptos) {
     const sym = String(a.symbol).toUpperCase();
     updated += await updateAssetGroup([a], uid, prices[sym] || 0, sym, missing);
   }
-  updated += await updateAssetGroup(golds, uid, prices.PAXG ? prices.PAXG / 31.1034768 : 0, 'XAU', missing);
+  const goldOz = prices.XAU || prices.PAXG || 0;
+  updated += await updateAssetGroup(golds, uid, goldOz ? goldOz / 31.1034768 : 0, 'XAU', missing);
   updated += await updateAssetGroup(usds, uid, prices.USD || 0, 'USD', missing);
   if (updated > 0) await savePortfolioSnapshot(uid);
   return { updated, missing: [...missing] };

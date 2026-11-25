@@ -42,7 +42,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  if (url.hostname.includes('supabase.co') || url.hostname === 'generativelanguage.googleapis.com' || url.pathname.endsWith('/version.json')) {
+  if (url.hostname.includes('supabase.co') ||
+      url.hostname === 'generativelanguage.googleapis.com' ||
+      url.hostname === 'api.coingecko.com' ||
+      url.hostname === 'latest.currency-api.pages.dev' ||
+      url.pathname.includes('currency-api') ||
+      url.pathname.endsWith('/version.json')) {
     return;
   }
 

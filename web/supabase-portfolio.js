@@ -1,9 +1,164 @@
-/* supabase-portfolio.js — wallets, transfers, assets & live market price refresh */
+/* supabase-portfolio.js — wallets, transfers, assets & resilient live market price refresh */
 (function () {
   'use strict';
   const core = window.__mkSb;
   if (!core) return;
   const { sb, fail, num, ymd, syncPeriod, trxFromRow, fetchAll, fetchCategoriesOnly, fetchWalletsOnly, fetchWalletsAndTransfers, fetchAssetsOnly } = core;
+
+  const CRYPTO_ID_MAP = {
+    BTC: 'bitcoin', ETH: 'ethereum', ONDO: 'ondo-finance', TAO: 'bittensor', SOL: 'solana', ADA: 'cardano',
+    DOT: 'polkadot', MATIC: 'matic-network', POL: 'polygon-ecosystem-token', USDT: 'tether', USDC: 'usd-coin',
+    BNB: 'binancecoin', XRP: 'ripple', DOGE: 'dogecoin', AVAX: 'avalanche-2', LINK: 'chainlink', PEPE: 'pepe',
+    SHIB: 'shiba-inu', ARB: 'arbitrum', OP: 'optimism', SUI: 'sui', TON: 'the-open-network', LTC: 'litecoin',
+    BCH: 'bitcoin-cash', NEAR: 'near', APT: 'aptos', RENDER: 'render-token', PAXG: 'pax-gold', TRX: 'tron',
+    XLM: 'stellar', UNI: 'uniswap', AAVE: 'aave', ATOM: 'cosmos', FIL: 'filecoin', ICP: 'internet-computer',
+    ETC: 'ethereum-classic', HBAR: 'hedera-hashgraph', VET: 'vechain', ALGO: 'algorand', INJ: 'injective-protocol',
+    SEI: 'sei-network', TIA: 'celestia', STX: 'blockstack', WIF: 'dogwifcoin', BONK: 'bonk', FLOKI: 'floki',
+    FET: 'fetch-ai', ENA: 'ethena', KAS: 'kaspa', BGB: 'bitget-token', OKB: 'okb', CRO: 'crypto-com-chain',
+    MNT: 'mantle', WBTC: 'wrapped-bitcoin', XAUT: 'tether-gold', HYPE: 'hyperliquid', PI: 'pi-network'
+  };
+
+  async function extractEdgeErrorMessage(error, defaultMessage) {
+    let msg = (error && error.message) ? error.message : defaultMessage;
+    const res = error && error.context;
+    if (res && typeof res.json === 'function') {
+      try {
+        const body = await res.json();
+        if (body && typeof body.error === 'string' && body.error.trim()) msg = body.error.trim();
+      } catch (_) { /* ignore non-JSON error body */ }
+    }
+    return msg;
+  }
+
+  async function fetchJsonWithTimeout(url, timeoutMs) {
+    if (typeof fetch !== 'function') throw new Error('Fetch API tidak tersedia.');
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs || 10000) : null;
+    try {
+      const res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function fetchCurrencyApiIdrRates() {
+    const urls = [
+      'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/idr.min.json',
+      'https://latest.currency-api.pages.dev/v1/currencies/idr.min.json'
+    ];
+    for (const url of urls) {
+      try {
+        const json = await fetchJsonWithTimeout(url, 10000);
+        if (json && json.idr && typeof json.idr === 'object') return json.idr;
+      } catch (_) { /* try mirror */ }
+    }
+    return null;
+  }
+
+  async function fetchCoinGeckoIdrPrices(symbols, needGold) {
+    const wanted = [...new Set(symbols.map((s) => String(s || '').trim().toUpperCase()).filter((s) => CRYPTO_ID_MAP[s]))];
+    const ids = [...new Set([...wanted.map((s) => CRYPTO_ID_MAP[s]), 'tether', ...(needGold ? ['pax-gold'] : [])])];
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd`;
+    const json = await fetchJsonWithTimeout(url, 10000);
+    if (!json || typeof json !== 'object') return null;
+    const out = {};
+    const usdIdr = Number(json.tether && json.tether.idr) || 0;
+    if (usdIdr > 0) out.USD = usdIdr;
+    [...wanted, ...(needGold ? ['PAXG'] : [])].forEach((sym) => {
+      const d = json[CRYPTO_ID_MAP[sym]];
+      if (d && Number(d.idr) > 0) out[sym] = Number(d.idr);
+      else if (d && Number(d.usd) > 0 && usdIdr > 0) out[sym] = Math.round(Number(d.usd) * usdIdr);
+    });
+    return out;
+  }
+
+  async function fetchDirectMarketPricesIDR(symbols, needGold) {
+    const reqSyms = [...new Set((symbols || []).map((s) => String(s || '').trim().toUpperCase()).filter(Boolean))];
+    const [cgRes, curRes] = await Promise.allSettled([
+      reqSyms.some((s) => CRYPTO_ID_MAP[s]) || needGold ? fetchCoinGeckoIdrPrices(reqSyms, needGold) : Promise.resolve(null),
+      fetchCurrencyApiIdrRates()
+    ]);
+    const cgPrices = cgRes.status === 'fulfilled' ? cgRes.value : null;
+    const idrRates = curRes.status === 'fulfilled' ? curRes.value : null;
+    if (!cgPrices && !idrRates) {
+      throw new Error('Penyedia harga pasar (CoinGecko & Kurs) tidak dapat dijangkau sementara.');
+    }
+    const out = Object.assign({}, cgPrices || {});
+    if (idrRates) {
+      const rateToIdr = (code) => (Number(idrRates[code]) > 0 ? 1 / Number(idrRates[code]) : 0);
+      if (!out.USD) { const u = rateToIdr('usd'); if (u > 0) out.USD = Math.round(u); }
+      if (!out.XAU) { const g = rateToIdr('xau'); if (g > 0) out.XAU = g; }
+      if (!out.PAXG) { const p = rateToIdr('paxg'); if (p > 0) out.PAXG = p; }
+      reqSyms.forEach((sym) => {
+        if (!out[sym]) { const v = rateToIdr(sym.toLowerCase()); if (v > 0) out[sym] = v; }
+      });
+    }
+    return out;
+  }
+
+  async function savePortfolioSnapshotDirect(assets) {
+    let total = 0, crypto = 0, cash = 0, other = 0;
+    (assets || []).forEach((a) => {
+      const v = Number(a.value) || 0;
+      total += v;
+      const t = String(a.type || 'Other').toLowerCase();
+      if (t === 'crypto') crypto += v;
+      else if (t === 'cash') cash += v;
+      else other += v;
+    });
+    let userId = '';
+    if (sb.auth && typeof sb.auth.getSession === 'function') {
+      try {
+        const sess = await sb.auth.getSession();
+        userId = (sess && sess.data && sess.data.session && sess.data.session.user && sess.data.session.user.id) || '';
+      } catch (_) { /* ignore */ }
+    }
+    const row = {
+      ...(userId ? { user_id: userId } : {}),
+      tanggal: ymd(new Date()),
+      total_value: total,
+      crypto_value: crypto,
+      cash_value: cash,
+      other_value: other
+    };
+    const { error } = await sb.from('portfolio_snapshots').upsert(row, { onConflict: 'user_id,tanggal' });
+    fail(error);
+  }
+
+  async function refreshPricesDirect(assets) {
+    const list = (assets || []).map((a) => Object.assign({}, a));
+    const cryptos = list.filter((a) => String(a.type || '').toLowerCase() === 'crypto' && a.symbol && num(a.quantity) > 0);
+    const golds = list.filter((a) => String(a.type || '').toLowerCase() === 'emas' && num(a.quantity) > 0);
+    const usds = list.filter((a) => String(a.type || '').toLowerCase() === 'usd' && num(a.quantity) > 0);
+    if (!cryptos.length && !golds.length && !usds.length) return { updated: 0, missing: [], source: 'direct' };
+
+    const prices = await fetchDirectMarketPricesIDR(cryptos.map((a) => a.symbol), golds.length > 0);
+    const missing = new Set();
+    let updated = 0;
+
+    const applyGroup = async (rows, unitRate, symKey) => {
+      for (const row of rows) {
+        if (!unitRate || !Number.isFinite(unitRate)) { missing.add(symKey); continue; }
+        const nextVal = Math.round(num(row.quantity) * unitRate);
+        const { error } = await sb.from('assets').update({ value: nextVal }).eq('id', row.id);
+        fail(error);
+        row.value = nextVal;
+        updated += 1;
+      }
+    };
+
+    for (const row of cryptos) {
+      const sym = String(row.symbol || '').trim().toUpperCase();
+      await applyGroup([row], prices[sym] || 0, sym);
+    }
+    const goldOz = prices.XAU || prices.PAXG || 0;
+    await applyGroup(golds, goldOz ? goldOz / 31.1034768 : 0, 'XAU');
+    await applyGroup(usds, prices.USD || 0, 'USD');
+    if (updated > 0) await savePortfolioSnapshotDirect(list);
+    return { updated, missing: [...missing], source: 'direct' };
+  }
 
   async function finishAssetWalletMutation(assetsRes, transactions, walletId, date) {
     if (walletId && transactions && transactions.length) {
@@ -41,6 +196,18 @@
     return { p_name: name, p_type: type, p_symbol: symbol, p_quantity: quantity, p_buy_price: resolvedBuyPrice, p_amount: amount, p_wallet_id: d.walletId, p_date: date };
   }
 
+  async function fetchRecentSnapshots() {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const snapRes = await sb.from('portfolio_snapshots').select('tanggal,total_value,crypto_value,cash_value,other_value')
+      .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true });
+    fail(snapRes.error);
+    return (snapRes.data || []).map((s) => ({
+      tanggal: s.tanggal, total: num(s.total_value), crypto: num(s.crypto_value),
+      cash: num(s.cash_value), other: num(s.other_value)
+    }));
+  }
+
   Object.assign(core.handlers, {
     async api_addAssetV2(d) {
       if (!d || typeof d !== 'object') throw new Error('Data aset tidak valid.');
@@ -51,9 +218,14 @@
         if (!transactions || !transactions.length) throw new Error('Pembelian aset tidak mengembalikan catatan transaksi.');
         return finishAssetWalletMutation(await fetchAssetsOnly(), transactions, d.walletId, rpcArgs.p_date);
       }
+      const typeLower = String(d.type || 'Other').toLowerCase();
+      const qty = num(d.quantity);
+      const buyPrice = num(d.buyPrice);
+      const rawVal = num(d.value);
+      const val = rawVal > 0 ? rawVal : (typeLower === 'crypto' && qty > 0 && buyPrice > 0 ? Math.round(qty * buyPrice) : rawVal);
       const { error } = await sb.from('assets').insert({
         name: String(d.name || ''), type: String(d.type || 'Other'), symbol: String(d.symbol || '').toUpperCase(),
-        quantity: num(d.quantity), buy_price: num(d.buyPrice), value: num(d.value)
+        quantity: qty, buy_price: buyPrice, value: val
       });
       fail(error);
       return fetchAssetsOnly();
@@ -160,27 +332,54 @@
     },
 
     async api_refreshPrices() {
-      const { data, error } = await sb.functions.invoke('telegram-bot', { body: { job: 'refresh_prices' } });
-      if (error) throw new Error('Refresh harga gagal: ' + (error.message || error));
-      if (data && data.error) throw new Error(data.error);
-      if (data && data.updated === 0 && data.missing && data.missing.length) {
-        throw new Error('Simbol belum didukung: ' + data.missing.join(', '));
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new Error('Anda sedang offline. Hubungkan internet untuk menyegarkan harga aset.');
       }
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      const [assetsRes, snapRes] = await Promise.all([
-        fetchAssetsOnly(),
-        sb.from('portfolio_snapshots').select('tanggal,total_value,crypto_value,cash_value,other_value')
-          .gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true })
-      ]);
-      fail(snapRes.error);
-      return {
-        ...assetsRes,
-        snapshots: (snapRes.data || []).map((s) => ({
-          tanggal: s.tanggal, total: num(s.total_value), crypto: num(s.crypto_value),
-          cash: num(s.cash_value), other: num(s.other_value)
-        }))
-      };
+      const initialAssetsRes = await fetchAssetsOnly();
+      const marketAssets = (initialAssetsRes.assets || []).filter((a) => {
+        const t = String(a.type || '').toLowerCase();
+        return ((t === 'crypto' && a.symbol) || t === 'emas' || t === 'usd') && num(a.quantity) > 0;
+      });
+      if (!marketAssets.length) {
+        return { ...initialAssetsRes, snapshots: await fetchRecentSnapshots(), refreshMeta: { updated: 0, missing: [], noMarketAssets: true } };
+      }
+
+      let edgeResult = null;
+      let edgeErrorMsg = '';
+      if (sb.functions && typeof sb.functions.invoke === 'function') {
+        try {
+          const { data, error } = await sb.functions.invoke('telegram-bot', { body: { job: 'refresh_prices' } });
+          if (!error && data && !data.error) edgeResult = data;
+          else edgeErrorMsg = await extractEdgeErrorMessage(error, (data && data.error) || 'Refresh harga server gagal.');
+        } catch (err) {
+          edgeErrorMsg = (err && err.message) || String(err);
+        }
+      }
+
+      let directResult = null;
+      let directError = null;
+      const needsDirect = !edgeResult || (Number(edgeResult.updated) === 0 && Array.isArray(edgeResult.missing) && edgeResult.missing.length > 0);
+      if (needsDirect) {
+        try {
+          directResult = await refreshPricesDirect(initialAssetsRes.assets);
+        } catch (err) {
+          directError = err;
+        }
+      }
+
+      const activeRes = directResult || (edgeResult ? { updated: Number(edgeResult.updated) || 0, missing: edgeResult.missing || [], source: 'edge' } : null);
+      if (!activeRes) {
+        throw new Error((directError && directError.message) || edgeErrorMsg || 'Gagal memperbarui harga aset.');
+      }
+      if (activeRes.updated === 0 && activeRes.missing && activeRes.missing.length) {
+        throw new Error('Simbol belum didukung: ' + activeRes.missing.join(', '));
+      }
+
+      const [freshAssets, snapshots] = await Promise.all([fetchAssetsOnly(), fetchRecentSnapshots()]);
+      return { ...freshAssets, snapshots, refreshMeta: activeRes };
     }
   });
+
+  core.fetchDirectMarketPricesIDR = fetchDirectMarketPricesIDR;
+  core.refreshPricesDirect = refreshPricesDirect;
 })();
