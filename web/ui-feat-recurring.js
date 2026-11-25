@@ -5,7 +5,43 @@
 (function (root) {
   'use strict';
 
+  const AUTO_POST_KEY = 'mk_auto_post_recurring';
+  const AUTO_POST_DATE_KEY = 'mk_auto_post_last_date';
+
+  function renderCashflowRunwayStrip() {
+    const strip = document.getElementById('cashflowRunwayStrip');
+    if (!strip || !root.isDataReady || typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.computeCashflowRunway !== 'function') {
+      if (strip) { strip.classList.add('hide'); strip.textContent = ''; }
+      return;
+    }
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const rw = FinanceAnalysis.computeCashflowRunway(DB, DB.currentPeriod, DB.payrollDay, todayStr);
+    const toneCls = rw.status === 'deficit'
+      ? 'border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'
+      : (rw.status === 'caution'
+        ? 'border-amber-200 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300'
+        : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 mk-card-surface');
+    const fmt = (n) => formatRupiah(n).replace(',00', '');
+    strip.classList.remove('hide');
+    renderHtml(strip, `
+      <div class="rounded-2xl sm:rounded-3xl border ${toneCls} px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="w-9 h-9 rounded-xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0">
+            <i class="ph ph-gauge text-lg" aria-hidden="true"></i>
+          </span>
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold truncate">Cashflow Runway · Sisa ${rw.daysLeftInCycle} hari siklus ini</p>
+            <p class="text-[11px] opacity-85 truncate tabular-nums">Proyeksi akhir siklus ${fmt(rw.projectedEndCash)}${rw.upcomingCount ? ` (termasuk ${rw.upcomingCount} jadwal rutin mendatang)` : ''}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <span class="px-3 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-black tabular-nums">Aman: ${fmt(rw.safeDailyBudget)}/hari</span>
+        </div>
+      </div>`);
+  }
+
   function checkAndRenderDueRecurringBanner() {
+    renderCashflowRunwayStrip();
     const banner = document.getElementById('recurringDueBanner');
     if (!banner) return;
     if (!root.isDataReady || typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.getDueRecurringBills !== 'function') {
@@ -21,6 +57,8 @@
       banner.textContent = '';
       return;
     }
+    if (typeof root.syncNativeBillReminders === 'function') root.syncNativeBillReminders(due.dueBills);
+    const autoOn = localStorage.getItem(AUTO_POST_KEY) === '1';
 
     banner.classList.remove('hide');
     const previewChips = due.dueBills.slice(0, 3).map((b) => {
@@ -46,7 +84,10 @@
               <div class="flex flex-wrap items-center gap-1.5 mt-2.5">${previewChips}${moreText}</div>
             </div>
           </div>
-          <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-center">
+            <button type="button" onclick="toggleAutoPostRecurring()" class="min-h-11 px-3 py-2 rounded-2xl border ${autoOn ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-400 text-amber-900 dark:text-amber-200' : 'bg-white/80 dark:bg-slate-800 border-amber-200 dark:border-amber-700 text-slate-600 dark:text-slate-300'} text-xs font-bold transition-colors">
+              Auto-Catat: ${autoOn ? 'ON' : 'OFF'}
+            </button>
             <button type="button" onclick="batchRecordRecurring()" class="min-h-11 px-4 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-amber-600/20 transition-colors">
               <i class="ph-bold ph-lightning" aria-hidden="true"></i>
               <span data-i18n="dash.batch_record">Catat Semua Sekaligus</span>
@@ -54,6 +95,59 @@
           </div>
         </div>
       </div>`);
+    maybeAutoPostDueRecurring();
+  }
+
+  async function postRecurringBillsBatch(bills, targetWalletId, todayStr) {
+    const addedTransactions = [];
+    const recordedIds = [];
+    let latestPeriod = '';
+    for (const bill of bills) {
+      const txRes = await callServer('api_addTransaction', {
+        tanggal: todayStr, tipe: bill.tipe, kategori: bill.kategori, nominal: Number(bill.nominal) || 0,
+        keterangan: (bill.keterangan ? bill.keterangan + ' ' : '') + '(rutin)', walletId: targetWalletId
+      });
+      if (txRes && txRes.transaction) addedTransactions.push(txRes.transaction);
+      if (txRes && txRes.currentPeriod && (!latestPeriod || txRes.currentPeriod > latestPeriod)) latestPeriod = txRes.currentPeriod;
+      if (bill.id) recordedIds.push(bill.id);
+    }
+    let recRes = null;
+    if (recordedIds.length) {
+      try { recRes = await callServer('api_markRecurringRun', recordedIds, todayStr); } catch (_) { /* ignore */ }
+    }
+    await refreshFromServer({
+      addedTransactions,
+      ...(latestPeriod ? { currentPeriod: latestPeriod } : {}),
+      ...(recRes && recRes.recurring ? { recurring: recRes.recurring } : {})
+    });
+  }
+
+  function toggleAutoPostRecurring() {
+    const next = localStorage.getItem(AUTO_POST_KEY) !== '1';
+    localStorage.setItem(AUTO_POST_KEY, next ? '1' : '0');
+    checkAndRenderDueRecurringBanner();
+    Swal.fire({
+      icon: next ? 'success' : 'info',
+      title: next ? 'Auto-Catat Tagihan Rutin Aktif' : 'Auto-Catat Tagihan Rutin Dimatikan',
+      text: next ? 'Tagihan rutin jatuh tempo akan otomatis dicatat saat online.' : 'Tagihan rutin menunggu konfirmasi manual.',
+      timer: 1600,
+      showConfirmButton: false,
+      customClass: { popup: getSwalClass() }
+    });
+  }
+
+  async function maybeAutoPostDueRecurring() {
+    if (!root.isDataReady || !navigator.onLine || localStorage.getItem(AUTO_POST_KEY) !== '1') return;
+    if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.getDueRecurringBills !== 'function') return;
+    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(AUTO_POST_DATE_KEY) === todayStr) return;
+    const due = FinanceAnalysis.getDueRecurringBills(DB.recurring || [], DB.transactions || [], todayStr, DB.currentPeriod, DB.payrollDay);
+    if (!due || !due.count) return;
+    localStorage.setItem(AUTO_POST_DATE_KEY, todayStr);
+    const walletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+    try {
+      await postRecurringBillsBatch(due.dueBills, walletId, todayStr);
+    } catch (_) { /* keep manual fallback banner intact on error */ }
   }
 
   async function batchRecordRecurring() {
@@ -92,27 +186,7 @@
     Swal.fire({ title: 'Mencatat Jadwal Rutin...', text: 'Menyimpan transaksi ke database', allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { popup: getSwalClass() } });
     try {
       const targetWalletId = (res.value && res.value.walletId) || (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
-      const addedTransactions = [];
-      const recordedIds = [];
-      let latestPeriod = '';
-      for (const bill of due.dueBills) {
-        const txRes = await callServer('api_addTransaction', {
-          tanggal: todayStr, tipe: bill.tipe, kategori: bill.kategori, nominal: Number(bill.nominal) || 0,
-          keterangan: (bill.keterangan ? bill.keterangan + ' ' : '') + '(rutin)', walletId: targetWalletId
-        });
-        if (txRes && txRes.transaction) addedTransactions.push(txRes.transaction);
-        if (txRes && txRes.currentPeriod && (!latestPeriod || txRes.currentPeriod > latestPeriod)) latestPeriod = txRes.currentPeriod;
-        if (bill.id) recordedIds.push(bill.id);
-      }
-      let recRes = null;
-      if (recordedIds.length) {
-        try { recRes = await callServer('api_markRecurringRun', recordedIds, todayStr); } catch (_) { /* ignore */ }
-      }
-      await refreshFromServer({
-        addedTransactions,
-        ...(latestPeriod ? { currentPeriod: latestPeriod } : {}),
-        ...(recRes && recRes.recurring ? { recurring: recRes.recurring } : {})
-      });
+      await postRecurringBillsBatch(due.dueBills, targetWalletId, todayStr);
       Swal.fire({ icon: 'success', title: 'Berhasil Dicatat!', text: `${due.count} tagihan rutin berhasil dicatat ke siklus ini.`, timer: 1500, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
@@ -120,5 +194,5 @@
     }
   }
 
-  Object.assign(root, { checkAndRenderDueRecurringBanner, batchRecordRecurring });
+  Object.assign(root, { checkAndRenderDueRecurringBanner, batchRecordRecurring, toggleAutoPostRecurring, renderCashflowRunwayStrip });
 })(typeof window !== 'undefined' ? window : globalThis);

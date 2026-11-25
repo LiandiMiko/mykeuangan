@@ -24,15 +24,27 @@
     return data;
   }
 
+  async function logAdminActionSafe(action, targetUserId, targetEmail, details) {
+    try {
+      await sb.rpc('admin_log_action', {
+        p_action: action,
+        p_target_user_id: targetUserId || null,
+        p_target_email: targetEmail || '',
+        p_details: details || {}
+      });
+    } catch (_) { /* ignore optional audit table failure */ }
+  }
+
   Object.assign(core.handlers, {
     async api_getAdminData() {
       if (window.sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (!authData.user) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
-      const [profiles, statsRes] = await Promise.all([
+      const [profiles, statsRes, auditRes] = await Promise.all([
         fetchAll('profiles', 'id,email,display_name,role,status,created_at', ['created_at']),
-        sb.rpc('get_admin_platform_stats')
+        sb.rpc('get_admin_platform_stats'),
+        sb.from('admin_audit_logs').select('id,actor_email,action,target_email,details,created_at').order('created_at', { ascending: false }).limit(25)
       ]);
 
       let stats;
@@ -56,7 +68,8 @@
         };
       }
 
-      return { users: profiles, currentUserId: authData.user.id, stats };
+      const auditLogs = !auditRes.error && Array.isArray(auditRes.data) ? auditRes.data : [];
+      return { users: profiles, currentUserId: authData.user.id, stats, auditLogs };
     },
 
     async api_setUserStatus(userId, status) {
@@ -68,6 +81,7 @@
       }
       const { error } = await sb.from('profiles').update({ status }).eq('id', userId);
       fail(error);
+      await logAdminActionSafe(`status_${status}`, userId, '', { status });
       return true;
     },
 
@@ -80,6 +94,7 @@
       }
       const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
       fail(error);
+      await logAdminActionSafe(`role_${role}`, userId, '', { role });
       return true;
     },
 
@@ -106,6 +121,25 @@
         throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
       }
       await invokeEdgeFunction('admin-password', { userId, password }, 'Reset password gagal.');
+      await logAdminActionSafe('reset_password', userId, '', {});
+    },
+
+    async api_adminUnlinkTelegram(userId) {
+      if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      try {
+        return await invokeEdgeFunction('admin-user-ops', { action: 'unlink_telegram', userId }, 'Gagal memutus tautan Telegram.');
+      } catch (edgeErr) {
+        const { data, error } = await sb.rpc('admin_unlink_user_telegram', { p_target_user_id: userId });
+        if (error) throw edgeErr;
+        return { success: true, unlinkedCount: Number(data) || 0 };
+      }
+    },
+
+    async api_adminDeleteUser(userId, confirmation) {
+      if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+      const token = String(confirmation || '').trim().toUpperCase();
+      if (!['HAPUS', 'DELETE'].includes(token)) throw new Error('Ketik HAPUS untuk konfirmasi penghapusan akun.');
+      return invokeEdgeFunction('admin-user-ops', { action: 'delete_user', userId, confirmation: token }, 'Penghapusan akun pengguna gagal.');
     },
 
     async api_generateTelegramOTP() {

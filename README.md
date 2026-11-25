@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.19.1** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3) · Telegram Bot & Gemini AI · Security Hardened
+> **v3.20.0** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 2.5 Flash**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.19.1-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.0-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -44,8 +44,8 @@ Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)
 | **Target** | Target tabungan dengan kalkulator rekomendasi setoran bulanan otomatis, alokasi langsung dari dompet, nominal terkumpul, tenggat opsional |
 | **Aset** | Portofolio Crypto, Emas (gram), Valas USD, Saham/Reksa Dana dengan auto refresh harga, beli/top-up dari dompet, dan cairkan/jual ke dompet |
 | **Multi-User** | Registrasi mandiri (min. 8 karakter), Google Sign-In OAuth, login/register dark mode, lupa password via email, hapus akun mandiri |
-| **Admin Panel** | Statistik global platform, cari & filter user, suspend/aktifkan akun, proteksi self-lockout/admin terakhir |
-| **PWA & Android** | Web PWA offline + snapshot IndexedDB + bundel vendor lokal; build Android Capacitor 8 (API 36), Back button bertahap, Share Sheet ekspor & deep link OAuth |
+| **Admin Panel** | Statistik global platform, cari & filter user, suspend/aktifkan akun, atur password, putus Telegram, hapus akun user & log audit |
+| **PWA & Android** | Web PWA offline + antrean mutasi penuh + backup AES-GCM; Capacitor 8 (API 36), Camera OCR, Haptics, Local Notifications, Pull-to-Refresh, Biometrik & popup update |
 | **Telegram** | Notifikasi, query saldo, dan baca foto struk + voice note AI via Gemini 2.5 Flash; pairing via OTP mandiri + tombol salin perintah |
 | **AI** | Analisis arus keuangan, Scan Struk Vision, & Tanya Jawab / Simulasi Keuangan on-demand dengan Google Gemini 2.5 Flash |
 | **Keamanan** | XSS sanitization, RLS Supabase, constant-time secret verification, purge cache saat logout |
@@ -86,7 +86,7 @@ mykeuangan/
 │   ├── transaction-import.js# Parser dan validasi impor CSV
 │   ├── supabase-*.js        # Core, Auth UI (i18n), Records, Planning, Portfolio, Admin & callServer
 │   ├── ui-*.js              # 15 modul UI inti hasil modularisasi script.html
-│   ├── ui-feat-*.js         # 11 modul fitur PWA/offline/cache/charts/modals hasil modularisasi
+│   ├── ui-feat-*.js         # 13 modul fitur PWA/offline/native-ux/onboarding/backup hasil modularisasi
 │   ├── ui-pro-*.js          # 5 modul pro hasil modularisasi features-v35 (quick, palette, reports, insights, hooks)
 │   └── icons/               # PWA icons (192px, 512px, maskable)
 │
@@ -97,6 +97,8 @@ mykeuangan/
 ├── supabase/
 │   ├── functions/
 │   │   ├── admin-password/ # Admin-only password reset (JWT required)
+│   │   │   └── index.ts
+│   │   ├── admin-user-ops/ # Admin-only hapus akun user & putus Telegram (JWT + audit log)
 │   │   │   └── index.ts
 │   │   ├── delete-account/ # Self-service permanent account deletion (JWT + confirmation)
 │   │   │   └── index.ts
@@ -112,7 +114,8 @@ mykeuangan/
 │       ├── 20261118000000_comprehensive_upgrade.sql
 │       ├── 20261120000000_hardening_assets_profile_wallets.sql
 │       ├── 20261124000000_oauth_onboarding_display_name.sql # Google OAuth display_name fallback
-│       └── 20261125000000_normalize_categories_and_search.sql # Normalisasi kategori & filter dompet utama
+│       ├── 20261125000000_normalize_categories_and_search.sql # Normalisasi kategori & filter dompet utama
+│       └── 20261125120000_admin_audit_and_telegram_unlink.sql # Audit log admin & RPC putus Telegram
 │
 ├── docs/
 │   ├── ANDROID_PLAYSTORE_GUIDE.md # Panduan build Android Capacitor 8 (API 36) & Play Console
@@ -293,6 +296,13 @@ Memperbarui trigger `handle_new_user()` agar menyertakan fallback `full_name` / 
 Migrasi idempoten ini:
 - Memperbarui `search_user_transactions()` agar filter `p_category` bersifat *case-insensitive* (tanpa spasi berlebih) dan filter `p_wallet_id` ikut menyertakan transaksi lama ber-`wallet_id IS NULL` saat memfilter dompet utama
 - Memperbarui `rename_category_with_transactions()` agar mencocokkan varian huruf besar-kecil secara menyeluruh di transaksi, budget, dan jadwal rutin
+
+#### Step 13 — Admin Audit Logs & Unlink Telegram RPC (Wave v3.20)
+```sql
+-- Jalankan isi file: supabase/migrations/20261125120000_admin_audit_and_telegram_unlink.sql
+```
+
+Migrasi idempoten ini menambahkan tabel `public.admin_audit_logs` beserta kebijakan RLS admin dan RPC `admin_log_action()` serta `admin_unlink_user_telegram()`.
 - Membersihkan spasi dan menyelaraskan kapitalisasi kategori historis agar sesuai tabel `categories` milik pengguna
 
 > Untuk project yang sudah berjalan, jangan jalankan ulang `db/002_wallets.sql`. Pastikan tabel dasarnya sudah tersedia, lalu jalankan migrasi baru setelah migrasi hardening.
@@ -336,8 +346,9 @@ supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,https://localho
 # Deploy edge function (--no-verify-jwt agar webhook Telegram bisa diakses server bot)
 supabase functions deploy telegram-bot --no-verify-jwt
 
-# Reset password admin & hapus akun mandiri tetap memakai verifikasi JWT bawaan
+# Reset password, operasi admin (hapus user / putus Telegram) & hapus akun mandiri tetap memakai verifikasi JWT bawaan
 supabase functions deploy admin-password
+supabase functions deploy admin-user-ops
 supabase functions deploy delete-account
 ```
 
@@ -415,13 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.19.1-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.0-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.19.1-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.19.1-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.19.1-release.aab
+  npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.0-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.0-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.0-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -459,6 +471,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Wave v3.20 (Native Android Stack, Cashflow Runway, Kalkulator Nominal, Offline Queue Penuh & Admin Panel v2)
+- **Fix Tema Android, Notifikasi Native, Kamera OCR, Haptics, Pull-to-Refresh, Biometrik & Keystore (`web/ui-shell.js`, `web/native-bridge.js`, `web/ui-feat-ai.js`, `web/ui-feat-native-ux.js`, `web/ui-pro-hooks.js`, `web/ui-feat-account.js`, `scripts/patch-android-project.mjs`, `scripts/setup-android-keystore.mjs`)**: Memperbaiki `setTheme()` agar tidak menghapus kelas `mk-native-app`, menambahkan pengingat Android 20:00 & tagihan jatuh tempo (`@capacitor/local-notifications`), kamera Scan Struk native (`@capacitor/camera`), getaran taktil (`@capacitor/haptics`), *Pull-to-Refresh* + buka kunci biometrik sidik jari/WebAuthn, serta skrip helper `npm run cap:keystore`.
+- **Cashflow Runway, Auto-Catat Rutin, Kalkulator Nominal, Onboarding 3-Langkah & Offline Mutasi Penuh (`web/finance-analysis-portfolio.js`, `web/ui-feat-recurring.js`, `web/ui-state.js`, `src/form.html`, `src/dashboard.html`, `web/ui-feat-onboarding.js`, `web/ui-feat-offline.js`)**: Menghitung proyeksi saldo akhir siklus & batas aman harian (`computeCashflowRunway()`), opsi *Auto-Catat Tagihan Rutin*, wizard onboarding pengguna baru 3 langkah, ekspresi aritmatika aman (`+`, `-`, `*`, `/`) langsung di kolom nominal, serta antrean offline untuk edit transaksi, hapus transaksi, dan transfer dompet.
+- **Admin Panel v2 & Backup JSON AES-GCM (`supabase/migrations/20261125120000_admin_audit_and_telegram_unlink.sql`, `supabase/functions/admin-user-ops/index.ts`, `web/supabase-admin.js`, `web/ui-admin.js`, `src/admin.html`, `web/ui-feat-backup.js`)**: Menambahkan hapus akun user, putus tautan Telegram, dan log aktivitas admin, serta enkripsi/dekripsi opsional backup JSON berstandar **PBKDF2-SHA256 + AES-GCM 256-bit** dilengkapi suite uji `tests/wave-v320-upgrades.test.js`.
 
 ### 25 November 2026: Wave v3.19 (Standar Tampilan Android Material Design 3, Bottom Sheet Dialog & Proporsi Mobile 360dp)
 - **Material 3 Tonal Surfaces & Native Bottom-Sheet Modals (`src/styles.html`, `src/Index.html`)**: Menambahkan sistem permukaan tonal Material Design 3 (`#f2f5f9` siang / `#080d17` malam OLED), padding *safe-area* atas/bawah penuh, navigation drawer beradius `28px` dengan item kapsul `48dp`, bottom nav indikator pill `56×32dp`, top app bar `56dp`, serta mengubah seluruh modal konfirmasi & input SweetAlert2 menjadi **Android Bottom Sheet** otomatis di layar `< 640px` lengkap dengan *drag handle* dan `prefers-reduced-motion`.
@@ -634,13 +651,13 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 🗺 Roadmap
 
-Fase v1–v3.18 (Multi-User SaaS, Offline-First PWA, Bot Telegram Gemini AI, Audit Budgeting/Kategori, serta Pipeline `.apk`/`.aab` Capacitor 8) telah selesai. Fokus rilis berikutnya:
+Fase v1–v3.20 (Multi-User SaaS, Offline-First PWA, Native Android Capacitor 8, Admin Panel v2, & Enkripsi Backup AES-GCM) telah selesai. Fokus rilis berikutnya:
 
-- [x] Web PWA Offline-First + IndexedDB Snapshot & Antrean Sinkronisasi Otomatis
-- [x] Multi-aset (Crypto, Emas, USD, Saham), Bank e-Statement CSV Import & Ekspor PDF/Excel
-- [x] Android App Capacitor 8 (API 36) + Cloud Build APK/AAB (`android-build.yml`)
+- [x] Web PWA Offline-First + IndexedDB Snapshot & Antrean Sinkronisasi Mutasi Penuh
+- [x] Multi-aset (Crypto, Emas, USD, Saham), Bank e-Statement CSV Import & Ekspor PDF/Excel/AES-GCM JSON
+- [x] Android App Capacitor 8 (API 36), Native Plugins (Camera/Haptics/LocalNotifications) & Cloud Build APK/AAB (`android-build.yml`)
+- [x] Ekspansi Panel Admin (hapus akun user, putus tautan Telegram & audit log)
 - [ ] Google Play Console Closed Testing (12 tester × 14 hari) & rilis Production — lihat [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md)
-- [ ] Ekspansi lanjutan di Panel Admin (opsional: hapus akun user & putuskan tautan Telegram langsung dari UI Admin)
 
 ---
 

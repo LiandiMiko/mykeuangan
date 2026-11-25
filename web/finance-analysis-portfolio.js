@@ -286,10 +286,74 @@
     };
   }
 
+  function resolveRecurringDateInCycle(dayOfMonth, range) {
+    const day = Math.max(1, Math.min(31, Math.trunc(Number(dayOfMonth) || 1)));
+    const sYear = Number(range.start.slice(0, 4));
+    const sMon = Number(range.start.slice(5, 7));
+    const eYear = Number(range.end.slice(0, 4));
+    const eMon = Number(range.end.slice(5, 7));
+    const candidates = [[sYear, sMon], [eYear, eMon]];
+    for (let i = 0; i < candidates.length; i++) {
+      const [y, m] = candidates[i];
+      const lastDay = new Date(y, m, 0).getDate();
+      const dStr = `${y}-${String(m).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+      if (dStr >= range.start && dStr <= range.end) return dStr;
+    }
+    return '';
+  }
+
+  function computeCashflowRunway(data, period, payrollDay, todayStr) {
+    core.parsePeriod(period);
+    const src = data && typeof data === 'object' ? data : {};
+    const txs = Array.isArray(src.transactions) ? src.transactions : [];
+    const wallets = Array.isArray(src.wallets) ? src.wallets : [];
+    const transfers = Array.isArray(src.transfers) ? src.transfers : [];
+    const recList = Array.isArray(src.recurring) ? src.recurring : [];
+    const range = core.getPeriodRange(period, payrollDay);
+    const refToday = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || '')) ? String(todayStr) : range.start;
+    const flows = core.aggregateWalletAndPeriodFlows(txs, wallets, transfers, period, payrollDay);
+    const liquidCash = Math.round(flows.walletsTotal);
+
+    const effectiveStart = refToday < range.start ? range.start : refToday;
+    const msDay = 86400000;
+    const daysLeftInCycle = refToday > range.end
+      ? 0
+      : Math.max(1, Math.round((Date.parse(range.end + 'T00:00:00Z') - Date.parse(effectiveStart + 'T00:00:00Z')) / msDay) + 1);
+
+    let upcomingRecurringIncome = 0;
+    let upcomingRecurringExpense = 0;
+    let upcomingCount = 0;
+    recList.forEach((r) => {
+      if (!r || String(r.active) === 'false' || r.active === false) return;
+      const nom = Number(r.nominal) || 0;
+      if (nom <= 0) return;
+      const dueDate = resolveRecurringDateInCycle(r.dayOfMonth ?? r.day_of_month, range);
+      const lastRun = String(r.lastRun ?? r.last_run ?? '').slice(0, 10);
+      if (!dueDate || dueDate < refToday || (lastRun && core.isInPeriod(lastRun, period, payrollDay))) return;
+      upcomingCount += 1;
+      if (r.tipe === 'Pemasukan') upcomingRecurringIncome += nom;
+      else upcomingRecurringExpense += nom;
+    });
+
+    const upcomingRecurringNet = Math.round(upcomingRecurringIncome - upcomingRecurringExpense);
+    const projectedEndCash = Math.round(liquidCash + upcomingRecurringNet);
+    const safeDailyBudget = daysLeftInCycle > 0
+      ? Math.max(0, Math.floor(projectedEndCash / daysLeftInCycle))
+      : Math.max(0, projectedEndCash);
+    const status = projectedEndCash < 0 ? 'deficit' : (safeDailyBudget < 50000 ? 'caution' : 'safe');
+    return {
+      period, range, liquidCash, daysLeftInCycle,
+      upcomingRecurringIncome: Math.round(upcomingRecurringIncome),
+      upcomingRecurringExpense: Math.round(upcomingRecurringExpense),
+      upcomingRecurringNet, upcomingCount, projectedEndCash, safeDailyBudget, status
+    };
+  }
+
   const portfolioApi = {
     computeFinancialHealthRatios, recommendCategoryBudgets,
     computeAssetAllocation, detectSpendingAnomalies,
-    computeNetWorthSeries, compileOnePageFinancialStatement
+    computeNetWorthSeries, compileOnePageFinancialStatement,
+    computeCashflowRunway
   };
   root.FinanceAnalysisPortfolio = portfolioApi;
   if (typeof module !== 'undefined' && module.exports) module.exports = portfolioApi;

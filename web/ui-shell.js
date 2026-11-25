@@ -75,11 +75,10 @@
 
   function setTheme(t) {
     const theme = t || '';
-    document.documentElement.className = '';
-    if (localStorage.getItem('mode') === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
-    if (theme) document.documentElement.classList.add(theme);
+    const rootCls = document.documentElement.classList;
+    rootCls.remove('theme-pink', 'theme-violet', 'theme-blue', 'theme-emerald');
+    rootCls.toggle('dark', localStorage.getItem('mode') === 'dark');
+    if (theme) rootCls.add(theme);
     localStorage.setItem('theme', theme);
 
     document.querySelectorAll('[data-theme-btn]').forEach((btn) => {

@@ -122,12 +122,76 @@
     return String(intVal).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
 
+  const CALC_OP_PATTERN = /[+\-*×÷/]|(?<=\d)\s*[xX]\s*(?=\d)/;
+
+  function evaluateNominalExpression(raw) {
+    if (typeof raw === 'number') return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : NaN;
+    let src = String(raw || '').trim().replace(/rp/gi, '').replace(/\s+/g, '');
+    if (!src) return NaN;
+    src = src.replace(/[×xX]/g, '*').replace(/÷/g, '/');
+    src = src.replace(/\d{1,3}(?:\.\d{3})+(?![\d.,])/g, (m) => m.replace(/\./g, '')).replace(/,/g, '.');
+    if (!/^\d+(?:\.\d+)?(?:[+\-*/]\d+(?:\.\d+)?)*$/.test(src)) return NaN;
+    const nums = src.split(/[+\-*/]/).map(Number);
+    const ops = src.match(/[+\-*/]/g) || [];
+    if (nums.some((n) => !Number.isFinite(n))) return NaN;
+    const vals = [nums[0]];
+    const addOps = [];
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
+      const next = nums[i + 1];
+      if (op === '*') vals[vals.length - 1] *= next;
+      else if (op === '/') {
+        if (next === 0) return NaN;
+        vals[vals.length - 1] /= next;
+      } else { addOps.push(op); vals.push(next); }
+    }
+    let total = vals[0];
+    for (let i = 0; i < addOps.length; i++) total += addOps[i] === '+' ? vals[i + 1] : -vals[i + 1];
+    return Number.isFinite(total) && total >= 0 ? Math.round(total) : NaN;
+  }
+
   function parseFormattedNominal(raw) {
     if (typeof raw === 'number') return Number.isFinite(raw) ? raw : NaN;
-    const cleaned = String(raw || '').trim().replace(/rp/gi, '').replace(/[\s.]/g, '').replace(',', '.');
-    if (!cleaned) return NaN;
-    const n = Number(cleaned);
+    const str = String(raw || '').trim();
+    if (!str) return NaN;
+    if (CALC_OP_PATTERN.test(str)) return evaluateNominalExpression(str);
+    const cleaned = str.replace(/rp/gi, '').replace(/[\s.]/g, '').replace(',', '.');
+    const n = cleaned ? Number(cleaned) : NaN;
     return Number.isFinite(n) ? n : NaN;
+  }
+
+  function updateCalcPreviewForInput(el) {
+    if (typeof document === 'undefined' || !el || !el.id) return;
+    const prev = document.getElementById(el.id + '_calc_preview');
+    if (!prev) return;
+    const hasOp = CALC_OP_PATTERN.test(String(el.value || ''));
+    const val = hasOp ? evaluateNominalExpression(el.value) : NaN;
+    prev.textContent = hasOp && Number.isFinite(val) ? '= ' + _origFormatRupiah(val) : '';
+    prev.classList.toggle('hide', !(hasOp && Number.isFinite(val)));
+  }
+
+  function resolveCalcInput(el) {
+    if (!el || !CALC_OP_PATTERN.test(String(el.value || ''))) return false;
+    const res = evaluateNominalExpression(el.value);
+    if (!Number.isFinite(res) || res < 0) return false;
+    el.value = res > 0 ? formatNominalInputValue(res) : '';
+    updateCalcPreviewForInput(el);
+    return true;
+  }
+
+  function insertNominalCalcOp(op) {
+    const el = document.getElementById('tr_nominal');
+    if (!el) return;
+    const cur = String(el.value || '').trim();
+    if (!cur) { el.focus(); return; }
+    el.value = /[+\-*×÷/xX]$/.test(cur) ? cur.slice(0, -1) + op : cur + op;
+    updateCalcPreviewForInput(el);
+    el.focus();
+  }
+
+  function applyNominalCalc() {
+    const el = document.getElementById('tr_nominal');
+    if (el) { resolveCalcInput(el); el.focus(); }
   }
 
   function bindNominalInputs(idsOrEls) {
@@ -136,7 +200,12 @@
       if (!el || el.dataset.fmtBound === '1') return;
       el.dataset.fmtBound = '1';
       el.addEventListener('input', () => {
-        el.value = formatNominalInputValue(el.value);
+        if (!CALC_OP_PATTERN.test(String(el.value || ''))) el.value = formatNominalInputValue(el.value);
+        updateCalcPreviewForInput(el);
+      });
+      el.addEventListener('blur', () => resolveCalcInput(el));
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && CALC_OP_PATTERN.test(String(el.value || '')) && resolveCalcInput(el)) ev.preventDefault();
       });
     });
   }
@@ -328,6 +397,9 @@
     renderSelectOptions,
     formatNominalInputValue,
     parseFormattedNominal,
+    evaluateNominalExpression,
+    insertNominalCalcOp,
+    applyNominalCalc,
     bindNominalInputs,
     _origFormatRupiah,
     formatRupiah,

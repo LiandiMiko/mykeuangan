@@ -52,7 +52,9 @@ const UI_FEATURES_MODULES = [
   'ui-feat-backup.js',
   'ui-feat-account.js',
   'ui-feat-recurring.js',
-  'ui-feat-hooks.js'
+  'ui-feat-hooks.js',
+  'ui-feat-native-ux.js',
+  'ui-feat-onboarding.js'
 ];
 
 const UI_PRO_MODULES = [

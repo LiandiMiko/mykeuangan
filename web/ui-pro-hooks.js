@@ -5,6 +5,8 @@
 (function (root) {
   'use strict';
 
+  const NATIVE_NOTIF_KEY = 'mk_native_notif_enabled';
+
   function renderMobileBottomNavState(viewId) {
     const nav = document.getElementById('mobileBottomNav');
     if (nav) nav.classList.toggle('hide', viewId === 'form-transaction');
@@ -39,10 +41,37 @@
     Swal.fire(pro.swalOpt({ icon: 'success', title: 'Pengingat browser aktif!', timer: 1300, showConfirmButton: false }));
   }
 
+  async function toggleNativeNotifications() {
+    const pro = root.__mkPro || {};
+    const currentlyOn = localStorage.getItem(NATIVE_NOTIF_KEY) === '1';
+    if (typeof root.scheduleNativeDailyReminder !== 'function') {
+      Swal.fire(pro.swalOpt({ icon: 'info', title: 'Belum tersedia', text: 'Plugin notifikasi native belum siap.' }));
+      return;
+    }
+    const nextState = !currentlyOn;
+    const res = await root.scheduleNativeDailyReminder(nextState, 20, 0);
+    if (!res.ok) {
+      Swal.fire(pro.swalOpt({ icon: 'warning', title: 'Izin ditolak', text: 'Izinkan notifikasi MyKeuGuech di Pengaturan Aplikasi Android.' }));
+      return;
+    }
+    localStorage.setItem(NATIVE_NOTIF_KEY, nextState ? '1' : '0');
+    Swal.fire(pro.swalOpt({
+      icon: nextState ? 'success' : 'info',
+      title: nextState ? 'Pengingat Android 20:00 aktif!' : 'Pengingat Android dimatikan',
+      timer: 1300,
+      showConfirmButton: false
+    }));
+  }
+
   async function openNotificationsModal() {
     const pro = root.__mkPro || {};
     const list = typeof getCurrentNotifications === 'function' ? getCurrentNotifications() : [];
+    const isNative = typeof root.isNativeApp === 'function' && root.isNativeApp();
     const browserOn = localStorage.getItem(pro.KEYS.BROWSER_NOTIF) === '1' && ('Notification' in window) && Notification.permission === 'granted';
+    const nativeOn = localStorage.getItem(NATIVE_NOTIF_KEY) === '1';
+    const toggleOn = isNative ? nativeOn : browserOn;
+    const toggleLabel = isNative ? 'Pengingat Android (20:00):' : 'Notifikasi Browser:';
+    const toggleFn = isNative ? 'toggleNativeNotifications()' : 'toggleBrowserNotifications()';
     const sevStyle = {
       danger: 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300',
       warning: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300',
@@ -71,8 +100,8 @@
       title: t('notif.title'),
       html: `
         <div class="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs">
-          <span>Notifikasi Browser: <strong>${browserOn ? 'Aktif' : 'Nonaktif'}</strong></span>
-          <button type="button" onclick="toggleBrowserNotifications()" class="px-2.5 py-1 rounded-lg ${browserOn ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand text-white'} font-bold">${browserOn ? 'Matikan' : 'Aktifkan'}</button>
+          <span>${toggleLabel} <strong>${toggleOn ? 'Aktif' : 'Nonaktif'}</strong></span>
+          <button type="button" onclick="${toggleFn}" class="px-2.5 py-1 rounded-lg ${toggleOn ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand text-white'} font-bold">${toggleOn ? 'Matikan' : 'Aktifkan'}</button>
         </div>
         <div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">${rows}</div>
       `,
@@ -152,6 +181,7 @@
 
   Object.assign(root, {
     toggleBrowserNotifications,
+    toggleNativeNotifications,
     openNotificationsModal,
     maybeNotifyBrowserSummary
   });

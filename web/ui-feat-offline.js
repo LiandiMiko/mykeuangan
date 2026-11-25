@@ -235,18 +235,27 @@
     let newlyFailed = 0;
     let lastErrMsg = '';
     const addedTransactions = [];
+    const deletedTransactionIds = [];
+    let latestTransfers = null;
+    let latestWallets = null;
     let latestPeriod = '';
     try {
       for (const item of pendingItems) {
         try {
-          const payload = Object.assign({}, item.payload);
-          const res = await root._rawCallServer('api_addTransaction', payload);
+          const op = item.op || 'api_addTransaction';
+          let res = null;
+          if (op === 'api_updateTransaction') res = await root._rawCallServer('api_updateTransaction', item.targetId, Object.assign({}, item.payload));
+          else if (op === 'api_deleteTransaction') res = await root._rawCallServer('api_deleteTransaction', item.targetId);
+          else if (op === 'api_addTransfer') res = await root._rawCallServer('api_addTransfer', Object.assign({}, item.payload));
+          else res = await root._rawCallServer('api_addTransaction', Object.assign({}, item.payload));
+
           if (res && res.transaction) addedTransactions.push(res.transaction);
-          if (res && res.currentPeriod && (!latestPeriod || res.currentPeriod > latestPeriod)) {
-            latestPeriod = res.currentPeriod;
-          }
+          if (res && res.deletedTransactionId) deletedTransactionIds.push(res.deletedTransactionId);
+          if (res && res.transfers) latestTransfers = res.transfers;
+          if (res && res.wallets) latestWallets = res.wallets;
+          if (res && res.currentPeriod && (!latestPeriod || res.currentPeriod > latestPeriod)) latestPeriod = res.currentPeriod;
           await removeOfflineQueueItem(item.localId);
-          if (typeof DB !== 'undefined' && Array.isArray(DB.transactions)) {
+          if (typeof DB !== 'undefined' && Array.isArray(DB.transactions) && op === 'api_addTransaction') {
             DB.transactions = DB.transactions.filter((tx) => tx.id !== item.localId);
           }
           synced += 1;
@@ -262,13 +271,16 @@
       if (synced > 0 && typeof refreshFromServer === 'function') {
         await refreshFromServer({
           addedTransactions,
+          deletedTransactionIds,
+          ...(latestTransfers ? { transfers: latestTransfers } : {}),
+          ...(latestWallets ? { wallets: latestWallets } : {}),
           ...(latestPeriod ? { currentPeriod: latestPeriod } : {})
         });
       }
       if (synced > 0 && !silent && typeof Swal !== 'undefined') {
         Swal.fire({
           icon: 'success',
-          title: synced + ' transaksi offline tersinkronisasi',
+          title: synced + ' perubahan offline tersinkronisasi',
           timer: 1600,
           showConfirmButton: false,
           customClass: { popup: getSwalClass() }
@@ -284,14 +296,13 @@
     return synced;
   }
 
+  const OFFLINE_MUTATIONS = new Set(['api_addTransaction', 'api_updateTransaction', 'api_deleteTransaction', 'api_addTransfer']);
+
   function buildOfflineTransactionResponse(localId, txPayload) {
     return {
       _offlineQueued: true,
       transaction: {
-        id: localId,
-        tanggal: txPayload.tanggal,
-        tipe: txPayload.tipe,
-        kategori: txPayload.kategori,
+        id: localId, tanggal: txPayload.tanggal, tipe: txPayload.tipe, kategori: txPayload.kategori,
         nominal: Number(txPayload.nominal) || 0,
         keterangan: (txPayload.keterangan ? txPayload.keterangan + ' ' : '') + '[Offline Queue]',
         walletId: txPayload.walletId || ''
@@ -299,24 +310,79 @@
     };
   }
 
-  async function queueOfflineTx(rawPayload) {
-    const txPayload = Object.assign({}, rawPayload || {});
-    const localId = 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-    await saveOfflineQueueItem({ localId, payload: txPayload, createdAt: new Date().toISOString() });
+  function bumpOfflineBadgeRefresh() {
     setTimeout(() => {
       updateNetworkStatusPill();
       if (typeof refreshNotificationBell === 'function') refreshNotificationBell();
-    }, 50);
-    return buildOfflineTransactionResponse(localId, txPayload);
+    }, 40);
+  }
+
+  async function queueOfflineMutation(op, args) {
+    const stamp = () => 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    if (op === 'api_addTransaction') {
+      const payload = Object.assign({}, args[0] || {});
+      const localId = stamp();
+      await saveOfflineQueueItem({ localId, op, payload, createdAt: new Date().toISOString() });
+      bumpOfflineBadgeRefresh();
+      return buildOfflineTransactionResponse(localId, payload);
+    }
+    if (op === 'api_updateTransaction') {
+      const id = String(args[0] || '');
+      const payload = Object.assign({}, args[1] || {});
+      const queued = id.startsWith('offline-') ? readLocalQueue().find((x) => x.localId === id && (x.op || 'api_addTransaction') === 'api_addTransaction') : null;
+      const itemId = queued ? id : ('offline-upd-' + id);
+      const nextItem = queued
+        ? Object.assign({}, queued, { payload })
+        : { localId: itemId, op, targetId: id, payload, createdAt: new Date().toISOString() };
+      await saveOfflineQueueItem(nextItem);
+      bumpOfflineBadgeRefresh();
+      return {
+        _offlineQueued: true,
+        transaction: {
+          id, tanggal: payload.tanggal, tipe: payload.tipe, kategori: payload.kategori,
+          nominal: Number(payload.nominal) || 0, keterangan: payload.keterangan || '', walletId: payload.walletId || ''
+        }
+      };
+    }
+    if (op === 'api_deleteTransaction') {
+      const id = String(args[0] || '');
+      if (id.startsWith('offline-')) {
+        await removeOfflineQueueItem(id);
+        bumpOfflineBadgeRefresh();
+        return { _offlineQueued: true, deletedTransactionId: id };
+      }
+      await removeOfflineQueueItem('offline-upd-' + id);
+      await saveOfflineQueueItem({ localId: 'offline-del-' + id, op, targetId: id, createdAt: new Date().toISOString() });
+      bumpOfflineBadgeRefresh();
+      return { _offlineQueued: true, deletedTransactionId: id };
+    }
+    const trPayload = Object.assign({}, args[0] || {});
+    const localId = stamp();
+    await saveOfflineQueueItem({ localId, op: 'api_addTransfer', payload: trPayload, createdAt: new Date().toISOString() });
+    const optimistic = {
+      id: localId, tanggal: trPayload.tanggal || new Date().toISOString().slice(0, 10),
+      kind: trPayload.kind || 'transfer', fromWallet: trPayload.fromWallet || '', toWallet: trPayload.toWallet || '',
+      nominal: Number(trPayload.nominal) || 0, fee: Math.max(0, Number(trPayload.fee) || 0), keterangan: (trPayload.keterangan ? trPayload.keterangan + ' ' : '') + '[Offline Queue]'
+    };
+    bumpOfflineBadgeRefresh();
+    return { _offlineQueued: true, transfers: [...((typeof DB !== 'undefined' && Array.isArray(DB.transfers)) ? DB.transfers : []), optimistic] };
   }
 
   function hydrateInitialOfflineData(res) {
     if (typeof DB !== 'undefined') DB.debtDueDates = res.debtDueDates || {};
     const pending = readLocalQueue();
-    if (!pending.length || !Array.isArray(res.transactions)) return;
+    if (!pending.length) return;
     pending.forEach((item) => {
-      if (!res.transactions.some((x) => x.id === item.localId)) {
+      const op = item.op || 'api_addTransaction';
+      if (op === 'api_addTransaction' && Array.isArray(res.transactions) && !res.transactions.some((x) => x.id === item.localId)) {
         res.transactions.push(buildOfflineTransactionResponse(item.localId, item.payload).transaction);
+      } else if (op === 'api_updateTransaction' && Array.isArray(res.transactions)) {
+        const idx = res.transactions.findIndex((x) => String(x.id) === String(item.targetId));
+        if (idx !== -1 && item.payload) Object.assign(res.transactions[idx], item.payload);
+      } else if (op === 'api_deleteTransaction' && Array.isArray(res.transactions)) {
+        res.transactions = res.transactions.filter((x) => String(x.id) !== String(item.targetId));
+      } else if (op === 'api_addTransfer' && Array.isArray(res.transfers) && !res.transfers.some((x) => x.id === item.localId)) {
+        res.transfers.push({ id: item.localId, ...item.payload, keterangan: ((item.payload && item.payload.keterangan) || '') + ' [Offline Queue]' });
       }
     });
   }
@@ -325,13 +391,13 @@
     if (typeof root.callServer !== 'function' || root._rawCallServer) return;
     root._rawCallServer = root.callServer;
     root.callServer = async function (fn, ...args) {
-      if (fn === 'api_addTransaction' && !navigator.onLine) return queueOfflineTx(args[0]);
+      if (OFFLINE_MUTATIONS.has(fn) && !navigator.onLine) return queueOfflineMutation(fn, args);
       try {
         const res = await root._rawCallServer(fn, ...args);
         if (fn === 'getInitialData' && res && typeof res === 'object') hydrateInitialOfflineData(res);
         return res;
       } catch (err) {
-        if (fn === 'api_addTransaction' && isNetworkOfflineError(err)) return queueOfflineTx(args[0]);
+        if (OFFLINE_MUTATIONS.has(fn) && isNetworkOfflineError(err)) return queueOfflineMutation(fn, args);
         if (fn === 'api_savePeriod' && isNetworkOfflineError(err)) return args[0];
         throw err;
       }

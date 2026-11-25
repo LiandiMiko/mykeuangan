@@ -21,7 +21,13 @@
     'mk_rebalance_targets_v1',
     'mk_browser_notif_enabled',
     'mk_browser_notif_last_date',
-    'mk_last_seen_release'
+    'mk_last_seen_release',
+    'mk_onboarding_done_v1',
+    'mk_auto_post_recurring',
+    'mk_auto_post_last_date',
+    'mk_native_notif_enabled',
+    'mk_biometric_pin_enabled',
+    'mk_biometric_cred_id'
   ];
 
   const showAuthNotice = (title, msg) => showCoreNotice(title, msg, { closable: true });

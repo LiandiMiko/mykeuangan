@@ -261,6 +261,9 @@
         if (root.isDataReady && typeof root.checkRemoteAppUpdate === 'function') {
           setTimeout(() => { root.checkRemoteAppUpdate({ manual: false }); }, 2200);
         }
+        if (root.isDataReady && typeof root.maybeRunNewUserOnboarding === 'function') {
+          setTimeout(() => { root.maybeRunNewUserOnboarding(); }, 1200);
+        }
       };
     }
     if (typeof root.setTheme === 'function' && !root._origSetTheme) {

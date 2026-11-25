@@ -29,6 +29,7 @@
       setAdminText('adm-active-users', s.activeUsers || 0);
       setAdminText('adm-suspended-users', s.suspendedUsers || 0);
       setAdminText('adm-total-chats', s.totalTelegramChats || 0);
+      renderAdminAuditLogs(data.auditLogs || []);
       filterAdminUsersTable();
       return true;
     } catch (err) {
@@ -71,7 +72,9 @@
       ? '<span class="text-xs text-slate-500 dark:text-slate-400">Akun Anda</span>'
       : `<button type="button" data-admin-action="status" data-user-id="${safeId}" data-value="${nextStatus}" class="${padCls}font-bold cursor-pointer ${statusBtnColor}">${isSuspended ? 'Aktifkan' : 'Suspend'}</button>
          <button type="button" data-admin-action="role" data-user-id="${safeId}" data-value="${u.role === 'admin' ? 'user' : 'admin'}" class="${padCls}font-bold text-blue-700 dark:text-blue-400 hover:text-blue-800 cursor-pointer">${u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin'}</button>
-         <button type="button" data-admin-action="password" data-user-id="${safeId}" class="${padCls}font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>`;
+         <button type="button" data-admin-action="password" data-user-id="${safeId}" class="${padCls}font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white cursor-pointer">Atur Password</button>
+         <button type="button" data-admin-action="unlink_telegram" data-user-id="${safeId}" class="${padCls}font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 cursor-pointer">Putus Telegram</button>
+         <button type="button" data-admin-action="delete" data-user-id="${safeId}" class="${padCls}font-bold text-rose-700 dark:text-rose-400 hover:text-rose-800 cursor-pointer">Hapus Akun</button>`;
     return { statusBadge, roleBadge, actions };
   }
 
@@ -115,6 +118,8 @@
         if (button.dataset.adminAction === 'status') toggleUserStatus(user.id, button.dataset.value);
         else if (button.dataset.adminAction === 'role') toggleUserRole(user.id, button.dataset.value);
         else if (button.dataset.adminAction === 'password') resetUserPassword(user.id, user.email || '');
+        else if (button.dataset.adminAction === 'unlink_telegram') adminUnlinkUserTelegram(user.id, user.email || '');
+        else if (button.dataset.adminAction === 'delete') adminDeleteUserAccount(user.id, user.email || '');
       });
     });
   }
@@ -243,6 +248,77 @@
       await Swal.fire({ icon: 'success', title: 'Password berhasil diperbarui.', customClass: { popup: getSwalClass() } });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'Gagal mengganti password', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+    }
+  }
+
+  function renderAdminAuditLogs(logs) {
+    const box = document.getElementById('adm-audit-log-list');
+    if (!box) return;
+    if (!Array.isArray(logs) || !logs.length) {
+      renderHtml(box, '<p class="text-xs text-slate-500 dark:text-slate-400 py-2">Belum ada catatan aktivitas admin atau migrasi audit belum dijalankan.</p>');
+      return;
+    }
+    const html = logs.map((item) => {
+      const ts = escapeHtmlJS(String(item.created_at || '').slice(0, 16).replace('T', ' '));
+      return `<div class="py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 last:border-b-0 text-xs">
+        <div class="min-w-0">
+          <p class="font-bold text-slate-800 dark:text-slate-100 truncate">${escapeHtmlJS(item.action || '-')} &rarr; ${escapeHtmlJS(item.target_email || item.target_user_id || '-')}</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}</p>
+        </div>
+        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums shrink-0">${ts}</span>
+      </div>`;
+    }).join('');
+    renderHtml(box, html);
+  }
+
+  async function adminUnlinkUserTelegram(uid, email) {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: 'Putus Tautan Telegram?',
+      text: `Putuskan koneksi bot Telegram untuk ${email || uid}?`,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Putuskan',
+      cancelButtonText: 'Batal',
+      customClass: { popup: getSwalClass() }
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await callServer('api_adminUnlinkTelegram', uid);
+      await loadAdminData();
+      Swal.fire({ icon: 'success', title: 'Tautan Telegram Diputus', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e), customClass: { popup: getSwalClass() } });
+    }
+  }
+
+  async function adminDeleteUserAccount(uid, email) {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: 'Hapus Akun Pengguna?',
+      html: `<p class="text-xs text-slate-600 dark:text-slate-300 text-left">Seluruh data milik <strong>${escapeHtmlJS(email || uid)}</strong> akan dihapus permanen. Ketik <strong>HAPUS</strong> untuk konfirmasi.</p>`,
+      input: 'text',
+      inputPlaceholder: 'HAPUS',
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      confirmButtonText: 'Hapus Permanen',
+      cancelButtonText: 'Batal',
+      customClass: { popup: getSwalClass() },
+      preConfirm: (val) => {
+        const token = String(val || '').trim().toUpperCase();
+        if (!['HAPUS', 'DELETE'].includes(token)) {
+          Swal.showValidationMessage('Ketik HAPUS terlebih dahulu.');
+          return false;
+        }
+        return token;
+      }
+    });
+    if (!conf.isConfirmed || !conf.value) return;
+    try {
+      await callServer('api_adminDeleteUser', uid, conf.value);
+      await loadAdminData();
+      Swal.fire({ icon: 'success', title: 'Akun Pengguna Dihapus', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Gagal Menghapus', text: e.message || String(e), customClass: { popup: getSwalClass() } });
     }
   }
 

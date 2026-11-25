@@ -52,7 +52,67 @@
     downloadOrShareText('\ufeff' + tableDoc, `Laporan_Keuangan_${sessionUser}_${period || 'All'}.xls`, 'application/vnd.ms-excel;charset=utf-8');
   }
 
-  function exportBackupJson() {
+  const ENCRYPTED_BACKUP_FORMAT = 'mykeuguech-encrypted-backup-v1';
+
+  function bytesToB64(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  function b64ToBytes(b64) {
+    const bin = atob(String(b64 || ''));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function deriveBackupAesKey(password, saltBytes, usages) {
+    const subtle = root.crypto && root.crypto.subtle;
+    if (!subtle) throw new Error('Web Crypto AES-GCM tidak tersedia pada perangkat ini.');
+    const keyMat = await subtle.importKey('raw', new TextEncoder().encode(String(password || '')), 'PBKDF2', false, ['deriveKey']);
+    return subtle.deriveKey(
+      { name: 'PBKDF2', salt: saltBytes, iterations: 150000, hash: 'SHA-256' },
+      keyMat,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      usages
+    );
+  }
+
+  async function encryptBackupPayload(snapshot, password) {
+    const pass = String(password || '');
+    if (pass.length < 6) throw new Error('Kata sandi enkripsi minimal 6 karakter.');
+    const salt = new Uint8Array(16);
+    const iv = new Uint8Array(12);
+    root.crypto.getRandomValues(salt);
+    root.crypto.getRandomValues(iv);
+    const key = await deriveBackupAesKey(pass, salt, ['encrypt']);
+    const cipherBuf = await root.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(snapshot)));
+    return {
+      format: ENCRYPTED_BACKUP_FORMAT,
+      kdf: 'PBKDF2-SHA256',
+      iterations: 150000,
+      salt: bytesToB64(salt),
+      iv: bytesToB64(iv),
+      ciphertext: bytesToB64(new Uint8Array(cipherBuf))
+    };
+  }
+
+  async function decryptBackupPayload(envelope, password) {
+    const env = envelope && typeof envelope === 'object' ? envelope : {};
+    if (env.format !== ENCRYPTED_BACKUP_FORMAT) throw new Error('Format backup terenkripsi tidak dikenali.');
+    const pass = String(password || '');
+    if (!pass) throw new Error('Kata sandi diperlukan untuk mendekripsi backup.');
+    const salt = b64ToBytes(env.salt);
+    const iv = b64ToBytes(env.iv);
+    const cipherBytes = b64ToBytes(env.ciphertext);
+    const key = await deriveBackupAesKey(pass, salt, ['decrypt']);
+    const plainBuf = await root.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
+    return JSON.parse(new TextDecoder().decode(plainBuf));
+  }
+
+  async function exportBackupJson() {
     const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
     const snapshot = {
       exportedAt: new Date().toISOString(),
@@ -71,7 +131,39 @@
       debtDueDates: DB.debtDueDates || {},
       transactions: DB.transactions || []
     };
-    downloadOrShareText(JSON.stringify(snapshot, null, 2), `Backup_MyKeuGuech_${sessionUser}_${todayStr}.json`, 'application/json;charset=utf-8');
+    const choice = await Swal.fire({
+      title: 'Ekspor Backup JSON',
+      text: 'Pilih apakah berkas backup disimpan dalam format JSON biasa atau dienkripsi dengan kata sandi (AES-GCM).',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'JSON Biasa',
+      denyButtonText: 'Enkripsi Kata Sandi',
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() }
+    });
+    if (choice.isConfirmed) {
+      downloadOrShareText(JSON.stringify(snapshot, null, 2), `Backup_MyKeuGuech_${sessionUser}_${todayStr}.json`, 'application/json;charset=utf-8');
+      return;
+    }
+    if (!choice.isDenied) return;
+    const passRes = await Swal.fire({
+      title: 'Kata Sandi Enkripsi Backup',
+      input: 'password',
+      inputPlaceholder: 'Minimal 6 karakter',
+      inputAttributes: { autocomplete: 'new-password' },
+      showCancelButton: true,
+      confirmButtonText: 'Enkripsi & Unduh',
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() },
+      preConfirm: (v) => (String(v || '').length < 6 ? (Swal.showValidationMessage('Minimal 6 karakter.'), false) : String(v))
+    });
+    if (!passRes.isConfirmed || !passRes.value) return;
+    try {
+      const encrypted = await encryptBackupPayload(snapshot, passRes.value);
+      downloadOrShareText(JSON.stringify(encrypted, null, 2), `Backup_Encrypted_MyKeuGuech_${sessionUser}_${todayStr}.json`, 'application/json;charset=utf-8');
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+    }
   }
 
   function triggerRestoreJson() {
@@ -167,6 +259,24 @@
     } catch (_) {
       Swal.fire({ icon: 'error', title: 'File Tidak Valid', text: 'File bukan JSON backup yang valid.', customClass: { popup: getSwalClass() } });
       return;
+    }
+    if (parsed && parsed.format === ENCRYPTED_BACKUP_FORMAT) {
+      const decPass = await Swal.fire({
+        title: 'Backup Terenkripsi Terdeteksi',
+        input: 'password',
+        inputPlaceholder: 'Masukkan kata sandi dekripsi',
+        showCancelButton: true,
+        confirmButtonText: 'Buka Backup',
+        cancelButtonText: t('btn.batal'),
+        customClass: { popup: getSwalClass() }
+      });
+      if (!decPass.isConfirmed || !decPass.value) return;
+      try {
+        parsed = await decryptBackupPayload(parsed, decPass.value);
+      } catch (_) {
+        Swal.fire({ icon: 'error', title: 'Kata Sandi Salah', text: 'Gagal mendekripsi berkas backup. Periksa kembali kata sandi Anda.', customClass: { popup: getSwalClass() } });
+        return;
+      }
     }
 
     const plan = FinanceAnalysis.prepareBackupRestorePayload(parsed, DB);
@@ -314,5 +424,5 @@
     });
   }
 
-  Object.assign(root, { exportExcel, exportBackupJson, triggerRestoreJson, handleRestoreJsonFile, openFinancialStatementModal });
+  Object.assign(root, { exportExcel, exportBackupJson, triggerRestoreJson, handleRestoreJsonFile, openFinancialStatementModal, encryptBackupPayload, decryptBackupPayload });
 })(typeof window !== 'undefined' ? window : globalThis);

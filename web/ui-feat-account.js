@@ -173,6 +173,9 @@
         deleteOwnAccountFlow();
       });
     }
+    if (root.__mkFeat && typeof root.__mkFeat.decorateAccountBiometricRow === 'function') {
+      root.__mkFeat.decorateAccountBiometricRow(Boolean(localStorage.getItem('mk_app_pin_hash')));
+    }
   }
 
   async function openAccountSettingsModal() {
@@ -301,6 +304,11 @@
     const mainEl = document.getElementById('mainContent');
     if (mainEl) mainEl.classList.add('blur-md', 'pointer-events-none');
     try {
+      if (root.__mkFeat && typeof root.__mkFeat.tryBiometricUnlock === 'function' && await root.__mkFeat.tryBiometricUnlock()) {
+        writePinLockState({ attempts: 0, lockedUntil: 0 });
+        sessionStorage.setItem('mk_pin_unlocked', '1');
+        return;
+      }
       while (true) {
         const waitSec = getPinCooldownSeconds();
         if (waitSec > 0) {

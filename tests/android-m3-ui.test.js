@@ -25,7 +25,7 @@ test('wave v3.19 enforces Android Material Design 3 surfaces, bottom sheets, and
   assert.match(indexHtml, /rounded-r-\[28px\]/);
   assert.match(indexHtml, /w-14 h-8 rounded-full/);
   assert.match(indexHtml, /6\.75rem/);
-  assert.match(indexHtml, /v3\.19/);
+  assert.match(indexHtml, /v3\.20/);
 
   assert.match(dashboardHtml, /rounded-\[28px\]/);
   assert.match(dashboardHtml, /grid-cols-2 sm:grid-cols-3/);
@@ -125,7 +125,7 @@ test('wave v3.19.1 scopes SweetAlert2 bottom-sheet animations to show/hide state
   const nativeBridgeJs = fs.readFileSync('web/native-bridge.js', 'utf8');
   const indexHtml = fs.readFileSync('src/Index.html', 'utf8');
 
-  assert.match(indexHtml, /meta\s+name="app-version"\s+content="3\.19\.1"/);
+  assert.match(indexHtml, /meta\s+name="app-version"\s+content="3\.20\.0"/);
   const baseSheetRule = stylesHtml.match(/\.swal2-container\.swal2-center\s*>\s*\.swal2-popup:not\(\.swal2-toast\)\s*\{([^}]*)\}/);
   assert.ok(baseSheetRule, 'expected base bottom-sheet rule in src/styles.html');
   assert.doesNotMatch(baseSheetRule[1], /\banimation\s*:/, 'base bottom-sheet rule must not unconditionally lock animation');

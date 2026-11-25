@@ -103,6 +103,95 @@
     }
   }
 
+  async function triggerHaptic(kind) {
+    if (!isNativeApp()) return;
+    const Haptics = getCapPlugin('Haptics');
+    if (!Haptics) return;
+    const tone = String(kind || 'light').toLowerCase();
+    try {
+      if (['success', 'warning', 'error'].includes(tone) && typeof Haptics.notification === 'function') {
+        await Haptics.notification({ type: tone.toUpperCase() });
+      } else if (typeof Haptics.impact === 'function') {
+        await Haptics.impact({ style: tone === 'medium' ? 'MEDIUM' : 'LIGHT' });
+      }
+    } catch (_) { /* ignore unsupported haptics */ }
+  }
+
+  async function captureReceiptNative() {
+    const Camera = getCapPlugin('Camera');
+    if (!isNativeApp() || !Camera || typeof Camera.getPhoto !== 'function') return { unavailable: true };
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 82,
+        width: 1280,
+        allowEditing: false,
+        resultType: 'base64',
+        source: 'PROMPT',
+        promptLabelHeader: 'Scan Struk AI',
+        promptLabelPhoto: 'Pilih dari Galeri',
+        promptLabelPicture: 'Ambil Foto'
+      });
+      if (!photo || !photo.base64String) return { cancelled: true };
+      const fmt = String(photo.format || 'jpeg').toLowerCase() === 'png' ? 'image/png' : 'image/jpeg';
+      return { mimeType: fmt, base64: photo.base64String };
+    } catch (err) {
+      const msg = String((err && err.message) || err || '');
+      return /cancel/i.test(msg) ? { cancelled: true } : { unavailable: true };
+    }
+  }
+
+  async function scheduleNativeDailyReminder(enabled, hour, minute) {
+    const LocalNotifications = getCapPlugin('LocalNotifications');
+    if (!isNativeApp() || !LocalNotifications) return { ok: false, granted: false };
+    try {
+      if (typeof LocalNotifications.cancel === 'function') {
+        await LocalNotifications.cancel({ notifications: [{ id: 2001 }] });
+      }
+      if (!enabled) return { ok: true, granted: true };
+      let granted = true;
+      if (typeof LocalNotifications.requestPermissions === 'function') {
+        const perm = await LocalNotifications.requestPermissions();
+        granted = Boolean(perm && perm.display === 'granted');
+      }
+      if (!granted || typeof LocalNotifications.schedule !== 'function') return { ok: false, granted };
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: 2001,
+          title: 'Pengingat Catat Keuangan',
+          body: 'Sudah catat pemasukan dan pengeluaranmu hari ini di MyKeuGuech?',
+          schedule: { on: { hour: Number(hour) || 20, minute: Number(minute) || 0 }, repeats: true, allowWhileIdle: true }
+        }]
+      });
+      return { ok: true, granted: true };
+    } catch (_) {
+      return { ok: false, granted: false };
+    }
+  }
+
+  async function syncNativeBillReminders(dueBills) {
+    const LocalNotifications = getCapPlugin('LocalNotifications');
+    if (!isNativeApp() || !LocalNotifications || localStorage.getItem('mk_native_notif_enabled') !== '1') return;
+    try {
+      if (typeof LocalNotifications.checkPermissions === 'function') {
+        const perm = await LocalNotifications.checkPermissions();
+        if (!perm || perm.display !== 'granted') return;
+      }
+      const ids = [2101, 2102, 2103, 2104, 2105].map((id) => ({ id }));
+      if (typeof LocalNotifications.cancel === 'function') await LocalNotifications.cancel({ notifications: ids });
+      const items = (Array.isArray(dueBills) ? dueBills : []).slice(0, 5);
+      if (!items.length || typeof LocalNotifications.schedule !== 'function') return;
+      const fireAt = new Date(Date.now() + 8000);
+      await LocalNotifications.schedule({
+        notifications: items.map((b, idx) => ({
+          id: 2101 + idx,
+          title: `Tagihan Jatuh Tempo: ${String(b.kategori || 'Rutin')}`,
+          body: `Nominal Rp ${Number(b.nominal || 0).toLocaleString('id-ID')} siap dicatat di MyKeuGuech.`,
+          schedule: { at: new Date(fireAt.getTime() + idx * 1500) }
+        }))
+      });
+    } catch (_) { /* ignore reminder scheduling errors */ }
+  }
+
   function parseQuerySegment(segment) {
     const out = {};
     String(segment || '').replace(/^[?#]/, '').split('&').forEach((pair) => {
@@ -303,6 +392,10 @@
     openExternalUrl,
     syncNativeSystemBars,
     hideNativeSplash,
+    triggerHaptic,
+    captureReceiptNative,
+    scheduleNativeDailyReminder,
+    syncNativeBillReminders,
     parseOAuthCallbackParams,
     startNativeOAuth,
     checkNativeLaunchUrl,

@@ -29,6 +29,9 @@ function patchAndroidManifest(filePath) {
   } else {
     xml = xml.replace(/<application\b/, '<application\n        android:allowBackup="false"');
   }
+  if (!xml.includes('android.permission.POST_NOTIFICATIONS')) {
+    xml = xml.replace(/<application\b/, '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application');
+  }
   if (!xml.includes(`android:scheme="${DEEP_LINK_SCHEME}"`)) {
     xml = xml.replace(/([ \t]*)<\/activity>/, (_, indent) => [
       `${indent}    <intent-filter>`,

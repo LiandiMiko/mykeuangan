@@ -131,7 +131,11 @@ Di Android Studio, pilih perangkat HP Anda lalu tekan **Run (▶)**. Untuk melih
 
 Jangan pernah meng-commit file `.jks`, `.keystore`, atau `android/keystore.properties` ke Git (sudah masuk `.gitignore`).
 
-1. Buat **Upload Keystore** (simpan file & password di tempat aman, misal Password Manager):
+1. Buat **Upload Keystore** otomatis lewat helper (atau jalankan `keytool` manual; simpan file & password di tempat aman, misal Password Manager):
+   ```powershell
+   npm run cap:keystore
+   ```
+   Perintah di atas membuat `android/mykeuguech-upload.jks`, menyusun `android/keystore.properties`, dan mencetak panduan pengisian 4 GitHub Repository Secrets (`ANDROID_KEYSTORE_*`). Alternatif manual:
    ```powershell
    keytool -genkey -v -keystore android/mykeuguech-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias mykeuguech-upload
    ```

@@ -1,6 +1,6 @@
 {
   "name": "mykeuangan",
-  "version": "3.19.1",
+  "version": "3.20.0",
   "private": true,
   "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
   "appUpdate": {
@@ -25,13 +25,17 @@
     "cap:apk": "node scripts/build-android.mjs debug-apk",
     "cap:apk:release": "node scripts/build-android.mjs release-apk",
     "cap:aab": "node scripts/build-android.mjs release-aab",
+    "cap:keystore": "node scripts/setup-android-keystore.mjs",
     "cap:open": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/app": "^8.0.0",
     "@capacitor/browser": "^8.0.0",
+    "@capacitor/camera": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/local-notifications": "^8.0.0",
     "@capacitor/share": "^8.0.0",
     "@capacitor/splash-screen": "^8.0.0"
   },
