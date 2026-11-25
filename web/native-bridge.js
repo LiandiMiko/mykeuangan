@@ -218,6 +218,14 @@
         if (App && typeof App.minimizeApp === 'function') App.minimizeApp();
         return;
       }
+      const popup = typeof Swal.getPopup === 'function' ? Swal.getPopup() : null;
+      if (popup && popup.classList.contains('swal2-hide')) {
+        const container = typeof Swal.getContainer === 'function' ? Swal.getContainer() : null;
+        if (container) container.remove();
+        document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+        document.documentElement.classList.remove('swal2-shown', 'swal2-height-auto');
+        return;
+      }
       Swal.close();
       return;
     }

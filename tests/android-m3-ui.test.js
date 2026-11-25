@@ -116,3 +116,20 @@ test('wave v3.19 app update checker compares semver, evaluates force/soft update
   assert.match(androidYml, /publish_release/);
   assert.match(androidYml, /gh release/);
 });
+
+test('wave v3.19.1 scopes SweetAlert2 bottom-sheet animations to show/hide states and adds Back fallback', () => {
+  const stylesHtml = fs.readFileSync('src/styles.html', 'utf8');
+  const nativeBridgeJs = fs.readFileSync('web/native-bridge.js', 'utf8');
+  const indexHtml = fs.readFileSync('src/Index.html', 'utf8');
+
+  assert.match(indexHtml, /meta\s+name="app-version"\s+content="3\.19\.1"/);
+  const baseSheetRule = stylesHtml.match(/\.swal2-container\.swal2-center\s*>\s*\.swal2-popup:not\(\.swal2-toast\)\s*\{([^}]*)\}/);
+  assert.ok(baseSheetRule, 'expected base bottom-sheet rule in src/styles.html');
+  assert.doesNotMatch(baseSheetRule[1], /\banimation\s*:/, 'base bottom-sheet rule must not unconditionally lock animation');
+
+  assert.match(stylesHtml, /\.swal2-container\.swal2-center\s*>\s*\.swal2-popup\.swal2-show:not\(\.swal2-toast\)\s*\{[^}]*mkSheetUp/);
+  assert.match(stylesHtml, /\.swal2-container\.swal2-center\s*>\s*\.swal2-popup\.swal2-hide:not\(\.swal2-toast\)\s*\{[^}]*mkSheetDown/);
+  assert.match(stylesHtml, /@keyframes mkSheetDown/);
+  assert.match(stylesHtml, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.swal2-popup\.swal2-show:not\(\.swal2-toast\)[\s\S]*?\.swal2-popup\.swal2-hide:not\(\.swal2-toast\)\s*\{\s*animation:\s*none\s*!important;/);
+  assert.match(nativeBridgeJs, /popup\.classList\.contains\('swal2-hide'\)/);
+});

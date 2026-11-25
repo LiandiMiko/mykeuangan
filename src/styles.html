@@ -351,7 +351,12 @@
       padding: 1.35rem 1.25rem calc(1.25rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important;
       max-height: 90dvh;
       overflow-y: auto;
+    }
+    .swal2-container.swal2-center > .swal2-popup.swal2-show:not(.swal2-toast) {
       animation: mkSheetUp 220ms var(--ease-drawer) forwards;
+    }
+    .swal2-container.swal2-center > .swal2-popup.swal2-hide:not(.swal2-toast) {
+      animation: mkSheetDown 160ms var(--ease-in-out) forwards;
     }
     .swal2-container.swal2-center > .swal2-popup:not(.swal2-toast)::before {
       content: "";
@@ -370,6 +375,10 @@
   @keyframes mkSheetUp {
     from { opacity: 0.4; transform: translateY(28px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes mkSheetDown {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(28px); }
   }
 
   .release-summary::-webkit-details-marker { display: none; }
@@ -513,8 +522,11 @@
     }
     .mk-dropdown-panel,
     .mk-bulk-enter,
-    .swal2-container.swal2-center > .swal2-popup:not(.swal2-toast) {
+    .swal2-container.swal2-center > .swal2-popup.swal2-show:not(.swal2-toast) {
       animation: mkFadeOnly 140ms ease forwards !important;
+    }
+    .swal2-container.swal2-center > .swal2-popup.swal2-hide:not(.swal2-toast) {
+      animation: none !important;
     }
     .mk-toast {
       transform: none !important;

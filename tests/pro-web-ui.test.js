@@ -324,7 +324,7 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.match(fs.readFileSync('web/ui-feat-account.js', 'utf8'), /localStorage\.getItem\('lang'\) === 'en'/);
 
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  assert.equal(pkg.version, '3.19.0');
+  assert.equal(pkg.version, '3.19.1');
   assert.ok(pkg.dependencies && pkg.dependencies['@capacitor/core']);
   assert.ok(pkg.scripts && pkg.scripts['cap:sync'] && pkg.scripts['vendors:fetch']);
 });

@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.19.0** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3) · Telegram Bot & Gemini AI · Security Hardened
+> **v3.19.1** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3) · Telegram Bot & Gemini AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 2.5 Flash**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.19.0-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.19.1-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -415,13 +415,13 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (tanpa Android Studio):** Jalankan workflow **`.github/workflows/android-build.yml`** lewat tab **Actions → Run workflow** dengan pilihan `debug-apk` *(langsung pasang tanpa keystore)*, `release-apk`, `release-aab`, atau `all` untuk mengunduh artifact `MyKeuGuech-v3.19.0-*.apk` / `.aab` & aset Play Store. Aktifkan opsi **`publish_release`** (atau push tag `v*`) untuk otomatis menerbitkan `.apk` ke **GitHub Releases** (`releases/latest`).
+- **Cloud Build via GitHub Actions (tanpa Android Studio):** Jalankan workflow **`.github/workflows/android-build.yml`** lewat tab **Actions → Run workflow** dengan pilihan `debug-apk` *(langsung pasang tanpa keystore)*, `release-apk`, `release-aab`, atau `all` untuk mengunduh artifact `MyKeuGuech-v3.19.1-*.apk` / `.aab` & aset Play Store. Aktifkan opsi **`publish_release`** (atau push tag `v*`) untuk otomatis menerbitkan `.apk` ke **GitHub Releases** (`releases/latest`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.19.0-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.19.0-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.19.0-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.19.1-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.19.1-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.19.1-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -463,8 +463,9 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ### 25 November 2026: Wave v3.19 (Standar Tampilan Android Material Design 3, Bottom Sheet Dialog & Proporsi Mobile 360dp)
 - **Material 3 Tonal Surfaces & Native Bottom-Sheet Modals (`src/styles.html`, `src/Index.html`)**: Menambahkan sistem permukaan tonal Material Design 3 (`#f2f5f9` siang / `#080d17` malam OLED), padding *safe-area* atas/bawah penuh, navigation drawer beradius `28px` dengan item kapsul `48dp`, bottom nav indikator pill `56×32dp`, top app bar `56dp`, serta mengubah seluruh modal konfirmasi & input SweetAlert2 menjadi **Android Bottom Sheet** otomatis di layar `< 640px` lengkap dengan *drag handle* dan `prefers-reduced-motion`.
 - **Proporsi Dashboard 360dp, Kalender & Form Thumb-Zone (`src/dashboard.html`, `src/form.html`, `web/ui-calendar.js`, `web/ui-wallets.js`, `web/ui-dashboard.js`, `web/ui-budget.js`)**: Menata ulang KPI Strip Hero Net Worth menjadi 2 tingkat agar nominal tidak terpotong di layar 360dp, menambah badge lingkaran hari ini di Kalender + segmented pill 3 bagian, menyusun baris transaksi Dashboard agar judul tetap lega, serta melengkapi Form Transaksi dengan dropdown chevron native, rail chip nominal dapat digulir, dan bar tombol simpan melayang (`sticky bottom-0`).
-- **Konsistensi Seluruh Halaman & Auth Sheet (`src/{histori,budgeting,aset,laporan,ai,utang,admin,updates}.html`, `web/supabase-auth*.js`, `tests/android-m3-ui.test.js`)**: Menyeragamkan header kompak, grid tombol 2 kolom simetris, metrik Admin 2×2, menu dropdown Laporan anti-terpotong di HP, kartu login beradius `28px` berkontrol `48px`, pembaruan versi Android ke `3.19.0`, dan suite uji `tests/android-m3-ui.test.js`.
+- **Konsistensi Seluruh Halaman & Auth Sheet (`src/{histori,budgeting,aset,laporan,ai,utang,admin,updates}.html`, `web/supabase-auth*.js`, `tests/android-m3-ui.test.js`)**: Menyeragamkan header kompak, grid tombol 2 kolom simetris, metrik Admin 2×2, menu dropdown Laporan anti-terpotong di HP, kartu login beradius `28px` berkontrol `48px`, pembaruan versi Android ke `3.19.1`, dan suite uji `tests/android-m3-ui.test.js`.
 - **Popup Update Otomatis & GitHub Releases (`build.mjs`, `web/ui-feat-updates.js`, `src/updates.html`, `.github/workflows/android-build.yml`)**: Menambahkan pembuatan manifes `dist/version.json` otomatis, pembanding versi semver + popup Material 3 Bottom Sheet (*soft update* dan *force update* lewat `minSupportedVersion`), tombol **Cek Pembaruan**, pengecualian cache SW untuk `/version.json`, CSP `https://liandimiko.github.io`, serta publikasi `.apk` otomatis ke **GitHub Releases** lewat workflow tag `v*` atau input `publish_release`.
+- **Hotfix v3.19.1 — Fix Freeze Penutupan Bottom Sheet Dialog (`src/styles.html`, `web/native-bridge.js`)**: Membatasi animasi `mkSheetUp` pada status `.swal2-popup.swal2-show` dan memetakan animasi tutup `.swal2-popup.swal2-hide` ke `mkSheetDown` (serta `animation: none !important` di `prefers-reduced-motion: reduce`) agar event `animationend` SweetAlert2 selalu terpanggil saat tombol **Tutup** / hardware **Back** ditekan pada Android (`< 640px`), disertai pemulihan kontainer `.swal2-hide` macet di `handleAndroidBackButton()`.
 
 ### 25 November 2026: Wave v3.18 (Cloud Build Android .apk/.aab, Kit Rilis Play Store, + Buat Budget & Bot /cari)
 - **Cloud Build Android CI, Fix Lockfile, 1-Command `.apk` & Cold-Start OAuth (`.github/workflows/android-build.yml`, `scripts/build-android.mjs`, `scripts/patch-android-project.mjs`, `web/native-bridge.js`, `package.json`, `.gitignore`)**: Menambahkan workflow GitHub Actions Android (JDK 21 + Android SDK 36 + Gradle cache) bebas ketergantungan `package-lock.json` (`cache: npm` dihapus agar tidak gagal saat setup) dengan output berversi `MyKeuGuech-v3.18.0-debug.apk`, `-release.apk`, & `-release.aab` serta ringkasan unduh `GITHUB_STEP_SUMMARY`; menambahkan skrip build lokal 1-perintah `npm run cap:apk` / `cap:apk:release` / `cap:aab`, pemulihan cold-start Google OAuth via `App.getLaunchUrl()`, serta memperbaiki Groovy `withInputStream` & `rootProject.file()` di `patch-android-project.mjs`.
