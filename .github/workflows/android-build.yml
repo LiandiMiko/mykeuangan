@@ -13,16 +13,22 @@ on:
           - release-aab
           - all
       publish_release:
-        description: Publikasikan APK ke GitHub Releases (otomatis aktif saat push tag v*)
+        description: Publikasikan APK ke GitHub Releases (otomatis aktif saat push ke main / tag v*)
         required: false
         default: false
         type: boolean
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
 permissions:
   contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
 
 jobs:
   build-android:
@@ -172,7 +178,7 @@ jobs:
         run: rm -f android/mykeuguech-upload.jks android/keystore.properties
 
       - name: Publish APK to GitHub Releases
-        if: success() && (startsWith(github.ref, 'refs/tags/v') || inputs.publish_release == true)
+        if: success() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || inputs.publish_release == true)
         env:
           GH_TOKEN: ${{ github.token }}
           APP_VERSION: ${{ steps.cfg.outputs.version }}
@@ -220,6 +226,6 @@ jobs:
             echo "### Langkah Install & Uji di HP Android"
             echo "1. Unduh artifact **mykeuguech-android-debug-apk** (atau release) di bawah halaman run ini."
             echo "2. Ekstrak file ZIP lalu kirim \`.apk\` ke HP Android dan install (izinkan *Install unknown apps* jika diminta)."
-            echo "3. Jika \`publish_release\` aktif atau dipicu lewat tag \`v*\`, berkas \`.apk\` juga tersedia langsung di **GitHub Releases** (\`releases/latest\`) untuk popup in-app update."
+            echo "3. Setiap push ke \`main\`, tag \`v*\`, atau opsi \`publish_release\` otomatis menerbitkan berkas \`.apk\` ke **GitHub Releases** (\`releases/latest\`) untuk popup in-app update."
             echo "4. Pastikan Redirect URL Supabase Auth sudah menyertakan \`com.mykeuguech.app://auth-callback\` agar Login Google kembali ke aplikasi."
           } >> "$GITHUB_STEP_SUMMARY"

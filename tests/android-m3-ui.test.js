@@ -113,6 +113,9 @@ test('wave v3.19 app update checker compares semver, evaluates force/soft update
   assert.match(nativeBridgeJs, /__mkForceUpdateActive/);
   assert.match(featHooksJs, /checkRemoteAppUpdate/);
   assert.match(androidYml, /contents:\s*write/);
+  assert.match(androidYml, /branches:\s*\r?\n\s*-\s*main/);
+  assert.match(androidYml, /concurrency:/);
+  assert.match(androidYml, /refs\/heads\/main/);
   assert.match(androidYml, /publish_release/);
   assert.match(androidYml, /gh release/);
 });

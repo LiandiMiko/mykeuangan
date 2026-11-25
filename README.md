@@ -415,7 +415,7 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (tanpa Android Studio):** Jalankan workflow **`.github/workflows/android-build.yml`** lewat tab **Actions → Run workflow** dengan pilihan `debug-apk` *(langsung pasang tanpa keystore)*, `release-apk`, `release-aab`, atau `all` untuk mengunduh artifact `MyKeuGuech-v3.19.1-*.apk` / `.aab` & aset Play Store. Aktifkan opsi **`publish_release`** (atau push tag `v*`) untuk otomatis menerbitkan `.apk` ke **GitHub Releases** (`releases/latest`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.19.1-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
