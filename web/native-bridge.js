@@ -214,7 +214,7 @@
     }
     if (typeof Swal !== 'undefined' && Swal.isVisible()) {
       const mainEl = document.getElementById('mainContent');
-      if (mainEl && mainEl.classList.contains('blur-md')) {
+      if (root.__mkForceUpdateActive || (mainEl && mainEl.classList.contains('blur-md'))) {
         if (App && typeof App.minimizeApp === 'function') App.minimizeApp();
         return;
       }

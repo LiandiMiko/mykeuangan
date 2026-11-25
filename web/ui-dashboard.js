@@ -49,23 +49,23 @@
     const safeCatHtml = escapeHtmlJS(tx.kategori);
     const safeIdAttr = escapeAttrJS(tx.id);
     return `
-      <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 mb-2 hover:border-slate-300 dark:hover:border-slate-600 transition-colors group">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconCol} ${iconBG}">
+      <div class="flex items-center justify-between gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 mb-2 hover:border-slate-300 dark:hover:border-slate-600 transition-colors group">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${iconCol} ${iconBG}">
             <i class="ph ph-receipt text-lg" aria-hidden="true"></i>
           </div>
-          <div class="truncate">
+          <div class="min-w-0 flex-1">
             <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${safeCatHtml}</p>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
           </div>
         </div>
-        <div class="flex items-center gap-2 shrink-0 ml-2">
-          <p class="${colClass} font-bold text-sm tabular-nums">${formatRupiah(tx.nominal).replace(',00', '')}</p>
+        <div class="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2 shrink-0">
+          <p class="${colClass} font-bold text-xs sm:text-sm tabular-nums">${formatRupiah(tx.nominal).replace(',00', '')}</p>
           <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-            <button type="button" onclick="editTransaction('${safeIdAttr}')" aria-label="Edit transaksi ${safeCatHtml}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
+            <button type="button" onclick="editTransaction('${safeIdAttr}')" aria-label="Edit transaksi ${safeCatHtml}" title="Edit" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
               <i class="ph ph-pencil text-base" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="deleteTransaction('${safeIdAttr}')" aria-label="Hapus transaksi ${safeCatHtml}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
+            <button type="button" onclick="deleteTransaction('${safeIdAttr}')" aria-label="Hapus transaksi ${safeCatHtml}" title="Hapus" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
               <i class="ph ph-trash text-base" aria-hidden="true"></i>
             </button>
           </div>

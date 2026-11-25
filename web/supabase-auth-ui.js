@@ -24,12 +24,12 @@
     const textMuted = isDark ? '#94a3b8' : '#64748b';
     const inputBg = isDark ? '#020617' : '#f8fafc';
     const inputBorder = isDark ? '#1e293b' : '#e2e8f0';
-    const field = `width:100%;box-sizing:border-box;min-height:44px;padding:10px 14px;border:1px solid ${inputBorder};border-radius:12px;font-size:16px;background:${inputBg};color:${textMain};outline:none`;
-    const passField = `width:100%;box-sizing:border-box;min-height:44px;padding:10px 44px 10px 14px;border:1px solid ${inputBorder};border-radius:12px;font-size:16px;background:${inputBg};color:${textMain};outline:none`;
+    const field = `width:100%;box-sizing:border-box;min-height:48px;padding:12px 14px;border:1px solid ${inputBorder};border-radius:14px;font-size:16px;background:${inputBg};color:${textMain};outline:none`;
+    const passField = `width:100%;box-sizing:border-box;min-height:48px;padding:12px 44px 12px 14px;border:1px solid ${inputBorder};border-radius:14px;font-size:16px;background:${inputBg};color:${textMain};outline:none`;
     const fieldLabel = `display:block;font-size:11.5px;font-weight:700;color:${isDark ? '#cbd5e1' : '#334155'};margin-top:2px`;
-    const toggleBtnStyle = `position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:${textMuted};display:inline-flex;align-items:center;justify-content:center;cursor:pointer`;
-    const primaryBtn = 'width:100%;min-height:46px;padding:12px 16px;border:0;border-radius:14px;background:linear-gradient(135deg,var(--color-brand,#4f46e5) 0%,var(--color-brand-accent,#6366f1) 100%);color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:6px;box-shadow:0 12px 28px -12px rgb(var(--color-brand-rgb,79 70 229)/0.55)';
-    const googleBtn = `width:100%;min-height:44px;padding:10px 14px;border:1px solid ${inputBorder};border-radius:14px;background:${inputBg};color:${textMain};font-weight:700;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px`;
+    const toggleBtnStyle = `position:absolute;right:4px;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;border-radius:12px;background:transparent;color:${textMuted};display:inline-flex;align-items:center;justify-content:center;cursor:pointer`;
+    const primaryBtn = 'width:100%;min-height:48px;padding:12px 16px;border:0;border-radius:16px;background:linear-gradient(135deg,var(--color-brand,#4f46e5) 0%,var(--color-brand-accent,#6366f1) 100%);color:#fff;font-weight:700;font-size:14.5px;cursor:pointer;margin-top:6px;box-shadow:0 12px 28px -12px rgb(var(--color-brand-rgb,79 70 229)/0.55)';
+    const googleBtn = `width:100%;min-height:48px;padding:11px 14px;border:1px solid ${inputBorder};border-radius:16px;background:${inputBg};color:${textMain};font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px`;
     const linkStyle = 'color:var(--color-brand-ink,#4f46e5);text-decoration:none';
     const passInputGroup = (id, placeholder, autocomplete, minLen, enterHint) => `
       <div style="position:relative">

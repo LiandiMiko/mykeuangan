@@ -200,15 +200,15 @@
     if (summary) {
       renderHtml(summary, `
         <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50">
-          <div>
+          <div class="min-w-0">
             <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p>
             <p class="text-sm sm:text-lg font-black tabular-nums text-slate-800 dark:text-white truncate">${formatRupiah(analysis.budgetTotal).replace(',00', '')}</p>
           </div>
-          <div>
+          <div class="min-w-0">
             <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p>
             <p class="text-sm sm:text-lg font-black tabular-nums text-slate-800 dark:text-white truncate">${formatRupiah(analysis.actualTotal).replace(',00', '')}</p>
           </div>
-          <div>
+          <div class="min-w-0">
             <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p>
             <p class="text-sm sm:text-lg font-black tabular-nums ${differenceClass(analysis.remaining)} truncate">${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00', '')}</p>
           </div>
@@ -297,9 +297,9 @@
             </div>
           </div>
           <div class="grid grid-cols-3 gap-2 mb-3 text-xs">
-            <div><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white">${formatRupiah(plan).replace(',00', '')}</p></div>
-            <div><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white">${formatRupiah(actual).replace(',00', '')}</p></div>
-            <div><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p><p class="font-black tabular-nums ${selisihColor}">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}</p></div>
+            <div class="min-w-0"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.plan'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white truncate">${formatRupiah(plan).replace(',00', '')}</p></div>
+            <div class="min-w-0"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.actual'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white truncate">${formatRupiah(actual).replace(',00', '')}</p></div>
+            <div class="min-w-0"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.selisih'))}</p><p class="font-black tabular-nums ${selisihColor} truncate">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}</p></div>
           </div>
           <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden" role="progressbar" aria-label="Progres budget ${escapeHtmlJS(b.kategori)}" aria-valuenow="${Math.min(pct, 100).toFixed(0)}" aria-valuemin="0" aria-valuemax="100">
             <div class="${status.progressClass} h-full rounded-full transition-[width] duration-200" style="width: ${Math.min(pct, 100).toFixed(1)}%"></div>

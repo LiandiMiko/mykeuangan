@@ -193,7 +193,7 @@
     const el = document.createElement('div');
     activeLoginEl = el;
     if (theme.savedTheme) el.className = theme.savedTheme;
-    el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif;overflow-y:auto;' +
+    el.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:max(20px,var(--safe-area-inset-top,env(safe-area-inset-top,20px))) 16px max(24px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom,24px)));font-family:Inter,system-ui,sans-serif;overflow-y:auto;' +
       (theme.isDark ? 'background:radial-gradient(circle at top,#1e293b 0%,#020617 70%)' : 'background:radial-gradient(circle at top,#eef2ff 0%,#f1f5f9 75%)');
     let mode = 'login';
     let isSubmitting = false;
@@ -266,7 +266,7 @@
     function renderForm() {
       const content = authUi.buildAuthModeFields(mode, theme, lastEmail, isAuthEn());
       const markup = `
-        <div style="background:${theme.cardBg};padding:26px 24px;border-radius:24px;width:min(92vw,400px);box-shadow:0 25px 60px -15px rgba(15,23,42,${theme.isDark ? '0.65' : '0.18'});border:1px solid ${theme.inputBorder}">
+        <div style="background:${theme.cardBg};padding:26px 24px;border-radius:28px;width:min(92vw,400px);box-shadow:0 25px 60px -15px rgba(15,23,42,${theme.isDark ? '0.65' : '0.18'});border:1px solid ${theme.inputBorder}">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid ${theme.inputBorder}">
             <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--color-brand,#4f46e5) 0%,var(--color-brand-accent,#6366f1) 100%);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 10px 24px -10px rgb(var(--color-brand-rgb,79 70 229)/0.6)">
               <i class="ph-fill ph-wallet" aria-hidden="true" style="font-size:22px"></i>

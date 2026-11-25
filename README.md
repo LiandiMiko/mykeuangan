@@ -1,12 +1,16 @@
-# 💰 MyKeuangan — Personal Finance App
+# 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v2.0** — Multi-User SaaS · PWA-Ready · Admin Panel · Telegram OTP Pairing · Security Hardened
+> **v3.19.0** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3) · Telegram Bot & Gemini AI · Security Hardened
 
-Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supabase**, mendukung multi-user, Progressive Web App (PWA), dan integrasi Telegram Bot.
+Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 2.5 Flash**.
 
-[![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-black?logo=github)](https://github.com/LiandiMiko/mykeuangan)
-[![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?logo=supabase)](https://supabase.com)
-[![PWA](https://img.shields.io/badge/PWA-Ready-blueviolet?logo=googlechrome)](#pwa)
+🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
+
+[![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
+[![Version](https://img.shields.io/badge/Version-v3.19.0-10b981)](./src/updates.html)
+[![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
+[![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
 
 ---
 
@@ -19,14 +23,16 @@ Aplikasi keuangan pribadi berbasis web yang dibangun dengan **Vanilla JS + Supab
   - [1. Supabase — Database & Auth](#1-supabase--database--auth)
   - [2. Jalankan Migrasi SQL](#2-jalankan-migrasi-sql)
   - [3. Konfigurasi Supabase Auth](#3-konfigurasi-supabase-auth)
-  - [4. Deploy Edge Function Telegram Bot](#4-deploy-edge-function-telegram-bot)
+  - [4. Deploy Edge Functions](#4-deploy-edge-functions)
   - [5. GitHub Pages & Actions](#5-github-pages--actions)
 - [Admin Panel](#-admin-panel)
 - [Menghubungkan Telegram (Self-Service OTP)](#-menghubungkan-telegram-self-service-otp)
 - [PWA — Install sebagai Aplikasi](#-pwa--install-sebagai-aplikasi)
+- [Aplikasi Android (.apk / .aab — Capacitor 8)](#-aplikasi-android-apk--aab--capacitor-8)
 - [Keamanan & Catatan Penting](#-keamanan--catatan-penting)
 - [Changelog — What's New in v2.0](#-changelog--whats-new-in-v20)
 - [Roadmap](#-roadmap)
+- [Tech Stack](#-tech-stack)
 
 ---
 
@@ -144,26 +150,31 @@ mykeuangan/
 
 ## 🚀 Quick Start (Lokal)
 
-```bash
+Prasyarat: **Node.js 22+**.
+
+```powershell
 # Clone repo
 git clone https://github.com/LiandiMiko/mykeuangan.git
 cd mykeuangan
 
-# (Opsional) Generate ulang ikon PWA
-node scripts/generate_icons.mjs
+# Install dependensi (Capacitor 8 + asset generator)
+npm install
 
-# Build — hasilkan dist/index.html
-node build.mjs
+# Siapkan konfigurasi web/config.js (isi SUPABASE_URL & SUPABASE_ANON_KEY)
+# lalu cek syntax JS/MJS + jalankan seluruh unit test
+npm run check
 
-# Uji perhitungan siklus dan analisis budget
-node --test
+# Build produksi Web PWA (unduh vendor lokal + kompilasi Tailwind CSS + bundle dist/)
+npm run build:prod
 
-# Buka di browser
-npx serve dist
-# atau buka dist/index.html langsung
+# Jalankan server lokal di http://localhost:4173
+npm run dev
+
+# (Opsional) Build Debug APK Android 1-perintah (membutuhkan JDK 21 + Android SDK 36)
+npm run cap:apk
 ```
 
-> **Catatan**: `dist/` di-gitignore. Hasil build tidak di-push ke GitHub; CI/CD yang akan build ulang saat deploy.
+> **Catatan**: Folder hasil build `dist/`, `web/vendor/`, `assets/`, `playstore-assets/`, dan `release/` otomatis diabaikan Git. Anda juga bisa membangun `.apk`/`.aab` langsung di cloud via GitHub Actions (`.github/workflows/android-build.yml`) tanpa menginstall Android Studio.
 
 ---
 
@@ -173,11 +184,13 @@ npx serve dist
 
 1. Buat project baru di [supabase.com](https://supabase.com)
 2. Salin **Project URL** dan **Anon Key** dari *Settings → API*
-3. Edit `web/config.js`:
+3. Edit (atau buat) `web/config.js` menggunakan format objek global `window.APP_CONFIG`:
 
 ```js
-const SUPABASE_URL = 'https://xxxxxxxxxxxx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGc...';
+window.APP_CONFIG = {
+  SUPABASE_URL: 'https://xxxxxxxxxxxx.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGc...'
+};
 ```
 
 ### 2. Jalankan Migrasi SQL
@@ -291,17 +304,17 @@ Unduh template dari **Laporan & Ekspor**. Header yang digunakan adalah `tanggal,
 
 ### 3. Konfigurasi Supabase Auth
 
-Di **Supabase → Authentication → Settings**:
+Di **Supabase → Authentication → URL Configuration & Settings**:
 
 | Setting | Nilai |
 |---|---|
 | **Allow new users to sign up** | ✅ **ON** (wajib untuk registrasi mandiri) |
 | **Email Confirmations** | Sesuai preferensi (ON = verifikasi email, OFF = langsung bisa login) |
-| **Site URL** | `https://liandiMiko.github.io/mykeuangan` (atau domain kustom) |
-| **Redirect URLs** | Tambahkan URL Pages/domain kamu |
+| **Site URL** | `https://liandimiko.github.io/mykeuangan/` (atau domain kustom) |
+| **Redirect URLs** | `https://liandimiko.github.io/mykeuangan/` (Web PWA) dan `com.mykeuguech.app://auth-callback` (Android APK/AAB) |
 
 > ⚠️ **Berbeda dari setup lama**: versi sebelumnya menyarankan `Allow sign up = OFF`. Untuk multi-user, harus **ON**.
-> 💡 **Produksi & Google Play Store**: Aktifkan provider **Google OAuth** (*Authentication → Providers → Google*) dan pasang **Custom SMTP** gratis (seperti Brevo/Resend) di *Authentication → SMTP Settings* untuk menghilangkan batas 2 email/jam dan pembatasan penerima pada built-in SMTP Free Tier Supabase.
+> 💡 **Produksi & Google Play Store**: Aktifkan provider **Google OAuth** (*Authentication → Providers → Google*) dengan Callback/Redirect URL menyertakan `com.mykeuguech.app://auth-callback`, dan pasang **Custom SMTP** gratis (seperti Brevo/Resend) di *Authentication → SMTP Settings* untuk menghilangkan batas 2 email/jam dan pembatasan penerima pada built-in SMTP Free Tier Supabase.
 
 ### 4. Deploy Edge Functions
 
@@ -314,13 +327,13 @@ supabase login
 # Link ke project kamu
 supabase link --project-ref <PROJECT_REF>
 
-# Set secrets yang dibutuhkan
+# Set secrets yang dibutuhkan (`https://localhost` wajib untuk origin WebView Android Capacitor)
 supabase secrets set TELEGRAM_BOT_TOKEN=<token_dari_@BotFather>
 supabase secrets set CRON_SECRET=<random_string_panjang_min_32_char>
 supabase secrets set GEMINI_API_KEY=<api_key_gemini>
-supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,http://localhost:4173
+supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,https://localhost,http://localhost:4173
 
-# Deploy edge function (--no-verify-jwt agar bot bisa akses tanpa auth header)
+# Deploy edge function (--no-verify-jwt agar webhook Telegram bisa diakses server bot)
 supabase functions deploy telegram-bot --no-verify-jwt
 
 # Reset password admin & hapus akun mandiri tetap memakai verifikasi JWT bawaan
@@ -335,30 +348,30 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<PROJECT_REF>.supabas
 
 ### 5. GitHub Pages & Actions
 
-1. Push kode ke branch `main`
-2. GitHub → *Settings → Pages → Source*: pilih **GitHub Actions**
-3. Workflow `.github/workflows/deploy.yml` akan otomatis menjalankan tes, build & deploy saat push ke `main`
+1. Push kode ke branch `main`.
+2. GitHub → *Settings → Pages → Source*: pilih **GitHub Actions**.
+3. Workflow `.github/workflows/deploy.yml` otomatis menjalankan `npm run check`, kompilasi static Tailwind CSS, unduh vendor self-hosted, build `dist/`, dan deploy ke GitHub Pages.
+4. *(Opsional jika `web/config.js` belum ada di repo atau memakai Fork)* Isi **GitHub Repository Variables** `SUPABASE_URL` & `SUPABASE_ANON_KEY` (*Settings → Secrets and variables → Actions → Variables*) agar `.github/workflows/deploy.yml` dan `.github/workflows/android-build.yml` dapat menyusun `web/config.js` saat CI berjalan.
 
 ---
 
 ## 🔧 Admin Panel
 
-Admin Panel hanya muncul di sidebar untuk user dengan role `admin`.
-Deploy juga Edge Function `admin-password` dengan verifikasi JWT tetap aktif sebelum memakai reset password untuk akun pengguna lain.
+Menu **Panel Admin** otomatis muncul di sidebar untuk akun dengan `role = 'admin'` dan `status = 'active'`. Deploy Edge Function `admin-password` (dengan verifikasi JWT aktif) sebelum memakai fitur reset password pengguna.
 
 **Fitur Admin Panel:**
-- 📊 Metrics: total user, user aktif, user tersuspend
-- 👥 Tabel user: email, username, role, status, tanggal daftar
-- 🚫 Suspend / Aktifkan akun user
-- 🔑 Toggle role: `user` ↔ `admin`
-- 🔐 Atur ulang password pengguna lain; admin juga dapat mengganti password akunnya sendiri
-- Riwayat pembaruan fitur yang dirilis
+- 📊 **Metrics**: Total pengguna, pengguna aktif, user suspended, dan total akun Telegram terhubung (`get_admin_platform_stats()`)
+- 👥 **Tabel & Pencarian Pengguna**: Daftar desktop & kartu mobile lengkap dengan cari nama/email serta filter status (`Aktif`/`Suspended`) dan role (`Admin`/`User`)
+- 🚫 **Suspend / Aktifkan Akun**: Memblokir/membuka akses data langsung di level RLS (`is_active_user()`) dengan proteksi self-lockout
+- 🔑 **Toggle Role (`user` ↔ `admin`)**: Mengelola hak akses admin disertai proteksi agar tidak menurunkan diri sendiri
+- 🔐 **Atur Password Pengguna Lain**: Menetapkan password baru melalui `admin-password`, plus tombol ganti password akun sendiri
+- 🗑️ **Penghapusan Akun**: Penghapusan akun mandiri dilakukan user via **Pengaturan Akun & PIN** (memanggil Edge Function `delete-account`), sedangkan penghapusan akun user lain oleh pengelola dilakukan dari **Supabase Dashboard → Authentication → Users**
 
-Catatan rilis dikelola di kode aplikasi dan README. Perbarui keduanya bersama setiap rilis; aplikasi tidak menulis ke GitHub saat runtime.
+Catat riwayat rilis di `src/updates.html` dan `README.md` setiap pembaruan; aplikasi tidak menulis ke GitHub saat runtime.
 
 **Cara menjadi admin pertama:**
-- User **pertama** yang mendaftar ke aplikasi otomatis mendapat role `admin` via trigger database
-- Selanjutnya, admin bisa promote user lain via Admin Panel
+- User **pertama** yang mendaftar otomatis mendapat role `admin` via trigger `handle_new_user()`
+- Akun tambahan (termasuk akun Google OAuth) dapat dipromosikan via Panel Admin atau query `UPDATE public.profiles SET role = 'admin', status = 'active' WHERE email = '...';` di Supabase SQL Editor
 
 ---
 
@@ -366,7 +379,7 @@ Catatan rilis dikelola di kode aplikasi dan README. Perbarui keduanya bersama se
 
 User bisa menghubungkan akun ke Telegram Bot secara mandiri:
 
-1. Di aplikasi web → klik **"Hubungkan Telegram"** di sidebar
+1. Di aplikasi web/Android → klik **"Hubungkan Telegram"** di sidebar
 2. Sistem generate **OTP 8 digit** (berlaku 10 menit). Kode baru menggantikan kode pairing sebelumnya.
 3. Buka Telegram, chat ke bot, kirim perintah:
    ```
@@ -378,26 +391,40 @@ User bisa menghubungkan akun ke Telegram Bot secara mandiri:
    ```
 4. Bot akan konfirmasi: *"✅ Akun kamu berhasil dihubungkan!"*
 
-Setelah terhubung, kamu bisa:
-- Tanya saldo: `/saldo`
-- Minta laporan bulanan
-- Terima notifikasi otomatis dari cron job
+Setelah terhubung, kamu bisa mencatat transaksi teks bebas/foto struk/voice note AI, cek `/saldo` & `/budget`, mencari histori via `/cari`, kelola `/recurring`, serta menerima pengingat & laporan otomatis dari cron job.
 
 ---
 
 ## 📲 PWA — Install sebagai Aplikasi
 
-MyKeuangan mendukung **Progressive Web App**:
+MyKeuGuech mendukung **Progressive Web App (Offline-First)**:
 
-- **Di Android (Chrome)**: Buka site → banner "Add to Home Screen" muncul otomatis
-- **Di iOS (Safari)**: Share → "Add to Home Screen"
+- **Di Android (Chrome)**: Buka situs → tekan **Install Aplikasi (PWA)** di sidebar atau banner browser
+- **Di iOS (Safari)**: Share → **Add to Home Screen**
 - **Di Desktop (Chrome/Edge)**: Ikon install di address bar
 
 Fitur PWA:
-- ✅ Shell halaman tersedia dari cache offline; autentikasi dan data keuangan memerlukan internet
-- ✅ Ikon maskable (tampil bagus di semua launcher Android)
-- ✅ Standalone mode (tanpa browser bar)
-- ✅ Tema gelap (#0f172a) konsisten dengan UI
+- ✅ **Offline-First Read Cache**: Snapshot IndexedDB (`mykeuangan_offline_db` v2) menampilkan data terakhir saat dibuka tanpa internet
+- ✅ **Offline Write Queue**: Transaksi baru/edit tetap tersimpan di antrean IndexedDB dan otomatis disinkronkan saat koneksi kembali (hingga 3× retry)
+- ✅ **Self-Hosted Vendor Assets**: Supabase JS, Chart.js, SweetAlert2, Flatpickr, jsPDF, ikon Phosphor, dan font Inter diprecache ke `dist/vendor/` oleh Service Worker (`web/sw.js` Network-First HTML + SHA-256 cache busting)
+- ✅ **Ikon Maskable & Tema Adaptif**: Konsisten di mode terang maupun gelap (`#0f172a`) dengan App Shortcuts (`?action=pengeluaran|pemasukan|scan|budgeting`)
+
+---
+
+## 🤖 Aplikasi Android (.apk / .aab — Capacitor 8)
+
+MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
+
+- **Cloud Build via GitHub Actions (tanpa Android Studio):** Jalankan workflow **`.github/workflows/android-build.yml`** lewat tab **Actions → Run workflow** dengan pilihan `debug-apk` *(langsung pasang tanpa keystore)*, `release-apk`, `release-aab`, atau `all` untuk mengunduh artifact `MyKeuGuech-v3.19.0-*.apk` / `.aab` & aset Play Store. Aktifkan opsi **`publish_release`** (atau push tag `v*`) untuk otomatis menerbitkan `.apk` ke **GitHub Releases** (`releases/latest`).
+- **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
+  ```powershell
+  npm install
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.19.0-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.19.0-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.19.0-release.aab
+  ```
+- **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
+- **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
 
 ---
 
@@ -432,6 +459,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Wave v3.19 (Standar Tampilan Android Material Design 3, Bottom Sheet Dialog & Proporsi Mobile 360dp)
+- **Material 3 Tonal Surfaces & Native Bottom-Sheet Modals (`src/styles.html`, `src/Index.html`)**: Menambahkan sistem permukaan tonal Material Design 3 (`#f2f5f9` siang / `#080d17` malam OLED), padding *safe-area* atas/bawah penuh, navigation drawer beradius `28px` dengan item kapsul `48dp`, bottom nav indikator pill `56×32dp`, top app bar `56dp`, serta mengubah seluruh modal konfirmasi & input SweetAlert2 menjadi **Android Bottom Sheet** otomatis di layar `< 640px` lengkap dengan *drag handle* dan `prefers-reduced-motion`.
+- **Proporsi Dashboard 360dp, Kalender & Form Thumb-Zone (`src/dashboard.html`, `src/form.html`, `web/ui-calendar.js`, `web/ui-wallets.js`, `web/ui-dashboard.js`, `web/ui-budget.js`)**: Menata ulang KPI Strip Hero Net Worth menjadi 2 tingkat agar nominal tidak terpotong di layar 360dp, menambah badge lingkaran hari ini di Kalender + segmented pill 3 bagian, menyusun baris transaksi Dashboard agar judul tetap lega, serta melengkapi Form Transaksi dengan dropdown chevron native, rail chip nominal dapat digulir, dan bar tombol simpan melayang (`sticky bottom-0`).
+- **Konsistensi Seluruh Halaman & Auth Sheet (`src/{histori,budgeting,aset,laporan,ai,utang,admin,updates}.html`, `web/supabase-auth*.js`, `tests/android-m3-ui.test.js`)**: Menyeragamkan header kompak, grid tombol 2 kolom simetris, metrik Admin 2×2, menu dropdown Laporan anti-terpotong di HP, kartu login beradius `28px` berkontrol `48px`, pembaruan versi Android ke `3.19.0`, dan suite uji `tests/android-m3-ui.test.js`.
+- **Popup Update Otomatis & GitHub Releases (`build.mjs`, `web/ui-feat-updates.js`, `src/updates.html`, `.github/workflows/android-build.yml`)**: Menambahkan pembuatan manifes `dist/version.json` otomatis, pembanding versi semver + popup Material 3 Bottom Sheet (*soft update* dan *force update* lewat `minSupportedVersion`), tombol **Cek Pembaruan**, pengecualian cache SW untuk `/version.json`, CSP `https://liandimiko.github.io`, serta publikasi `.apk` otomatis ke **GitHub Releases** lewat workflow tag `v*` atau input `publish_release`.
 
 ### 25 November 2026: Wave v3.18 (Cloud Build Android .apk/.aab, Kit Rilis Play Store, + Buat Budget & Bot /cari)
 - **Cloud Build Android CI, Fix Lockfile, 1-Command `.apk` & Cold-Start OAuth (`.github/workflows/android-build.yml`, `scripts/build-android.mjs`, `scripts/patch-android-project.mjs`, `web/native-bridge.js`, `package.json`, `.gitignore`)**: Menambahkan workflow GitHub Actions Android (JDK 21 + Android SDK 36 + Gradle cache) bebas ketergantungan `package-lock.json` (`cache: npm` dihapus agar tidak gagal saat setup) dengan output berversi `MyKeuGuech-v3.18.0-debug.apk`, `-release.apk`, & `-release.aab` serta ringkasan unduh `GITHUB_STEP_SUMMARY`; menambahkan skrip build lokal 1-perintah `npm run cap:apk` / `cap:apk:release` / `cap:aab`, pemulihan cold-start Google OAuth via `App.getLaunchUrl()`, serta memperbaiki Groovy `withInputStream` & `rootProject.file()` di `patch-android-project.mjs`.
@@ -600,12 +633,13 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 🗺 Roadmap
 
-Lihat [PWA_MULTIUSER_ROADMAP.md](./PWA_MULTIUSER_ROADMAP.md) untuk rencana pengembangan lengkap.
+Fase v1–v3.18 (Multi-User SaaS, Offline-First PWA, Bot Telegram Gemini AI, Audit Budgeting/Kategori, serta Pipeline `.apk`/`.aab` Capacitor 8) telah selesai. Fokus rilis berikutnya:
 
-Prioritas berikutnya:
-- [x] Pengingat Web Notification opt-in (browser desktop & PWA)
-- [x] Multi-currency USD, Emas & Bank CSV import
-- [x] Ekspor laporan ke Excel (.xls) & Scan Struk Gemini Vision
+- [x] Web PWA Offline-First + IndexedDB Snapshot & Antrean Sinkronisasi Otomatis
+- [x] Multi-aset (Crypto, Emas, USD, Saham), Bank e-Statement CSV Import & Ekspor PDF/Excel
+- [x] Android App Capacitor 8 (API 36) + Cloud Build APK/AAB (`android-build.yml`)
+- [ ] Google Play Console Closed Testing (12 tester × 14 hari) & rilis Production — lihat [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md)
+- [ ] Ekspansi lanjutan di Panel Admin (opsional: hapus akun user & putuskan tautan Telegram langsung dari UI Admin)
 
 ---
 
@@ -613,13 +647,15 @@ Prioritas berikutnya:
 
 | Layer | Teknologi |
 |---|---|
-| Frontend | Vanilla HTML5, CSS3, JavaScript (no framework) |
-| Backend | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
-| Runtime | Deno (Edge Functions) |
-| Build | Node.js (`build.mjs` — no bundler) |
-| AI | Google Gemini 2.5 Flash (auto-fallback) |
-| Bot | Telegram Bot API |
-| Hosting | GitHub Pages + Supabase Cloud |
+| Frontend | Vanilla HTML5 & Modular JavaScript ES6+ (`web/*.js`, `src/*.html`, zero runtime framework) |
+| Styling & UI | Static Tailwind CSS v3.4.17, Chart.js 4.4, SweetAlert2 11, Flatpickr 4.6, jsPDF + AutoTable, Phosphor Icons 2.1, Inter Variable Font (self-hosted di `dist/vendor/`) |
+| Offline & PWA | Custom Service Worker (`web/sw.js` Network-First HTML + SHA-256 build cache) + IndexedDB (`mykeuangan_offline_db`) |
+| Mobile Native | Capacitor 8 (`@capacitor/app`, `browser`, `filesystem`, `share`, `splash-screen`) — Android 16 (API 36 / `minSdk 24`) |
+| Backend & DB | Supabase (PostgreSQL + Row Level Security + PL/pgSQL RPC + Auth Email/Google OAuth 2.0) |
+| Serverless | Deno TypeScript Edge Functions (`telegram-bot`, `admin-password`, `delete-account`) |
+| Build & Test | Custom Node.js 22 bundler (`build.mjs`), syntax check (`check-syntax.mjs`), Built-in `node --test` |
+| AI & Bot | Google Gemini 2.5 Flash (Receipt OCR, Voice Note, Cashflow Analysis & Chat) + Telegram Bot API |
+| Hosting & CI/CD | GitHub Pages + GitHub Actions (`deploy.yml` & `android-build.yml`) + Supabase Cloud |
 
 ---
 

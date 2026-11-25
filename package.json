@@ -1,8 +1,13 @@
 {
   "name": "mykeuangan",
-  "version": "3.18.0",
+  "version": "3.19.0",
   "private": true,
   "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
+  "appUpdate": {
+    "minSupportedVersion": "3.19.0",
+    "androidUrl": "https://github.com/LiandiMiko/mykeuangan/releases/latest",
+    "webUrl": "https://liandimiko.github.io/mykeuangan/"
+  },
   "scripts": {
     "check:syntax": "node scripts/check-syntax.mjs",
     "test": "node --test",

@@ -258,6 +258,9 @@
         if (typeof root.filterUpdatesList === 'function') root.filterUpdatesList();
         if (typeof feat.verifyAppPinIfEnabled === 'function') feat.verifyAppPinIfEnabled();
         if (typeof feat.handlePwaShortcutAction === 'function') feat.handlePwaShortcutAction();
+        if (root.isDataReady && typeof root.checkRemoteAppUpdate === 'function') {
+          setTimeout(() => { root.checkRemoteAppUpdate({ manual: false }); }, 2200);
+        }
       };
     }
     if (typeof root.setTheme === 'function' && !root._origSetTheme) {
@@ -308,6 +311,7 @@
   });
   root.addEventListener('online', () => {
     if (typeof root.flushOfflineQueue === 'function') root.flushOfflineQueue(false);
+    if (root.isDataReady && typeof root.checkRemoteAppUpdate === 'function') root.checkRemoteAppUpdate({ manual: false });
   });
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || (typeof Swal !== 'undefined' && Swal.isVisible()) || document.getElementById('mkCommandPalette')) return;

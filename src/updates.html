@@ -1,30 +1,51 @@
 <!-- ================= RIWAYAT PEMBARUAN ================= -->
-<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-25-v3.18" data-latest-version="v3.18">
+<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-25-v3.19" data-latest-version="v3.19">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div class="flex items-start gap-3">
-      <div class="w-11 h-11 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
-        <i class="ph ph-megaphone-simple text-2xl" aria-hidden="true"></i>
+      <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5">
+        <i class="ph ph-megaphone-simple text-lg sm:text-2xl" aria-hidden="true"></i>
       </div>
       <div>
-        <h2 id="updates-page-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="updates.title">Riwayat Pembaruan</h2>
+        <h2 id="updates-page-title" class="text-lg sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" data-i18n="updates.title">Riwayat Pembaruan</h2>
         <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1" data-i18n="updates.subtitle">Ringkasan fitur baru, perbaikan bug, dan peningkatan keamanan MyKeuGuech.</p>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <span class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
+      <span class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
-        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Wave v3.18</strong></span>
+        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Wave v3.19</strong></span>
       </span>
+      <button type="button" id="btnCheckAppUpdate" onclick="checkRemoteAppUpdate({ manual: true })"
+              class="min-h-11 px-3.5 py-2 rounded-2xl bg-brand text-white hover:opacity-95 text-xs font-bold transition-opacity flex items-center gap-1.5 shadow-xs">
+        <i class="ph ph-arrows-clockwise text-sm" aria-hidden="true"></i>
+        <span id="btnCheckAppUpdateText" data-i18n="updates.check_now">Cek Pembaruan</span>
+      </button>
       <button type="button" id="btnToggleAllReleases" onclick="toggleAllReleaseDetails()"
-              class="min-h-11 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
+              class="min-h-11 px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
         <i class="ph ph-arrows-out-line-vertical text-sm" aria-hidden="true"></i>
         <span id="btnToggleAllReleasesText" data-i18n="updates.expand_all">Buka Semua</span>
       </button>
     </div>
   </div>
 
+  <!-- REMOTE UPDATE BANNER -->
+  <div id="remoteUpdateBanner" class="bg-brand/10 border border-brand/25 rounded-2xl sm:rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hide" role="status" aria-live="polite">
+    <div class="flex items-start gap-3 min-w-0">
+      <div class="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center shrink-0">
+        <i class="ph-bold ph-rocket-launch text-lg" aria-hidden="true"></i>
+      </div>
+      <div class="min-w-0">
+        <h3 id="remoteUpdateBannerTitle" class="text-sm font-extrabold text-slate-900 dark:text-white"></h3>
+        <p id="remoteUpdateBannerMeta" class="text-xs text-slate-600 dark:text-slate-300 mt-0.5" data-i18n="updates.banner_desc">Versi baru aplikasi sudah tersedia. Segera perbarui agar fitur &amp; keamanan tetap mutakhir.</p>
+      </div>
+    </div>
+    <button type="button" onclick="checkRemoteAppUpdate({ manual: true })"
+            class="min-h-11 px-4 py-2 rounded-2xl bg-brand text-white text-xs font-bold hover:opacity-95 transition-opacity shrink-0 shadow-xs"
+            data-i18n="updates.update_now">Update Sekarang</button>
+  </div>
+
   <!-- SEARCH & TOPIC FILTER -->
-  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-3">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 mk-card-surface p-4 sm:p-5 space-y-3">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div class="relative flex-1">
         <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true"></i>
@@ -32,29 +53,29 @@
                placeholder="Cari fitur, mis. kalender, telegram, emas..."
                data-i18n-placeholder="updates.search_placeholder"
                aria-label="Cari riwayat pembaruan"
-               class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
+               class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
       </div>
-      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums" aria-live="polite">Menampilkan 19 rilis</p>
+      <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums" aria-live="polite">Menampilkan 20 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
-      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-brand text-white shadow-xs" data-i18n="updates.filter_all">Semua</button>
-      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
-      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
-      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
-      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')" class="min-h-9 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
+      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-brand text-white shadow-xs" data-i18n="updates.filter_all">Semua</button>
+      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
+      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
+      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
+      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')" class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
     </div>
   </div>
 
   <!-- RELEASE LIST -->
   <section id="updatesList" class="space-y-4" aria-labelledby="updates-page-title">
     <!-- LATEST RELEASE (OPEN CARD) -->
-    <article data-release-card data-release-id="2026-11-25-v3.18" data-topics="reports ai security"
-             class="bg-white dark:bg-slate-900 rounded-3xl border border-brand/30 dark:border-brand/40 shadow-sm p-5 sm:p-6">
+    <article data-release-card data-release-id="2026-11-25-v3.19" data-topics="reports ai security"
+             class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-brand/30 dark:border-brand/40 mk-card-surface p-4 sm:p-6">
       <div class="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-6">
         <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
           <div class="flex flex-wrap items-center gap-1.5 mb-2">
             <span class="px-2 py-0.5 rounded-full bg-brand text-white text-[10px] font-extrabold uppercase tracking-wider" data-i18n="updates.badge_latest">Terbaru</span>
-            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.18</span>
+            <span class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-extrabold">v3.19</span>
           </div>
           <time datetime="2026-11-25" class="block text-brand dark:text-brand-ink">
             <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink tabular-nums">25</span>
@@ -62,19 +83,23 @@
           </time>
         </div>
         <div class="min-w-0">
-          <h3 class="text-base font-bold text-slate-800 dark:text-white">Wave v3.18: Cloud Build Android (.apk/.aab), Kit Rilis Play Store, + Buat Budget &amp; Bot /cari</h3>
+          <h3 class="text-base font-bold text-slate-800 dark:text-white">Wave v3.19: Standar Tampilan Android Material Design 3, Bottom Sheet Dialog &amp; Proporsi Mobile 360dp</h3>
           <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Cloud Android CI &amp; Fix Gradle</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Menambahkan workflow GitHub Actions <code>.github/workflows/android-build.yml</code> bebas ketergantungan <code>package-lock.json</code> (Android 16 API 36 + JDK 21 + Gradle cache) untuk build <code>MyKeuGuech-v3.18.0-debug.apk</code>, signed <code>-release.apk</code>, dan <code>-release.aab</code>, skrip lokal 1-perintah <code>npm run cap:apk</code> (<code>scripts/build-android.mjs</code>), pemulihan cold-start Google OAuth lewat <code>App.getLaunchUrl()</code> (<code>web/native-bridge.js</code>), serta memperbaiki bug Groovy <code>withInputStream</code> &amp; <code>rootProject.file()</code> di <code>scripts/patch-android-project.mjs</code>.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Material 3 &amp; Bottom Sheet</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menambahkan sistem permukaan tonal Material 3 (kanvas siang <code>#f2f5f9</code> &amp; OLED gelap <code>#080d17</code>), navigasi bawah kapsul 56&times;32dp, drawer samping beradius <code>28px</code>, serta mengubah seluruh modal konfirmasi dan input SweetAlert2 menjadi <strong>Android Bottom Sheet</strong> otomatis di layar HP (lengkap dengan <em>drag handle</em> dan animasi bertahap yang mematuhi <code>prefers-reduced-motion</code>).</dd>
             </div>
             <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">Aset Grafis &amp; Kit Play Store</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Menambahkan generator aset Play Store (<code>scripts/generate-playstore-assets.mjs</code> &rarr; <code>icon-512.png</code> 512&times;512 &amp; <code>feature-graphic-1024x500.png</code> 1024&times;500) beserta kit deklarasi &amp; deskripsi toko dwibahasa ID/EN di <code>docs/PLAYSTORE_LISTING_KIT.md</code>.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Proporsi Mobile 360dp &amp; Form</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menata ulang KPI Strip Hero Net Worth menjadi 2 tingkat agar nominal tidak terpotong di HP, menambahkan badge lingkaran hari ini di Kalender, meluaskan baris transaksi Dashboard, serta melengkapi Form Transaksi dengan tombol simpan melayang (<em>sticky thumb-zone</em>), ikon panah dropdown, dan rail chip nominal.</dd>
+            </div>
+            <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Konsistensi Seluruh Halaman</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menyeragamkan header kompak, grid tombol 2 kolom simetris, target sentuh 44–48dp pada seluruh halaman (Histori, Budgeting, Tabungan &amp; Aset, Laporan, Analisis AI, Utang/Piutang, Admin), serta meningkatkan kartu login beradius <code>28px</code> dengan bantalan <em>safe-area</em> Android.</dd>
             </div>
             <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
-              <dt class="font-semibold text-slate-700 dark:text-slate-200">+ Buat Budget &amp; Bot Telegram</dt>
-              <dd class="text-slate-600 dark:text-slate-300">Menambahkan chip 1-klik <strong>+ Budget &lt;Kategori&gt;</strong> langsung dari panel <em>Pengeluaran di Luar Budget</em> (<code>web/ui-budget.js</code>), serta progres bar <code>▓░</code> + total luar budget pada <code>/budget</code> dan perintah pencarian cepat <code>/cari</code> pada bot Telegram.</dd>
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Popup Update Otomatis &amp; Releases</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Menambahkan penerbitan manifes <code>version.json</code> otomatis saat build (<code>build.mjs</code>), pengecekan versi jarak jauh non-blokir dengan popup Material 3 Bottom Sheet mode opsional/wajib update plus tombol <strong>Cek Pembaruan</strong> (<code>web/ui-feat-updates.js</code>), serta publikasi <code>.apk</code> ke GitHub Releases lewat <code>.github/workflows/android-build.yml</code>.</dd>
             </div>
           </dl>
         </div>
@@ -82,6 +107,38 @@
     </article>
 
     <!-- PREVIOUS RELEASES (COLLAPSIBLE ACCORDION) -->
+    <details data-release-card data-release-details data-topics="reports ai security"
+             class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+          <div class="flex items-center gap-2 shrink-0">
+            <time datetime="2026-11-25" class="text-xs font-bold text-slate-500 dark:text-slate-400">25 Nov 2026</time>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-extrabold">v3.18</span>
+          </div>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Wave v3.18: Cloud Build Android (.apk/.aab), Kit Rilis Play Store, + Buat Budget &amp; Bot /cari</h3>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-semibold">3 item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+        </div>
+      </summary>
+      <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
+        <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+          <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Cloud Android CI &amp; Fix Gradle</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan workflow GitHub Actions <code>.github/workflows/android-build.yml</code> bebas ketergantungan <code>package-lock.json</code> (Android 16 API 36 + JDK 21 + Gradle cache) untuk build <code>MyKeuGuech-v3.18.0-debug.apk</code>, signed <code>-release.apk</code>, dan <code>-release.aab</code>, skrip lokal 1-perintah <code>npm run cap:apk</code> (<code>scripts/build-android.mjs</code>), pemulihan cold-start Google OAuth lewat <code>App.getLaunchUrl()</code> (<code>web/native-bridge.js</code>), serta memperbaiki bug Groovy <code>withInputStream</code> &amp; <code>rootProject.file()</code> di <code>scripts/patch-android-project.mjs</code>.</dd>
+          </div>
+          <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">Aset Grafis &amp; Kit Play Store</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan generator aset Play Store (<code>scripts/generate-playstore-assets.mjs</code> &rarr; <code>icon-512.png</code> 512&times;512 &amp; <code>feature-graphic-1024x500.png</code> 1024&times;500) beserta kit deklarasi &amp; deskripsi toko dwibahasa ID/EN di <code>docs/PLAYSTORE_LISTING_KIT.md</code>.</dd>
+          </div>
+          <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+            <dt class="font-semibold text-slate-700 dark:text-slate-200">+ Buat Budget &amp; Bot Telegram</dt>
+            <dd class="text-slate-600 dark:text-slate-300">Menambahkan chip 1-klik <strong>+ Budget &lt;Kategori&gt;</strong> langsung dari panel <em>Pengeluaran di Luar Budget</em> (<code>web/ui-budget.js</code>), serta progres bar <code>▓░</code> + total luar budget pada <code>/budget</code> dan perintah pencarian cepat <code>/cari</code> pada bot Telegram.</dd>
+          </div>
+        </dl>
+      </div>
+    </details>
     <details data-release-card data-release-details data-topics="reports ai"
              class="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       <summary class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">

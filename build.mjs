@@ -151,8 +151,75 @@ function copyVendorDir(srcDir, dstDir, relBase) {
   return collected;
 }
 
-function buildHtmlBundle(config) {
+const HTML_ENTITY_MAP = {
+  '&amp;': '&',
+  '&times;': '×',
+  '&rarr;': '→',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&nbsp;': ' '
+};
+
+function stripHtmlEntities(str) {
+  return String(str || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(?:amp|times|rarr|lt|gt|quot|nbsp|#39);/g, (entity) => HTML_ENTITY_MAP[entity] || entity)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseVersionCode(ver) {
+  const m = String(ver || '').trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?/i);
+  if (!m) return 0;
+  return Number(m[1] || 0) * 10000 + Number(m[2] || 0) * 100 + Number(m[3] || 0);
+}
+
+function extractLatestReleaseMeta(updatesHtml) {
+  const releaseMatch = updatesHtml.match(/data-latest-release="([^"]+)"/);
+  const articleMatch = updatesHtml.match(/<article\b[^>]*data-release-card[^>]*>([\s\S]*?)<\/article>/i);
+  const articleHtml = articleMatch ? articleMatch[1] : '';
+  const titleMatch = articleHtml.match(/<h[34][^>]*>([\s\S]*?)<\/h[34]>/i);
+  const notes = [];
+  for (const rowMatch of articleHtml.matchAll(/<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi)) {
+    const label = stripHtmlEntities(rowMatch[1]);
+    const detail = stripHtmlEntities(rowMatch[2]).split(/(?<=[.!?])\s+/)[0] || '';
+    const trimmed = detail.length > 140 ? `${detail.slice(0, 137).trimEnd()}...` : detail;
+    if (label && trimmed) notes.push(`${label}: ${trimmed}`);
+    else if (label || trimmed) notes.push(label || trimmed);
+    if (notes.length >= 4) break;
+  }
+  return {
+    releaseId: releaseMatch ? releaseMatch[1] : '',
+    releaseTitle: titleMatch ? stripHtmlEntities(titleMatch[1]) : '',
+    notes
+  };
+}
+
+function buildVersionManifest(pkg, updatesHtml) {
+  const appUpdate = (pkg && pkg.appUpdate) || {};
+  const meta = extractLatestReleaseMeta(updatesHtml);
+  const version = String((pkg && pkg.version) || '1.0.0').trim();
+  const minSupportedVersion = String(appUpdate.minSupportedVersion || version).trim();
+  return {
+    version,
+    versionCode: parseVersionCode(version),
+    minSupportedVersion,
+    releaseId: meta.releaseId,
+    releaseTitle: meta.releaseTitle || `MyKeuGuech v${version}`,
+    notes: meta.notes,
+    androidUrl: String(appUpdate.androidUrl || 'https://github.com/LiandiMiko/mykeuangan/releases/latest').trim(),
+    webUrl: String(appUpdate.webUrl || 'https://liandimiko.github.io/mykeuangan/').trim(),
+    builtAt: new Date().toISOString()
+  };
+}
+
+function buildHtmlBundle(config, appVersion) {
   let html = read('Index');
+  if (appVersion) {
+    html = html.replace(/(<meta\s+name="app-version"\s+content=")[^"]*(")/i, `$1${appVersion}$2`);
+  }
   html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
     if (name === 'scripts') {
       return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${readInlineScripts(UI_CORE_MODULES)}\n` +
@@ -188,9 +255,14 @@ if (!fs.existsSync(cfgFile)) {
 const config = fs.readFileSync(cfgFile, 'utf8');
 if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placeholder GANTI-… — isi URL dan anon key Supabase dulu.');
 
-const html = buildHtmlBundle(config);
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const updatesHtml = read('updates');
+const versionManifest = buildVersionManifest(pkg, updatesHtml);
+
+const html = buildHtmlBundle(config, pkg.version);
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
+fs.writeFileSync(path.join(OUT, 'version.json'), `${JSON.stringify(versionManifest, null, 2)}\n`);
 const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
 
 fs.rmSync(path.join(OUT, 'vendor'), { recursive: true, force: true });
@@ -229,4 +301,5 @@ if (fs.existsSync(deletePageSrc)) {
 }
 
 process.stdout.write(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB)\n`);
+process.stdout.write(`✅ ${OUT}/version.json (v${versionManifest.version}, min v${versionManifest.minSupportedVersion})\n`);
 process.stdout.write(`✅ PWA assets synced to ${OUT}/\n`);

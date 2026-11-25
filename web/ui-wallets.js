@@ -83,12 +83,12 @@
     const safeName = escapeHtmlJS(w.name);
     const idAttr = escapeAttrJS(w.id);
     return `
-      <div class="px-3 py-2 sm:px-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-2">
+      <div class="px-3.5 py-2.5 sm:px-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-2">
         <button type="button" data-wallet-detail="${idAttr}" onclick="typeof openWalletDetailModal==='function'&&openWalletDetailModal('${idAttr}')"
                 aria-label="Lihat rincian dompet ${safeName}"
-                class="flex-1 min-w-0 min-h-11 py-1.5 px-1.5 rounded-xl flex items-center justify-between gap-3 text-left">
+                class="flex-1 min-w-0 min-h-11 py-1 px-1 rounded-xl flex items-center justify-between gap-3 text-left">
           <span class="flex items-center gap-3 min-w-0">
-            <span class="w-10 h-10 rounded-xl ${iconBoxClass} flex items-center justify-center shrink-0">
+            <span class="w-10 h-10 rounded-2xl ${iconBoxClass} flex items-center justify-center shrink-0">
               <i class="ph ph-${isCash ? 'money' : isEwallet ? 'device-mobile' : 'bank'} text-xl" aria-hidden="true"></i>
             </span>
             <span class="min-w-0">
@@ -99,7 +99,7 @@
           <span class="text-sm sm:text-base font-extrabold tabular-nums shrink-0 ${bal < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}">${formatRupiah(bal)}</span>
         </button>
         <button type="button" onclick="editWallet('${idAttr}')" aria-label="Edit dompet ${safeName}" title="Edit saldo"
-          class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
+          class="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
           <i class="ph ph-pencil-simple text-base" aria-hidden="true"></i>
         </button>
       </div>`;

@@ -148,8 +148,7 @@
 
     const cell = document.createElement('button');
     cell.type = 'button';
-    cell.className = 'text-left align-top min-h-[62px] sm:min-h-[82px] p-1 sm:p-2 border-b border-r border-slate-100 dark:border-slate-800/60 relative transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/60 focus-visible:ring-2 focus-visible:ring-brand ' + bgClass;
-    if (isToday) cell.classList.add('ring-2', 'ring-inset', 'ring-brand');
+    cell.className = 'text-left align-top min-h-[58px] sm:min-h-[82px] p-1 sm:p-2 border-b border-r border-slate-100 dark:border-slate-800/60 relative transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800/60 focus-visible:ring-2 focus-visible:ring-brand ' + bgClass;
     const summaryLabel = mode === 'out'
       ? ('Keluar: ' + formatRupiah(data.outAmt))
       : (mode === 'in' ? ('Masuk: ' + formatRupiah(data.inAmt)) : ('Net: ' + formatRupiah(net)));
@@ -159,7 +158,7 @@
 
     let html = '<div class="flex items-center justify-between mb-1">' +
       '<span class="text-[11px] sm:text-xs font-bold ' +
-      (isToday ? 'text-brand dark:text-brand-ink' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
+      (isToday ? 'w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-brand text-white inline-flex items-center justify-center' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
     if (hasData) html += '<span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 tabular-nums">' + visibleCount + 'x</span>';
     html += '</div>';
 
@@ -171,7 +170,7 @@
         html += '<p class="text-[10px] sm:text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-tight truncate tabular-nums">−' + formatShortIDR(data.outAmt) + '</p>';
       }
       if (mode === 'all' && data.inAmt > 0 && data.outAmt > 0) {
-        html += '<p class="text-[10px] sm:text-[11px] font-black mt-0.5 tabular-nums ' +
+        html += '<p class="hidden sm:block text-[11px] font-black mt-0.5 tabular-nums ' +
           (net >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + '">= ' +
           (net >= 0 ? '+' : '−') + formatShortIDR(Math.abs(net)) + '</p>';
       }
