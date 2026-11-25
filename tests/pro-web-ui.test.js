@@ -388,6 +388,7 @@ test('wave v3.18 configures cloud Android CI, Play Store release kit, gradle pat
   assert.match(androidBuildYml, /ANDROID_KEYSTORE_BASE64/);
   assert.match(androidBuildYml, /rm -f android\/mykeuguech-upload\.jks/);
   assert.doesNotMatch(androidBuildYml, /cache:\s*['"]?npm['"]?/);
+  assert.doesNotMatch(androidBuildYml, /android-actions\/setup-android@v[1-3]/);
   assert.match(androidBuildYml, /assembleRelease/);
   assert.match(androidBuildYml, /setup-gradle@v4/);
   assert.match(androidBuildYml, /GITHUB_STEP_SUMMARY/);

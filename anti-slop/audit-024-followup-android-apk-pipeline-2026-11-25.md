@@ -12,6 +12,7 @@ Menindaklanjuti kegagalan job GitHub Actions (`Dependencies lock file is not fou
    - Menghapus `cache: npm` pada `actions/setup-node@v4` karena repository ini tidak menyimpan `package-lock.json`, `npm-shrinkwrap.json`, atau `yarn.lock` (selaras dengan `.github/workflows/deploy.yml`), lalu menambahkan `gradle/actions/setup-gradle@v4` untuk cache dependensi Gradle.
    - Menambahkan langkah `Resolve build config` (`id: cfg`) dan memperluas pilihan `workflow_dispatch.inputs.build_type` menjadi `debug-apk`, `release-apk`, `release-aab`, dan `all`.
    - Menambahkan pengecekan eksplisit keberadaan `web/config.js` setelah fallback `vars.SUPABASE_URL` / `vars.SUPABASE_ANON_KEY`, nama file artefak berversi (`release/MyKeuGuech-v3.18.0-debug.apk`, `-release.apk`, `-release.aab`), dukungan signed `assembleRelease`, serta ringkasan unduh di `$GITHUB_STEP_SUMMARY`.
+   - Menghapus `android-actions/setup-android@v3` (penyebab gagal `Warning: Failed to find package 'tools'` karena paket usang `tools` sudah dihapus Google) dan menggantinya dengan langkah langsung memakai `$ANDROID_HOME/cmdline-tools/*/bin/sdkmanager` bawaan runner `ubuntu-latest` untuk menerima lisensi dan memasang `platform-tools`, `platforms;android-36`, serta `build-tools;36.0.0`.
 2. **Skrip Lokal 1-Perintah `.apk` / `.aab` (`scripts/build-android.mjs`, `package.json`, `.gitignore`)**:
    - Membuat `scripts/build-android.mjs` (`resolveAndroidTarget`, `ensureLocalPrereqs`, `runTool`) untuk mengecek `node_modules` & JDK 21, menjalankan `npm run build:prod`, menginisialisasi `android/` bila belum ada, menerapkan `patch-android-project.mjs`, menghasilkan aset Capacitor, menjalankan `cap sync android`, memanggil `gradlew.bat` / `./gradlew`, lalu menyalin hasil ke `release/MyKeuGuech-v3.18.0-*`.
    - Menambahkan skrip `cap:apk`, `cap:apk:release`, dan `cap:aab` di `package.json`, mengganti `cap:assets` agar memakai `npx capacitor-assets generate --android`, dan menambahkan `release/` ke `.gitignore`.
@@ -26,7 +27,7 @@ Menindaklanjuti kegagalan job GitHub Actions (`Dependencies lock file is not fou
 - **PASS (`aislop:aislop_scan` pada `c:/Users/Acer/Documents/GitHub/mykeuangan`)**: Skor **94/100** across **68 files** (`javascript`, `typescript`), **0 warnings**, **0 confirmed defects**, **0 AI-slop indicators**, hanya **1** error pre-existing pada `web/config.js:6` (`security/hardcoded-secret` untuk public client anon key) dan **2** info (`knip/skipped`, `security/dependency-audit-skipped`).
 - **PASS (`konoha:website_ai_detector` pada `c:/Users/Acer/Documents/GitHub/mykeuangan/src`)**: Skor **0** (`Human-Built`, **PASS**), **16** file (**235.836** bytes), **0** findings.
 - **PASS (`konoha:token_efficient_grep`)**:
-  - `.github/workflows/` (`cache:`): **0** kecocokan (`cache: npm` sudah bersih dari seluruh workflow).
+  - `.github/workflows/` (`cache:` dan `setup-android`): **0** kecocokan (`cache: npm` dan `android-actions/setup-android@v3` sudah bersih dari seluruh workflow).
   - `scripts/build-android.mjs` & `web/native-bridge.js` (`console\.log\(`): **0** kecocokan.
 
 ## Belum Diverifikasi (Dijalankan Pengguna / Cloud CI / Supabase)
