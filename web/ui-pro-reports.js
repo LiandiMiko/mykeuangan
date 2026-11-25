@@ -240,15 +240,15 @@
       width: 680,
       html: `
         <div class="text-left space-y-3">
-          <div class="flex flex-wrap items-center gap-2 text-xs">
-            <select id="recapYearSel" class="swal2-select" style="margin:0;height:36px;padding:4px 8px" onchange="renderAnnualRecapBody(this.value)">
+          <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
+            <select id="recapYearSel" aria-label="Pilih Tahun Rekap" class="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand" onchange="renderAnnualRecapBody(this.value)">
               ${years.map((y) => `<option value="${escapeHtmlJS(y)}" ${y === curYear ? 'selected' : ''}>Tahun ${escapeHtmlJS(y)}</option>`).join('')}
             </select>
-            <span class="text-slate-400">atau bandingkan:</span>
-            <input id="cmpPeriodA" type="month" value="${escapeHtmlJS(prevPeriod)}" class="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <span>vs</span>
-            <input id="cmpPeriodB" type="month" value="${escapeHtmlJS(curPeriod)}" class="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-            <button type="button" onclick="renderPeriodCompareBody()" class="px-3 py-1.5 rounded-lg bg-brand text-white font-bold">Bandingkan</button>
+            <span class="text-slate-500 dark:text-slate-400 font-medium px-1">atau bandingkan:</span>
+            <input id="cmpPeriodA" aria-label="Periode pertama" type="month" value="${escapeHtmlJS(prevPeriod)}" class="h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
+            <span class="text-slate-500 dark:text-slate-400 font-semibold">vs</span>
+            <input id="cmpPeriodB" aria-label="Periode kedua" type="month" value="${escapeHtmlJS(curPeriod)}" class="h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
+            <button type="button" onclick="renderPeriodCompareBody()" class="h-9 px-3.5 rounded-xl bg-brand text-white font-bold hover:opacity-95 transition-opacity">Bandingkan</button>
           </div>
           <div id="annualRecapBody"></div>
         </div>

@@ -294,7 +294,7 @@
     const toast = document.createElement('div');
     toast.id = 'pwaUpdateToast';
     toast.setAttribute('data-open', 'false');
-    toast.className = 'mk-toast fixed right-4 z-50 max-w-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center gap-3 border border-slate-700 dark:border-slate-200';
+    toast.className = 'mk-toast fixed left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center gap-3 border border-slate-700 dark:border-slate-200';
     renderHtml(toast, `
       <i class="ph ph-sparkle text-xl text-brand-ink dark:text-brand shrink-0" aria-hidden="true"></i>
       <div class="min-w-0 flex-1 text-xs">

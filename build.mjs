@@ -15,8 +15,8 @@ const VENDOR = path.join(VENDOR_ROOT, 'supabase.js');
 const WEB_MODULES = [
   'native-bridge.js',
   'finance-analysis-core.js',
-  'finance-analysis-ai.js',
   'finance-analysis-portfolio.js',
+  'finance-analysis-ai.js',
   'finance-analysis-backup.js',
   'finance-analysis.js',
   'finance-pro.js',

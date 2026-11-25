@@ -67,10 +67,13 @@
       <button type="button" onclick="fillAiChatPrompt('Strategi terbaik melunasi utang atau mempercepat target tabungan saya sekarang?')" class="min-h-9 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink inline-flex items-center gap-1.5 transition-colors shrink-0">
         <i class="ph ph-target text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i> <span>Prioritas utang vs target</span>
       </button>
+      <button type="button" onclick="fillAiChatPrompt('Evaluasi dana darurat, safe daily budget, dan ketahanan arus kas saya bulan ini.')" class="min-h-9 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink inline-flex items-center gap-1.5 transition-colors shrink-0">
+        <i class="ph ph-shield-check text-sky-700 dark:text-sky-400" aria-hidden="true"></i> <span>Cek dana darurat &amp; runway</span>
+      </button>
     </div>
 
     <form onsubmit="event.preventDefault(); runAiFinancialChat();" class="flex flex-col sm:flex-row gap-2.5">
-      <input type="text" id="aiChatInput" enterkeyhint="send" maxlength="500" data-i18n-placeholder="ai.chat_placeholder" placeholder="Contoh: Berapa dana darurat ideal dan berapa yang bisa saya sisihkan per bulan?"
+      <input type="text" id="aiChatInput" enterkeyhint="send" maxlength="1000" data-i18n-placeholder="ai.chat_placeholder" placeholder="Contoh: Berapa dana darurat ideal dan berapa yang bisa saya sisihkan per bulan?"
              class="flex-1 min-h-12 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm text-slate-800 dark:text-white">
       <button type="submit" id="btnAskAiChat" class="min-h-12 px-5 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60 shrink-0">
         <i class="ph ph-paper-plane-tilt text-base" aria-hidden="true"></i> <span data-i18n="ai.chat_ask">Tanya Gemini</span>

@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, syncFormCategorySelect, localToday, currentLang, t */
+/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, extractGeminiText, syncFormCategorySelect, localToday, currentLang, t */
 /* ============================================================
    FEATURES — RECEIPT OCR SCANNER & AI CHAT BASE
    ============================================================ */
@@ -11,7 +11,7 @@
     const btn = document.getElementById('btnScanReceipt');
     if (btn) btn.disabled = true;
     Swal.fire({
-      title: 'Membaca struk dengan AI...',
+      title: 'Membaca struk dengan Gemini 4...',
       text: 'Mengekstrak tanggal, nominal, kategori, dan catatan.',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
@@ -20,19 +20,27 @@
     try {
       const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
       const prompt = FinanceAnalysis.buildReceiptOcrPrompt(DB.categories, todayStr, currentLang);
-      const { json } = await callGeminiApi(apiKey, {
-        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64 } }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
+      const systemInstruction = typeof FinanceAnalysis.buildGeminiSystemInstruction === 'function'
+        ? FinanceAnalysis.buildGeminiSystemInstruction('receipt', currentLang) : '';
+      const res = await callGeminiApi(apiKey, {
+        input: [
+          { type: 'text', text: prompt },
+          { type: 'image', data: base64, mime_type: mimeType || 'image/jpeg' }
+        ],
+        systemInstruction,
+        thinkingLevel: 'low',
+        responseSchema: FinanceAnalysis.RECEIPT_OCR_SCHEMA
       });
-      const rawText = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
+      const rawText = (res && res.text) || (typeof extractGeminiText === 'function' ? extractGeminiText(res && res.json) : '');
       const parsed = FinanceAnalysis.parseReceiptOcrResponse(rawText, todayStr);
       applyParsedReceiptToForm(parsed);
       if (typeof root.triggerHaptic === 'function') root.triggerHaptic('success');
+      const amtLabel = typeof formatNominalInputValue === 'function' ? formatNominalInputValue(parsed.nominal) : String(parsed.nominal);
       Swal.fire({
         icon: 'success',
         title: 'Struk terbaca!',
-        text: 'Periksa kembali isian lalu klik Simpan Transaksi.',
-        timer: 1800,
+        text: `${parsed.kategori} · Rp ${amtLabel} · ${parsed.keterangan || parsed.tanggal}. Periksa lalu klik Simpan.`,
+        timer: 2200,
         showConfirmButton: false,
         customClass: { popup: getSwalClass() }
       });

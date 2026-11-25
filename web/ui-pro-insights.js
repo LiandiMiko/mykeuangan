@@ -1,4 +1,4 @@
-/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, renderAiCashflowResult, walletBalances, currentLang, t */
+/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKey, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
 /* ============================================================
    PRO FEATURES — CALCULATORS, MULTI-TURN AI CHAT & REBALANCING
    ============================================================ */
@@ -21,24 +21,38 @@
   function renderDebtCalcTab(pane, userDebts, totalUserDebt, fmt) {
     const base = userDebts.length ? userDebts : [{ name: 'Contoh Utang', balance: 5000000, annualRatePct: 15, minPayment: 300000 }];
     renderHtml(pane, `
-      <p class="text-slate-500 mb-2">Terdeteksi <strong>${userDebts.length}</strong> utang aktif (${escapeHtmlJS(fmt(totalUserDebt))}).</p>
-      <div class="grid grid-cols-2 gap-2 mb-2">
-        <label for="calc-extra" class="sr-only">Ekstra bayar bulanan (Rp)</label>
-        <input id="calc-extra" type="number" min="0" value="500000" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 tabular-nums" placeholder="Ekstra bayar/bln">
-        <button type="button" id="btnRunDebtCalc" class="px-3 py-2 rounded-lg bg-brand text-white font-bold">Bandingkan Strategi</button>
+      <div class="space-y-3">
+        <div class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70 text-slate-600 dark:text-slate-300">
+          Terdeteksi <strong class="text-slate-900 dark:text-white">${userDebts.length}</strong> utang aktif · Total <strong class="text-slate-900 dark:text-white tabular-nums">${escapeHtmlJS(fmt(totalUserDebt))}</strong>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5 items-end">
+          <div>
+            <label for="calc-extra" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Ekstra bayar bulanan (Rp)</label>
+            <input id="calc-extra" type="number" min="0" value="500000" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand" placeholder="500000">
+          </div>
+          <button type="button" id="btnRunDebtCalc" class="min-h-11 px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:opacity-95 transition-opacity">Hitung Ulang</button>
+        </div>
+        <div id="debtCalcOut" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 tabular-nums"></div>
       </div>
-      <div id="debtCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 tabular-nums"></div>
     `);
     const run = () => {
       const extra = Number(document.getElementById('calc-extra').value) || 0;
       const snow = FinancePro.simulateDebtPayoff(base, extra, 'snowball');
       const aval = FinancePro.simulateDebtPayoff(base, extra, 'avalanche');
       const capWarn = (snow.capped || aval.capped)
-        ? '<p class="mt-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">Catatan: cicilan belum melunasi bunga penuh dalam 600 bulan (50 thn); tambah ekstra bayar bulanan.</p>'
+        ? '<p class="sm:col-span-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400">Catatan: cicilan belum melunasi bunga penuh dalam 600 bulan (50 thn); tambah ekstra bayar bulanan.</p>'
         : '';
       renderHtml(document.getElementById('debtCalcOut'), `
-        <p><strong>Snowball</strong> (terkecil dulu): <strong>${snow.months}${snow.capped ? '+' : ''} bln</strong> · Total ${escapeHtmlJS(fmt(snow.totalPaid))}</p>
-        <p class="mt-1"><strong>Avalanche</strong> (bunga/saldo terbesar dulu): <strong>${aval.months}${aval.capped ? '+' : ''} bln</strong> · Total ${escapeHtmlJS(fmt(aval.totalPaid))}</p>
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Snowball (Terkecil Dulu)</p>
+          <p class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">${snow.months}${snow.capped ? '+' : ''} bulan</p>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">Total bayar: <strong>${escapeHtmlJS(fmt(snow.totalPaid))}</strong></p>
+        </div>
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Avalanche (Bunga Tertinggi)</p>
+          <p class="text-base font-extrabold text-brand dark:text-brand-ink mt-0.5">${aval.months}${aval.capped ? '+' : ''} bulan</p>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">Total bayar: <strong>${escapeHtmlJS(fmt(aval.totalPaid))}</strong></p>
+        </div>
         ${capWarn}
       `);
     };
@@ -48,13 +62,27 @@
 
   function renderCompoundCalcTab(pane, fmt) {
     renderHtml(pane, `
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-        <input id="cmp-init" type="number" value="5000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Modal awal">
-        <input id="cmp-mon" type="number" value="1000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Setor/bln">
-        <input id="cmp-rate" type="number" step="0.5" value="8" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Return %/th">
-        <input id="cmp-yrs" type="number" min="1" max="40" value="5" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Tahun">
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div>
+            <label for="cmp-init" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Modal Awal (Rp)</label>
+            <input id="cmp-init" type="number" min="0" value="5000000" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label for="cmp-mon" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Setor / Bulan</label>
+            <input id="cmp-mon" type="number" min="0" value="1000000" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label for="cmp-rate" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Return (% / th)</label>
+            <input id="cmp-rate" type="number" step="0.5" value="8" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label for="cmp-yrs" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Durasi (Thn)</label>
+            <input id="cmp-yrs" type="number" min="1" max="40" value="5" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+        </div>
+        <div id="compCalcOut" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 tabular-nums"></div>
       </div>
-      <div id="compCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60"></div>
     `);
     const run = () => {
       const res = FinancePro.simulateCompoundGrowth(
@@ -62,8 +90,15 @@
         document.getElementById('cmp-rate').value, document.getElementById('cmp-yrs').value
       );
       renderHtml(document.getElementById('compCalcOut'), `
-        <p>Nilai Akhir: <strong class="text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(res.finalValue))}</strong></p>
-        <p class="mt-1">Total Setoran: ${escapeHtmlJS(fmt(res.totalContributed))} · Imbal Hasil: <strong class="text-emerald-600">+${escapeHtmlJS(fmt(res.totalGain))}</strong></p>
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Estimasi Nilai Akhir</p>
+          <p class="text-base font-extrabold text-brand dark:text-brand-ink mt-0.5">${escapeHtmlJS(fmt(res.finalValue))}</p>
+        </div>
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Setoran &amp; Imbal Hasil</p>
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-1">${escapeHtmlJS(fmt(res.totalContributed))}</p>
+          <p class="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">+${escapeHtmlJS(fmt(res.totalGain))} gain</p>
+        </div>
       `);
     };
     ['cmp-init', 'cmp-mon', 'cmp-rate', 'cmp-yrs'].forEach((id) => { document.getElementById(id).oninput = run; });
@@ -72,13 +107,27 @@
 
   function renderInstallmentCalcTab(pane, fmt) {
     renderHtml(pane, `
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-        <input id="ins-cash" type="number" value="10000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Harga Tunai">
-        <input id="ins-dp" type="number" value="2000000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="DP">
-        <input id="ins-mon" type="number" value="850000" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Cicilan/bln">
-        <input id="ins-cnt" type="number" min="1" value="12" class="px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" placeholder="Tenor (bln)">
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div>
+            <label for="ins-cash" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Harga Tunai (Rp)</label>
+            <input id="ins-cash" type="number" min="0" value="10000000" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label for="ins-dp" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Uang Muka / DP</label>
+            <input id="ins-dp" type="number" min="0" value="2000000" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label for="ins-mon" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Cicilan / Bulan</label>
+            <input id="ins-mon" type="number" min="0" value="850000" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label for="ins-cnt" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Tenor (Bln)</label>
+            <input id="ins-cnt" type="number" min="1" value="12" class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+        </div>
+        <div id="instCalcOut" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 tabular-nums"></div>
       </div>
-      <div id="instCalcOut" class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60"></div>
     `);
     const run = () => {
       const res = FinancePro.simulateInstallmentVsCash(
@@ -86,8 +135,16 @@
         document.getElementById('ins-mon').value, document.getElementById('ins-cnt').value
       );
       renderHtml(document.getElementById('instCalcOut'), `
-        <p>Total Cicilan: <strong>${escapeHtmlJS(fmt(res.totalInstallment))}</strong> vs Tunai <strong>${escapeHtmlJS(fmt(res.cashPrice))}</strong></p>
-        <p class="mt-1">Selisih Biaya: <strong class="text-rose-600">+${escapeHtmlJS(fmt(res.extraCost))} (${res.effectiveMarkupPct}%)</strong></p>
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Skema Cicilan</p>
+          <p class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">${escapeHtmlJS(fmt(res.totalInstallment))}</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Harga tunai: ${escapeHtmlJS(fmt(res.cashPrice))}</p>
+        </div>
+        <div class="p-3 rounded-2xl bg-rose-50/70 dark:bg-rose-500/10 border border-rose-200/70 dark:border-rose-500/30">
+          <p class="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide">Selisih Biaya Bunga/Admin</p>
+          <p class="text-base font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">+${escapeHtmlJS(fmt(res.extraCost))}</p>
+          <p class="text-[11px] text-rose-700/80 dark:text-rose-300 mt-0.5">Efektif +${res.effectiveMarkupPct}% lebih mahal</p>
+        </div>
       `);
     };
     ['ins-cash', 'ins-dp', 'ins-mon', 'ins-cnt'].forEach((id) => { document.getElementById(id).oninput = run; });
@@ -104,10 +161,10 @@
       width: 640,
       html: `
         <div class="text-left space-y-3 text-xs">
-          <div class="flex flex-wrap gap-1.5" id="calcTabs">
-            <button type="button" data-calc-tab="debt" class="px-3 py-1.5 rounded-xl bg-brand text-white font-bold">Lunas Utang</button>
-            <button type="button" data-calc-tab="compound" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold">Bunga Majemuk</button>
-            <button type="button" data-calc-tab="installment" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold">Cicilan vs Tunai</button>
+          <div class="p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 grid grid-cols-3 gap-1" id="calcTabs">
+            <button type="button" data-calc-tab="debt" class="min-h-10 px-2.5 py-2 rounded-xl bg-brand text-white font-bold shadow-xs transition-colors">Lunas Utang</button>
+            <button type="button" data-calc-tab="compound" class="min-h-10 px-2.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-bold transition-colors">Majemuk</button>
+            <button type="button" data-calc-tab="installment" class="min-h-10 px-2.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-bold transition-colors">Cicilan</button>
           </div>
           <div id="calcPane"></div>
         </div>
@@ -120,7 +177,7 @@
           btn.onclick = () => {
             document.querySelectorAll('[data-calc-tab]').forEach((b) => {
               const on = b === btn;
-              b.className = `px-3 py-1.5 rounded-xl font-bold ${on ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800'}`;
+              b.className = `min-h-10 px-2.5 py-2 rounded-xl font-bold transition-colors ${on ? 'bg-brand text-white shadow-xs' : 'text-slate-600 dark:text-slate-300'}`;
             });
             const tab = btn.getAttribute('data-calc-tab');
             if (tab === 'compound') renderCompoundCalcTab(pane, fmt);
@@ -142,16 +199,23 @@
       return;
     }
     out.classList.remove('hide');
-    renderHtml(out, `<div class="space-y-3 max-h-96 overflow-y-auto pr-1">${history.map((msg) => {
+    renderHtml(out, `<div id="aiChatScroll" class="space-y-3 max-h-[28rem] overflow-y-auto pr-1">${history.map((msg) => {
       const isUser = msg.role === 'user';
-      const formatted = escapeHtmlJS(msg.text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+      const formatted = !isUser && typeof formatAiMarkdownSafe === 'function'
+        ? formatAiMarkdownSafe(msg.text)
+        : escapeHtmlJS(msg.text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+      const modelPill = !isUser && msg.model
+        ? `<span class="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold normal-case text-slate-500 dark:text-slate-400">${escapeHtmlJS(msg.model)}</span>`
+        : '';
       return `
-        <div class="${isUser ? 'bg-brand/10 border-brand/20 ml-3 sm:ml-6' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 mr-3 sm:mr-6'} p-3 rounded-2xl border text-xs sm:text-sm">
-          <p class="text-[11px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-500 dark:text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}</p>
+        <div class="${isUser ? 'bg-brand/10 border-brand/20 ml-3 sm:ml-8' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 mr-1 sm:mr-4'} p-3.5 rounded-2xl border text-xs sm:text-sm">
+          <p class="text-[11px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-500 dark:text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}${modelPill}</p>
           <div class="leading-relaxed">${formatted}</div>
         </div>
       `;
     }).join('')}</div>`);
+    const scroller = document.getElementById('aiChatScroll');
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
   }
 
   function clearAiChatHistory() {
@@ -160,10 +224,11 @@
     renderAiChatThread([]);
   }
 
-  function saveAiAnalysisCache(parsed, payload) {
+  function saveAiAnalysisCache(parsed, payload, meta) {
     const pro = root.__mkPro || {};
     if (!parsed || !payload || !payload.period) return;
-    pro.safeWriteJson(pro.KEYS.AI_ANALYSIS_CACHE, { period: payload.period, savedAt: new Date().toISOString(), parsed, payload });
+    const savedAt = (meta && meta.savedAt) || new Date().toISOString();
+    pro.safeWriteJson(pro.KEYS.AI_ANALYSIS_CACHE, { period: payload.period, savedAt, meta: meta || null, parsed, payload });
     const box = document.getElementById('aiAnalysisResult');
     if (box) box.dataset.cachedPeriod = payload.period;
   }
@@ -176,7 +241,7 @@
     if (cached && cached.period === DB.currentPeriod && typeof renderAiCashflowResult === 'function') {
       if (box.dataset.cachedPeriod !== DB.currentPeriod || !box.hasChildNodes()) {
         box.classList.remove('hide');
-        renderAiCashflowResult(cached.parsed, cached.payload);
+        renderAiCashflowResult(cached.parsed, cached.payload, cached.meta);
         box.dataset.cachedPeriod = cached.period;
       }
     } else if (box.dataset.cachedPeriod && box.dataset.cachedPeriod !== DB.currentPeriod) {
@@ -207,8 +272,8 @@
 
     const hist = pro.safeReadJson(pro.KEYS.AI_CHAT_HISTORY, []);
     const history = Array.isArray(hist) ? hist : [];
-    const recentTurns = history.slice(-4).map((m) => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n');
-    const contextPrompt = recentTurns ? `${recentTurns}\nPertanyaan lanjutan: ${question}` : question;
+    const priorHistory = history.slice();
+    const activeModel = typeof getGeminiModel === 'function' ? getGeminiModel() : 'gemini-4-hydrogen';
 
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
     history.push({ role: 'user', text: question });
@@ -217,20 +282,32 @@
     if (out) {
       const loader = document.createElement('p');
       loader.className = 'text-xs text-slate-500 dark:text-slate-400 mt-2 animate-pulse';
-      loader.textContent = 'Gemini sedang menyusun jawaban...';
+      loader.textContent = `Gemini (${activeModel}) sedang menyusun jawaban...`;
       out.appendChild(loader);
     }
 
     try {
-      const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
-      const prompt = FinanceAnalysis.buildAiFinancialChatPrompt(payload, contextPrompt, currentLang);
-      const { json } = await callGeminiApi(apiKey, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.35 } });
-      const answer = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
+      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const payload = typeof FinanceAnalysis.buildEnrichedAiSnapshot === 'function'
+        ? FinanceAnalysis.buildEnrichedAiSnapshot(DB, DB.currentPeriod, DB.payrollDay, todayStr)
+        : FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
+      const steps = typeof FinanceAnalysis.buildAiChatSteps === 'function'
+        ? FinanceAnalysis.buildAiChatSteps(payload, priorHistory, question, currentLang)
+        : FinanceAnalysis.buildAiFinancialChatPrompt(payload, question, currentLang);
+      const systemInstruction = typeof FinanceAnalysis.buildGeminiSystemInstruction === 'function'
+        ? FinanceAnalysis.buildGeminiSystemInstruction('chat', currentLang) : '';
+      const res = await callGeminiApi(apiKey, {
+        input: steps,
+        systemInstruction,
+        thinkingLevel: typeof getGeminiThinkingLevel === 'function' ? getGeminiThinkingLevel() : 'medium'
+      });
+      const answer = (res && res.text) || (typeof extractGeminiText === 'function' ? extractGeminiText(res && res.json) : '');
       if (!answer) throw new Error('Gemini tidak mengembalikan jawaban.');
-      history.push({ role: 'assistant', text: answer });
+      history.push({ role: 'assistant', text: answer, model: (res && res.model) || activeModel });
       const trimmed = history.slice(-12);
       pro.safeWriteJson(pro.KEYS.AI_CHAT_HISTORY, trimmed);
       renderAiChatThread(trimmed);
+      if (typeof updateAiKeyStatusUI === 'function') updateAiKeyStatusUI();
     } catch (err) {
       history.pop();
       pro.safeWriteJson(pro.KEYS.AI_CHAT_HISTORY, history);
@@ -252,18 +329,37 @@
       width: 480,
       html: `
         <div class="text-left space-y-2.5 text-xs">
-          <p class="text-slate-500 dark:text-slate-400">Atur target persentase portofolio (total harus 100%).</p>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-slate-600 dark:text-slate-300">Atur target porsi portofolio (wajib total 100%).</p>
+            <span id="rebTotalBadge" class="px-2.5 py-1 rounded-full text-[11px] font-extrabold tabular-nums">Total: 100%</span>
+          </div>
           ${keys.map((k, idx) => `
-            <div class="flex items-center justify-between gap-2">
-              <label for="reb-${idx}" class="font-bold">${escapeHtmlJS(k)}</label>
-              <input id="reb-${idx}" data-reb-key="${escapeHtmlJS(k)}" type="number" min="0" max="100" value="${Number(saved[k]) || 0}"
-                     class="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-right tabular-nums">
+            <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+              <label for="reb-${idx}" class="font-bold text-slate-700 dark:text-slate-200">${escapeHtmlJS(k)}</label>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <input id="reb-${idx}" data-reb-key="${escapeHtmlJS(k)}" type="number" min="0" max="100" value="${Number(saved[k]) || 0}"
+                       class="w-20 min-h-10 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-right font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-brand">
+                <span class="font-bold text-slate-500 dark:text-slate-400">%</span>
+              </div>
             </div>`).join('')}
         </div>
       `,
       showCancelButton: true,
       confirmButtonText: t('btn.simpan'),
       cancelButtonText: t('btn.batal'),
+      didOpen: () => {
+        const badge = document.getElementById('rebTotalBadge');
+        const syncTotal = () => {
+          let sum = 0;
+          document.querySelectorAll('[data-reb-key]').forEach((inp) => { sum += Math.max(0, Number(inp.value) || 0); });
+          if (!badge) return;
+          badge.textContent = `Total: ${sum}%`;
+          const ok = Math.round(sum) === 100;
+          badge.className = `px-2.5 py-1 rounded-full text-[11px] font-extrabold tabular-nums ${ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'}`;
+        };
+        document.querySelectorAll('[data-reb-key]').forEach((inp) => { inp.oninput = syncTotal; });
+        syncTotal();
+      },
       preConfirm: () => {
         const next = {};
         let sum = 0;

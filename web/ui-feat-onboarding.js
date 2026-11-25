@@ -10,15 +10,20 @@
 
   const isEn = () => typeof localStorage !== 'undefined' && localStorage.getItem('lang') === 'en';
   const msg = (idStr, enStr) => (isEn() ? enStr : idStr);
+  const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const renderStepIndicator = (step) => `<div class="flex items-center gap-1.5 mb-2" aria-hidden="true">${[1, 2, 3].map((n) => `<span class="h-1.5 flex-1 rounded-full ${n <= step ? 'bg-brand' : 'bg-slate-200 dark:bg-slate-700'}"></span>`).join('')}</div>`;
 
   async function runStepOneWallet(wallet) {
     const startBal = wallet ? Number(wallet.openingBalance) || 0 : 0;
     const res = await Swal.fire({
       title: msg('Langkah 1/3 · Saldo Awal Dompet', 'Step 1/3 · Starting Balance'),
-      html: `<div class="text-left space-y-2.5 text-xs">
+      html: `<div class="text-left space-y-3 text-xs">
+        ${renderStepIndicator(1)}
         <p class="text-slate-600 dark:text-slate-300">${msg('Sesuaikan saldo awal dompet utama agar arus kas & Net Worth langsung akurat.', 'Set your primary wallet starting balance so Net Worth & Cashflow are accurate right away.')}</p>
-        <p class="font-bold text-slate-800 dark:text-white">${wallet ? `${wallet.name}` : msg('Dompet Utama', 'Primary Wallet')}</p>
-        <input id="ob-wallet-bal" type="text" inputmode="numeric" class="swal2-input tabular-nums" value="${formatNominalInputValue(startBal)}" placeholder="0">
+        <div>
+          <label for="ob-wallet-bal" class="block font-bold text-slate-700 dark:text-slate-200 mb-1">${wallet ? escHtml(wallet.name) : msg('Dompet Utama', 'Primary Wallet')}</label>
+          <input id="ob-wallet-bal" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin:0;width:100%" value="${formatNominalInputValue(startBal)}" placeholder="0">
+        </div>
       </div>`,
       showCancelButton: true,
       confirmButtonText: msg('Lanjut', 'Next'),
@@ -43,10 +48,13 @@
     const curDay = Math.max(1, Math.min(28, Number(DB.payrollDay) || 28));
     const res = await Swal.fire({
       title: msg('Langkah 2/3 · Tanggal Gajian', 'Step 2/3 · Payroll Cycle Day'),
-      html: `<div class="text-left space-y-2.5 text-xs">
+      html: `<div class="text-left space-y-3 text-xs">
+        ${renderStepIndicator(2)}
         <p class="text-slate-600 dark:text-slate-300">${msg('Siklus bulanan & Cashflow Runway dihitung mulai tanggal gajian pilihan Anda (1–28).', 'Your monthly cycle and Cashflow Runway start from your chosen payday (1–28).')}</p>
-        <label for="ob-payroll-day" class="block font-bold text-slate-500">${msg('Tanggal mulai siklus (1–28)', 'Cycle start day (1–28)')}</label>
-        <input id="ob-payroll-day" type="number" min="1" max="28" inputmode="numeric" class="swal2-input tabular-nums" value="${curDay}">
+        <div>
+          <label for="ob-payroll-day" class="block font-bold text-slate-700 dark:text-slate-200 mb-1">${msg('Tanggal mulai siklus (1–28)', 'Cycle start day (1–28)')}</label>
+          <input id="ob-payroll-day" type="number" min="1" max="28" inputmode="numeric" class="swal2-input tabular-nums" style="margin:0;width:100%" value="${curDay}">
+        </div>
       </div>`,
       showCancelButton: true,
       confirmButtonText: msg('Simpan & Lanjut', 'Save & Next'),
@@ -73,9 +81,10 @@
     const res = await Swal.fire({
       icon: 'success',
       title: msg('Langkah 3/3 · Siap Digunakan!', 'Step 3/3 · All Set!'),
-      html: `<div class="text-left space-y-2.5 text-xs">
+      html: `<div class="text-left space-y-3 text-xs">
+        ${renderStepIndicator(3)}
         <p class="text-slate-600 dark:text-slate-300">${msg('Pilih langkah cepat berikutnya atau mulai jelajahi Dashboard:', 'Pick an optional quick setup or start exploring your Dashboard:')}</p>
-        <div class="grid grid-cols-1 gap-2 pt-1">
+        <div class="grid grid-cols-1 gap-2 pt-0.5">
           <button type="button" id="ob-btn-pin" class="w-full min-h-11 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2"><i class="ph ph-lock-key text-base" aria-hidden="true"></i><span>${msg('Atur PIN / Biometrik Lokal', 'Set Local PIN / Biometrics')}</span></button>
           <button type="button" id="ob-btn-tg" class="w-full min-h-11 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-800/50 font-bold text-blue-700 dark:text-blue-300 flex items-center justify-center gap-2"><i class="ph ph-telegram-logo text-base" aria-hidden="true"></i><span>${msg('Hubungkan Bot Telegram', 'Connect Telegram Bot')}</span></button>
         </div>

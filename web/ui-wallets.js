@@ -144,16 +144,26 @@
     const res = await Swal.fire({
       title: 'Tambah Dompet',
       html: `
-        <label for="wl-new-name" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Nama dompet</label>
-        <input id="wl-new-name" class="swal2-input" maxlength="80" placeholder="Contoh: SeaBank">
-        <label for="wl-new-kind" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jenis</label>
-        <select id="wl-new-kind" class="swal2-input">
-          <option value="bank">Bank</option>
-          <option value="ewallet">E-wallet</option>
-          <option value="cash">Tunai</option>
-        </select>
-        <label for="wl-new-balance" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Saldo awal (Rp)</label>
-        <input id="wl-new-balance" type="text" inputmode="numeric" class="swal2-input tabular-nums" value="0">`,
+        <div class="text-left space-y-3">
+          <div>
+            <label for="wl-new-name" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nama dompet</label>
+            <input id="wl-new-name" class="swal2-input" style="margin-top:0.35rem" maxlength="80" placeholder="Contoh: SeaBank">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="wl-new-kind" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jenis dompet</label>
+              <select id="wl-new-kind" class="swal2-input" style="margin-top:0.35rem">
+                <option value="bank">Bank</option>
+                <option value="ewallet">E-wallet</option>
+                <option value="cash">Tunai</option>
+              </select>
+            </div>
+            <div>
+              <label for="wl-new-balance" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Saldo awal (Rp)</label>
+              <input id="wl-new-balance" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" value="0">
+            </div>
+          </div>
+        </div>`,
       showCancelButton: true,
       confirmButtonText: 'Simpan',
       cancelButtonText: 'Batal',
@@ -207,17 +217,27 @@
     const res = await Swal.fire({
       title: 'Edit ' + escapeHtmlJS(w.name),
       html: `
-        <label for="wl-name" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nama dompet</label>
-        <input id="wl-name" class="swal2-input" value="${escapeHtmlJS(w.name)}" placeholder="Nama dompet">
-        <label for="wl-kind" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jenis dompet</label>
-        <select id="wl-kind" class="swal2-input">
-          <option value="bank" ${w.kind === 'bank' ? 'selected' : ''}>Bank</option>
-          <option value="ewallet" ${w.kind === 'ewallet' ? 'selected' : ''}>E-wallet</option>
-          <option value="cash" ${w.kind === 'cash' ? 'selected' : ''}>Tunai</option>
-        </select>
-        <label for="wl-bal" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Saldo sekarang (Rp)</label>
-        <input id="wl-bal" type="text" inputmode="numeric" class="swal2-input tabular-nums" value="${escapeHtmlJS(formatNominalInputValue(Math.round(Math.abs(bal))) || '0')}" placeholder="Saldo sekarang (Rp)">
-        <p style="font-size:12px;color:#64748b;margin-top:10px">Mengubah saldo akan menyesuaikan saldo awal dompet. Riwayat transaksi tidak berubah.</p>`,
+        <div class="text-left space-y-3">
+          <div>
+            <label for="wl-name" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nama dompet</label>
+            <input id="wl-name" class="swal2-input" style="margin-top:0.35rem" value="${escapeHtmlJS(w.name)}" placeholder="Nama dompet">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="wl-kind" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jenis dompet</label>
+              <select id="wl-kind" class="swal2-input" style="margin-top:0.35rem">
+                <option value="bank" ${w.kind === 'bank' ? 'selected' : ''}>Bank</option>
+                <option value="ewallet" ${w.kind === 'ewallet' ? 'selected' : ''}>E-wallet</option>
+                <option value="cash" ${w.kind === 'cash' ? 'selected' : ''}>Tunai</option>
+              </select>
+            </div>
+            <div>
+              <label for="wl-bal" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Saldo sekarang (Rp)</label>
+              <input id="wl-bal" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" value="${escapeHtmlJS(formatNominalInputValue(Math.round(Math.abs(bal))) || '0')}" placeholder="Saldo sekarang (Rp)">
+            </div>
+          </div>
+          <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">Mengubah saldo akan menyesuaikan saldo awal dompet. Riwayat transaksi tidak berubah.</p>
+        </div>`,
       showCancelButton: true,
       showDenyButton: (DB.wallets || []).length > 1,
       denyButtonText: 'Hapus Dompet',
@@ -259,18 +279,36 @@
     const res = await Swal.fire({
       title: kind === 'tarik_tunai' ? 'Tarik Tunai / Transfer Antar Dompet' : 'Transfer Antar Dompet',
       html: `
-        <label for="tf-from" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Dari dompet</label>
-        <select id="tf-from" class="swal2-input">${walletOptions(fromWallet.id)}</select>
-        <label for="tf-to" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Ke dompet</label>
-        <select id="tf-to" class="swal2-input">${walletOptions(toWallet.id)}</select>
-        <label for="tf-date" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Tanggal Transfer</label>
-        <input id="tf-date" type="date" class="swal2-input" value="${localToday()}">
-        <label for="tf-nom" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Nominal (Rp)</label>
-        <input id="tf-nom" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Contoh: 500.000">
-        <label for="tf-fee" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Biaya admin (Rp, opsional)</label>
-        <input id="tf-fee" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="0">
-        <label for="tf-ket" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Catatan (opsional)</label>
-        <input id="tf-ket" type="text" class="swal2-input" placeholder="Mis. Tarik tunai ATM">`,
+        <div class="text-left space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="tf-from" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Dari dompet</label>
+              <select id="tf-from" class="swal2-input" style="margin-top:0.35rem">${walletOptions(fromWallet.id)}</select>
+            </div>
+            <div>
+              <label for="tf-to" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Ke dompet</label>
+              <select id="tf-to" class="swal2-input" style="margin-top:0.35rem">${walletOptions(toWallet.id)}</select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="tf-nom" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nominal (Rp)</label>
+              <input id="tf-nom" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Contoh: 500.000">
+            </div>
+            <div>
+              <label for="tf-fee" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Biaya admin (Rp, opsional)</label>
+              <input id="tf-fee" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="0">
+            </div>
+          </div>
+          <div>
+            <label for="tf-date" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal Transfer</label>
+            <input id="tf-date" type="date" class="swal2-input" style="margin-top:0.35rem" value="${localToday()}">
+          </div>
+          <div>
+            <label for="tf-ket" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Catatan (opsional)</label>
+            <input id="tf-ket" type="text" class="swal2-input" style="margin-top:0.35rem" placeholder="Mis. Tarik tunai ATM">
+          </div>
+        </div>`,
       showCancelButton: true,
       confirmButtonText: 'Simpan',
       cancelButtonText: 'Batal',
@@ -306,7 +344,7 @@
   function deleteTransfer(id) {
     Swal.fire({
       title: 'Hapus transfer ini?', text: 'Saldo dompet akan kembali seperti sebelum transfer.', icon: 'warning',
-      showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus', customClass: { popup: getSwalClass() }
+      showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus', cancelButtonText: 'Batal', customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {

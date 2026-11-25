@@ -1,50 +1,208 @@
-/* global DB, FinanceAnalysis, Swal, escapeHtmlJS, renderHtml, getSwalClass, currentLang, saveAiAnalysisCache, t */
+/* global DB, FinanceAnalysis, Swal, escapeHtmlJS, renderHtml, getSwalClass, currentLang, localToday, saveAiAnalysisCache, t */
 /* ============================================================
-   ON-DEMAND GEMINI AI CASHFLOW ANALYZER
+   ON-DEMAND GEMINI 4 AI CASHFLOW ANALYZER (INTERACTIONS API)
    ============================================================ */
 (function (root) {
   'use strict';
 
   const GEMINI_KEY_STORAGE = 'mk_gemini_api_key';
   const GEMINI_MODEL_STORAGE = 'mk_gemini_model';
-  const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+  const GEMINI_THINKING_STORAGE = 'mk_gemini_thinking';
+  const DEFAULT_GEMINI_MODEL = 'gemini-4-hydrogen';
+  const GEMINI_FALLBACK_MODELS = ['gemini-4-hydrogen', 'gemini-3.5-flash-lite', 'gemini-4-argon'];
+  const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1/interactions';
+
+  const GEMINI_MODEL_PRESETS = [
+    { id: 'gemini-4-hydrogen', label: 'Gemini 4 Hydrogen (Rekomendasi · Seimbang & 1M Konteks)', note: 'Model harian terbaru: cepat, akurat untuk analisis arus kas, chat, dan OCR struk (Free & Paid tier).' },
+    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (Cepat & Hemat Kuota)', note: 'Respons ultra-cepat dan hemat kuota untuk OCR struk maupun tanya jawab harian.' },
+    { id: 'gemini-4-argon', label: 'Gemini 4 Argon (Reasoning Efisien)', note: 'Penalaran lebih tajam untuk simulasi utang, anggaran kompleks, dan strategi investasi.' },
+    { id: 'gemini-4-neon', label: 'Gemini 4 Neon (Frontier Cepat · Paid Tier)', note: 'Kecerdasan frontier dengan penyelesaian cepat (khusus API Key Paid tier).' },
+    { id: 'gemini-4-carbon', label: 'Gemini 4 Carbon (Reasoning Paling Mendalam)', note: 'Model terkuat untuk audit finansial mendalam dan perencanaan kompleks.' }
+  ];
+
+  let lastCashflowSummaryText = '';
+
+  function normalizeGeminiModel(rawModel) {
+    const clean = String(rawModel || '').replace(/^models\//i, '').trim();
+    if (!clean) return DEFAULT_GEMINI_MODEL;
+    const lower = clean.toLowerCase();
+    if (['gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-neon', 'gemini-4-carbon', 'gemini-3.5-flash-lite'].includes(lower)) return lower;
+    if (/^gemini-(2\.0|2\.5|3\.1)-flash-lite/i.test(clean)) return 'gemini-3.5-flash-lite';
+    if (/^gemini-(1\.5|2\.5|3(?:\.1)?)-pro/i.test(clean)) return 'gemini-4-argon';
+    if (/^gemini-(1\.5|2\.0|2\.5|3\.5|3\.6|3\.7|3\.8|3)-flash/i.test(clean)) return DEFAULT_GEMINI_MODEL;
+    if (/^gemini-(1\.5|2\.0|2\.5)/i.test(clean)) return DEFAULT_GEMINI_MODEL;
+    return clean;
+  }
 
   function getGeminiApiKey() {
     return (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
   }
 
   function getGeminiModel() {
-    return (localStorage.getItem(GEMINI_MODEL_STORAGE) || DEFAULT_GEMINI_MODEL).trim() || DEFAULT_GEMINI_MODEL;
+    const raw = (localStorage.getItem(GEMINI_MODEL_STORAGE) || '').trim();
+    if (!raw) return DEFAULT_GEMINI_MODEL;
+    const normalized = normalizeGeminiModel(raw);
+    if (normalized !== raw.replace(/^models\//i, '').trim()) {
+      try { localStorage.setItem(GEMINI_MODEL_STORAGE, normalized); } catch (_) { /* ignore */ }
+    }
+    return normalized;
   }
 
-  async function callGeminiApi(apiKey, requestBody) {
-    const configured = getGeminiModel();
-    const candidates = [configured, DEFAULT_GEMINI_MODEL, 'gemini-2.0-flash']
-      .filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+  function getGeminiThinkingLevel() {
+    const raw = String(localStorage.getItem(GEMINI_THINKING_STORAGE) || 'medium').trim().toLowerCase();
+    return (raw === 'low' || raw === 'medium' || raw === 'high') ? raw : 'medium';
+  }
+
+  function escapeSafe(str) {
+    if (typeof escapeHtmlJS === 'function') return escapeHtmlJS(str);
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function formatInlineMarkdownSafe(escapedText) {
+    return String(escapedText || '')
+      .replace(/`([^`\n]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-mono text-slate-800 dark:text-slate-100">$1</code>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>')
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s.,!?:;)])/g, '$1<em>$2</em>');
+  }
+
+  function formatAiMarkdownSafe(rawText) {
+    const lines = escapeSafe(String(rawText || '').trim()).split(/\r?\n/);
+    const blocks = [];
+    let listItems = [];
+    let listTag = '';
+    const flushList = () => {
+      if (!listItems.length) return;
+      const cls = (listTag === 'ol' ? 'list-decimal' : 'list-disc') + ' pl-5 space-y-1 my-1.5 text-slate-700 dark:text-slate-200';
+      blocks.push(`<${listTag} class="${cls}">${listItems.join('')}</${listTag}>`);
+      listItems = [];
+      listTag = '';
+    };
+    lines.forEach((line) => {
+      const tLine = line.trim();
+      if (!tLine) { flushList(); return; }
+      const heading = tLine.match(/^#{1,4}\s+(.+)$/);
+      if (heading) {
+        flushList();
+        blocks.push(`<h4 class="font-bold text-xs sm:text-sm text-slate-900 dark:text-white mt-2.5 mb-1">${formatInlineMarkdownSafe(heading[1])}</h4>`);
+        return;
+      }
+      const ul = tLine.match(/^(?:[-*]|•)\s+(.+)$/);
+      const ol = !ul ? tLine.match(/^\d+[.)]\s+(.+)$/) : null;
+      if (ul || ol) {
+        const nextTag = ul ? 'ul' : 'ol';
+        if (listTag && listTag !== nextTag) flushList();
+        listTag = nextTag;
+        listItems.push(`<li>${formatInlineMarkdownSafe((ul || ol)[1])}</li>`);
+        return;
+      }
+      flushList();
+      blocks.push(`<p class="leading-relaxed text-slate-700 dark:text-slate-200 my-1">${formatInlineMarkdownSafe(tLine)}</p>`);
+    });
+    flushList();
+    return blocks.join('');
+  }
+
+  function extractGeminiText(json) {
+    if (!json || typeof json !== 'object') return '';
+    if (typeof json.output_text === 'string' && json.output_text.trim()) return json.output_text.trim();
+    if (Array.isArray(json.steps)) {
+      const chunks = [];
+      json.steps.forEach((step) => {
+        if (!step || step.type !== 'model_output' || !Array.isArray(step.content)) return;
+        step.content.forEach((p) => { if (p && typeof p.text === 'string' && (!p.type || p.type === 'text')) chunks.push(p.text); });
+      });
+      if (chunks.length) return chunks.join('').trim();
+    }
+    const legacyParts = ((json.candidates || [])[0] || {}).content?.parts;
+    return Array.isArray(legacyParts) ? legacyParts.map((p) => (p && p.text) || '').join('').trim() : '';
+  }
+
+  function convertLegacyContentsToInput(contents) {
+    const first = Array.isArray(contents) && contents[0] ? contents[0] : {};
+    const blocks = (Array.isArray(first.parts) ? first.parts : []).map((p) => {
+      if (p && typeof p.text === 'string') return { type: 'text', text: p.text };
+      if (p && p.inlineData && p.inlineData.data) {
+        const mime = String(p.inlineData.mimeType || 'image/jpeg');
+        return { type: mime.startsWith('audio/') ? 'audio' : 'image', data: p.inlineData.data, mime_type: mime };
+      }
+      return null;
+    }).filter(Boolean);
+    return blocks.length === 1 && blocks[0].type === 'text' ? blocks[0].text : blocks;
+  }
+
+  function buildInteractionsPayload(model, requestSpec) {
+    const spec = requestSpec && typeof requestSpec === 'object' ? requestSpec : {};
+    const legacyCfg = spec.generationConfig || {};
+    const input = spec.input !== undefined ? spec.input : convertLegacyContentsToInput(spec.contents);
+    const rawLevel = String(spec.thinkingLevel || getGeminiThinkingLevel()).toLowerCase();
+    const valid = new Set(['low', 'medium', 'high']);
+    if ((model === 'gemini-4-hydrogen' || model === 'gemini-4-neon') && rawLevel === 'xhigh') valid.add('xhigh');
+    const body = { model, input, store: false, generation_config: { thinking_level: valid.has(rawLevel) ? rawLevel : 'medium' } };
+    if (typeof spec.systemInstruction === 'string' && spec.systemInstruction.trim()) body.system_instruction = spec.systemInstruction.trim();
+    const schema = spec.responseSchema || legacyCfg.responseSchema;
+    const wantJson = Boolean(schema) || spec.responseMimeType === 'application/json' || legacyCfg.responseMimeType === 'application/json';
+    if (wantJson) body.response_format = schema ? { type: 'text', mime_type: 'application/json', schema } : { type: 'text', mime_type: 'application/json' };
+    return body;
+  }
+
+  const waitDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function postGeminiInteraction(apiKey, payloadBody) {
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timerId = controller ? setTimeout(() => controller.abort(), 35000) : null;
+    try {
+      const response = await fetch(GEMINI_INTERACTIONS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(payloadBody),
+        ...(controller ? { signal: controller.signal } : {})
+      });
+      const json = await response.json().catch(() => ({}));
+      return { response, json };
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw new Error('Permintaan ke Gemini timeout (35 dtk). Coba model Gemini 3.5 Flash-Lite atau ulangi.');
+      throw err;
+    } finally {
+      if (timerId) clearTimeout(timerId);
+    }
+  }
+
+  async function callGeminiApi(apiKey, requestSpec) {
+    const primary = requestSpec && requestSpec.model ? normalizeGeminiModel(requestSpec.model) : getGeminiModel();
+    const candidates = [primary, ...GEMINI_FALLBACK_MODELS].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
     let lastError = null;
 
     for (let i = 0; i < candidates.length; i += 1) {
       const model = candidates[i];
-      const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify(requestBody)
-      });
-      const json = await response.json().catch(() => ({}));
-      if (response.ok) return { json, model };
-
-      const msg = (json && json.error && json.error.message) || ('HTTP ' + response.status);
-      lastError = new Error(msg);
-      const suggested = String(msg).match(/models\/([a-z0-9._-]+)/gi);
-      if (suggested) {
-        suggested.forEach((tok) => {
-          const name = tok.replace(/^models\//i, '').trim();
-          if (name && name !== model && !candidates.includes(name)) candidates.splice(i + 1, 0, name);
+      const payloadBody = buildInteractionsPayload(model, requestSpec);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        let resPair;
+        try {
+          resPair = await postGeminiInteraction(apiKey, payloadBody);
+        } catch (netErr) {
+          lastError = netErr;
+          if (attempt < 2) { await waitDelay((attempt + 1) * 900); continue; }
+          throw lastError;
+        }
+        const { response, json } = resPair;
+        if (response.ok && !(json && json.error)) {
+          const text = extractGeminiText(json);
+          if (!text) throw new Error('Gemini tidak mengembalikan respons teks.');
+          return { json, text, model };
+        }
+        const msg = (json && json.error && json.error.message) || ('HTTP ' + response.status);
+        lastError = new Error(msg);
+        (String(msg).match(/models\/([a-z0-9._-]+)/gi) || []).forEach((tok) => {
+          const nextModel = normalizeGeminiModel(tok);
+          if (nextModel && nextModel !== model && !candidates.includes(nextModel)) candidates.splice(i + 1, 0, nextModel);
         });
+        const transient = response.status === 429 || response.status === 503 || /high demand|overloaded|temporarily unavailable|rate limit/i.test(msg);
+        if (transient && attempt < 2) { await waitDelay((attempt + 1) * 900); continue; }
+        const unavailable = response.status === 404 || response.status === 403 || /no longer available|not found|not supported|deprecated|billing|paid tier|permission/i.test(msg);
+        if (unavailable) break;
+        throw lastError;
       }
-      const isUnavailable = response.status === 404 || /no longer available|not found|not supported|deprecated/i.test(msg);
-      if (!isUnavailable) throw lastError;
     }
     throw lastError || new Error('Gagal memanggil Gemini API.');
   }
@@ -59,23 +217,44 @@
       : 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
   }
 
+  function buildGeminiConfigModalHtml(existing, currentModel, currentThinking) {
+    const isPreset = GEMINI_MODEL_PRESETS.some((p) => p.id === currentModel);
+    const presetOptions = GEMINI_MODEL_PRESETS.map((p) =>
+      `<option value="${escapeSafe(p.id)}"${p.id === currentModel ? ' selected' : ''}>${escapeSafe(p.label)}</option>`
+    ).join('') + `<option value="__custom__"${!isPreset ? ' selected' : ''}>Model Kustom (ketik manual)...</option>`;
+    return `
+      <div class="text-left text-xs space-y-3">
+        <p class="text-slate-500 dark:text-slate-400">API Key disimpan lokal di browser Anda, dipanggil dengan mode privat (<code>store: false</code>), dan hanya aktif saat Anda menekan tombol AI.</p>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="swal-gemini-key" class="font-bold text-slate-600 dark:text-slate-300">API Key Google AI Studio</label>
+            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-[11px] font-bold text-brand dark:text-brand-ink hover:underline">Buat Key &rarr;</a>
+          </div>
+          <input id="swal-gemini-key" type="password" class="swal2-input" style="margin:0;width:100%" placeholder="${existing ? '•••••••••••• (kosongkan jika tidak mengubah key)' : 'AIza...'}">
+        </div>
+        <div>
+          <label for="swal-gemini-model-preset" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Model Gemini Terbaru</label>
+          <select id="swal-gemini-model-preset" class="swal2-select" style="margin:0;width:100%">${presetOptions}</select>
+          <p id="swal-gemini-model-note" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1"></p>
+          <input id="swal-gemini-model-custom" type="text" class="swal2-input mt-2${isPreset ? ' hide' : ''}" style="margin:0.5rem 0 0;width:100%" value="${escapeSafe(currentModel)}" placeholder="gemini-4-hydrogen">
+        </div>
+        <div>
+          <label for="swal-gemini-thinking" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Kedalaman Analisis (Thinking Level)</label>
+          <select id="swal-gemini-thinking" class="swal2-select" style="margin:0;width:100%">
+            <option value="low"${currentThinking === 'low' ? ' selected' : ''}>Low — Respons cepat &amp; ringkas</option>
+            <option value="medium"${currentThinking === 'medium' ? ' selected' : ''}>Medium — Seimbang (Rekomendasi)</option>
+            <option value="high"${currentThinking === 'high' ? ' selected' : ''}>High — Reasoning mendalam</option>
+          </select>
+        </div>
+      </div>`;
+  }
+
   async function configureGeminiApiKey() {
     const existing = getGeminiApiKey();
-    const currentModel = getGeminiModel();
     const res = await Swal.fire({
-      title: 'API Key Google Gemini',
-      html: `
-        <div class="text-left text-xs space-y-2.5">
-          <p class="text-slate-500 dark:text-slate-400">Masukkan Gemini API Key dari Google AI Studio. Key disimpan secara lokal di browser Anda dan hanya dipakai ketika Anda menekan tombol analisis.</p>
-          <div>
-            <label for="swal-gemini-key" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">API Key</label>
-            <input id="swal-gemini-key" type="password" class="swal2-input" style="margin:0;width:100%" placeholder="${existing ? '•••••••••••• (kosongkan jika tidak mengubah key)' : 'AIza...'}">
-          </div>
-          <div>
-            <label for="swal-gemini-model" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Model Gemini</label>
-            <input id="swal-gemini-model" type="text" class="swal2-input" style="margin:0;width:100%" value="${escapeHtmlJS(currentModel)}" placeholder="gemini-2.5-flash">
-          </div>
-        </div>`,
+      title: 'Konfigurasi Gemini 4 AI',
+      width: 540,
+      html: buildGeminiConfigModalHtml(existing, getGeminiModel(), getGeminiThinkingLevel()),
       showCancelButton: true,
       showDenyButton: Boolean(existing),
       denyButtonText: 'Hapus API Key',
@@ -83,12 +262,28 @@
       confirmButtonText: t('btn.simpan'),
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
+      didOpen: () => {
+        const sel = document.getElementById('swal-gemini-model-preset');
+        const custom = document.getElementById('swal-gemini-model-custom');
+        const noteEl = document.getElementById('swal-gemini-model-note');
+        const sync = () => {
+          if (!sel || !custom || !noteEl) return;
+          custom.classList.toggle('hide', sel.value !== '__custom__');
+          const found = GEMINI_MODEL_PRESETS.find((p) => p.id === sel.value);
+          noteEl.textContent = found ? found.note : 'Masukkan ID model Gemini valid (contoh: gemini-4-hydrogen).';
+        };
+        if (sel) sel.addEventListener('change', sync);
+        sync();
+      },
       preConfirm: () => {
         const val = (document.getElementById('swal-gemini-key').value || '').trim();
-        const model = (document.getElementById('swal-gemini-model').value || '').trim() || DEFAULT_GEMINI_MODEL;
+        const presetVal = (document.getElementById('swal-gemini-model-preset').value || '').trim();
+        const customVal = (document.getElementById('swal-gemini-model-custom').value || '').trim();
+        const model = normalizeGeminiModel(presetVal === '__custom__' ? customVal : presetVal);
+        const thinking = (document.getElementById('swal-gemini-thinking').value || 'medium').trim();
         const key = val || existing;
         if (!key) { Swal.showValidationMessage('Masukkan API Key Gemini terlebih dahulu.'); return false; }
-        return { key, model };
+        return { key, model, thinking };
       }
     });
 
@@ -101,51 +296,76 @@
     if (res.isConfirmed && res.value) {
       localStorage.setItem(GEMINI_KEY_STORAGE, res.value.key);
       localStorage.setItem(GEMINI_MODEL_STORAGE, res.value.model);
+      localStorage.setItem(GEMINI_THINKING_STORAGE, res.value.thinking);
       updateAiKeyStatusUI();
-      Swal.fire({ icon: 'success', title: 'Konfigurasi Gemini disimpan', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'success', title: 'Konfigurasi Gemini 4 disimpan', text: 'Model aktif: ' + res.value.model, timer: 1500, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       return res.value.key;
     }
     return '';
   }
 
-  function renderAiCashflowResult(parsed, payload) {
+  async function copyAiCashflowSummary() {
+    if (!lastCashflowSummaryText) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(lastCashflowSummaryText);
+      Swal.fire({ icon: 'success', title: 'Ringkasan analisis disalin', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+    } catch (_) { /* ignore */ }
+  }
+
+  function renderAiCashflowResult(parsed, payload, meta) {
     const box = document.getElementById('aiAnalysisResult');
     if (!box) return;
     const score = parsed.healthScore;
-    const scoreColor = score === null ? 'bg-brand text-white'
-      : score >= 75 ? 'bg-emerald-600 text-white'
-        : score >= 50 ? 'bg-amber-600 text-white' : 'bg-rose-600 text-white';
+    const scoreColor = score === null ? 'bg-brand text-white' : score >= 75 ? 'bg-emerald-600 text-white' : score >= 50 ? 'bg-amber-600 text-white' : 'bg-rose-600 text-white';
+    const activeModel = (meta && meta.model) || getGeminiModel();
+    const hr = (payload && payload.healthRatios) || {};
+    const runwayText = hr.emergencyRunwayMonths !== null && hr.emergencyRunwayMonths !== undefined ? `${hr.emergencyRunwayMonths} bln` : '';
+
+    lastCashflowSummaryText = [
+      `Analisis Keuangan MyKeuGuech (${payload.period}) · Model: ${activeModel}`,
+      score !== null ? `Skor Kesehatan: ${score}/100 (${parsed.statusLabel || 'Hasil'})` : '',
+      parsed.ringkasan || '',
+      parsed.sorotan?.length ? '\nSorotan:\n- ' + parsed.sorotan.join('\n- ') : '',
+      parsed.bocorAnggaran?.length ? '\nPeringatan:\n- ' + parsed.bocorAnggaran.join('\n- ') : '',
+      parsed.rekomendasi?.length ? '\nRekomendasi:\n- ' + parsed.rekomendasi.join('\n- ') : ''
+    ].filter(Boolean).join('\n');
 
     const renderBullets = (items, emptyText) => {
-      if (!items || !items.length) return emptyText ? `<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(emptyText)}</p>` : '';
+      if (!items || !items.length) return emptyText ? `<p class="text-xs text-slate-500 dark:text-slate-400">${escapeSafe(emptyText)}</p>` : '';
       return '<ul class="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 list-disc pl-4">' +
-        items.map((item) => `<li>${escapeHtmlJS(item)}</li>`).join('') + '</ul>';
+        items.map((item) => `<li>${formatInlineMarkdownSafe(escapeSafe(item))}</li>`).join('') + '</ul>';
     };
 
     renderHtml(box, `
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0">
             ${score !== null ? `<div class="w-12 h-12 rounded-2xl ${scoreColor} flex flex-col items-center justify-center shrink-0 font-black tabular-nums"><span class="text-lg leading-none">${score}</span><span class="text-[10px] opacity-90">/100</span></div>` : ''}
-            <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(t('ai.score'))} · ${escapeHtmlJS(payload.period)}</p>
-              <p class="text-base font-bold text-slate-800 dark:text-white">${escapeHtmlJS(parsed.statusLabel || 'Hasil Analisis')} <span class="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">(Savings Rate: ${escapeHtmlJS(payload.savingsRate)}%)</span></p>
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tabular-nums">${escapeSafe(t('ai.score'))} · ${escapeSafe(payload.period)}</p>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink">${escapeSafe(activeModel)}</span>
+              </div>
+              <p class="text-base font-bold text-slate-800 dark:text-white">${escapeSafe(parsed.statusLabel || 'Hasil Analisis')} <span class="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">(Savings: ${escapeSafe(payload.savingsRate)}%${runwayText ? ' · Dana Darurat: ' + escapeSafe(runwayText) : ''}${hr.debtToAssetPct !== undefined ? ' · Rasio Utang: ' + escapeSafe(hr.debtToAssetPct) + '%' : ''})</span></p>
             </div>
           </div>
-          <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand self-start sm:self-center">Tutup</button>
+          <div class="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <button type="button" onclick="copyAiCashflowSummary()" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Salin</button>
+            <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Tutup</button>
+          </div>
         </div>
-        ${parsed.ringkasan ? `<p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">${escapeHtmlJS(parsed.ringkasan)}</p>` : ''}
+        ${parsed.ringkasan ? `<div class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">${formatAiMarkdownSafe(parsed.ringkasan)}</div>` : ''}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-900/30">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 mb-2">${escapeHtmlJS(t('ai.highlights'))}</h4>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 mb-2">${escapeSafe(t('ai.highlights'))}</h4>
             ${renderBullets(parsed.sorotan, '-')}
           </div>
           <div class="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-900/30">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-2">${escapeHtmlJS(t('ai.alerts'))}</h4>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-2">${escapeSafe(t('ai.alerts'))}</h4>
             ${renderBullets(parsed.bocorAnggaran, t('ai.no_alerts'))}
           </div>
           <div class="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-900/30">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">${escapeHtmlJS(t('ai.recommendations'))}</h4>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">${escapeSafe(t('ai.recommendations'))}</h4>
             ${renderBullets(parsed.rekomendasi, '-')}
           </div>
         </div>
@@ -167,26 +387,33 @@
     renderHtml(box, `
       <div class="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-600 dark:text-slate-300">
         <div class="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0"></div>
-        <span>${escapeHtmlJS(t('ai.loading'))}</span>
+        <span>${escapeSafe(t('ai.loading'))} (${escapeSafe(getGeminiModel())})</span>
       </div>`);
 
     try {
-      const payload = FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
+      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const payload = typeof FinanceAnalysis.buildEnrichedAiSnapshot === 'function'
+        ? FinanceAnalysis.buildEnrichedAiSnapshot(DB, DB.currentPeriod, DB.payrollDay, todayStr)
+        : FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);
       const prompt = FinanceAnalysis.buildGeminiCashflowPrompt(payload, currentLang);
-      const { json } = await callGeminiApi(apiKey, {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+      const systemInstruction = typeof FinanceAnalysis.buildGeminiSystemInstruction === 'function'
+        ? FinanceAnalysis.buildGeminiSystemInstruction('cashflow', currentLang) : '';
+      const { text, model } = await callGeminiApi(apiKey, {
+        input: prompt,
+        systemInstruction,
+        thinkingLevel: getGeminiThinkingLevel(),
+        responseSchema: FinanceAnalysis.CASHFLOW_ANALYSIS_SCHEMA
       });
-      const rawText = (((json || {}).candidates || [])[0] || {}).content?.parts?.map((p) => p.text || '').join('') || '';
-      if (!rawText) throw new Error('Gemini tidak mengembalikan respons teks.');
-      const parsed = FinanceAnalysis.parseGeminiCashflowResponse(rawText);
-      renderAiCashflowResult(parsed, payload);
-      if (typeof saveAiAnalysisCache === 'function') saveAiAnalysisCache(parsed, payload);
+      const parsed = FinanceAnalysis.parseGeminiCashflowResponse(text);
+      const meta = { model, savedAt: new Date().toISOString() };
+      renderAiCashflowResult(parsed, payload, meta);
+      updateAiKeyStatusUI();
+      if (typeof saveAiAnalysisCache === 'function') saveAiAnalysisCache(parsed, payload, meta);
     } catch (err) {
       console.error('runAiCashflowAnalysis error:', err);
       renderHtml(box, `
         <div class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
-          <span>Gagal menjalankan analisis AI: ${escapeHtmlJS(String(err.message || err))}</span>
+          <span>Gagal menjalankan analisis AI: ${escapeSafe(String((err && err.message) || err))}</span>
           <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
         </div>`);
     } finally {
@@ -195,12 +422,8 @@
   }
 
   Object.assign(root, {
-    getGeminiApiKey,
-    getGeminiModel,
-    callGeminiApi,
-    updateAiKeyStatusUI,
-    configureGeminiApiKey,
-    runAiCashflowAnalysis,
-    renderAiCashflowResult
+    GEMINI_MODEL_PRESETS, normalizeGeminiModel, getGeminiApiKey, getGeminiModel,
+    getGeminiThinkingLevel, extractGeminiText, formatAiMarkdownSafe, copyAiCashflowSummary,
+    callGeminiApi, updateAiKeyStatusUI, configureGeminiApiKey, runAiCashflowAnalysis, renderAiCashflowResult
   });
 })(typeof window !== 'undefined' ? window : globalThis);

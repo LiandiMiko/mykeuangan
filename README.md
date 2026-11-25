@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.1** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini AI · Security Hardened
+> **v3.20.3** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
-Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 2.5 Flash**.
+Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.1-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.3-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -46,8 +46,8 @@ Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)
 | **Multi-User** | Registrasi mandiri (min. 8 karakter), Google Sign-In OAuth, login/register dark mode, lupa password via email, hapus akun mandiri |
 | **Admin Panel** | Statistik global platform, cari & filter user, suspend/aktifkan akun, atur password, putus Telegram, hapus akun user & log audit |
 | **PWA & Android** | Web PWA offline + antrean mutasi penuh + backup AES-GCM; Capacitor 8 (API 36), Camera OCR, Haptics, Local Notifications, Pull-to-Refresh, Biometrik & popup update |
-| **Telegram** | Notifikasi, query saldo, dan baca foto struk + voice note AI via Gemini 2.5 Flash; pairing via OTP mandiri + tombol salin perintah |
-| **AI** | Analisis arus keuangan, Scan Struk Vision, & Tanya Jawab / Simulasi Keuangan on-demand dengan Google Gemini 2.5 Flash |
+| **Telegram** | Notifikasi, query saldo, dan baca foto struk + voice note AI via Gemini 4 Hydrogen (Interactions API); pairing via OTP mandiri + tombol salin perintah |
+| **AI** | Analisis arus keuangan mendalam, Scan Struk Vision, & Tanya Jawab / Simulasi Keuangan on-demand dengan Google Gemini 4 Hydrogen |
 | **Keamanan** | XSS sanitization, RLS Supabase, constant-time secret verification, purge cache saat logout |
 
 ---
@@ -466,11 +466,20 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ### 🤖 Analisis Arus Keuangan AI (On-Demand Gemini)
 - Di menu **Analisis AI** (`src/ai.html`) terdapat panel **Analisis Arus Keuangan AI (Gemini)**.
 - Pengguna memasukkan **Gemini API Key** sendiri melalui tombol **Atur API Key Gemini** (key disimpan lokal di browser `localStorage` dan dikirim melalui header `x-goog-api-key`).
-- **On-Demand**: AI **hanya** mengirim ringkasan payload arus kas ke Gemini 2.5 Flash saat pengguna menekan tombol **Analisis Arus Keuangan** — tidak pernah berjalan otomatis di latar belakang.
+- **On-Demand**: AI **hanya** mengirim ringkasan payload arus kas ke Gemini 4 Hydrogen saat pengguna menekan tombol **Analisis Arus Keuangan** — tidak pernah berjalan otomatis di latar belakang.
 
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 25 November 2026: Update v3.20.3 (Perbaikan Kontras Dark Mode Popup, Layout Bottom Sheet & Polish Modal Form)
+- **Kontras Tombol, Ikon Dark Mode & Layout Bottom Sheet (`src/styles.html`)**: Memperbaiki kontras tak terbaca pada tombol `.swal2-deny` berwarna (`color: #ffffff !important` untuk tombol bertema/bahaya dan netral tonal untuk default), menghilangkan kotak putih masker ikon sukses SweetAlert2 pada mode gelap (`var(--mk-surface-elevated)`), menyembunyikan garis pemisah di atas spinner `Swal.showLoading()`, menambahkan `grid-column: 1 / -1` pada drag handle mobile serta tata letak responsif 1/2/3 tombol di bottom sheet, menetapkan `max-height: 88dvh` untuk modal desktop, gating `:hover` di balik `@media (hover: hover) and (pointer: fine)`, serta menambahkan `color-scheme: dark` untuk `<select>` dan input tanggal di mode gelap.
+- **Polish Modal Pro, Onboarding & Bahasa Indonesia (`web/ui-pro-insights.js`, `web/ui-pro-palette.js`, `web/ui-pro-quick.js`, `web/ui-budget.js`, `web/ui-debts.js`, `web/ui-form.js`, `web/ui-assets.js`, `web/ui-wallets.js`, `web/ui-admin.js`, `web/ui-feat-onboarding.js`)**: Menambahkan label eksplisit, tab tersegmentasi & indikator total 100% live (`#rebTotalBadge`) pada modal Kalkulator & Rebalance, tombol tutup sentuh `#mkCmdCloseBtn` + margin safe-area atas di Command Palette, lebar responsif toast PWA di layar HP, kelas Tailwind dark-mode yang bersih pada modal salin budget, indikator progres 3 langkah onboarding, serta tombol konfirmasi/batal berbahasa Indonesia yang konsisten.
+
+### 25 November 2026: Update v3.20.2 (Upgrade Gemini 4 Hydrogen, Interactions API, Enriched Financial AI & Redesign Popup)
+- **Migrasi Gemini 4 Hydrogen & Interactions API (`web/ui-ai.js`, `web/supabase-auth.js`, `supabase/functions/telegram-bot/core.ts`, `supabase/functions/telegram-bot/ai.ts`, `supabase/README.md`)**: Mengganti model usang `gemini-2.5-flash` / `gemini-2.0-flash` menjadi default `gemini-4-hydrogen` (dengan auto-migrasi model tersimpan lama + fallback `gemini-3.5-flash-lite` & `gemini-4-argon`) melalui `POST /v1/interactions`, mode privat `store: false`, `thinking_level` resmi tanpa parameter usang (`temperature` / `thinkingBudget: 0` / `maxOutputTokens < 32768`), serta dialog konfigurasi AI lengkap (pemilih preset model Gemini 4 / Flash-Lite 3.5 + opsi kustom + kedalaman thinking).
+- **Konteks Finansial Kaya, Fix Multi-Turn Chat & Markdown Aman (`web/finance-analysis-ai.js`, `web/ui-pro-insights.js`, `web/ui-feat-ai.js`, `src/ai.html`, `src/i18n.html`)**: Menambahkan `buildEnrichedAiSnapshot()` (rasio dana darurat, rasio utang, *cashflow runway*, *safe daily budget*, anomali belanja, alokasi aset, tren 3 siklus, target, dan utang aktif), `system_instruction` khusus analisis/chat/OCR, JSON Schema terstruktur (`CASHFLOW_ANALYSIS_SCHEMA` & `RECEIPT_OCR_SCHEMA`), perbaikan bug terpotongnya pertanyaan chat di atas 500 karakter lewat stateless `steps` (`buildAiChatSteps()`), renderer Markdown aman XSS untuk chat & ringkasan AI + tombol **Salin**, serta pembersihan `mk_gemini_thinking` saat logout.
+- **Redesign Popup, Modal & Bottom Sheet (`src/styles.html`, `web/ui-asset-ops.js`, `web/ui-wallets.js`, `web/ui-feat-modals.js`, `web/ui-dashboard.js`, `web/ui-recurring.js`, `web/ui-pro-reports.js`, `web/ui-pro-palette.js`)**: Memperbaiki bug spesifisitas tombol `.swal2-confirm` agar menggunakan warna brand aplikasi tanpa menimpa aksen kontekstual, menambahkan backdrop blur, dark mode komprehensif, pil close & validasi, chevron `<select>` kustom, animasi masuk/keluar desktop ringan (`mkModalIn`/`mkModalOut`) serta sheet mobile (<= 639px), label aksesibel + grid responsif 2 kolom pada modal aset/dompet/target/jadwal rutin/rekap, dan footer shortcut bar pada Command Palette.
 
 ### 25 November 2026: Hotfix v3.20.1 (Native Android BiometricPrompt & Refresh Harga Aset Multi-Sumber)
 - **Native Android BiometricPrompt & Perbaikan Sidik Jari (`scripts/patch-android-project.mjs`, `web/ui-feat-native-ux.js`, `web/ui-feat-account.js`)**: Menambahkan plugin Capacitor native `NativeBiometricPlugin.java` (`androidx.biometric:biometric:1.1.0`) dengan pendaftaran di `MainActivity.java` sebelum `super.onCreate()`, izin `USE_BIOMETRIC`/`USE_FINGERPRINT` di `AndroidManifest.xml`, registrasi `Capacitor.registerPlugin('NativeBiometric')`, pembersihan status biometrik saat PIN dihapus, tombol ulang **Buka dengan Sidik Jari** di layar kunci PIN, serta pemisahan jalur error WebView Android vs WebAuthn.
@@ -676,7 +685,7 @@ Fase v1–v3.20 (Multi-User SaaS, Offline-First PWA, Native Android Capacitor 8,
 | Backend & DB | Supabase (PostgreSQL + Row Level Security + PL/pgSQL RPC + Auth Email/Google OAuth 2.0) |
 | Serverless | Deno TypeScript Edge Functions (`telegram-bot`, `admin-password`, `delete-account`) |
 | Build & Test | Custom Node.js 22 bundler (`build.mjs`), syntax check (`check-syntax.mjs`), Built-in `node --test` |
-| AI & Bot | Google Gemini 2.5 Flash (Receipt OCR, Voice Note, Cashflow Analysis & Chat) + Telegram Bot API |
+| AI & Bot | Google Gemini 4 Hydrogen (Interactions API: Receipt OCR, Voice Note, Cashflow Analysis & Chat) + Telegram Bot API |
 | Hosting & CI/CD | GitHub Pages + GitHub Actions (`deploy.yml` & `android-build.yml`) + Supabase Cloud |
 
 ---

@@ -10,11 +10,18 @@
     const { value: day } = await Swal.fire({
       title: t('payroll.title'),
       html: `
-        <p style="font-size:13px;color:#64748b;margin-bottom:12px;">${escapeHtmlJS(t('payroll.desc'))}</p>
-        <input id="swal-payroll" type="number" min="1" max="28" value="${current}"
-               class="swal2-input" placeholder="1-28" style="text-align:center;font-size:20px;font-weight:bold;">
-        <p style="font-size:11px;color:#94a3b8;margin-top:12px;">${escapeHtmlJS(t('payroll.example'))}: <b>28</b> → ${escapeHtmlJS(getPeriodLabel(DB.currentPeriod, 28))}</p>
-        <p style="font-size:11px;color:#94a3b8;margin-top:4px;">${escapeHtmlJS(t('payroll.range_hint'))}</p>`,
+        <div class="text-left space-y-3">
+          <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300">${escapeHtmlJS(t('payroll.desc'))}</p>
+          <div>
+            <label for="swal-payroll" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal gajian (1 - 28)</label>
+            <input id="swal-payroll" type="number" min="1" max="28" value="${current}"
+                   class="swal2-input tabular-nums text-center font-bold text-xl" style="margin-top:0.35rem" placeholder="1-28">
+          </div>
+          <div class="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+            <p class="text-xs font-medium text-slate-700 dark:text-slate-200">${escapeHtmlJS(t('payroll.example'))}: <b class="tabular-nums">28</b> &rarr; ${escapeHtmlJS(getPeriodLabel(DB.currentPeriod, 28))}</p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('payroll.range_hint'))}</p>
+          </div>
+        </div>`,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: t('btn.simpan'),
@@ -35,8 +42,10 @@
       Swal.fire({
         icon: 'success',
         title: t('payroll.saved'),
-        html: `<p style="font-size:14px;">${escapeHtmlJS(t('payroll.tanggal'))}: <b>${day}</b></p>
-               <p style="font-size:12px;color:#64748b;margin-top:8px;">${escapeHtmlJS(t('payroll.active_cycle'))}: <b>${escapeHtmlJS(cycleLabel)}</b></p>`,
+        html: `<div class="space-y-1.5 text-center">
+                 <p class="text-sm text-slate-700 dark:text-slate-200">${escapeHtmlJS(t('payroll.tanggal'))}: <b>${day}</b></p>
+                 <p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('payroll.active_cycle'))}: <b>${escapeHtmlJS(cycleLabel)}</b></p>
+               </div>`,
         timer: 2500,
         showConfirmButton: false,
         customClass: { popup: getSwalClass() }
@@ -114,20 +123,32 @@
     const res = await Swal.fire({
       title: item ? 'Edit Jadwal Rutin' : t('rec.add'),
       html: `
-        <div class="text-left space-y-2 text-sm">
-          <label for="rec-tipe" class="block font-semibold">Tipe</label>
-          <select id="rec-tipe" class="swal2-input" style="margin:0;width:100%">
-            <option value="Pengeluaran" ${cur.tipe === 'Pengeluaran' ? 'selected' : ''}>Pengeluaran</option>
-            <option value="Pemasukan" ${cur.tipe === 'Pemasukan' ? 'selected' : ''}>Pemasukan</option>
-          </select>
-          <label for="rec-kat" class="block font-semibold">Kategori</label>
-          <select id="rec-kat" class="swal2-input" style="margin:0;width:100%">${optsFor(cur.tipe)}</select>
-          <label for="rec-nom" class="block font-semibold">Nominal (Rp)</label>
-          <input id="rec-nom" type="text" inputmode="numeric" value="${escapeHtmlJS(cur.nominal ? formatNominalInputValue(cur.nominal) : '')}" class="swal2-input tabular-nums" style="margin:0;width:100%" placeholder="Contoh: 350.000">
-          <label for="rec-day" class="block font-semibold">Tanggal Eksekusi Setiap Bulan (1-31)</label>
-          <input id="rec-day" type="number" min="1" max="31" value="${escapeHtmlJS(cur.dayOfMonth || 1)}" class="swal2-input" style="margin:0;width:100%">
-          <label for="rec-ket" class="block font-semibold">Catatan</label>
-          <input id="rec-ket" type="text" value="${escapeHtmlJS(cur.keterangan)}" class="swal2-input" style="margin:0;width:100%" placeholder="Contoh: Internet Rumah">
+        <div class="text-left space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="rec-tipe" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tipe</label>
+              <select id="rec-tipe" class="swal2-input" style="margin-top:0.35rem">
+                <option value="Pengeluaran" ${cur.tipe === 'Pengeluaran' ? 'selected' : ''}>Pengeluaran</option>
+                <option value="Pemasukan" ${cur.tipe === 'Pemasukan' ? 'selected' : ''}>Pemasukan</option>
+              </select>
+            </div>
+            <div>
+              <label for="rec-day" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal Eksekusi (1-31)</label>
+              <input id="rec-day" type="number" min="1" max="31" value="${escapeHtmlJS(cur.dayOfMonth || 1)}" class="swal2-input tabular-nums" style="margin-top:0.35rem">
+            </div>
+          </div>
+          <div>
+            <label for="rec-kat" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Kategori</label>
+            <select id="rec-kat" class="swal2-input" style="margin-top:0.35rem">${optsFor(cur.tipe)}</select>
+          </div>
+          <div>
+            <label for="rec-nom" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nominal (Rp)</label>
+            <input id="rec-nom" type="text" inputmode="numeric" value="${escapeHtmlJS(cur.nominal ? formatNominalInputValue(cur.nominal) : '')}" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Contoh: 350.000">
+          </div>
+          <div>
+            <label for="rec-ket" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Catatan</label>
+            <input id="rec-ket" type="text" value="${escapeHtmlJS(cur.keterangan)}" class="swal2-input" style="margin-top:0.35rem" placeholder="Contoh: Internet Rumah">
+          </div>
         </div>`,
       showCancelButton: true,
       confirmButtonText: t('btn.simpan'),

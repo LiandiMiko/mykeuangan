@@ -39,23 +39,39 @@
     if (!a) return;
     const m = getAssetUnitMeta(a);
     const unitFieldsHtml = m.isUnitAsset
-      ? `<label for="tu-qty" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jumlah ${m.unitLabel} didapat — opsional</label>
-         <input id="tu-qty" type="number" step="${m.unitStep}" class="swal2-input" placeholder="Jumlah ${m.unitLabel} didapat — opsional">
-         <label for="tu-price" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Harga per ${m.unitLabel} saat beli (Rp) — opsional</label>
-         <input id="tu-price" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Harga per ${m.unitLabel} saat beli (Rp) — opsional">
-         <p style="font-size:12px;color:#64748b;margin:6px 4px">${m.implied
+      ? `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+           <div>
+             <label for="tu-qty" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jumlah ${escapeHtmlJS(m.unitLabel)} (opsional)</label>
+             <input id="tu-qty" type="number" step="${m.unitStep}" class="swal2-input" style="margin-top:0.35rem" placeholder="Jumlah ${escapeHtmlJS(m.unitLabel)} didapat">
+           </div>
+           <div>
+             <label for="tu-price" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Harga / ${escapeHtmlJS(m.unitLabel)} (Rp)</label>
+             <input id="tu-price" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Opsional">
+           </div>
+         </div>
+         <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">${m.implied
            ? `Kosongkan keduanya untuk memakai harga terakhir (${formatRupiah(m.implied)} per ${escapeHtmlJS(m.symbolLabel)}).`
-           : `Harga terakhir belum ada: isi jumlah ${m.unitLabel} atau harga per ${m.unitLabel}.`}</p>`
+           : `Harga terakhir belum ada: isi jumlah ${escapeHtmlJS(m.unitLabel)} atau harga per ${escapeHtmlJS(m.unitLabel)}.`}</p>`
       : '';
 
     const res = await Swal.fire({
       title: 'Tambah ' + escapeHtmlJS(a.name),
       html: `
-        <label for="tu-amount" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nominal ditambah (Rp)</label>
-        <input id="tu-amount" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Nominal ditambah (Rp), mis. 1.000.000">
-        ${unitFieldsHtml}
-        <label for="tu-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Sumber dana</label>
-        <select id="tu-wallet" class="swal2-input"><option value="">Tidak dikurangi dari dompet</option>${walletOptions('')}</select>`,
+        <div class="text-left space-y-3">
+          <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
+            <span class="font-semibold text-slate-600 dark:text-slate-300">${escapeHtmlJS(a.type || 'Aset')}</span>
+            <span class="font-bold tabular-nums text-slate-800 dark:text-slate-100">${escapeHtmlJS(formatRupiah(m.val || 0))}</span>
+          </div>
+          <div>
+            <label for="tu-amount" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nominal ditambah (Rp)</label>
+            <input id="tu-amount" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Contoh: 1.000.000">
+          </div>
+          ${unitFieldsHtml}
+          <div>
+            <label for="tu-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Sumber dana</label>
+            <select id="tu-wallet" class="swal2-input" style="margin-top:0.35rem"><option value="">Tidak dikurangi dari dompet</option>${walletOptions('')}</select>
+          </div>
+        </div>`,
       showCancelButton: true,
       confirmButtonText: 'Tambahkan',
       cancelButtonText: 'Batal',
@@ -94,18 +110,30 @@
 
   function buildWithdrawAssetHtml(m) {
     const qtyField = (m.isUnitAsset && m.qty > 0)
-      ? `<label for="wd-qty" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Jumlah ${m.unitLabel} dijual (${m.qty} ${escapeHtmlJS(m.symbolLabel)}) — opsional</label>
-         <input id="wd-qty" type="number" step="${m.unitStep}" min="0" max="${m.qty}" class="swal2-input" placeholder="Kosongkan untuk hitung proporsional">`
+      ? `<div>
+           <label for="wd-qty" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jumlah ${escapeHtmlJS(m.unitLabel)} dijual (${escapeHtmlJS(String(m.qty))} ${escapeHtmlJS(m.symbolLabel)}) — opsional</label>
+           <input id="wd-qty" type="number" step="${m.unitStep}" min="0" max="${m.qty}" class="swal2-input" style="margin-top:0.35rem" placeholder="Kosongkan untuk hitung proporsional">
+         </div>`
       : '';
     return `
-      <label for="wd-amount" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:4px 4px 0">Nominal dicairkan (maks. ${formatRupiah(m.val)})</label>
-      <input id="wd-amount" type="text" inputmode="numeric" value="${escapeHtmlJS(formatNominalInputValue(Math.round(m.val)))}" class="swal2-input tabular-nums" placeholder="Nominal dicairkan (Rp)">
-      ${qtyField}
-      <label for="wd-wallet" style="font-size:12px;color:#64748b;display:block;text-align:left;margin:8px 4px 0">Masuk ke dompet tujuan</label>
-      <select id="wd-wallet" class="swal2-input">
-        ${walletOptions('')}
-        <option value="">Catat pencairan tanpa masuk dompet</option>
-      </select>`;
+      <div class="text-left space-y-3">
+        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
+          <span class="font-semibold text-slate-600 dark:text-slate-300">Nilai dicairkan maksimal</span>
+          <span class="font-bold tabular-nums text-slate-800 dark:text-slate-100">${escapeHtmlJS(formatRupiah(m.val))}</span>
+        </div>
+        <div>
+          <label for="wd-amount" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nominal dicairkan (Rp)</label>
+          <input id="wd-amount" type="text" inputmode="numeric" value="${escapeHtmlJS(formatNominalInputValue(Math.round(m.val)))}" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Nominal dicairkan (Rp)">
+        </div>
+        ${qtyField}
+        <div>
+          <label for="wd-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Masuk ke dompet tujuan</label>
+          <select id="wd-wallet" class="swal2-input" style="margin-top:0.35rem">
+            ${walletOptions('')}
+            <option value="">Catat pencairan tanpa masuk dompet</option>
+          </select>
+        </div>
+      </div>`;
   }
 
   async function withdrawAsset(id) {

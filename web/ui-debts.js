@@ -117,6 +117,9 @@
       title,
       input: 'text',
       inputValue: action === 'edit' ? oldName : '',
+      inputPlaceholder: group === 'UtangApp' ? 'Contoh: Kredivo, SPayLater' : 'Contoh: Budi',
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
       showCancelButton: true,
       customClass: { popup: getSwalClass() }
     });
@@ -141,31 +144,47 @@
 
     const affectsCash = !(isDebtGroup && type === 'add');
     const walletSel = affectsCash && (DB.wallets || []).length
-      ? `<label for="swal-wallet" class="block text-left text-xs font-semibold text-slate-600 dark:text-slate-300 mt-2 mb-1">${isIncome ? 'Masuk ke dompet' : 'Dibayar dari dompet'}</label><select id="swal-wallet" class="swal2-input" style="margin:0;width:100%">${walletOptions('')}</select>`
+      ? `<div><label for="swal-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">${isIncome ? 'Masuk ke dompet' : 'Dibayar dari dompet'}</label><select id="swal-wallet" class="swal2-input" style="margin:0;width:100%">${walletOptions('')}</select></div>`
       : '';
 
     const { value: formVals } = await Swal.fire({
       title: escapeHtmlJS(title),
       html: `
-        <div class="text-left space-y-2">
-          <label for="swal-nom" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nominal (Rp)</label>
-          <input id="swal-nom" class="swal2-input tabular-nums" style="margin:0;width:100%" type="text" inputmode="numeric" placeholder="0">
-          <label for="swal-ket" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Catatan (opsional)</label>
-          <input id="swal-ket" class="swal2-input" style="margin:0;width:100%" type="text" placeholder="Contoh: Cicilan ke-1">
-          <label for="swal-date" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal Transaksi</label>
-          <input id="swal-date" class="swal2-input" style="margin:0;width:100%" type="date" value="${localToday()}">
+        <div class="text-left space-y-3">
+          <div>
+            <label for="swal-nom" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Nominal (Rp)</label>
+            <input id="swal-nom" class="swal2-input tabular-nums" style="margin:0;width:100%" type="text" inputmode="numeric" placeholder="0">
+          </div>
+          <div>
+            <label for="swal-ket" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Catatan (opsional)</label>
+            <input id="swal-ket" class="swal2-input" style="margin:0;width:100%" type="text" placeholder="Contoh: Cicilan ke-1">
+          </div>
+          <div>
+            <label for="swal-date" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Tanggal Transaksi</label>
+            <input id="swal-date" class="swal2-input" style="margin:0;width:100%" type="date" value="${localToday()}">
+          </div>
           ${walletSel}
         </div>`,
       focusConfirm: false,
       showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() },
       didOpen: () => bindNominalInputs(['swal-nom']),
-      preConfirm: () => [
-        document.getElementById('swal-nom').value,
-        document.getElementById('swal-ket').value,
-        (document.getElementById('swal-wallet') || {}).value || '',
-        (document.getElementById('swal-date') || {}).value || localToday()
-      ]
+      preConfirm: () => {
+        const rawNom = document.getElementById('swal-nom').value;
+        const parsedNom = Math.round(parseFormattedNominal(rawNom));
+        if (!parsedNom || parsedNom <= 0) {
+          Swal.showValidationMessage('Isi nominal lebih dari 0.');
+          return false;
+        }
+        return [
+          rawNom,
+          document.getElementById('swal-ket').value,
+          (document.getElementById('swal-wallet') || {}).value || '',
+          (document.getElementById('swal-date') || {}).value || localToday()
+        ];
+      }
     });
 
     if (formVals && formVals[0]) {

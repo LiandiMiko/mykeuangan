@@ -71,7 +71,7 @@
 
     const { isConfirmed } = await Swal.fire({
       title: t('budget.btn_copy'),
-      html: '<p style="font-size:13px;color:#64748b;">Copy budget dari <b>' + escapeHtmlJS(getPeriodLabel(prevBulan, DB.payrollDay)) + '</b> ke bulan ini?</p>',
+      html: '<p class="text-sm text-slate-600 dark:text-slate-300">Copy budget dari <b>' + escapeHtmlJS(getPeriodLabel(prevBulan, DB.payrollDay)) + '</b> ke bulan ini?</p>',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: t('btn.simpan'),

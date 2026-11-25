@@ -132,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.1');
+  assert.equal(pkg.version, '3.20.3');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
@@ -374,4 +374,317 @@ test('hotfix v3.20.1 falls back to client currency-api on Edge Function failure 
   const emptyRes = await coreSandbox.handlers.api_refreshPrices();
   assert.equal(emptyRes.refreshMeta.noMarketAssets, true);
   assetRows.push(...backupRows);
+});
+
+test('hotfix v3.20.2 upgrades AI to Gemini 4 Hydrogen, Interactions API, enriched context, markdown & Telegram bot', async () => {
+  const uiAiJs = fs.readFileSync('web/ui-ai.js', 'utf8');
+  const storageMap = new Map([
+    ['mk_gemini_api_key', 'AIzaTestKey'],
+    ['mk_gemini_model', 'gemini-2.5-flash']
+  ]);
+  const calls = [];
+  const sandbox = {
+    DB: { currentPeriod: '2026-11', payrollDay: 1, transactions: [] },
+    FinanceAnalysis,
+    Swal: { fire: async () => ({ isConfirmed: false }) },
+    escapeHtmlJS: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
+    renderHtml: () => {},
+    getSwalClass: () => '',
+    currentLang: 'id',
+    localToday: () => '2026-11-25',
+    t: (k) => k,
+    localStorage: {
+      getItem: (k) => (storageMap.has(k) ? storageMap.get(k) : null),
+      setItem: (k, v) => storageMap.set(k, String(v)),
+      removeItem: (k) => storageMap.delete(k)
+    },
+    document: { getElementById: () => null },
+    fetch: async (url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push({ url, headers: init.headers, body });
+      if (body.model === 'gemini-4-hydrogen' && calls.length === 1) {
+        return { ok: false, status: 404, json: async () => ({ error: { message: 'Model not found' } }) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          steps: [
+            { type: 'thought', signature: 'sig' },
+            { type: 'model_output', content: [{ type: 'text', text: '{"healthScore":88,"statusLabel":"Sehat","ringkasan":"Bagus","sorotan":["OK"],"bocorAnggaran":[],"rekomendasi":["Nabung"]}' }] }
+          ]
+        })
+      };
+    },
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    Promise,
+    Set,
+    Date,
+    Math,
+    Number,
+    String
+  };
+  sandbox.window = sandbox;
+  vm.runInNewContext(uiAiJs, sandbox);
+
+  assert.equal(sandbox.normalizeGeminiModel('gemini-2.5-flash'), 'gemini-4-hydrogen');
+  assert.equal(sandbox.normalizeGeminiModel('models/gemini-2.0-flash'), 'gemini-4-hydrogen');
+  assert.equal(sandbox.normalizeGeminiModel('gemini-1.5-pro'), 'gemini-4-argon');
+  assert.equal(sandbox.normalizeGeminiModel('gemini-2.5-flash-lite'), 'gemini-3.5-flash-lite');
+  assert.equal(sandbox.normalizeGeminiModel('gemini-3.8-flash'), 'gemini-4-hydrogen');
+  assert.equal(sandbox.normalizeGeminiModel('gemini-4-neon'), 'gemini-4-neon');
+  assert.equal(sandbox.normalizeGeminiModel('gemini-custom-exp'), 'gemini-custom-exp');
+
+  assert.equal(sandbox.getGeminiModel(), 'gemini-4-hydrogen');
+  assert.equal(storageMap.get('mk_gemini_model'), 'gemini-4-hydrogen');
+
+  const res = await sandbox.callGeminiApi('AIzaTestKey', {
+    input: 'Analisis arus kas',
+    systemInstruction: 'Kamu penasihat keuangan',
+    thinkingLevel: 'medium',
+    responseSchema: FinanceAnalysis.CASHFLOW_ANALYSIS_SCHEMA
+  });
+  assert.equal(calls[0].url, 'https://generativelanguage.googleapis.com/v1/interactions');
+  assert.equal(calls[0].headers['Api-Revision'], undefined);
+  assert.equal(calls[0].body.store, false);
+  assert.equal(calls[0].body.generation_config.thinking_level, 'medium');
+  assert.equal(calls[0].body.generation_config.temperature, undefined);
+  assert.equal(calls[0].body.generation_config.thinking_budget, undefined);
+  assert.equal(calls[0].body.response_format.mime_type, 'application/json');
+  assert.equal(res.model, 'gemini-3.5-flash-lite');
+  assert.match(res.text, /"healthScore":88/);
+
+  const mdHtml = sandbox.formatAiMarkdownSafe('### Ringkasan\n- Hemat **Rp 500.000** per `siklus`\n<script>alert(1)</script>');
+  assert.doesNotMatch(mdHtml, /<script>/);
+  assert.match(mdHtml, /<h4[^>]*>Ringkasan<\/h4>/);
+  assert.match(mdHtml, /<strong[^>]*>Rp 500\.000<\/strong>/);
+  assert.match(mdHtml, /<code[^>]*>siklus<\/code>/);
+
+  const enriched = FinanceAnalysis.buildEnrichedAiSnapshot({
+    wallets: [{ id: 'w1', name: 'BCA', openingBalance: 10000000 }],
+    transactions: [
+      { tanggal: '2026-11-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 8000000, walletId: 'w1' },
+      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 2000000, walletId: 'w1' },
+      { tanggal: '2026-11-08', tipe: 'Pemasukan', kategori: 'UtangPerson - Budi', nominal: 1000000, walletId: 'w1' }
+    ],
+    assets: [{ name: 'Emas', type: 'Emas', value: 5000000 }],
+    budgets: [{ bulan: '2026-11', kategori: 'Makan', jumlah: 1800000 }],
+    goals: [{ name: 'Darurat', currentAmount: 3000000, targetAmount: 10000000, targetDate: '2027-06-01' }],
+    recurring: [{ tipe: 'Pengeluaran', kategori: 'Internet', nominal: 350000, dayOfMonth: 28, active: true }]
+  }, '2026-11', 1, '2026-11-25');
+  assert.equal(enriched.incomeTotal, 8000000);
+  assert.equal(enriched.expenseTotal, 2000000);
+  assert.ok(enriched.healthRatios && enriched.healthRatios.debtToAssetPct > 0);
+  assert.ok(enriched.runway && enriched.runway.safeDailyBudget > 0);
+  assert.ok(enriched.spendingBehavior && enriched.spendingBehavior.fixedExpenseTotal === 350000);
+  assert.equal(enriched.activeGoals[0].name, 'Darurat');
+  assert.equal(enriched.activeDebts[0].name, 'Budi');
+
+  const longQuestion = 'B '.repeat(350) + 'berapa cicilan aman saya per bulan jika gaji naik 10 persen?';
+  const steps = FinanceAnalysis.buildAiChatSteps(
+    enriched,
+    [{ role: 'user', text: 'A '.repeat(300) }, { role: 'assistant', text: 'Jawaban awal.' }],
+    longQuestion,
+    'id'
+  );
+  assert.equal(steps.length, 3);
+  assert.equal(steps[0].type, 'user_input');
+  assert.equal(steps[1].type, 'model_output');
+  assert.equal(steps[2].type, 'user_input');
+  assert.match(steps[2].content[0].text, /berapa cicilan aman saya per bulan/);
+
+  const botCoreTs = fs.readFileSync('supabase/functions/telegram-bot/core.ts', 'utf8');
+  const botAiTs = fs.readFileSync('supabase/functions/telegram-bot/ai.ts', 'utf8');
+  assert.match(botCoreTs, /'gemini-4-hydrogen'/);
+  assert.doesNotMatch(botCoreTs, /gemini-2\.5-flash/);
+  assert.match(botAiTs, /https:\/\/generativelanguage\.googleapis\.com\/v1\/interactions/);
+  assert.match(botAiTs, /'Api-Revision':\s*'2026-05-20'/);
+  assert.match(botAiTs, /store:\s*false/);
+  assert.match(botAiTs, /thinking_level/);
+  assert.doesNotMatch(botAiTs, /thinkingBudget|gemini-2\.0-flash|gemini-2\.5-flash/);
+  assert.doesNotMatch(botAiTs, /\btemperature\s*:/);
+});
+
+test('v3.20.2: Popup, Modal, & Bottom Sheet Overhaul maintains brand specificity, dark mode, a11y labels, and motion invariants', () => {
+  const stylesHtml = fs.readFileSync('src/styles.html', 'utf8');
+  const assetOpsJs = fs.readFileSync('web/ui-asset-ops.js', 'utf8');
+  const walletsJs = fs.readFileSync('web/ui-wallets.js', 'utf8');
+  const featModalsJs = fs.readFileSync('web/ui-feat-modals.js', 'utf8');
+  const recurringJs = fs.readFileSync('web/ui-recurring.js', 'utf8');
+
+  assert.match(stylesHtml, /\.swal2-popup\s+\.swal2-actions\s+\.swal2-styled\.swal2-confirm\s*\{\s*background-color:\s*var\(--color-brand\);/);
+  assert.doesNotMatch(stylesHtml, /\.swal2-confirm\s*\{[^}]*background-color:[^;]*!important/);
+  assert.match(stylesHtml, /\.swal2-popup\s+\.swal2-actions\s+\.swal2-styled\.swal2-cancel/);
+  assert.match(stylesHtml, /\.swal2-validation-message/);
+  assert.match(stylesHtml, /\.swal2-close/);
+  assert.match(stylesHtml, /select\.swal2-input,\s*select\.swal2-select/);
+  assert.match(stylesHtml, /\.swal2-container\.swal2-backdrop-show/);
+  assert.match(stylesHtml, /@keyframes\s+mkModalIn/);
+  assert.match(stylesHtml, /@keyframes\s+mkModalOut/);
+
+  assert.doesNotMatch(assetOpsJs, /color:#64748b/);
+  assert.doesNotMatch(walletsJs, /color:#64748b/);
+  assert.doesNotMatch(recurringJs, /color:#64748b|color:#94a3b8/);
+
+  for (const id of ['asset-symbol-wrap', 'asset-quantity-wrap', 'asset-buyprice-wrap', 'asset-value-wrap']) {
+    assert.ok(featModalsJs.includes(id), `Expected ${id} in web/ui-feat-modals.js`);
+  }
+});
+
+test('v3.20.3: Popup polish fixes dark-mode icon masks, colored deny contrast, loading divider, drag handle grid, and modal templates', () => {
+  const stylesHtml = fs.readFileSync('src/styles.html', 'utf8');
+  const insightsJs = fs.readFileSync('web/ui-pro-insights.js', 'utf8');
+  const paletteJs = fs.readFileSync('web/ui-pro-palette.js', 'utf8');
+  const quickJs = fs.readFileSync('web/ui-pro-quick.js', 'utf8');
+  const budgetJs = fs.readFileSync('web/ui-budget.js', 'utf8');
+  const debtsJs = fs.readFileSync('web/ui-debts.js', 'utf8');
+  const assetsJs = fs.readFileSync('web/ui-assets.js', 'utf8');
+  const walletsJs = fs.readFileSync('web/ui-wallets.js', 'utf8');
+  const onboardingJs = fs.readFileSync('web/ui-feat-onboarding.js', 'utf8');
+
+  assert.match(stylesHtml, /\.swal2-icon\.swal2-success\s+\[class\^='swal2-success-circular-line'\]/);
+  assert.match(stylesHtml, /background-color:\s*var\(--mk-surface-elevated\)\s*!important;/);
+  assert.match(stylesHtml, /\.swal2-deny\[style\*="background-color"\]/);
+  assert.match(stylesHtml, /\.swal2-actions\.swal2-loading\s*\{[^}]*border-top:\s*0\s*!important/);
+  assert.match(stylesHtml, /grid-column:\s*1\s*\/\s*-1;\s*justify-self:\s*center;/);
+  assert.match(stylesHtml, /color-scheme:\s*dark;/);
+  assert.match(stylesHtml, /#mkCommandPalette[\s\S]*--safe-area-inset-top/);
+  assert.match(stylesHtml, /#mkCmdList\s*\{[^}]*max-height:\s*min\(22rem,\s*55dvh\)/);
+
+  assert.match(insightsJs, /<label for="cmp-init"/);
+  assert.match(insightsJs, /<label for="ins-cash"/);
+  assert.match(insightsJs, /id="rebTotalBadge"/);
+  assert.match(paletteJs, /id="mkCmdCloseBtn"/);
+  assert.match(quickJs, /left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm/);
+  assert.doesNotMatch(budgetJs, /color:#64748b/);
+  assert.match(debtsJs, /confirmButtonText:\s*'Simpan'/);
+  assert.match(assetsJs, /confirmButtonText:\s*'Ya, Hapus'/);
+  assert.match(walletsJs, /cancelButtonText:\s*'Batal'/);
+  assert.match(onboardingJs, /renderStepIndicator/);
+  assert.match(stylesHtml, /#swal-payroll\.swal2-input/);
+});
+
+test('v3.20.3: openCommandPalette binds #mkCmdCloseBtn after appendChild and restores focus without null crash', () => {
+  const paletteJs = fs.readFileSync('web/ui-pro-palette.js', 'utf8');
+  const appendedNodes = [];
+  const makeNode = (tag) => {
+    const attrs = new Map();
+    const listeners = new Map();
+    return {
+      tagName: tag,
+      id: '',
+      className: '',
+      value: '',
+      isConnected: true,
+      children: [],
+      focused: false,
+      classList: { toggle: () => {} },
+      setAttribute: (k, v) => attrs.set(k, v),
+      getAttribute: (k) => attrs.get(k) || '',
+      addEventListener: (ev, fn) => listeners.set(ev, fn),
+      querySelectorAll: () => [],
+      focus() { this.focused = true; },
+      remove() {
+        const idx = appendedNodes.indexOf(this);
+        if (idx >= 0) appendedNodes.splice(idx, 1);
+        this.isConnected = false;
+      }
+    };
+  };
+  const closeBtn = makeNode('BUTTON');
+  closeBtn.id = 'mkCmdCloseBtn';
+  const cmdInput = makeNode('INPUT');
+  cmdInput.id = 'mkCmdInput';
+  const cmdList = makeNode('DIV');
+  cmdList.id = 'mkCmdList';
+  const triggerBtn = makeNode('BUTTON');
+  triggerBtn.id = 'paletteTrigger';
+
+  const findInMounted = (id) => {
+    for (const rootNode of appendedNodes) {
+      if (rootNode.id === id) return rootNode;
+      if (rootNode._byId && rootNode._byId[id]) return rootNode._byId[id];
+    }
+    return null;
+  };
+  const sandbox = {
+    DB: { currentPeriod: '2026-11', transactions: [] },
+    FinancePro: { getAutoCategoryRules: () => [] },
+    FinanceAnalysis: {},
+    Swal: {},
+    escapeHtmlJS: (s) => String(s ?? ''),
+    escapeAttrJS: (s) => String(s ?? ''),
+    renderHtml: (target, html) => {
+      if (target.id === 'mkCommandPalette' && /id="mkCmdCloseBtn"/.test(html)) {
+        target._byId = { mkCmdCloseBtn: closeBtn, mkCmdInput: cmdInput, mkCmdList: cmdList };
+      }
+    },
+    currentLang: 'id',
+    document: {
+      activeElement: triggerBtn,
+      body: { appendChild: (el) => appendedNodes.push(el) },
+      createElement: (tag) => makeNode(tag),
+      getElementById: (id) => findInMounted(id)
+    }
+  };
+  sandbox.window = sandbox;
+  vm.runInNewContext(paletteJs, sandbox);
+
+  assert.doesNotThrow(() => sandbox.openCommandPalette());
+  assert.ok(findInMounted('mkCommandPalette'), '#mkCommandPalette should be appended to body');
+  assert.equal(typeof closeBtn.onclick, 'function', '#mkCmdCloseBtn.onclick must be wired after appendChild');
+  assert.equal(cmdInput.focused, true);
+
+  closeBtn.onclick();
+  assert.equal(findInMounted('mkCommandPalette'), null, 'clicking close button should remove palette');
+  assert.equal(triggerBtn.focused, true, 'closing palette should restore focus to previous activeElement');
+});
+
+test('v3.20.3: buildEnrichedAiSnapshot populates portfolio fields in browser IIFE regardless of script load order', () => {
+  const buildMjs = fs.readFileSync('build.mjs', 'utf8');
+  assert.ok(
+    buildMjs.indexOf("'finance-analysis-portfolio.js'") < buildMjs.indexOf("'finance-analysis-ai.js'"),
+    'build.mjs should bundle finance-analysis-portfolio.js before finance-analysis-ai.js'
+  );
+
+  const coreSrc = fs.readFileSync('web/finance-analysis-core.js', 'utf8');
+  const portfolioSrc = fs.readFileSync('web/finance-analysis-portfolio.js', 'utf8');
+  const aiSrc = fs.readFileSync('web/finance-analysis-ai.js', 'utf8');
+  const backupSrc = fs.readFileSync('web/finance-analysis-backup.js', 'utf8');
+  const facadeSrc = fs.readFileSync('web/finance-analysis.js', 'utf8');
+
+  const sampleData = {
+    wallets: [{ id: 'w1', name: 'Bank', kind: 'bank', openingBalance: 6000000 }],
+    transactions: [
+      { tanggal: '2026-11-01', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 8000000, walletId: 'w1' },
+      { tanggal: '2026-11-05', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 1500000, walletId: 'w1' }
+    ],
+    assets: [{ name: 'Emas', type: 'Emas', value: 4000000 }],
+    budgets: [{ bulan: '2026-11', kategori: 'Makan', jumlah: 2000000 }],
+    goals: [{ name: 'Darurat', currentAmount: 2000000, targetAmount: 10000000 }],
+    recurring: [{ tipe: 'Pengeluaran', kategori: 'Internet', nominal: 300000, dayOfMonth: 28, active: true }]
+  };
+
+  for (const order of ['ai-first', 'portfolio-first']) {
+    const browserCtx = {};
+    browserCtx.window = browserCtx;
+    vm.runInNewContext(coreSrc, browserCtx);
+    if (order === 'ai-first') {
+      vm.runInNewContext(aiSrc, browserCtx);
+      vm.runInNewContext(portfolioSrc, browserCtx);
+    } else {
+      vm.runInNewContext(portfolioSrc, browserCtx);
+      vm.runInNewContext(aiSrc, browserCtx);
+    }
+    vm.runInNewContext(backupSrc, browserCtx);
+    vm.runInNewContext(facadeSrc, browserCtx);
+
+    const enriched = browserCtx.FinanceAnalysis.buildEnrichedAiSnapshot(sampleData, '2026-11', 1, '2026-11-26');
+    assert.ok(enriched.healthRatios && enriched.healthRatios.liquidCash > 0, `expected healthRatios in ${order} mode`);
+    assert.ok(enriched.runway && enriched.runway.safeDailyBudget > 0, `expected runway in ${order} mode`);
+    assert.ok(enriched.spendingBehavior && enriched.spendingBehavior.fixedExpenseTotal === 300000, `expected spendingBehavior in ${order} mode`);
+    assert.ok(enriched.portfolioAllocation && enriched.portfolioAllocation.total > 0, `expected portfolioAllocation in ${order} mode`);
+  }
 });

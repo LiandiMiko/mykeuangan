@@ -261,6 +261,8 @@
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;

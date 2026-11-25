@@ -98,6 +98,9 @@
     const { value: name } = await Swal.fire({
       title: 'Kategori Baru',
       input: 'text',
+      inputPlaceholder: 'Contoh: Kopi, Parkir, Bonus',
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
       showCancelButton: true,
       customClass: { popup: getSwalClass() }
     });

@@ -9,6 +9,7 @@
   const LOGOUT_STORAGE_KEYS = [
     'mk_gemini_api_key',
     'mk_gemini_model',
+    'mk_gemini_thinking',
     'mk_app_pin_hash',
     'mk_app_pin_salt',
     'mk_pin_lock_state_v1',

@@ -219,14 +219,26 @@
         <input id="goalCurrent" type="text" inputmode="numeric" value="${escapeHtmlJS(fmtVal(current.currentAmount))}" class="swal2-input tabular-nums" style="margin:0;width:100%" aria-label="${escapeHtmlJS(t('goal.current'))}">
       </div>`;
     }
-    return `<label for="goalName" class="block text-left text-sm font-semibold mb-1">${escapeHtmlJS(t('goal.name'))}</label>
-      <input id="goalName" maxlength="80" value="${escapeHtmlJS(current.name)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.name'))}">
-      <label for="goalTarget" class="block text-left text-sm font-semibold mb-1">${escapeHtmlJS(t('goal.target'))}</label>
-      <input id="goalTarget" type="text" inputmode="numeric" value="${escapeHtmlJS(fmtVal(current.targetAmount))}" class="swal2-input tabular-nums" aria-label="${escapeHtmlJS(t('goal.target'))}">
-      <label for="goalCurrent" class="block text-left text-sm font-semibold mb-1">${escapeHtmlJS(t('goal.current'))}</label>
-      <input id="goalCurrent" type="text" inputmode="numeric" value="${escapeHtmlJS(fmtVal(current.currentAmount))}" class="swal2-input tabular-nums" aria-label="${escapeHtmlJS(t('goal.current'))}">
-      <label for="goalDate" class="block text-left text-sm font-semibold mb-1">${escapeHtmlJS(t('goal.date'))}</label>
-      <input id="goalDate" type="date" value="${escapeHtmlJS(current.targetDate)}" class="swal2-input" aria-label="${escapeHtmlJS(t('goal.date'))}">`;
+    return `<div class="text-left space-y-3">
+      <div>
+        <label for="goalName" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">${escapeHtmlJS(t('goal.name'))}</label>
+        <input id="goalName" maxlength="80" value="${escapeHtmlJS(current.name)}" class="swal2-input" style="margin-top:0.35rem" placeholder="Contoh: Dana Darurat 6 Bulan" aria-label="${escapeHtmlJS(t('goal.name'))}">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="goalTarget" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">${escapeHtmlJS(t('goal.target'))}</label>
+          <input id="goalTarget" type="text" inputmode="numeric" value="${escapeHtmlJS(fmtVal(current.targetAmount))}" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Contoh: 25.000.000" aria-label="${escapeHtmlJS(t('goal.target'))}">
+        </div>
+        <div>
+          <label for="goalCurrent" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">${escapeHtmlJS(t('goal.current'))}</label>
+          <input id="goalCurrent" type="text" inputmode="numeric" value="${escapeHtmlJS(fmtVal(current.currentAmount))}" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="0" aria-label="${escapeHtmlJS(t('goal.current'))}">
+        </div>
+      </div>
+      <div>
+        <label for="goalDate" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">${escapeHtmlJS(t('goal.date'))}</label>
+        <input id="goalDate" type="date" value="${escapeHtmlJS(current.targetDate)}" class="swal2-input" style="margin-top:0.35rem" aria-label="${escapeHtmlJS(t('goal.date'))}">
+      </div>
+    </div>`;
   }
 
   async function openGoalForm(id, progressOnly) {

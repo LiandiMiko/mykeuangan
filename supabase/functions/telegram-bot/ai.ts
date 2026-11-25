@@ -5,49 +5,73 @@ import {
 } from './core.ts';
 import { getWallets, matchWalletFromText } from './wallets.ts';
 
+const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1/interactions';
 const TX_AI_SCHEMA = {
-  type: 'OBJECT',
+  type: 'object',
   properties: {
-    tipe: { type: 'STRING', enum: ['Pemasukan', 'Pengeluaran'] },
-    kategori: { type: 'STRING' },
-    nominal: { type: 'NUMBER' },
-    keterangan: { type: 'STRING' },
-    tanggal: { type: 'STRING' },
+    tipe: { type: 'string', enum: ['Pemasukan', 'Pengeluaran'] },
+    kategori: { type: 'string' },
+    nominal: { type: 'number' },
+    keterangan: { type: 'string' },
+    tanggal: { type: 'string' },
   },
-  required: ['tipe', 'kategori', 'nominal', 'tanggal'],
+  required: ['tipe', 'kategori', 'nominal', 'keterangan', 'tanggal'],
 };
-const GEMINI_FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+const GEMINI_FALLBACK_MODELS = ['gemini-4-hydrogen', 'gemini-3.5-flash-lite', 'gemini-4-argon'];
 
-export async function callGeminiJson(parts: Any[], responseSchema: Any): Promise<Any> {
-  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
-  const candidates: string[] = [];
-  const addCandidate = (modelName: string) => {
-    const clean = String(modelName || '').replace(/^models\//, '').trim();
-    if (clean && !candidates.includes(clean)) candidates.push(clean);
-  };
-  [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS].forEach(addCandidate);
-
-  let lastErr = '';
-  for (let i = 0; i < candidates.length; i++) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidates[i])}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-      body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema } }),
-      signal: AbortSignal.timeout(25000),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (j?.error || !r.ok) {
-      const msg = String(j?.error?.message || `HTTP ${r.status}`);
-      lastErr = msg;
-      for (const m of msg.matchAll(/models\/([a-z0-9._-]+)/gi)) addCandidate(m[1]);
-      if (r.status === 404 || /not found|no longer available|not supported/i.test(msg)) continue;
-      throw new Error('Gemini: ' + msg);
-    }
-    const rawText = j?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) throw new Error(`Gemini tidak mengembalikan hasil (${j?.candidates?.[0]?.finishReason || j?.promptFeedback?.blockReason || 'Respons kosong'})`);
-    return JSON.parse(rawText);
+function normalizeBotGeminiModel(modelName: string): string {
+  const clean = String(modelName || '').replace(/^models\//i, '').trim();
+  if (!clean) return 'gemini-4-hydrogen';
+  const lower = clean.toLowerCase();
+  if (lower === 'gemini-4-hydrogen' || lower === 'gemini-4-argon' || lower === 'gemini-4-neon' || lower === 'gemini-4-carbon' || lower === 'gemini-3.5-flash-lite') {
+    return lower;
   }
-  throw new Error('Gemini: ' + (lastErr || 'Semua model AI gagal diakses'));
+  if (/^gemini-(2\.0|2\.5|3\.1)-flash-lite/i.test(clean)) return 'gemini-3.5-flash-lite';
+  if (/^gemini-(1\.5|2\.5|3(?:\.1)?)-pro/i.test(clean)) return 'gemini-4-argon';
+  if (/^gemini-(1\.5|2\.0|2\.5|3\.[5-8]|3-flash)/i.test(clean)) return 'gemini-4-hydrogen';
+  return clean;
+}
+
+function extractInteractionText(j: Any): string {
+  if (typeof j?.output_text === 'string' && j.output_text.trim()) return j.output_text.trim();
+  if (Array.isArray(j?.steps)) {
+    const out: string[] = [];
+    for (const step of j.steps) {
+      if (step?.type !== 'model_output' || !Array.isArray(step.content)) continue;
+      for (const part of step.content) {
+        if (typeof part?.text === 'string' && (!part.type || part.type === 'text')) out.push(part.text);
+      }
+    }
+    if (out.length) return out.join('').trim();
+  }
+  const legacy = j?.candidates?.[0]?.content?.parts;
+  return Array.isArray(legacy) ? legacy.map((p: Any) => p?.text || '').join('').trim() : '';
+}
+
+function toInteractionInput(blocks: Any[]) {
+  const out = blocks.map((b) => {
+    if (b?.type) return b;
+    if (typeof b?.text === 'string') return { type: 'text', text: b.text };
+    if (b?.inlineData?.data) {
+      const mime = String(b.inlineData.mimeType || 'image/jpeg');
+      return { type: mime.startsWith('audio/') ? 'audio' : 'image', data: b.inlineData.data, mime_type: mime };
+    }
+    return b;
+  }).filter(Boolean);
+  return out.length === 1 && out[0]?.type === 'text' ? out[0].text : out;
+}
+
+export async function callGeminiJson(parts: Any[], responseSchema: Any, systemInstruction?: string): Promise<Any> {
+  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
+  const raw = await callInteractions(
+    GEMINI_MODEL,
+    GEMINI_FALLBACK_MODELS,
+    toInteractionInput(parts),
+    'low',
+    systemInstruction,
+    responseSchema,
+  );
+  return JSON.parse(raw);
 }
 
 function buildParsedTx(parsed: Any, inc: string[], exp: string[], fallbackNote: string, invalidAmtMsg: string): Tx & { keterangan: string } {
@@ -68,13 +92,16 @@ function buildParsedTx(parsed: Any, inc: string[], exp: string[], fallbackNote: 
 export async function parseWithAI(c: Ctx, text: string): Promise<Tx & { keterangan: string }> {
   const [inc, exp] = await Promise.all([getCategories(c.uid, 'pemasukan'), getCategories(c.uid, 'pengeluaran')]);
   const now = today();
-  const prompt = `Kamu adalah asisten keuangan yang mengubah kalimat bahasa Indonesia menjadi data transaksi terstruktur.
+  const prompt = `Ekstrak 1 transaksi keuangan dari kalimat bahasa Indonesia berikut.
 ATURAN:
 1. "tipe": "Pemasukan" atau "Pengeluaran".
 2. "kategori" WAJIB salah satu dari: PEMASUKAN [${inc.join(', ') || 'Lainnya'}], PENGELUARAN [${exp.join(', ') || 'Lainnya'}]. Jika tidak cocok, pilih "Lainnya".
-3. "nominal": angka murni (mis. 50rb->50000). 4. "keterangan": ringkasan singkat. 5. "tanggal": YYYY-MM-DD (default ${now}).
+3. "nominal": angka murni IDR (mis. 50rb->50000, 1,5jt->1500000).
+4. "keterangan": ringkasan singkat.
+5. "tanggal": YYYY-MM-DD (default ${now}).
 INPUT USER: ${JSON.stringify(text)}`;
-  return buildParsedTx(await callGeminiJson([{ text: prompt }], TX_AI_SCHEMA), inc, exp, 'Via AI', 'Nominal tidak terbaca');
+  const sys = 'Kamu adalah parser transaksi keuangan bahasa Indonesia berpresisi tinggi. Kembalikan hanya JSON terstruktur sesuai skema.';
+  return buildParsedTx(await callGeminiJson([{ type: 'text', text: prompt }], TX_AI_SCHEMA, sys), inc, exp, 'Via AI', 'Nominal tidak terbaca');
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -91,9 +118,15 @@ async function parseMediaWithAI(c: Ctx, mimeType: string, base64: string, captio
 ATURAN:
 1. "tipe": "Pemasukan" atau "Pengeluaran".
 2. "kategori" WAJIB dari PEMASUKAN [${inc.join(', ') || 'Lainnya'}] atau PENGELUARAN [${exp.join(', ') || 'Lainnya'}].
-3. "nominal": angka bulat IDR. 4. "keterangan": merchant/item singkat. 5. "tanggal": YYYY-MM-DD (default ${today()}).
+3. "nominal": angka bulat IDR (ambil Grand Total/Total Bayar, bukan subtotal atau kembalian; titik = pemisah ribuan).
+4. "keterangan": merchant/item singkat. 5. "tanggal": YYYY-MM-DD (default ${today()}).
 ${caption ? 'CATATAN PENGIRIM: ' + JSON.stringify(caption) : ''}`;
-  const parsed = await callGeminiJson([{ text: prompt }, { inlineData: { mimeType, data: base64 } }], TX_AI_SCHEMA);
+  const sys = 'Kamu parser OCR struk belanja, bukti transfer, dan voice note keuangan Indonesia yang akurat.';
+  const mediaType = mimeType.startsWith('audio/') ? 'audio' : 'image';
+  const parsed = await callGeminiJson([
+    { type: 'text', text: prompt },
+    { type: mediaType, data: base64, mime_type: mimeType },
+  ], TX_AI_SCHEMA, sys);
   return buildParsedTx(parsed, inc, exp, 'Via Media AI', 'Nominal tidak terbaca dari media');
 }
 
@@ -119,7 +152,7 @@ export async function handleMediaMessage(c: Ctx, msg: Any) {
   const fileId = photo?.file_id ?? voice?.file_id;
   if (!fileId) return;
 
-  await send(c.chat, photo ? '📸 Membaca foto struk dengan Gemini AI...' : '🎙️ Memahami voice note dengan Gemini AI...');
+  await send(c.chat, photo ? '📸 Membaca foto struk dengan Gemini 4 AI...' : '🎙️ Memahami voice note dengan Gemini 4 AI...');
   const metaJson = await (await fetch(`${TG}/getFile?file_id=${encodeURIComponent(fileId)}`, { signal: AbortSignal.timeout(12000) })).json();
   const filePath = metaJson?.result?.file_path;
   if (!filePath) throw new Error('Gagal mengambil file dari Telegram.');
@@ -138,43 +171,70 @@ export async function handleMediaMessage(c: Ctx, msg: Any) {
 
 async function askInsight(sum: { period: string; totalIn: number; totalOut: number; n: number; top: string }): Promise<string> {
   if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY belum diatur.');
+  const net = sum.totalIn - sum.totalOut;
+  const savingsPct = sum.totalIn > 0 ? ((net / sum.totalIn) * 100).toFixed(1) : '0.0';
   const prompt = `Analisis data keuangan bulan ${sum.period}:
-- Pemasukan: ${rp(sum.totalIn)}, Pengeluaran: ${rp(sum.totalOut)}, Saldo bersih: ${rp(sum.totalIn - sum.totalOut)}, Transaksi: ${sum.n}.
-- Breakdown:\n${sum.top || 'Belum ada'}
-Format: Bahasa Indonesia santai profesional, HTML Telegram (<b>, <i>, <code>), max 200 kata, bullet •.`;
+- Pemasukan: ${rp(sum.totalIn)}, Pengeluaran: ${rp(sum.totalOut)}, Saldo bersih: ${rp(net)} (Savings rate: ${savingsPct}%), Transaksi: ${sum.n}.
+- Pengeluaran Terbesar:\n${sum.top || 'Belum ada'}
+Format: Bahasa Indonesia santai profesional, HTML Telegram (<b>, <i>, <code>), max 200 kata, bullet •, sertakan 2 saran penghematan spesifik.`;
+  const sys = 'Kamu penasihat keuangan pribadi MyKeuGuech yang ringkas, akurat, dan memberi angka konkret tanpa mengarang data.';
 
+  const text = await callInteractions(GEMINI_INSIGHT_MODEL, GEMINI_FALLBACK_MODELS, prompt, 'medium', sys);
+  return text.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').replace(/^\*\s+/gm, '• ').trim();
+}
+
+async function callInteractions(
+  primaryModel: string,
+  candidatesFallback: string[],
+  input: Any,
+  thinkingLevel: 'low' | 'medium' | 'high',
+  systemInstruction?: string,
+  responseSchema?: Any,
+): Promise<string> {
   const candidates: string[] = [];
   const addCandidate = (modelName: string) => {
-    const clean = String(modelName || '').replace(/^models\//, '').trim();
+    const clean = normalizeBotGeminiModel(modelName);
     if (clean && !candidates.includes(clean)) candidates.push(clean);
   };
-  [GEMINI_INSIGHT_MODEL, ...GEMINI_FALLBACK_MODELS].forEach(addCandidate);
+  [primaryModel, ...candidatesFallback].forEach(addCandidate);
 
   let lastErr = '';
   for (let i = 0; i < candidates.length; i++) {
-    const model = candidates[i];
-    const generationConfig: Record<string, unknown> = { temperature: 0.7, maxOutputTokens: 2048 };
-    if (/^gemini-(2\.5|3)/i.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    const body: Record<string, unknown> = {
+      model: candidates[i],
+      input,
+      store: false,
+      generation_config: { thinking_level: thinkingLevel },
+    };
+    if (systemInstruction) body.system_instruction = systemInstruction;
+    if (responseSchema) body.response_format = { type: 'text', mime_type: 'application/json', schema: responseSchema };
 
-    for (let attempt = 0; ; attempt++) {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await fetch(GEMINI_INTERACTIONS_URL, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig }),
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': GEMINI_KEY,
+          'Api-Revision': '2026-05-20',
+        },
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(25000),
       });
       const j = await r.json().catch(() => ({}));
-      if (j?.error || !r.ok) {
-        const msg = String(j?.error?.message || `HTTP ${r.status}`);
-        lastErr = msg;
-        for (const m of msg.matchAll(/models\/([a-z0-9._-]+)/gi)) addCandidate(m[1]);
-        if (attempt < 2 && /high demand|overloaded|503/i.test(msg)) { await sleep(2 ** attempt * 1000); continue; }
-        if (r.status === 404 || /not found|no longer available|not supported|deprecated/i.test(msg)) break;
-        throw new Error('Gemini: ' + msg);
+      if (!j?.error && r.ok) {
+        const text = extractInteractionText(j);
+        if (!text) throw new Error('Gemini tidak mengembalikan hasil (Respons kosong)');
+        return text;
       }
-      const text: string = j?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (!text) throw new Error('Gemini: respons kosong');
-      return text.replace(/\*\*/g, '').replace(/^#+\s*/gm, '').replace(/^\*\s+/gm, '• ').trim();
+      const msg = String(j?.error?.message || `HTTP ${r.status}`);
+      lastErr = msg;
+      for (const m of msg.matchAll(/models\/([a-z0-9._-]+)/gi)) addCandidate(m[1]);
+      if (attempt < 2 && (r.status === 429 || r.status === 503 || /high demand|overloaded|rate limit/i.test(msg))) {
+        await sleep(2 ** attempt * 1000);
+        continue;
+      }
+      if (r.status === 404 || r.status === 403 || /not found|no longer available|not supported|deprecated|billing|paid tier/i.test(msg)) break;
+      throw new Error('Gemini: ' + msg);
     }
   }
   throw new Error('Gemini: ' + (lastErr || 'Semua model AI gagal diakses'));
@@ -211,7 +271,11 @@ export async function handleInsight(c: Ctx) {
   const top = Array.from(byCat.values()).sort((a, b) => b.total - a.total).slice(0, 5);
   let body: string;
   try {
-    body = safeHtml(await askInsight({ period, totalIn, totalOut, n: monthTx.length, top: top.map((it) => `• ${it.label}: ${rp(it.total)}`).join('\n') }));
+    const topStr = top.map((it) => {
+      const share = totalOut > 0 ? Math.round((it.total / totalOut) * 100) : 0;
+      return `• ${it.label}: ${rp(it.total)} (${share}%)`;
+    }).join('\n');
+    body = safeHtml(await askInsight({ period, totalIn, totalOut, n: monthTx.length, top: topStr }));
   } catch (e) {
     console.error('insight', e);
     const sel = totalIn - totalOut;

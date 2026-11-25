@@ -68,18 +68,29 @@
     const qtyInput = document.getElementById('asset-quantity');
     const buyInput = document.getElementById('asset-buyprice');
     const valInput = document.getElementById('asset-value');
+    const symbolWrap = document.getElementById('asset-symbol-wrap');
+    const qtyWrap = document.getElementById('asset-quantity-wrap');
+    const buyWrap = document.getElementById('asset-buyprice-wrap');
+    const valWrap = document.getElementById('asset-value-wrap');
+    const symbolLabel = document.getElementById('asset-symbol-label');
+    const qtyLabel = document.getElementById('asset-quantity-label');
+    const valLabel = document.getElementById('asset-value-label');
     function toggleFields() {
       const v = typeSelect.value;
       const isCrypto = v === 'Crypto';
       const isEmas = v === 'Emas';
       const isUsd = v === 'USD';
-      symbolInput.style.display = (isCrypto || v === 'Saham') ? 'block' : 'none';
-      symbolInput.placeholder = isCrypto ? 'Symbol crypto (BTC, ETH, SOL, PAXG)' : 'Kode emiten / ticker (mis. BBCA, BBRI)';
-      qtyInput.style.display = (isCrypto || isEmas || isUsd) ? 'block' : 'none';
-      qtyInput.placeholder = isEmas ? 'Berat emas (gram, mis. 5)' : isUsd ? 'Nominal USD (mis. 500)' : 'Jumlah coin (mis. 0.05)';
-      buyInput.style.display = isCrypto ? 'block' : 'none';
-      valInput.style.display = isCrypto ? 'none' : 'block';
-      valInput.placeholder = isEmas ? 'Total nilai beli/saat ini (Rp)' : isUsd ? 'Total nilai setara (Rp)' : 'Nilai aset (Rp)';
+      if (symbolWrap) symbolWrap.style.display = (isCrypto || v === 'Saham') ? 'block' : 'none';
+      if (symbolLabel) symbolLabel.textContent = isCrypto ? 'Simbol Crypto (Ticker)' : 'Kode Emiten / Ticker';
+      symbolInput.placeholder = isCrypto ? 'Contoh: BTC, ETH, SOL, PAXG' : 'Contoh: BBCA, BBRI, TLKM';
+      if (qtyWrap) qtyWrap.style.display = (isCrypto || isEmas || isUsd) ? 'block' : 'none';
+      if (qtyLabel) qtyLabel.textContent = isEmas ? 'Berat Emas (gram)' : isUsd ? 'Nominal Valas (USD)' : 'Jumlah Coin / Unit';
+      qtyInput.placeholder = isEmas ? 'Contoh: 5' : isUsd ? 'Contoh: 500' : 'Contoh: 0.05';
+      if (buyWrap) buyWrap.style.display = isCrypto ? 'block' : 'none';
+      if (valWrap) valWrap.style.display = isCrypto ? 'none' : 'block';
+      if (valLabel) valLabel.textContent = isEmas ? 'Total Nilai Beli / Saat Ini (Rp)' : isUsd ? 'Total Nilai Setara (Rp)' : 'Total Nilai Aset (Rp)';
+      valInput.placeholder = isEmas ? 'Contoh: 7.500.000' : isUsd ? 'Contoh: 8.000.000' : 'Contoh: 10.000.000';
+      if (!buyInput.value && buyWrap) buyInput.placeholder = 'Contoh: 1.500.000.000';
     }
     typeSelect.addEventListener('change', toggleFields);
     toggleFields();
@@ -118,25 +129,43 @@
     Swal.fire({
       title: 'Tambah Aset & Investasi',
       html: `
-        <div class="text-left space-y-2">
-          <label for="asset-type" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jenis Aset</label>
-          <select id="asset-type" class="swal2-input" style="margin:0;width:100%">
-            <option value="Crypto">Crypto (CoinGecko)</option>
-            <option value="Emas">Emas (gram · Auto Harga)</option>
-            <option value="USD">Valas USD (Auto Kurs IDR)</option>
-            <option value="Saham">Saham / Reksa Dana</option>
-            <option value="Cash">Cash / Deposito / Tabungan</option>
-            <option value="Other">Aset Lainnya</option>
-          </select>
-          <label for="asset-name" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Aset</label>
-          <input id="asset-name" class="swal2-input" style="margin:0;width:100%" placeholder="Contoh: Bitcoin / Antam 5g / Tabungan USD">
-          <input id="asset-symbol" class="swal2-input" placeholder="Simbol/Kode (mis. BTC, ETH, BBCA)" style="display:none;margin:0;width:100%">
-          <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input tabular-nums" placeholder="Jumlah unit" style="display:none;margin:0;width:100%">
-          <input id="asset-buyprice" type="text" inputmode="numeric" class="swal2-input tabular-nums" placeholder="Harga beli per unit (Rp)" style="display:none;margin:0;width:100%">
-          <input id="asset-value" type="text" inputmode="numeric" aria-label="Total Nilai Rupiah" class="swal2-input tabular-nums" style="margin:0;width:100%" placeholder="Total Nilai (Rp)">
-          <label for="asset-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 pt-1">Sumber dana (opsional)</label>
-          <select id="asset-wallet" class="swal2-input" style="margin:0;width:100%"><option value="">Catat sebagai aset manual</option>${walletOptions('')}</select>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">Jika dompet dipilih, pembelian dicatat ke pengeluaran kategori Investasi.</p>
+        <div class="text-left space-y-3">
+          <div>
+            <label for="asset-type" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jenis Aset</label>
+            <select id="asset-type" class="swal2-input" style="margin-top:0.35rem">
+              <option value="Crypto">Crypto (CoinGecko)</option>
+              <option value="Emas">Emas (gram &middot; Auto Harga)</option>
+              <option value="USD">Valas USD (Auto Kurs IDR)</option>
+              <option value="Saham">Saham / Reksa Dana</option>
+              <option value="Cash">Cash / Deposito / Tabungan</option>
+              <option value="Other">Aset Lainnya</option>
+            </select>
+          </div>
+          <div>
+            <label for="asset-name" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Aset</label>
+            <input id="asset-name" class="swal2-input" style="margin-top:0.35rem" placeholder="Contoh: Bitcoin / Antam 5g / Tabungan USD">
+          </div>
+          <div id="asset-symbol-wrap" style="display:none">
+            <label id="asset-symbol-label" for="asset-symbol" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Simbol / Kode</label>
+            <input id="asset-symbol" class="swal2-input" style="margin-top:0.35rem" placeholder="Contoh: BTC, ETH, BBCA">
+          </div>
+          <div id="asset-quantity-wrap" style="display:none">
+            <label id="asset-quantity-label" for="asset-quantity" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Jumlah Unit</label>
+            <input id="asset-quantity" type="number" step="0.00000001" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Jumlah unit">
+          </div>
+          <div id="asset-buyprice-wrap" style="display:none">
+            <label for="asset-buyprice" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Harga Beli per Unit (Rp)</label>
+            <input id="asset-buyprice" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Harga beli per unit (Rp)">
+          </div>
+          <div id="asset-value-wrap">
+            <label id="asset-value-label" for="asset-value" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Total Nilai Aset (Rp)</label>
+            <input id="asset-value" type="text" inputmode="numeric" aria-label="Total Nilai Rupiah" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Total Nilai (Rp)">
+          </div>
+          <div>
+            <label for="asset-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Sumber Dana (opsional)</label>
+            <select id="asset-wallet" class="swal2-input" style="margin-top:0.35rem"><option value="">Catat sebagai aset manual</option>${walletOptions('')}</select>
+          </div>
+          <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">Jika dompet dipilih, pembelian dicatat otomatis ke pengeluaran kategori Investasi.</p>
         </div>`,
       focusConfirm: false,
       showCancelButton: true,

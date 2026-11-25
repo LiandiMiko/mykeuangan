@@ -214,10 +214,16 @@
     const { value: password } = await Swal.fire({
       title,
       html: `
-        <label for="admin-new-password" class="block text-left text-sm font-semibold mb-1">Password baru</label>
-        <input id="admin-new-password" type="password" class="swal2-input" autocomplete="new-password" minlength="8">
-        <label for="admin-confirm-password" class="block text-left text-sm font-semibold mt-3 mb-1">Ulangi password</label>
-        <input id="admin-confirm-password" type="password" class="swal2-input" autocomplete="new-password" minlength="8">`,
+        <div class="text-left space-y-3">
+          <div>
+            <label for="admin-new-password" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Password baru</label>
+            <input id="admin-new-password" type="password" class="swal2-input" style="margin:0;width:100%" autocomplete="new-password" minlength="8" placeholder="Minimal 8 karakter">
+          </div>
+          <div>
+            <label for="admin-confirm-password" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Ulangi password</label>
+            <input id="admin-confirm-password" type="password" class="swal2-input" style="margin:0;width:100%" autocomplete="new-password" minlength="8" placeholder="Ketik ulang password">
+          </div>
+        </div>`,
       showCancelButton: true,
       confirmButtonText: 'Simpan Password',
       cancelButtonText: 'Batal',
