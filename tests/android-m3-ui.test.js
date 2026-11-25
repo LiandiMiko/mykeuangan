@@ -118,6 +118,11 @@ test('wave v3.19 app update checker compares semver, evaluates force/soft update
   assert.match(androidYml, /refs\/heads\/main/);
   assert.match(androidYml, /publish_release/);
   assert.match(androidYml, /gh release/);
+  assert.match(androidYml, /actions\/cache\/restore@v4/);
+  assert.match(androidYml, /actions\/cache\/save@v4/);
+  assert.match(androidYml, /android-debug-keystore-v1/);
+  assert.match(androidYml, /debug\.keystore/);
+  assert.match(androidYml, /RELEASE_APKS/);
 });
 
 test('wave v3.19.1 scopes SweetAlert2 bottom-sheet animations to show/hide states and adds Back fallback', () => {
