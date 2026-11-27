@@ -58,13 +58,17 @@
           totalTransactions: Number(s.total_transactions) || 0
         };
       } else {
-        const chCount = await sb.from('telegram_chats').select('chat_id', { count: 'exact', head: true });
-        fail(chCount.error);
+        // Fallback bila RPC statistik gagal: jumlah chat Telegram platform
+        // TIDAK bisa dihitung dari klien lagi — sejak Gelombang 2.2, policy
+        // telegram_chats hanya mengizinkan SELECT baris sendiri, jadi query
+        // langsung hanya mengembalikan chat milik admin sendiri (angka salah).
+        // Tampilkan 0 daripada angka yang menyesatkan; angka benar hanya
+        // dari RPC get_admin_platform_stats.
         stats = {
           totalUsers: profiles.length,
           activeUsers: profiles.filter((p) => p.status === 'active').length,
           suspendedUsers: profiles.filter((p) => p.status === 'suspended').length,
-          totalTelegramChats: chCount.count || 0
+          totalTelegramChats: 0
         };
       }
 
@@ -183,6 +187,36 @@
       const { error } = await sb.rpc('replace_telegram_pairing', { p_otp: otp });
       fail(error);
       return otp;
+    },
+
+    // --- Bot Telegram personal (Gelombang 2.2: bring your own bot) --------
+    // Token bot TIDAK PERNAH disimpan di perangkat: token dikirim sekali ke
+    // Edge Function telegram-setup, divalidasi ke Telegram (getMe),
+    // dienkripsi (AES-GCM) dan disimpan di server. Status yang dikembalikan
+    // hanya berisi username bot — tanpa token.
+    async api_getTelegramBotStatus() {
+      const res = await invokeEdgeFunction('telegram-setup', { action: 'get_status' });
+      return res; // { connected: boolean, bot_username?, bot_user_id?, created_at? }
+    },
+
+    async api_connectTelegramBot(token) {
+      const t = String(token || '').trim();
+      if (!t) throw new Error('Tempel token bot dari @BotFather terlebih dahulu.');
+      if (!/^\d{5,}:[A-Za-z0-9_-]{30,}$/.test(t)) {
+        throw new Error('Format token tidak valid. Salin token lengkap dari @BotFather.');
+      }
+      const res = await invokeEdgeFunction('telegram-setup', { action: 'connect_bot', token: t });
+      return res; // { bot_username, bot_user_id }
+    },
+
+    async api_disconnectTelegramBot() {
+      await invokeEdgeFunction('telegram-setup', { action: 'disconnect_bot' });
+      return true;
+    },
+
+    async api_rotateTelegramBotWebhook() {
+      await invokeEdgeFunction('telegram-setup', { action: 'rotate_webhook' });
+      return true;
     },
 
     async api_saveDebtDueDates(dueMap) {

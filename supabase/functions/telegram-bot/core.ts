@@ -12,11 +12,111 @@ export const TZ = Deno.env.get('APP_TIMEZONE') ?? 'Asia/Jakarta';
 export const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
 });
-export const TG = `https://api.telegram.org/bot${TOKEN}`;
+
+// --- Bot personal (Gelombang 2.2) -------------------------------------------
+// Token bot tiap pengguna tersimpan terenkripsi (AES-GCM, kunci dari secret
+// TELEGRAM_TOKEN_ENCRYPTION_KEY) di tabel telegram_bots. Setiap request
+// webhook memakai token bot pemiliknya; token env TELEGRAM_BOT_TOKEN hanya
+// fallback transisi untuk bot lama yang belum dimigrasi ke bot personal.
+
+const TOKEN_CACHE_TTL_MS = 60_000;
+const tokenCache = new Map<string, { token: string; exp: number }>();
+
+const b64ToBytes = (s: string) => {
+  const bin = atob(s);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+};
+const bytesToB64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const bytesToHex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+/** SHA-256 hex — sama dengan encode(digest(p_otp, 'sha256'), 'hex') di SQL. */
+export async function sha256Hex(input: string): Promise<string> {
+  const data = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return bytesToHex(new Uint8Array(data));
+}
+
+/** Secret acak hex untuk webhook_secret / link_secret (aman di URL). */
+export function randomSecretHex(bytes = 32): string {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
+}
+
+async function getTokenEncryptionKey(): Promise<CryptoKey> {
+  const secret = Deno.env.get('TELEGRAM_TOKEN_ENCRYPTION_KEY') ?? '';
+  if (!secret) throw new Error('TELEGRAM_TOKEN_ENCRYPTION_KEY belum dikonfigurasi.');
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
+export async function encryptBotToken(token: string): Promise<{ iv: string; cipher: string }> {
+  const key = await getTokenEncryptionKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(token));
+  return { iv: bytesToB64(iv.buffer), cipher: bytesToB64(cipher) };
+}
+
+export async function decryptBotToken(ivB64: string, cipherB64: string): Promise<string> {
+  const key = await getTokenEncryptionKey();
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: b64ToBytes(ivB64) },
+    key,
+    b64ToBytes(cipherB64),
+  );
+  return new TextDecoder().decode(plain);
+}
+
+export type BotRow = {
+  user_id: string;
+  bot_username: string;
+  bot_user_id: number;
+  token_encrypted: string;
+  token_iv: string;
+  webhook_secret: string;
+  link_secret: string;
+};
+
+const BOT_COLUMNS = 'user_id,bot_username,bot_user_id,token_encrypted,token_iv,webhook_secret,link_secret';
+
+export async function getBotRowByUser(uid: string): Promise<BotRow | null> {
+  const { data, error } = await sb.from('telegram_bots').select(BOT_COLUMNS).eq('user_id', uid).maybeSingle();
+  if (error) throw error;
+  return (data as BotRow | null) ?? null;
+}
+
+export async function getBotRowByLink(linkSecret: string): Promise<BotRow | null> {
+  const { data, error } = await sb.from('telegram_bots').select(BOT_COLUMNS).eq('link_secret', linkSecret).maybeSingle();
+  if (error) throw error;
+  return (data as BotRow | null) ?? null;
+}
+
+/**
+ * Token bot untuk satu chat. Alur: telegram_chats -> user_id ->
+ * telegram_bots -> dekripsi. Cache 60 detik per user_id.
+ * Bila pengguna belum memasang bot personal (atau chat belum terhubung),
+ * kembali ke token env bersama (fallback transisi). Bila baris bot ada
+ * tetapi dekripsi gagal, error dilempar — JANGAN diam-diam memakai bot
+ * bersama, karena pesan akan terkirim dari bot yang salah.
+ */
+export async function resolveBotTokenForChat(chat: number): Promise<string> {
+  const { data: reg } = await sb.from('telegram_chats').select('user_id').eq('chat_id', chat).maybeSingle();
+  const uid = (reg as { user_id?: string } | null)?.user_id;
+  if (!uid) return TOKEN;
+  const cached = tokenCache.get(uid);
+  if (cached && cached.exp > Date.now()) return cached.token;
+  const row = await getBotRowByUser(uid);
+  if (!row) return TOKEN;
+  const token = await decryptBotToken(row.token_iv, row.token_encrypted);
+  tokenCache.set(uid, { token, exp: Date.now() + TOKEN_CACHE_TTL_MS });
+  return token;
+}
+
+export function clearBotTokenCache(uid?: string) {
+  if (uid) tokenCache.delete(uid);
+  else tokenCache.clear();
+}
 
 // deno-lint-ignore no-explicit-any
 export type Any = any;
-export type Ctx = { chat: number; uid: string; name: string };
+export type Ctx = { chat: number; uid: string; name: string; token?: string };
 export type Tx = {
   tanggal: string; tipe: 'Pemasukan' | 'Pengeluaran'; kategori: string; nominal: number; keterangan?: string;
   wallet_id?: string | null; walletName?: string;
@@ -54,8 +154,13 @@ export async function safeEqual(a: string, b: string): Promise<boolean> {
   return diff === 0;
 }
 
-export async function tg(method: string, body: Record<string, unknown>) {
-  const r = await fetch(`${TG}/${method}`, {
+/**
+ * Panggilan Telegram API dengan token eksplisit. Setiap pesan ke pengguna
+ * HARUS lewat token bot miliknya (lihat resolveBotTokenForChat / send).
+ * tg() lama dipertahankan hanya untuk jalur legacy bot bersama.
+ */
+export async function tgWithToken(token: string, method: string, body: Record<string, unknown>) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -64,8 +169,19 @@ export async function tg(method: string, body: Record<string, unknown>) {
   if (!r.ok) console.error('telegram', method, r.status, await r.text());
 }
 
+export async function tg(method: string, body: Record<string, unknown>) {
+  return tgWithToken(TOKEN, method, body);
+}
+
+/** Kirim pesan ke chat — token bot pemilik chat di-resolve per chat (cache 60 dtk). */
 export const send = (chat: number, text: string, kb?: unknown) =>
-  tg('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', reply_markup: kb });
+  resolveBotTokenForChat(chat).then((token) =>
+    tgWithToken(token, 'sendMessage', { chat_id: chat, text, parse_mode: 'HTML', reply_markup: kb })
+  );
+
+/** Kirim pesan dengan token yang sudah di-resolve (mis. pairing, chat belum terhubung). */
+export const sendWithToken = (token: string, chat: number, text: string, kb?: unknown) =>
+  tgWithToken(token, 'sendMessage', { chat_id: chat, text, parse_mode: 'HTML', reply_markup: kb });
 
 export const mainKb = () => ({
   keyboard: [

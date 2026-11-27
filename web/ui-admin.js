@@ -355,7 +355,88 @@
     }
   }
 
+  // --- Bot Telegram Saya (Gelombang 2.2: bring your own bot) ----------------
+  // Satu pintu masuk: bila pengguna belum memasang bot personal, tampilkan
+  // panduan BotFather + form token; bila sudah, tampilkan status bot +
+  // kode pairing OTP untuk botnya sendiri.
   async function openTelegramPairingModal() {
+    try {
+      Swal.fire({
+        title: 'Memuat Pengaturan Bot...',
+        allowOutsideClick: false,
+        customClass: { popup: getSwalClass() },
+        didOpen: () => Swal.showLoading()
+      });
+      const status = await callServer('api_getTelegramBotStatus').catch(() => ({ connected: false }));
+      if (!status || !status.connected) return openTelegramBotSetupModal();
+      return openTelegramBotPairingModal(status);
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+    }
+  }
+
+  async function openTelegramBotSetupModal() {
+    Swal.fire({
+      title: 'Bot Telegram Saya',
+      html: `
+        <div class="text-left space-y-3 text-sm">
+          <p class="text-slate-600 dark:text-slate-300">Mulai sekarang, tiap pengguna memakai <strong>bot Telegram-nya sendiri</strong>. Buat bot Anda sekali lewat @BotFather, lalu hubungkan di sini.</p>
+          <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
+            <p class="font-bold">Cara Membuat Bot (sekali saja):</p>
+            <p>1. Buka Telegram, cari <strong>@BotFather</strong>.</p>
+            <p>2. Kirim <code>/newbot</code>, beri nama bot, lalu beri username (harus diakhiri <em>bot</em>).</p>
+            <p>3. Salin <strong>token</strong> yang diberikan BotFather (format: angka, titik dua, kode rahasia).</p>
+            <p>4. Tempel token di bawah, lalu tekan <strong>Hubungkan Bot Saya</strong>.</p>
+          </div>
+          <div>
+            <label for="tgBotTokenInput" class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Token Bot Anda</label>
+            <input id="tgBotTokenInput" type="password" autocomplete="off" placeholder="123456789:AAE..." class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono" />
+            <p class="text-[11px] text-slate-400 mt-1">Token dikirim sekali ke server, divalidasi, lalu disimpan terenkripsi. Token tidak pernah ditampilkan lagi dan tidak tersimpan di perangkat ini.</p>
+          </div>
+          <button type="button" id="btnConnectTgBot" class="w-full min-h-[44px] px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-1.5 transition-colors">
+            <i class="ph ph-plugs-connected" aria-hidden="true"></i> Hubungkan Bot Saya
+          </button>
+        </div>`,
+      confirmButtonText: 'Nanti Saja',
+      showCloseButton: true,
+      customClass: { popup: getSwalClass() },
+      didOpen: () => {
+        const input = document.getElementById('tgBotTokenInput');
+        const btn = document.getElementById('btnConnectTgBot');
+        if (input) input.focus();
+        if (btn) {
+          btn.addEventListener('click', async () => {
+            const token = input ? input.value.trim() : '';
+            if (!token) {
+              Swal.showValidationMessage('Tempel token bot dari @BotFather terlebih dahulu.');
+              return;
+            }
+            try {
+              Swal.fire({
+                title: 'Menghubungkan Bot...',
+                text: 'Token sedang divalidasi ke Telegram.',
+                allowOutsideClick: false,
+                customClass: { popup: getSwalClass() },
+                didOpen: () => Swal.showLoading()
+              });
+              const res = await callServer('api_connectTelegramBot', token);
+              await Swal.fire({
+                icon: 'success',
+                title: 'Bot Terhubung!',
+                text: `Bot Anda @${res && res.bot_username ? res.bot_username : ''} sudah terhubung. Lanjutkan dengan kode pairing di bawah.`,
+                customClass: { popup: getSwalClass() }
+              });
+              return openTelegramPairingModal();
+            } catch (err) {
+              Swal.fire({ icon: 'error', title: 'Gagal Menghubungkan', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+            }
+          });
+        }
+      }
+    });
+  }
+
+  async function openTelegramBotPairingModal(status) {
     try {
       Swal.fire({
         title: 'Membuat Kode Pairing...',
@@ -366,10 +447,16 @@
 
       const otp = await callServer('api_generateTelegramOTP');
       const linkCmd = `/link ${otp}`;
+      const botName = status && status.bot_username ? `@${status.bot_username}` : 'bot Anda';
+      const since = status && status.created_at ? String(status.created_at).slice(0, 10) : '';
       Swal.fire({
         title: 'Hubungkan Bot Telegram',
         html: `
           <div class="text-left space-y-3 text-sm">
+            <div class="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs flex items-center justify-between gap-2">
+              <span><span class="font-bold">Bot Anda: ${escapeHtmlJS(botName)}</span>${since ? `<br>Terhubung sejak ${escapeHtmlJS(since)}` : ''}</span>
+              <span class="shrink-0 px-2 py-1 rounded-full bg-emerald-600 text-white font-bold">Terhubung</span>
+            </div>
             <p class="text-slate-600 dark:text-slate-300">Gunakan kode OTP 8 digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
             <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-center">
               <span class="text-3xl font-black tracking-widest text-brand dark:text-white">${escapeHtmlJS(otp)}</span>
@@ -377,11 +464,15 @@
             </div>
             <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
               <p class="font-bold">Cara Menghubungkan:</p>
-              <p>1. Buka Bot Telegram MyKeuGuech.</p>
+              <p>1. Buka bot Anda ${escapeHtmlJS(botName)}.</p>
               <p>2. Kirim pesan: <code class="font-bold">${escapeHtmlJS(linkCmd)}</code></p>
               <button type="button" id="btnCopyTgLink" class="w-full min-h-[40px] mt-1 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors">
                 <i class="ph ph-copy" aria-hidden="true"></i> Salin Perintah /link
               </button>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" id="btnRotateTgWebhook" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-xs text-slate-600 dark:text-slate-300">Perbarui Webhook</button>
+              <button type="button" id="btnDisconnectTgBot" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-800 font-bold text-xs text-rose-600 dark:text-rose-400">Putus Bot</button>
             </div>
           </div>`,
         confirmButtonText: 'Selesai',
@@ -395,6 +486,40 @@
                 await navigator.clipboard.writeText(linkCmd);
                 renderHtml(copyBtn, '<i class="ph-bold ph-check" aria-hidden="true"></i> <span>Perintah Disalin!</span>');
               } catch (_) { /* ignore */ }
+            });
+          }
+          const rotateBtn = document.getElementById('btnRotateTgWebhook');
+          if (rotateBtn) {
+            rotateBtn.addEventListener('click', async () => {
+              try {
+                await callServer('api_rotateTelegramBotWebhook');
+                Swal.fire({ icon: 'success', title: 'Webhook Diperbarui', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+              } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+              }
+            });
+          }
+          const discBtn = document.getElementById('btnDisconnectTgBot');
+          if (discBtn) {
+            discBtn.addEventListener('click', async () => {
+              const conf = await Swal.fire({
+                title: 'Putus Bot Telegram?',
+                text: 'Bot Anda akan diputus dan webhook-nya dicabut. Chat yang sudah terhubung ikut terputus.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Putuskan',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#e11d48',
+                customClass: { popup: getSwalClass() }
+              });
+              if (!conf.isConfirmed) return;
+              try {
+                await callServer('api_disconnectTelegramBot');
+                await Swal.fire({ icon: 'success', title: 'Bot Diputus', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+                return openTelegramBotSetupModal();
+              } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+              }
             });
           }
         }
