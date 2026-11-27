@@ -132,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.4');
+  assert.equal(pkg.version, '3.20.5');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
@@ -701,7 +701,7 @@ test('v3.20.3: buildEnrichedAiSnapshot populates portfolio fields in browser IIF
   }
 });
 
-test('v3.20.4: Android APK signing uses explicit debug-keystore.properties, apksigner verification gate, and 5-day keepalive', async () => {
+test('v3.20.5: Android APK signing uses explicit debug-keystore.properties, apksigner verification gate, and 5-day keepalive', async () => {
   const mod = await import(pathToFileURL(path.resolve('scripts/patch-android-project.mjs')).href);
   const templates = [
     {
@@ -729,14 +729,14 @@ test('v3.20.4: Android APK signing uses explicit debug-keystore.properties, apks
       fs.writeFileSync(gradlePath, tpl.gradle);
       fs.writeFileSync(mainActPath, 'package com.mykeuguech.app;\n\nimport com.getcapacitor.BridgeActivity;\n\npublic class MainActivity extends BridgeActivity {}\n');
 
-      const vInfo1 = mod.patchAndroidProject(tmpDir, '3.20.4');
-      const vInfo2 = mod.patchAndroidProject(tmpDir, '3.20.4');
-      assert.equal(vInfo1.versionCode, 32004, tpl.name);
-      assert.equal(vInfo2.versionName, '3.20.4', tpl.name);
+      const vInfo1 = mod.patchAndroidProject(tmpDir, '3.20.5');
+      const vInfo2 = mod.patchAndroidProject(tmpDir, '3.20.5');
+      assert.equal(vInfo1.versionCode, 32005, tpl.name);
+      assert.equal(vInfo2.versionName, '3.20.5', tpl.name);
 
       const patchedGradle = fs.readFileSync(gradlePath, 'utf8');
-      assert.match(patchedGradle, /versionCode 32004/, tpl.name);
-      assert.match(patchedGradle, /versionName "3\.20\.4"/, tpl.name);
+      assert.match(patchedGradle, /versionCode 32005/, tpl.name);
+      assert.match(patchedGradle, /versionName "3\.20\.5"/, tpl.name);
       assert.match(patchedGradle, /debug-keystore\.properties/, tpl.name);
       assert.match(patchedGradle, /signingConfigs\s*\{[\s\S]*debug\s*\{[\s\S]*release\s*\{/, tpl.name);
       assert.equal((patchedGradle.match(/signingConfig signingConfigs\.debug/g) || []).length, 1, tpl.name);

@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.4** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.5** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.4-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.5-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -471,6 +471,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 28 November 2026: Update v3.20.5 (Keamanan Data Lokal & Dompet Bank Utama untuk Cashflow Runway)
+- **PIN sebagai Kunci Enkripsi & Gerbang Data (`web/ui-feat-account.js`, `web/ui-feat-cache.js`, `web/ui-feat-offline.js`, `web/ui-feat-hooks.js`, `web/ui-shell.js`, `tests/pin-encryption-gating.test.js`)**: PIN kini diminta *sebelum* data apa pun dimuat atau ditampilkan — termasuk dari snapshot offline — dan data lokal dienkripsi dengan DEK acak AES-GCM 256-bit yang dibungkus KEK turunan PIN (PBKDF2-SHA256 100.000 iterasi, domain `mk-data-key:`). Kunci yang sudah dibuka hanya hidup di memori; antrean offline dan snapshot IndexedDB tersimpan terenkripsi. Salah PIN berulang kini benar-benar mengunci: status lockout pindah ke IndexedDB (v3, store `pin_lock_state`) dengan jeda bertingkat 60 detik → 5 → 15 → 60 menit, dan setelah 3 kali terkunci pengguna wajib verifikasi ulang kata sandi akun.
+- **Logout Aman & Admin di Sisi Server (`web/supabase-auth.js`, `web/supabase-admin.js`, `web/delete-account.html`, `supabase/functions/admin-user-ops/index.ts`, `supabase/migrations/20261128000000_wave1_admin_hardening.sql`, `tests/logout-offline-guard.test.js`, `tests/wave1-admin-hardening.test.js`)**: Logout kini ditahan bila antrean offline belum tersinkron — pengguna bisa sinkron sekarang, mengekspor cadangan darurat JSON, atau batal — sehingga transaksi offline tidak lagi hilang diam-diam. Aksi admin (ubah peran/status, putus Telegram, hapus akun) dipindah ke Edge Function `admin-user-ops` dengan verifikasi JWT, pemeriksaan admin aktif, dan audit server ke `admin_audit_logs`; pengguna pertama yang mendaftar tidak lagi otomatis menjadi admin, dan `UPDATE` langsung pada `profiles` dicabut dari peran `authenticated`. Reset kata sandi admin yang sebelumnya tidak bisa dipakai karena fungsinya terpasang dengan slug yang salah (`super-responder`) kini sudah diperbaiki dan terpasang sebagai `admin-password`.
+- **Dompet Bank Utama sebagai Acuan Cashflow Runway (`web/finance-analysis-core.js`, `web/finance-analysis-portfolio.js`, `web/ui-wallets.js`, `web/ui-feat-recurring.js`, `web/finance-analysis-ai.js`, `web/supabase-core.js`, `tests/finance-analysis.test.js`)**: Pengguna kini bisa menandai satu dompet bank sebagai **Dompet Utama** (pengaturan `primaryBankWalletId` per pengguna, tanpa migrasi database). Strip Cashflow Runway lalu hanya memakai saldo dompet itu — dompet bank dan e-wallet lain otomatis dianggap tabungan dan tidak ikut menghitung — lengkap dengan label `Acuan: <nama dompet>` dan nama dompet acuan di ringkasan AI. Bila pengaturan kosong, dompetnya dihapus, atau bukan bank, perhitungan kembali ke total semua dompet seperti sebelumnya; angka Dana Darurat tetap memakai seluruh kas cair.
 
 ### 26 November 2026: Update v3.20.4 (Perbaikan Update Timpa In-Place APK Android & Polish Popup Mobile)
 - **Signing Persisten APK & Verifikasi `apksigner` (`.github/workflows/android-build.yml`, `scripts/patch-android-project.mjs`, `.gitignore`)**: Memperbaiki masalah APK baru tidak bisa menimpa versi lama karena `ubuntu-24.04` (`XDG_CONFIG_HOME=/home/runner/.config`) membuat keystore acak berbeda di tiap run CI. `patch-android-project.mjs` kini menambatkan `signingConfigs.debug` secara eksplisit ke `android/debug-keystore.properties`; CI mengekspor `ANDROID_USER_HOME=$HOME/.android`, mendukung secret opsional `ANDROID_DEBUG_KEYSTORE_BASE64`, menyegarkan cache `android-debug-keystore-v1` tiap 5 hari lewat job keepalive, serta memverifikasi SHA-256 sertifikat APK dengan `apksigner verify --print-certs` sebelum publikasi ke GitHub Releases (`versionCode 32004`; APK lama `<= v3.20.3` perlu 1x uninstall sebelum memasang `v3.20.4`, lalu rilis berikutnya dapat langsung ditimpa).
