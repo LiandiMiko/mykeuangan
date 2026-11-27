@@ -277,7 +277,11 @@
     }
     try {
       const text = await file.text();
-      if (TransactionImport.parseRows(text).length > 501) throw new Error(t('lap.import_limit'));
+      // Wave 3.5 / S34: batas 500 baris DATA ditegakkan di dalam parser
+      // (parseTransactionCsv) — bukan di sini. Hitungan lama di sini memakai
+      // semua baris termasuk preamble/header sehingga file yang sah
+      // (15 preamble + 500 data) tertolak; error parser sudah menyebut
+      // batasnya dan ditampilkan lewat catch di bawah.
       const importOptions = {
         autoCategoryRules: typeof getAutoCategoryRules === 'function' ? getAutoCategoryRules() : [],
         categories: DB.categories

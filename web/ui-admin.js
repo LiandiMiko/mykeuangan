@@ -214,6 +214,22 @@
   // sendiri). Reset password oleh admin (resetUserPassword) tidak memakai
   // opsi itu — admin tidak tahu password lama pengguna dan tidak boleh
   // diminta memasukkannya.
+  // Wave 3.1 / S5 — pakai validator bersama (web/password-policy.js);
+  // jatuh kembali ke cek panjang saja bila file policy belum dimuat.
+  // Namanya dibedakan dari checkPasswordPolicy di supabase-auth.js agar
+  // tidak tertukar — keduanya memanggil validator yang sama.
+  function checkAdminPasswordPolicy(pass, email) {
+    const pol = (window.__mkFeat && window.__mkFeat.passwordPolicy) || window.__mkPasswordPolicy;
+    if (pol && typeof pol.validatePassword === 'function') {
+      const res = pol.validatePassword(pass, { email, lang: 'id' });
+      return res.ok ? '' : (res.errors[0] && res.errors[0].message) || '';
+    }
+    if (typeof pass !== 'string' || pass.length < 8 || pass.length > 128) {
+      return 'Password harus terdiri dari 8 sampai 128 karakter.';
+    }
+    return '';
+  }
+
   async function promptNewPassword(title, opts) {
     const requireCurrent = Boolean(opts && opts.requireCurrent);
     const { value: result } = await Swal.fire({
@@ -248,8 +264,9 @@
           Swal.showValidationMessage('Masukkan password lama Anda saat ini.');
           return false;
         }
-        if (newPassword.length < 8 || newPassword.length > 128) {
-          Swal.showValidationMessage('Password harus terdiri dari 8 sampai 128 karakter.');
+        const policyError = checkAdminPasswordPolicy(newPassword, opts && opts.email);
+        if (policyError) {
+          Swal.showValidationMessage(policyError);
           return false;
         }
         if (newPassword !== confirmPassword) {
@@ -345,7 +362,7 @@
   }
 
   async function resetUserPassword(uid, email) {
-    const password = await promptNewPassword(`Atur password untuk ${escapeHtmlJS(email)}`);
+    const password = await promptNewPassword(`Atur password untuk ${escapeHtmlJS(email)}`, { email });
     if (!password) return;
     try {
       await callServer('api_adminSetPassword', uid, password);
