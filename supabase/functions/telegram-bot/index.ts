@@ -1,7 +1,7 @@
 import {
   Any, Ctx, Tx, TOKEN, SECRET, sb, esc, safeEqual, getCategories, isActiveUser,
   setTemp, getTemp, delTemp, saveTx, savedMsg, tgWithToken, send, sendWithToken, mainKb, tambahKb, kategoriKb,
-  sha256Hex, decryptBotToken, getBotRowByLink,
+  decryptBotToken, getBotRowByLink,
 } from './core.ts';
 import { getWallets, handleTarik, handleTransfer, handleUtang, handlePiutang } from './wallets.ts';
 import { confirmPreview, handleMediaMessage, handleInsight } from './ai.ts';
@@ -123,19 +123,56 @@ async function handleMessage(c: Ctx, msg: Any) {
 }
 
 /**
+ * HMAC-SHA256 hex dari OTP dengan pepper server-side
+ * (TELEGRAM_OTP_HMAC_SECRET). HARUS identik dengan
+ * public.telegram_otp_hash() di SQL (pgcrypto hmac(p_otp, pepper,
+ * 'sha256') — kunci dan pesan sama-sama UTF-8). SHA-256 polos tidak
+ * lagi dipakai: OTP 8 digit hanya punya 10^8 kandidat dan bisa
+ * di-brute-force offline bila database bocor.
+ */
+async function hmacOtpHex(otp: string): Promise<string> {
+  const pepper = Deno.env.get('TELEGRAM_OTP_HMAC_SECRET') ?? '';
+  if (!pepper) throw new Error('TELEGRAM_OTP_HMAC_SECRET belum dikonfigurasi.');
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(pepper),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(otp));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * Pairing chat ke akun. OTP TIDAK PERNAH disimpan plaintext: yang dicari
- * adalah hash SHA-256-nya, dan bila webhook ini milik bot personal
- * (knownUid terisi dari link_secret), lookup DIBATASI ke user_id pemilik
- * bot itu — kode pairing milik pengguna A tidak bisa menautkan chat lewat
- * bot pengguna B (T7). Balasan dikirim lewat token bot yang menerima
- * pesan (chat belum terhubung, jadi belum bisa di-resolve per chat).
+ * adalah HMAC-SHA256-nya (pepper dari TELEGRAM_OTP_HMAC_SECRET), dan bila
+ * webhook ini milik bot personal (knownUid terisi dari link_secret),
+ * lookup DIBATASI ke user_id pemilik bot itu — kode pairing milik
+ * pengguna A tidak bisa menautkan chat lewat bot pengguna B (T7).
+ * Balasan dikirim lewat token bot yang menerima pesan (chat belum
+ * terhubung, jadi belum bisa di-resolve per chat).
+ *
+ * RISIKO RESIDUAL (S9): webhook bot BERSAMA (knownUid null — jalur
+ * legacy tanpa ?bot=<link_secret>) tidak bisa tahu pemilik OTP,
+ * sehingga lookup bersifat GLOBAL berdasarkan otp_hash saja. Mitigasi yang
+ * sudah ada: OTP single-use (DELETE saat dipakai), kedaluwarsa
+ * 10 menit, throttle percobaan per chat_id, dan kini HMAC dengan
+ * pepper server-side. Risiko ini hilang sepenuhnya hanya bila
+ * webhook bot bersama dimatikan dan semua pengguna memakai bot
+ * personal (Gelombang 2.2).
  */
 async function handlePairingCommand(chat: number, firstName: string, otp: string, token: string, knownUid: string | null) {
   const { data: allowed, error: attemptErr } = await sb.rpc('consume_telegram_pairing_attempt', { p_chat_id: chat });
   if (attemptErr) throw attemptErr;
   if (!allowed) return sendWithToken(token, chat, 'Terlalu banyak percobaan kode. Tunggu 10 menit sebelum mencoba lagi.');
 
-  const otpHash = await sha256Hex(otp);
+  let otpHash: string;
+  try {
+    otpHash = await hmacOtpHex(otp);
+  } catch {
+    return sendWithToken(token, chat, 'Pairing Telegram belum dikonfigurasi di server. Coba lagi nanti.');
+  }
   let q = sb.from('telegram_pairings')
     .delete().eq('otp_hash', otpHash).gt('expires_at', new Date().toISOString());
   if (knownUid) q = q.eq('user_id', knownUid);
