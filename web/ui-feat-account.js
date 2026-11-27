@@ -7,55 +7,189 @@
 
   const PIN_LOCK_STATE_KEY = 'mk_pin_lock_state_v1';
   const MAX_PIN_ATTEMPTS = 5;
-  const PIN_COOLDOWN_MS = 60000;
+  // Durasi lockout bertingkat (T2) berdasarkan jumlah lockout yang sudah terjadi.
+  // Lockout ke-1 = 60 detik, ke-2 = 5 menit, ke-3 = 15 menit, ke-4+ = 60 menit.
+  // Setelah 3 lockout (atau 15 kegagalan kumulatif), PIN terkunci sampai pengguna
+  // verifikasi ulang password akun (lihat promptAccountPasswordReverify).
+  const PIN_LOCKOUT_DURATIONS_MS = [60000, 5 * 60000, 15 * 60000, 60 * 60000];
+  const PIN_LOCKOUT_PASSWORD_RESET_AFTER = 3;
+  const PIN_FAILURES_PASSWORD_RESET_AFTER = 15;
   const AUTO_LOCK_IDLE_MS = 120000;
   let pinPromptShown = false;
   let pinLastHiddenAt = 0;
+  // Mirror state cooldown di memori agar pembacaan cepat (getPinCooldownSeconds
+  // tetap sinkron); sumber kebenaran adalah IndexedDB (store `pin_lock_state`).
+  let pinLockStateCache = { attempts: 0, lockedUntil: 0, lockoutCount: 0, failuresTotal: 0, passwordResetRequired: false };
+  let pinLockStateLoaded = false;
+  // PIN terakhir yang berhasil diverifikasi (di memori saja) — dipakai sekali
+  // untuk rewrap DEK saat PIN diubah, lalu dibersihkan. Tidak pernah disimpan.
+  let lastVerifiedPin = '';
 
   const isEn = () => localStorage.getItem('lang') === 'en';
   const txMsg = (idStr, enStr) => (isEn() ? enStr : idStr);
 
-  function readPinLockState() {
+  function normalizePinLockState(raw) {
+    const s = raw && typeof raw === 'object' ? raw : {};
+    return {
+      attempts: Number(s.attempts) || 0,
+      lockedUntil: Number(s.lockedUntil) || 0,
+      lockoutCount: Number(s.lockoutCount) || 0,
+      failuresTotal: Number(s.failuresTotal) || 0,
+      passwordResetRequired: Boolean(s.passwordResetRequired)
+    };
+  }
+
+  function pinLockoutDurationMs(lockoutCount) {
+    const idx = Math.max(0, Math.min(lockoutCount - 1, PIN_LOCKOUT_DURATIONS_MS.length - 1));
+    return PIN_LOCKOUT_DURATIONS_MS[idx];
+  }
+
+  function formatLockoutDuration(ms) {
+    const sec = Math.max(1, Math.ceil(Number(ms || 0) / 1000));
+    if (sec < 60) return txMsg(`${sec} detik`, `${sec} seconds`);
+    return txMsg(`${Math.round(sec / 60)} menit`, `${Math.round(sec / 60)} minutes`);
+  }
+
+  async function ensurePinLockStateLoaded() {
+    if (pinLockStateLoaded) return pinLockStateCache;
+    const feat = root.__mkFeat || {};
+    let stored = null;
     try {
-      const parsed = JSON.parse(localStorage.getItem(PIN_LOCK_STATE_KEY) || 'null');
-      if (parsed && typeof parsed === 'object') {
-        return { attempts: Number(parsed.attempts) || 0, lockedUntil: Number(parsed.lockedUntil) || 0 };
-      }
-    } catch (_) { /* ignore */ }
-    return { attempts: 0, lockedUntil: 0 };
+      if (typeof feat.readPinLockStateIdb === 'function') stored = await feat.readPinLockStateIdb();
+    } catch (_) { /* ignore: fallback ke localStorage di bawah */ }
+    if (!stored) {
+      // Fallback: localStorage `mk_pin_lock_state_v1` HANYA dipakai bila
+      // IndexedDB tidak tersedia (mis. mode privat / IDB diblokir). State
+      // di localStorage mudah dihapus pengguna, jadi bukan sumber utama.
+      try { stored = JSON.parse(localStorage.getItem(PIN_LOCK_STATE_KEY) || 'null'); } catch (_) { stored = null; }
+    }
+    pinLockStateCache = normalizePinLockState(stored);
+    pinLockStateLoaded = true;
+    return pinLockStateCache;
   }
 
-  function writePinLockState(state) {
-    try { localStorage.setItem(PIN_LOCK_STATE_KEY, JSON.stringify(state)); } catch (_) { /* ignore */ }
+  // Async: sumber kebenaran di IndexedDB (`pin_lock_state`, key 'state').
+  async function readPinLockState() {
+    return normalizePinLockState(await ensurePinLockStateLoaded());
   }
 
-  function markPinUnlocked() {
-    writePinLockState({ attempts: 0, lockedUntil: 0 });
-    sessionStorage.setItem('mk_pin_unlocked', '1');
+  // Sinkron: baca dari mirror memori (dimuat saat verifikasi PIN pertama).
+  function getPinLockStateSync() {
+    return normalizePinLockState(pinLockStateCache);
   }
 
-  function recordFailedPinAttempt() {
-    const prev = readPinLockState();
+  async function writePinLockState(state) {
+    const next = normalizePinLockState(state);
+    pinLockStateCache = next;
+    pinLockStateLoaded = true;
+    const feat = root.__mkFeat || {};
+    let saved = false;
+    try {
+      if (typeof feat.writePinLockStateIdb === 'function') saved = await feat.writePinLockStateIdb(next);
+    } catch (_) { /* ignore: fallback ke localStorage di bawah */ }
+    if (!saved) {
+      try { localStorage.setItem(PIN_LOCK_STATE_KEY, JSON.stringify(next)); } catch (_) { /* ignore */ }
+    }
+    return next;
+  }
+
+  async function markPinUnlocked() {
+    await writePinLockState({ attempts: 0, lockedUntil: 0, lockoutCount: 0, failuresTotal: 0, passwordResetRequired: false });
+    try { sessionStorage.setItem('mk_pin_unlocked', '1'); } catch (_) { /* ignore */ }
+  }
+
+  async function recordFailedPinAttempt() {
+    const prev = await readPinLockState();
+    const failuresTotal = prev.failuresTotal + 1;
     const attempts = prev.attempts + 1;
-    const next = { attempts, lockedUntil: attempts >= MAX_PIN_ATTEMPTS ? Date.now() + PIN_COOLDOWN_MS : 0 };
-    writePinLockState(next);
+    let next = { attempts, lockedUntil: prev.lockedUntil, lockoutCount: prev.lockoutCount, failuresTotal, passwordResetRequired: prev.passwordResetRequired };
+    if (attempts >= MAX_PIN_ATTEMPTS) {
+      const lockoutCount = prev.lockoutCount + 1;
+      next = {
+        attempts: 0,
+        lockedUntil: Date.now() + pinLockoutDurationMs(lockoutCount),
+        lockoutCount,
+        failuresTotal,
+        passwordResetRequired: lockoutCount >= PIN_LOCKOUT_PASSWORD_RESET_AFTER || failuresTotal >= PIN_FAILURES_PASSWORD_RESET_AFTER
+      };
+    } else if (failuresTotal >= PIN_FAILURES_PASSWORD_RESET_AFTER) {
+      next.passwordResetRequired = true;
+    }
+    await writePinLockState(next);
     return next;
   }
 
   function getPinCooldownSeconds() {
-    const { lockedUntil } = readPinLockState();
+    const { lockedUntil } = getPinLockStateSync();
     return lockedUntil > Date.now() ? Math.ceil((lockedUntil - Date.now()) / 1000) : 0;
+  }
+
+  function isPinPasswordResetRequired() {
+    return getPinLockStateSync().passwordResetRequired;
+  }
+
+  // Setelah 3 lockout / 15 kegagalan kumulatif, PIN terkunci sampai pengguna
+  // membuktikan kepemilikan akun dengan password akun (Supabase Auth).
+  // Bila berhasil, semua counter direset; bila batal/gagal, tetap terkunci.
+  async function promptAccountPasswordReverify() {
+    const sb = (root.__mkSb && root.__mkSb.sb) || root.sb || null;
+    if (!sb || !sb.auth || typeof sb.auth.signInWithPassword !== 'function' || typeof sb.auth.getUser !== 'function') {
+      await Swal.fire({
+        icon: 'warning',
+        title: txMsg('Verifikasi Password Tidak Tersedia', 'Password Verification Unavailable'),
+        text: txMsg('PIN terkunci setelah terlalu banyak lockout. Verifikasi password akun membutuhkan koneksi ke server — coba lagi saat online.', 'PIN is locked after too many lockouts. Account password verification needs a server connection — try again when online.'),
+        customClass: { popup: getSwalClass() }
+      });
+      return false;
+    }
+    let email = '';
+    try {
+      const { data } = await sb.auth.getUser();
+      email = (data && data.user && data.user.email) || '';
+    } catch (_) { /* ignore */ }
+    if (!email) {
+      await Swal.fire({ icon: 'warning', title: txMsg('Sesi Tidak Ditemukan', 'Session Not Found'), text: txMsg('Tidak bisa memverifikasi password karena sesi akun tidak ditemukan. Silakan masuk ulang.', 'Cannot verify password because the account session was not found. Please sign in again.'), customClass: { popup: getSwalClass() } });
+      return false;
+    }
+    const res = await Swal.fire({
+      title: txMsg('Verifikasi Password Akun', 'Verify Account Password'),
+      html: `<p class="text-xs text-left">${txMsg('PIN terkunci setelah terlalu banyak percobaan salah. Untuk membuka kunci, masukkan <strong>password akun</strong> Anda (bukan PIN).', 'PIN is locked after too many wrong attempts. To unlock, enter your <strong>account password</strong> (not the PIN).')}</p>`,
+      input: 'password',
+      inputAttributes: { autocomplete: 'current-password' },
+      inputPlaceholder: txMsg('Password akun', 'Account password'),
+      showCancelButton: true,
+      confirmButtonText: txMsg('Verifikasi', 'Verify'),
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() }
+    });
+    if (!res.isConfirmed || !res.value) return false;
+    try {
+      const { error } = await sb.auth.signInWithPassword({ email, password: String(res.value) });
+      if (error) {
+        await Swal.fire({ icon: 'error', title: txMsg('Password Salah', 'Incorrect Password'), text: String(error.message || error), customClass: { popup: getSwalClass() } });
+        return false;
+      }
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: txMsg('Verifikasi Gagal', 'Verification Failed'), text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      return false;
+    }
+    await writePinLockState({ attempts: 0, lockedUntil: 0, lockoutCount: 0, failuresTotal: 0, passwordResetRequired: false });
+    return true;
   }
 
   async function promptVerifyCurrentPin(title) {
     const savedHash = localStorage.getItem('mk_app_pin_hash');
     if (!savedHash) return true;
+    await ensurePinLockStateLoaded();
+    if (isPinPasswordResetRequired()) {
+      return promptAccountPasswordReverify();
+    }
     const waitSec = getPinCooldownSeconds();
     if (waitSec > 0) {
       await Swal.fire({
         icon: 'warning',
         title: txMsg('PIN Terkunci Sementara', 'PIN Temporarily Locked'),
-        text: txMsg(`Coba lagi dalam ${waitSec} detik.`, `Try again in ${waitSec} seconds.`),
+        text: txMsg(`Coba lagi dalam ${waitSec} detik. Percobaan salah berulang memperpanjang kunci (60 detik → 5 → 15 → 60 menit).`, `Try again in ${waitSec} seconds. Repeated wrong attempts extend the lockout (60 seconds → 5 → 15 → 60 minutes).`),
         customClass: { popup: getSwalClass() }
       });
       return false;
@@ -71,15 +205,19 @@
       customClass: { popup: getSwalClass() }
     });
     if (!res.isConfirmed) return false;
-    if (await verifyPinMatches(String(res.value || '').trim(), savedHash)) {
-      writePinLockState({ attempts: 0, lockedUntil: 0 });
+    const pin = String(res.value || '').trim();
+    if (await verifyPinMatches(pin, savedHash)) {
+      lastVerifiedPin = pin;
+      await writePinLockState({ attempts: 0, lockedUntil: 0, lockoutCount: 0, failuresTotal: 0, passwordResetRequired: false });
       return true;
     }
-    const next = recordFailedPinAttempt();
+    const next = await recordFailedPinAttempt();
     const left = Math.max(0, MAX_PIN_ATTEMPTS - next.attempts);
-    const hint = next.lockedUntil
-      ? txMsg('Terlalu banyak percobaan salah. Tunggu 60 detik.', 'Too many wrong attempts. Wait 60 seconds.')
-      : txMsg(`PIN saat ini salah (sisa ${left} percobaan).`, `Incorrect current PIN (${left} attempts left).`);
+    const hint = next.passwordResetRequired
+      ? txMsg('Terlalu banyak lockout. PIN terkunci sampai Anda verifikasi password akun.', 'Too many lockouts. PIN stays locked until you verify your account password.')
+      : next.lockedUntil
+        ? txMsg(`Terlalu banyak percobaan salah. Terkunci ${formatLockoutDuration(next.lockedUntil - Date.now())}.`, `Too many wrong attempts. Locked for ${formatLockoutDuration(next.lockedUntil - Date.now())}.`)
+        : txMsg(`PIN saat ini salah (sisa ${left} percobaan).`, `Incorrect current PIN (${left} attempts left).`);
     await Swal.fire({ icon: 'error', title: txMsg('Verifikasi Gagal', 'Verification Failed'), text: hint, customClass: { popup: getSwalClass() } });
     return false;
   }
@@ -125,6 +263,109 @@
     return false;
   }
 
+  /* ============================================================
+     KUNCI ENKRIPSI DATA LOKAL / DEK (K2)
+     - DEK: kunci AES-GCM 256-bit acak, dibuat saat PIN pertama diset.
+     - KEK: PBKDF2(PIN ber-domain `mk-data-key:`, salt acak 16 byte,
+       100.000 iterasi, SHA-256) — lihat `pinCrypto` di ui-feat-offline.js
+       (implementasi kanonis; domain berbeda dari hash verifikasi PIN).
+     - DEK dibungkus KEK (AES-GCM, IV acak 12 byte); hasil wrap + salt +
+       IV disimpan di localStorage `mk_pin_data_key_wrap`. DEK hasil
+       unwrap HANYA di memori (`pinDataKey`), tidak pernah di
+       localStorage/IndexedDB; dibersihkan saat lock/logout lewat
+       `clearPinDataKey()` (diekspor di `window.__mkFeat`).
+     - PIN diubah: DEK sama, bungkus ulang dengan PIN baru (data tidak
+       perlu dienkripsi ulang). PIN dihapus: data didekripsi kembali ke
+       plaintext, lalu wrap dihapus.
+     ============================================================ */
+  const PIN_DATA_KEY_WRAP_KEY = 'mk_pin_data_key_wrap';
+  let pinDataKey = null;
+
+  function getPinDataKey() { return pinDataKey; }
+  function hasPinDataKey() { return Boolean(pinDataKey); }
+  function clearPinDataKey() { pinDataKey = null; lastVerifiedPin = ''; }
+
+  function getPinCrypto() {
+    const feat = root.__mkFeat || {};
+    return feat.pinCrypto || null;
+  }
+
+  async function createPinDataKey(pin) {
+    const pc = getPinCrypto();
+    if (!pc) throw new Error('Modul kripto PIN belum tersedia.');
+    const subtle = root.crypto && root.crypto.subtle;
+    if (!subtle) throw new Error('Web Crypto tidak tersedia pada perangkat ini.');
+    const dek = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    const wrap = await pc.wrapPinDataKey(dek, pin);
+    try { localStorage.setItem(PIN_DATA_KEY_WRAP_KEY, JSON.stringify(wrap)); } catch (_) { /* ignore */ }
+    pinDataKey = dek;
+    return dek;
+  }
+
+  async function unwrapPinDataKey(pin) {
+    const pc = getPinCrypto();
+    if (!pc) return false;
+    let wrap = null;
+    try { wrap = JSON.parse(localStorage.getItem(PIN_DATA_KEY_WRAP_KEY) || 'null'); } catch (_) { wrap = null; }
+    if (!wrap) return false;
+    try {
+      pinDataKey = await pc.unwrapPinDataKey(wrap, pin);
+      return true;
+    } catch (_) {
+      pinDataKey = null;
+      return false;
+    }
+  }
+
+  async function rewrapPinDataKey(oldPin, newPin) {
+    const pc = getPinCrypto();
+    if (!pc) return false;
+    if (!pinDataKey && !(await unwrapPinDataKey(oldPin))) return false;
+    try {
+      const wrap = await pc.wrapPinDataKey(pinDataKey, newPin);
+      localStorage.setItem(PIN_DATA_KEY_WRAP_KEY, JSON.stringify(wrap));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function migrateLocalDataToEncrypted() {
+    const feat = root.__mkFeat || {};
+    let migrated = 0;
+    try { if (typeof feat.migrateSnapshotToEncrypted === 'function') migrated += await feat.migrateSnapshotToEncrypted(); } catch (_) { /* ignore */ }
+    try { if (typeof feat.migrateQueueToEncrypted === 'function') migrated += await feat.migrateQueueToEncrypted(); } catch (_) { /* ignore */ }
+    return migrated;
+  }
+
+  async function migrateLocalDataToPlaintext() {
+    const feat = root.__mkFeat || {};
+    let migrated = 0;
+    try { if (typeof feat.migrateSnapshotToPlaintext === 'function') migrated += await feat.migrateSnapshotToPlaintext(); } catch (_) { /* ignore */ }
+    try { if (typeof feat.migrateQueueToPlaintext === 'function') migrated += await feat.migrateQueueToPlaintext(); } catch (_) { /* ignore */ }
+    return migrated;
+  }
+
+  // Dipanggil setelah PIN terverifikasi benar. Bila wrap sudah ada, unwrap
+  // DEK; bila belum ada (PIN dibuat sebelum enkripsi ini), buat DEK baru
+  // lalu enkripsi ulang data lokal lama (migrasi). Bila wrap rusak (unwrap
+  // gagal padahal PIN benar), buat DEK baru agar aplikasi tetap bisa jalan —
+  // data lokal lama yang terenkripsi dengan kunci lama menjadi tidak bisa
+  // dibaca dan akan dilewati/ditandai gagal, bukan di-crash.
+  async function ensurePinDataKeyAfterUnlock(pin) {
+    let wrapExists = false;
+    try { wrapExists = Boolean(localStorage.getItem(PIN_DATA_KEY_WRAP_KEY)); } catch (_) { wrapExists = false; }
+    if (wrapExists) {
+      if (await unwrapPinDataKey(pin)) return true;
+      try { console.warn('[PIN] Wrap kunci data rusak — membuat kunci baru; data lokal lama tidak dapat didekripsi.'); } catch (_) { /* ignore */ }
+      await createPinDataKey(pin);
+      return true;
+    }
+    await createPinDataKey(pin);
+    await migrateLocalDataToEncrypted();
+    return true;
+  }
+
   function buildAccountSettingsHtml(hasPin) {
     const pinStatus = hasPin ? txMsg('Aktif', 'Active') : txMsg('Belum diatur', 'Not set');
     const pinPlaceholder = hasPin
@@ -137,8 +378,9 @@
           <input id="acc-display-name" class="swal2-input" style="margin:0;width:100%" maxlength="60" value="${escapeHtmlJS(root.sessionUser || '')}">
         </div>
         <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
-          <label for="acc-pin-input" class="block font-bold text-slate-500 mb-1">${txMsg('PIN Kunci Aplikasi Lokal (4–6 digit,', 'Local App Lock PIN (4–6 digits,')} ${pinStatus})</label>
+          <label for="acc-pin-input" class="block font-bold text-slate-500 mb-1">${txMsg('PIN Aplikasi — Enkripsi Data Lokal (4–6 digit,', 'App PIN — Local Data Encryption (4–6 digits,')} ${pinStatus})</label>
           <input id="acc-pin-input" type="password" inputmode="numeric" maxlength="6" class="swal2-input" style="margin:0;width:100%" placeholder="${pinPlaceholder}">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">${txMsg('PIN mengenkripsi snapshot & antrean offline di perangkat ini (AES-GCM 256-bit). Tanpa PIN yang benar, data lokal tidak bisa dibaca. Percobaan salah berulang mengunci PIN makin lama (60 detik → 5 → 15 → 60 menit); setelah 3 kali terkunci, buka kunci membutuhkan verifikasi password akun.', 'Your PIN encrypts the offline snapshot & queue on this device (AES-GCM 256-bit). Without the correct PIN, local data cannot be read. Repeated wrong attempts lock the PIN for longer (60 seconds → 5 → 15 → 60 minutes); after 3 lockouts, unlocking requires verifying your account password.')}</p>
         </div>
         <div class="flex flex-wrap gap-2 pt-2">
           <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>${txMsg('Ganti Password', 'Change Password')}</span></button>
@@ -163,11 +405,16 @@
       clr.addEventListener('click', async () => {
         Swal.close();
         if (!(await promptVerifyCurrentPin(txMsg('Verifikasi PIN untuk Menghapus', 'Verify PIN to Remove')))) return;
+        // PIN dihapus: kembalikan data lokal ke plaintext selagi DEK masih
+        // di memori, baru hapus kunci wrap + hash + salt.
+        await migrateLocalDataToPlaintext();
         localStorage.removeItem('mk_app_pin_hash');
         localStorage.removeItem('mk_app_pin_salt');
+        localStorage.removeItem(PIN_DATA_KEY_WRAP_KEY);
         localStorage.removeItem('mk_biometric_pin_enabled');
         localStorage.removeItem('mk_biometric_cred_id');
-        writePinLockState({ attempts: 0, lockedUntil: 0 });
+        clearPinDataKey();
+        await writePinLockState({ attempts: 0, lockedUntil: 0, lockoutCount: 0, failuresTotal: 0, passwordResetRequired: false });
         sessionStorage.removeItem('mk_pin_unlocked');
         Swal.fire({ icon: 'info', title: txMsg('PIN aplikasi dihapus', 'App PIN removed'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       });
@@ -220,8 +467,25 @@
         }
       }
       if (val.pin) {
+        const oldPin = lastVerifiedPin;
+        if (hasPin) {
+          // PIN diubah: DEK sama, bungkus ulang dengan PIN baru — data lokal
+          // tidak perlu dienkripsi ulang.
+          let rewrapped = false;
+          if (oldPin) rewrapped = await rewrapPinDataKey(oldPin, val.pin);
+          if (!rewrapped) {
+            await createPinDataKey(val.pin);
+            await migrateLocalDataToEncrypted();
+          }
+        } else {
+          // PIN baru dibuat saat data lama masih plaintext: buat DEK +
+          // bungkus, lalu enkripsi data lama.
+          await createPinDataKey(val.pin);
+          await migrateLocalDataToEncrypted();
+        }
         localStorage.setItem('mk_app_pin_hash', await hashPin(val.pin));
-        markPinUnlocked();
+        lastVerifiedPin = '';
+        await markPinUnlocked();
       }
       Swal.fire({ icon: 'success', title: txMsg('Pengaturan akun tersimpan', 'Account settings saved'), timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (err) {
@@ -259,7 +523,9 @@
     try {
       await callServer('api_deleteOwnAccount', confirmRes.value);
       await Swal.fire({ icon: 'success', title: txMsg('Akun Dihapus', 'Account Deleted'), text: txMsg('Seluruh data Anda telah dihapus permanen.', 'All of your data has been permanently deleted.'), timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
-      if (typeof root.logout === 'function') await root.logout();
+      // Akun sudah terhapus di server: antrean offline tidak mungkin lagi
+      // tersinkronisasi, jadi lewati penjaga antrean logout (K3) di sini.
+      if (typeof root.logout === 'function') await root.logout({ force: true });
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
       else Swal.fire({ icon: 'error', title: txMsg('Gagal Menghapus Akun', 'Failed to Delete Account'), text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
@@ -280,7 +546,7 @@
       ...basePinLockAlertOpts(),
       icon: 'warning',
       title: txMsg('PIN Terkunci Sementara', 'PIN Temporarily Locked'),
-      text: txMsg(`Terlalu banyak percobaan salah. Coba lagi dalam ${waitSec} detik.`, `Too many wrong attempts. Try again in ${waitSec} seconds.`),
+      text: txMsg(`Terlalu banyak percobaan salah. Coba lagi dalam ${waitSec} detik. Kunci berikutnya lebih lama (5 → 15 → 60 menit); setelah 3 kali terkunci, verifikasi password akun diperlukan.`, `Too many wrong attempts. Try again in ${waitSec} seconds. The next lockout is longer (5 → 15 → 60 minutes); after 3 lockouts, account password verification is required.`),
       confirmButtonText: txMsg('Coba Lagi', 'Try Again')
     });
   }
@@ -300,34 +566,81 @@
     });
   }
 
+  // Mengembalikan `true` bila sesi unlocked / PIN tidak diset, `false` bila
+  // pengguna memilih keluar (logout) atau verifikasi dibatalkan saat terkunci.
+  // Pemanggil (mis. loadInitialAppData) JANGAN merender data bila hasilnya false.
   async function verifyAppPinIfEnabled() {
     const savedHash = localStorage.getItem('mk_app_pin_hash');
-    if (!savedHash || sessionStorage.getItem('mk_pin_unlocked') === '1' || pinPromptShown) return;
+    if (!savedHash || sessionStorage.getItem('mk_pin_unlocked') === '1' || pinPromptShown) return true;
+    await ensurePinLockStateLoaded();
     pinPromptShown = true;
     const mainEl = document.getElementById('mainContent');
     if (mainEl) mainEl.classList.add('blur-md', 'pointer-events-none');
     try {
-      if (root.__mkFeat && typeof root.__mkFeat.tryBiometricUnlock === 'function' && await root.__mkFeat.tryBiometricUnlock()) {
-        markPinUnlocked();
-        return;
+      // Biometrik TIDAK bisa menurunkan DEK dari PIN: bila DEK belum ada di
+      // memori (buka aplikasi baru / setelah re-lock), unlock biometrik saja
+      // tidak cukup — alur jatuh kembali ke memasukkan PIN sekali untuk
+      // unwrap DEK, baru setelah itu sesi dianggap unlocked.
+      if (root.__mkFeat && typeof root.__mkFeat.tryBiometricUnlock === 'function') {
+        let bioOk = false;
+        try { bioOk = await root.__mkFeat.tryBiometricUnlock(); } catch (_) { bioOk = false; }
+        if (bioOk && hasPinDataKey()) {
+          await markPinUnlocked();
+          return true;
+        }
+        // bioOk tapi DEK belum tersedia -> lanjut ke prompt PIN di bawah.
       }
       while (true) {
+        const state = await readPinLockState();
+        if (state.passwordResetRequired) {
+          const pwOk = await promptAccountPasswordReverify();
+          if (!pwOk) {
+            const res = await Swal.fire({
+              ...basePinLockAlertOpts(),
+              icon: 'warning',
+              title: txMsg('PIN Masih Terkunci', 'PIN Still Locked'),
+              text: txMsg('PIN terkunci sampai password akun terverifikasi. Anda bisa mencoba lagi atau keluar.', 'PIN stays locked until your account password is verified. You can try again or sign out.'),
+              confirmButtonText: txMsg('Coba Lagi', 'Try Again')
+            });
+            if (res.isDenied) { if (typeof root.logout === 'function') root.logout(); return false; }
+            continue;
+          }
+        }
         const waitSec = getPinCooldownSeconds();
         if (waitSec > 0) {
           const waitRes = await showPinCooldownAlert(waitSec);
-          if (waitRes.isDenied) { if (typeof root.logout === 'function') root.logout(); return; }
+          if (waitRes.isDenied) { if (typeof root.logout === 'function') root.logout(); return false; }
           continue;
         }
         let unlockedByBio = false;
         const res = await promptAppPinInput(() => { unlockedByBio = true; Swal.close(); });
-        if (unlockedByBio) { markPinUnlocked(); break; }
-        if (res.isDenied) { if (typeof root.logout === 'function') root.logout(); return; }
-        if (await verifyPinMatches(String(res.value || '').trim(), savedHash)) { markPinUnlocked(); break; }
-        const st = recordFailedPinAttempt();
+        if (unlockedByBio) {
+          if (hasPinDataKey()) { await markPinUnlocked(); break; }
+          await Swal.fire({
+            icon: 'info',
+            title: txMsg('PIN Diperlukan Sekali', 'PIN Required Once'),
+            text: txMsg('Sidik jari terverifikasi, tetapi data lokal terenkripsi membutuhkan PIN sekali untuk membuka kunci enkripsi.', 'Biometrics verified, but your encrypted local data needs the PIN once to unlock the encryption key.'),
+            customClass: { popup: getSwalClass() }
+          });
+          continue;
+        }
+        if (res.isDenied) { if (typeof root.logout === 'function') root.logout(); return false; }
+        const pin = String(res.value || '').trim();
+        if (await verifyPinMatches(pin, savedHash)) {
+          await ensurePinDataKeyAfterUnlock(pin);
+          await markPinUnlocked();
+          break;
+        }
+        const st = await recordFailedPinAttempt();
         const left = Math.max(0, MAX_PIN_ATTEMPTS - st.attempts);
-        const msg = st.lockedUntil ? txMsg('Batas percobaan tercapai. Terkunci 60 detik.', 'Attempt limit reached. Locked for 60 seconds.') : txMsg(`Sisa ${left} percobaan.`, `${left} attempts left.`);
+        const msg = st.passwordResetRequired
+          ? txMsg('Terlalu banyak lockout. PIN terkunci sampai Anda verifikasi password akun.', 'Too many lockouts. PIN stays locked until you verify your account password.')
+          : st.lockedUntil
+            ? txMsg(`Batas percobaan tercapai. Terkunci ${formatLockoutDuration(st.lockedUntil - Date.now())}.`, `Attempt limit reached. Locked for ${formatLockoutDuration(st.lockedUntil - Date.now())}.`)
+            : txMsg(`Sisa ${left} percobaan.`, `${left} attempts left.`);
         await Swal.fire({ icon: 'error', title: txMsg('PIN salah', 'Incorrect PIN'), text: msg, timer: 1300, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       }
+      return true;
     } finally {
       pinPromptShown = false;
       if (mainEl) mainEl.classList.remove('blur-md', 'pointer-events-none');
@@ -411,6 +724,11 @@
       pinLastHiddenAt = 0;
       if (elapsed >= AUTO_LOCK_IDLE_MS && localStorage.getItem('mk_app_pin_hash') && !pinPromptShown) {
         try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) { /* ignore */ }
+        // Re-lock: DEK dihapus dari memori — unlock berikutnya harus memasukkan
+        // PIN sekali lagi untuk unwrap DEK (biometrik saja tidak cukup).
+        // Batasan: data yang sudah dirender di sesi ini tetap ada di DOM;
+        // verifyAppPinIfEnabled hanya men-blur sebagai mitigasi.
+        clearPinDataKey();
         verifyAppPinIfEnabled();
       }
     }
@@ -419,7 +737,8 @@
   async function saveInitialAppPin(pin) {
     if (localStorage.getItem('mk_app_pin_hash') || !/^\d{4,6}$/.test(String(pin || ''))) return false;
     localStorage.setItem('mk_app_pin_hash', await hashPin(String(pin)));
-    markPinUnlocked();
+    try { await createPinDataKey(String(pin)); } catch (_) { /* tanpa DEK, data lokal tidak akan tersimpan terenkripsi */ }
+    await markPinUnlocked();
     return true;
   }
 
@@ -428,4 +747,19 @@
   root.__mkFeat.saveInitialAppPin = saveInitialAppPin;
   root.__mkFeat.verifyAppPinIfEnabled = verifyAppPinIfEnabled;
   root.__mkFeat.handlePwaShortcutAction = handlePwaShortcutAction;
+  // K2: DEK hanya di memori — dibersihkan saat lock/logout. `getPinDataKey`
+  // dipakai ui-feat-cache.js / ui-feat-offline.js untuk enkripsi lokal.
+  root.__mkFeat.getPinDataKey = getPinDataKey;
+  root.__mkFeat.hasPinDataKey = hasPinDataKey;
+  root.__mkFeat.clearPinDataKey = clearPinDataKey;
+  // T2: state cooldown (IndexedDB) untuk tes / diagnostik.
+  root.__mkFeat.pinLock = {
+    readPinLockState,
+    writePinLockState,
+    recordFailedPinAttempt,
+    getPinLockStateSync,
+    getPinCooldownSeconds,
+    isPinPasswordResetRequired,
+    lockoutDurationMs: pinLockoutDurationMs
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

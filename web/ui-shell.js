@@ -265,6 +265,8 @@
   }
 
   function finishReadyUiState() {
+    // Pertahanan berlapis (T1): jangan render bila PIN diset tapi sesi belum unlocked.
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('mk_app_pin_hash') && sessionStorage.getItem('mk_pin_unlocked') !== '1') return;
     root.isDataReady = true;
     if (!controlsInitialized) {
       initPickersAndControls();
@@ -278,6 +280,19 @@
   async function loadInitialAppData() {
     const banner = document.getElementById('appLoadErrorBanner');
     try {
+      // T1: tampilkan layar kunci DULU — verifikasi PIN SEBELUM data dimuat ke
+      // memori, diterapkan, atau dirender. Ini mencakup jalur snapshot offline
+      // (snapshot tidak dirender sebelum PIN benar). Bila PIN tidak diset,
+      // verifyAppPinIfEnabled langsung return true dan alur tidak berubah.
+      // Bila pengguna memilih keluar saat terkunci, batalkan pemuatan.
+      const feat = root.__mkFeat || {};
+      if (typeof feat.verifyAppPinIfEnabled === 'function') {
+        const unlocked = await feat.verifyAppPinIfEnabled();
+        if (!unlocked) {
+          root.isDataReady = false;
+          return;
+        }
+      }
       const data = await callServer('getInitialData');
       applyLoadedInitialData(data);
       if (typeof root.saveOfflineSnapshot === 'function') root.saveOfflineSnapshot(data);
@@ -288,9 +303,17 @@
       finishReadyUiState();
       refreshMarketPricesInBackground();
     } catch (e) {
+      // Jalur snapshot offline juga tunduk pada gate PIN (T1): bila PIN diset
+      // tapi sesi belum unlocked (mis. verifikasi di atas gagal/throw),
+      // jangan terapkan snapshot ke memori maupun merendernya.
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('mk_app_pin_hash') && sessionStorage.getItem('mk_pin_unlocked') !== '1') {
+        root.isDataReady = false;
+        console.error('[INIT] error:', e);
+        return;
+      }
       const cached = typeof root.loadOfflineSnapshot === 'function' ? await root.loadOfflineSnapshot() : null;
       if (cached && cached.data) {
-        const merged = typeof root.mergeQueuedOfflineTx === 'function' ? root.mergeQueuedOfflineTx(cached.data) : cached.data;
+        const merged = typeof root.mergeQueuedOfflineTx === 'function' ? await root.mergeQueuedOfflineTx(cached.data) : cached.data;
         applyLoadedInitialData(merged);
         finishReadyUiState();
         showOfflineCacheBanner(cached.savedAt);

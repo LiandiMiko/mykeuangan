@@ -7,9 +7,14 @@
 
   const OFFLINE_QUEUE_KEY = 'mk_offline_tx_queue_v1';
   const IDB_NAME = 'mykeuangan_offline_db';
-  const IDB_VERSION = 2;
+  const IDB_VERSION = 3;
   const IDB_STORE = 'pending_transactions';
   const IDB_SNAPSHOT_STORE = 'offline_snapshot';
+  // Store baru (v3) untuk state cooldown/lockout PIN (T2). Sebelumnya state ini hanya
+  // di localStorage (`mk_pin_lock_state_v1`) sehingga bisa dihapus dari DevTools dan
+  // percobaan PIN menjadi tanpa batas. localStorage kini hanya fallback bila
+  // IndexedDB tidak tersedia — lihat read/writePinLockState di ui-feat-account.js.
+  const IDB_PIN_LOCK_STORE = 'pin_lock_state';
   const MAX_OFFLINE_RETRIES = 3;
   let isFlushingOffline = false;
   let offlineDbPromise = null;
@@ -46,6 +51,9 @@
           if (!db.objectStoreNames.contains(IDB_SNAPSHOT_STORE)) {
             db.createObjectStore(IDB_SNAPSHOT_STORE, { keyPath: 'key' });
           }
+          if (!db.objectStoreNames.contains(IDB_PIN_LOCK_STORE)) {
+            db.createObjectStore(IDB_PIN_LOCK_STORE, { keyPath: 'key' });
+          }
         };
         req.onsuccess = () => {
           const db = req.result;
@@ -68,11 +76,196 @@
     return offlineDbPromise;
   }
 
-  async function saveOfflineQueueItem(item) {
-    const list = readLocalQueue().filter((x) => x.localId !== item.localId);
-    list.push(item);
-    writeLocalQueue(list);
+  /* ============================================================
+     KRIPTO PIN / DEK (K2) — satu-satunya implementasi kanonis.
+     Dipakai ui-feat-account.js (pembuatan/unwrap DEK) dan
+     ui-feat-cache.js (snapshot) lewat `__mkFeat.pinCrypto`.
+     Desain envelope (ikuti persis, jangan diubah sepihak):
+     - DEK: kunci AES-GCM 256-bit acak, dibuat saat PIN pertama diset.
+     - KEK: PBKDF2(PIN ber-domain `mk-data-key:`, salt acak 16 byte,
+       100.000 iterasi, SHA-256) -> AES-GCM 256. Domain berbeda dari
+       hash verifikasi PIN (`derivePinHash`), jadi KEK != hash PIN.
+     - DEK dibungkus (wrap) dengan KEK via AES-GCM (IV acak 12 byte);
+       hasil wrap + salt + IV disimpan di localStorage
+       `mk_pin_data_key_wrap` (lihat ui-feat-account.js). DEK hasil
+       unwrap HANYA di memori, tidak pernah di localStorage/IndexedDB.
+     - Data (snapshot/antrean) dienkripsi dengan DEK, AES-GCM,
+       IV acak per simpan/per item; envelope `{iv, ct}` base64.
+     ============================================================ */
+  function pinCryptoBytesToB64(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
 
+  function pinCryptoB64ToBytes(b64) {
+    const bin = atob(String(b64 || ''));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function pinCryptoSubtle() {
+    const subtle = root.crypto && root.crypto.subtle;
+    if (!subtle) throw new Error('Web Crypto tidak tersedia pada perangkat ini.');
+    return subtle;
+  }
+
+  function pinCryptoRandomBytes(n) {
+    const bytes = new Uint8Array(n);
+    root.crypto.getRandomValues(bytes);
+    return bytes;
+  }
+
+  async function derivePinKek(pin, saltBytes) {
+    const subtle = pinCryptoSubtle();
+    const keyMat = await subtle.importKey('raw', new TextEncoder().encode('mk-data-key:' + String(pin || '')), 'PBKDF2', false, ['deriveKey']);
+    return subtle.deriveKey(
+      { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+      keyMat,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  async function wrapPinDataKey(dek, pin) {
+    const salt = pinCryptoRandomBytes(16);
+    const iv = pinCryptoRandomBytes(12);
+    const kek = await derivePinKek(pin, salt);
+    const rawDek = await pinCryptoSubtle().exportKey('raw', dek);
+    const wrapped = await pinCryptoSubtle().encrypt({ name: 'AES-GCM', iv }, kek, rawDek);
+    return {
+      format: 'mk-pin-dek-wrap-v1',
+      kdf: 'PBKDF2-SHA256',
+      iterations: 100000,
+      salt: pinCryptoBytesToB64(salt),
+      iv: pinCryptoBytesToB64(iv),
+      wrappedKey: pinCryptoBytesToB64(new Uint8Array(wrapped))
+    };
+  }
+
+  async function unwrapPinDataKey(wrap, pin) {
+    const w = wrap && typeof wrap === 'object' ? wrap : {};
+    if (w.format !== 'mk-pin-dek-wrap-v1') throw new Error('Format wrap kunci PIN tidak dikenali.');
+    const salt = pinCryptoB64ToBytes(w.salt);
+    const iv = pinCryptoB64ToBytes(w.iv);
+    const wrapped = pinCryptoB64ToBytes(w.wrappedKey);
+    const kek = await derivePinKek(pin, salt);
+    const rawDek = await pinCryptoSubtle().decrypt({ name: 'AES-GCM', iv }, kek, wrapped);
+    return pinCryptoSubtle().importKey('raw', rawDek, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  }
+
+  async function encryptWithPinDek(dek, plaintext) {
+    const iv = pinCryptoRandomBytes(12);
+    const ct = await pinCryptoSubtle().encrypt({ name: 'AES-GCM', iv }, dek, new TextEncoder().encode(String(plaintext)));
+    return { iv: pinCryptoBytesToB64(iv), ct: pinCryptoBytesToB64(new Uint8Array(ct)) };
+  }
+
+  async function decryptWithPinDek(dek, envelope) {
+    const env = envelope && typeof envelope === 'object' ? envelope : {};
+    const plainBuf = await pinCryptoSubtle().decrypt(
+      { name: 'AES-GCM', iv: pinCryptoB64ToBytes(env.iv) },
+      dek,
+      pinCryptoB64ToBytes(env.ct)
+    );
+    return new TextDecoder().decode(plainBuf);
+  }
+
+  const pinCrypto = {
+    bytesToB64: pinCryptoBytesToB64,
+    b64ToBytes: pinCryptoB64ToBytes,
+    derivePinKek,
+    wrapPinDataKey,
+    unwrapPinDataKey,
+    encryptWithDek: encryptWithPinDek,
+    decryptWithDek: decryptWithPinDek
+  };
+
+  // DEK tinggal di memori di ui-feat-account.js; file ini hanya mengaksesnya
+  // lewat getter agar tidak ada salinan kunci di tempat lain.
+  function getPinDataKey() {
+    const feat = root.__mkFeat || {};
+    return typeof feat.getPinDataKey === 'function' ? feat.getPinDataKey() : null;
+  }
+
+  function isPinSet() {
+    try { return Boolean(localStorage.getItem('mk_app_pin_hash')); } catch (_) { return false; }
+  }
+
+  // State cooldown PIN (T2) di IndexedDB, store `pin_lock_state`, record key 'state'.
+  async function readPinLockStateIdb() {
+    const db = await openOfflineDb();
+    if (!db || !db.objectStoreNames.contains(IDB_PIN_LOCK_STORE)) return null;
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_PIN_LOCK_STORE, 'readonly');
+        const req = tx.objectStore(IDB_PIN_LOCK_STORE).get('state');
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function writePinLockStateIdb(state) {
+    const db = await openOfflineDb();
+    if (!db || !db.objectStoreNames.contains(IDB_PIN_LOCK_STORE)) return false;
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_PIN_LOCK_STORE, 'readwrite');
+        tx.objectStore(IDB_PIN_LOCK_STORE).put(Object.assign({ key: 'state' }, state || {}));
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (_) {
+        resolve(false);
+      }
+    });
+  }
+
+  // --- Enkripsi payload antrean (K2) -------------------------------------
+  // Hanya field `payload` tiap item yang dienkripsi (AES-GCM + DEK, IV acak
+  // per item, disimpan sebagai `{__enc: 1, iv, ct}` base64). Field envelope
+  // (`localId`, `op`, `targetId`, `failed`, `retryCount`, `createdAt`,
+  // `lastError`) tetap plaintext agar penghitung antrean, pill status, dan
+  // logika flush tetap bekerja tanpa dekripsi.
+  function isEncryptedPayload(p) {
+    return Boolean(p && typeof p === 'object' && p.__enc === 1 && typeof p.iv === 'string' && typeof p.ct === 'string');
+  }
+
+  async function encryptQueuePayload(payload) {
+    if (!payload || typeof payload !== 'object') return payload;
+    if (isEncryptedPayload(payload)) return payload;
+    const dek = getPinDataKey();
+    if (!dek) return payload; // Belum ada PIN / masih terkunci: tetap plaintext,
+    // dimigrasikan ke terenkripsi saat unlock (migrateQueueToEncrypted).
+    try {
+      const env = await encryptWithPinDek(dek, JSON.stringify(payload));
+      return { __enc: 1, iv: env.iv, ct: env.ct };
+    } catch (_) {
+      return payload;
+    }
+  }
+
+  // Mengembalikan objek payload terdekripsi, atau `null` bila payload
+  // terenkripsi tapi DEK tidak tersedia / dekripsi gagal. Payload plaintext
+  // lama dikembalikan apa adanya.
+  async function decryptQueuePayload(item) {
+    const p = item && item.payload;
+    if (!p) return null;
+    if (!isEncryptedPayload(p)) return p;
+    const dek = getPinDataKey();
+    if (!dek) return null;
+    try {
+      return JSON.parse(await decryptWithPinDek(dek, p));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function saveOfflineQueueItemRaw(item) {
+    writeLocalQueue(readLocalQueue().filter((x) => x.localId !== item.localId).concat([item]));
     const db = await openOfflineDb();
     if (!db) return;
     try {
@@ -81,6 +274,12 @@
     } catch (_) {
       /* ignore */
     }
+  }
+
+  async function saveOfflineQueueItem(item) {
+    const stored = Object.assign({}, item);
+    if (stored.payload) stored.payload = await encryptQueuePayload(stored.payload);
+    await saveOfflineQueueItemRaw(stored);
   }
 
   async function removeOfflineQueueItem(localId) {
@@ -241,13 +440,27 @@
     let latestPeriod = '';
     try {
       for (const item of pendingItems) {
+        const op = item.op || 'api_addTransaction';
+        // Dekripsi payload sebelum dikirim (K2). Bila dekripsi gagal (kunci
+        // salah/rusak), tandai item `failed` dengan lastError yang jelas dan
+        // JANGAN menghapus itemnya — data dipertahankan untuk diperiksa user.
+        let payload = null;
+        if (op !== 'api_deleteTransaction' && item.payload) {
+          payload = await decryptQueuePayload(item);
+          if (payload === null) {
+            const errMsg = 'Gagal mendekripsi antrean offline (kunci PIN tidak tersedia atau data rusak). Item dipertahankan.';
+            await saveOfflineQueueItem(Object.assign({}, item, { failed: true, lastError: errMsg.slice(0, 180) }));
+            newlyFailed += 1;
+            lastErrMsg = errMsg;
+            continue;
+          }
+        }
         try {
-          const op = item.op || 'api_addTransaction';
           let res = null;
-          if (op === 'api_updateTransaction') res = await root._rawCallServer('api_updateTransaction', item.targetId, Object.assign({}, item.payload));
+          if (op === 'api_updateTransaction') res = await root._rawCallServer('api_updateTransaction', item.targetId, Object.assign({}, payload));
           else if (op === 'api_deleteTransaction') res = await root._rawCallServer('api_deleteTransaction', item.targetId);
-          else if (op === 'api_addTransfer') res = await root._rawCallServer('api_addTransfer', Object.assign({}, item.payload));
-          else res = await root._rawCallServer('api_addTransaction', Object.assign({}, item.payload));
+          else if (op === 'api_addTransfer') res = await root._rawCallServer('api_addTransfer', Object.assign({}, payload));
+          else res = await root._rawCallServer('api_addTransaction', Object.assign({}, payload));
 
           if (res && res.transaction) addedTransactions.push(res.transaction);
           if (res && res.deletedTransactionId) deletedTransactionIds.push(res.deletedTransactionId);
@@ -368,23 +581,28 @@
     return { _offlineQueued: true, transfers: [...((typeof DB !== 'undefined' && Array.isArray(DB.transfers)) ? DB.transfers : []), optimistic] };
   }
 
-  function hydrateInitialOfflineData(res) {
+  async function hydrateInitialOfflineData(res) {
     if (typeof DB !== 'undefined') DB.debtDueDates = res.debtDueDates || {};
     const pending = readLocalQueue();
     if (!pending.length) return;
-    pending.forEach((item) => {
+    for (const item of pending) {
+      // Payload antrean mungkin terenkripsi (K2): dekripsi dulu; bila belum
+      // bisa didekripsi (masih terkunci), lewati item itu — jangan bocorkan
+      // atau merusak data dengan payload terenkripsi mentah.
+      const payload = item.payload ? await decryptQueuePayload(item) : null;
+      if (item.payload && payload === null) continue;
       const op = item.op || 'api_addTransaction';
       if (op === 'api_addTransaction' && Array.isArray(res.transactions) && !res.transactions.some((x) => x.id === item.localId)) {
-        res.transactions.push(buildOfflineTransactionResponse(item.localId, item.payload).transaction);
+        res.transactions.push(buildOfflineTransactionResponse(item.localId, payload).transaction);
       } else if (op === 'api_updateTransaction' && Array.isArray(res.transactions)) {
         const idx = res.transactions.findIndex((x) => String(x.id) === String(item.targetId));
-        if (idx !== -1 && item.payload) Object.assign(res.transactions[idx], item.payload);
+        if (idx !== -1 && payload) Object.assign(res.transactions[idx], payload);
       } else if (op === 'api_deleteTransaction' && Array.isArray(res.transactions)) {
         res.transactions = res.transactions.filter((x) => String(x.id) !== String(item.targetId));
       } else if (op === 'api_addTransfer' && Array.isArray(res.transfers) && !res.transfers.some((x) => x.id === item.localId)) {
-        res.transfers.push({ id: item.localId, ...item.payload, keterangan: ((item.payload && item.payload.keterangan) || '') + ' [Offline Queue]' });
+        res.transfers.push({ id: item.localId, ...payload, keterangan: ((payload && payload.keterangan) || '') + ' [Offline Queue]' });
       }
-    });
+    }
   }
 
   function waitAndWrapCallServer() {
@@ -394,7 +612,7 @@
       if (OFFLINE_MUTATIONS.has(fn) && !navigator.onLine) return queueOfflineMutation(fn, args);
       try {
         const res = await root._rawCallServer(fn, ...args);
-        if (fn === 'getInitialData' && res && typeof res === 'object') hydrateInitialOfflineData(res);
+        if (fn === 'getInitialData' && res && typeof res === 'object') await hydrateInitialOfflineData(res);
         return res;
       } catch (err) {
         if (OFFLINE_MUTATIONS.has(fn) && isNetworkOfflineError(err)) return queueOfflineMutation(fn, args);
@@ -402,6 +620,69 @@
         throw err;
       }
     };
+  }
+
+  /* ============================================================
+     HELPER UNTUK AGEN K3 (diekspor di `window.__mkFeat`, lihat bawah).
+     - getOfflineQueueSummary(): ringkasan `{pending, failed, total}`
+       dari field envelope plaintext SAJA — sengaja bekerja walau
+       aplikasi terkunci / DEK belum ada di memori.
+     - exportOfflineQueuePlaintext(): array item antrean dengan payload
+       terdekripsi (untuk penghapusan akun / ekspor). Mengembalikan
+       `null` bila PIN diset tapi DEK tidak tersedia (terkunci) atau ada
+       item yang gagal didekripsi — pemanggil JANGAN menganggap antrean
+       kosong dalam kasus ini.
+     - migrateQueueToEncrypted() / migrateQueueToPlaintext(): dipakai
+       ui-feat-account.js saat PIN dibuat/diubah/dihapus.
+     ============================================================ */
+  function getOfflineQueueSummary() {
+    const queue = readLocalQueue();
+    return {
+      pending: queue.filter((x) => !x.failed).length,
+      failed: queue.filter((x) => Boolean(x.failed)).length,
+      total: queue.length
+    };
+  }
+
+  async function exportOfflineQueuePlaintext() {
+    const items = await getOfflineQueueItems();
+    if (isPinSet() && !getPinDataKey()) return null;
+    const out = [];
+    for (const item of items) {
+      if (!item.payload) { out.push(Object.assign({}, item)); continue; }
+      const payload = await decryptQueuePayload(item);
+      if (payload === null) return null;
+      out.push(Object.assign({}, item, { payload }));
+    }
+    return out;
+  }
+
+  async function migrateQueueToEncrypted() {
+    const dek = getPinDataKey();
+    if (!dek) return 0;
+    const items = await getOfflineQueueItems();
+    let migrated = 0;
+    for (const item of items) {
+      if (item.payload && !isEncryptedPayload(item.payload)) {
+        await saveOfflineQueueItem(item);
+        migrated += 1;
+      }
+    }
+    return migrated;
+  }
+
+  async function migrateQueueToPlaintext() {
+    const items = await getOfflineQueueItems();
+    let migrated = 0;
+    for (const item of items) {
+      if (item.payload && isEncryptedPayload(item.payload)) {
+        const payload = await decryptQueuePayload(item);
+        if (payload === null) continue; // Tidak bisa didekripsi: biarkan terenkripsi.
+        await saveOfflineQueueItemRaw(Object.assign({}, item, { payload }));
+        migrated += 1;
+      }
+    }
+    return migrated;
   }
 
   root.addEventListener('online', updateNetworkStatusPill);
@@ -416,6 +697,19 @@
   root.__mkFeat.readLocalQueue = readLocalQueue;
   root.__mkFeat.openOfflineDb = openOfflineDb;
   root.__mkFeat.IDB_SNAPSHOT_STORE = IDB_SNAPSHOT_STORE;
+  root.__mkFeat.IDB_VERSION = IDB_VERSION;
+  root.__mkFeat.IDB_PIN_LOCK_STORE = IDB_PIN_LOCK_STORE;
+  root.__mkFeat.readPinLockStateIdb = readPinLockStateIdb;
+  root.__mkFeat.writePinLockStateIdb = writePinLockStateIdb;
+  root.__mkFeat.pinCrypto = pinCrypto;
+  root.__mkFeat.isEncryptedPayload = isEncryptedPayload;
+  root.__mkFeat.encryptQueuePayload = encryptQueuePayload;
+  root.__mkFeat.decryptQueuePayload = decryptQueuePayload;
+  root.__mkFeat.saveOfflineQueueItem = saveOfflineQueueItem;
+  root.__mkFeat.getOfflineQueueSummary = getOfflineQueueSummary;
+  root.__mkFeat.exportOfflineQueuePlaintext = exportOfflineQueuePlaintext;
+  root.__mkFeat.migrateQueueToEncrypted = migrateQueueToEncrypted;
+  root.__mkFeat.migrateQueueToPlaintext = migrateQueueToPlaintext;
   root.__mkFeat.buildOfflineTransactionResponse = buildOfflineTransactionResponse;
   root.__mkFeat.waitAndWrapCallServer = waitAndWrapCallServer;
 })(typeof window !== 'undefined' ? window : globalThis);

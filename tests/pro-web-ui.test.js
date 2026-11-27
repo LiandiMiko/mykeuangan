@@ -204,7 +204,7 @@ test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete accou
   const updatesHtml = fs.readFileSync('src/updates.html', 'utf8');
 
   assert.match(uiFeatOfflineJs, /offline_snapshot/);
-  assert.match(uiFeatOfflineJs, /IDB_VERSION\s*=\s*2/);
+  assert.match(uiFeatOfflineJs, /IDB_VERSION\s*=\s*3/);
   assert.match(uiFeatCacheJs, /saveOfflineSnapshot/);
   assert.match(uiFeatCacheJs, /loadOfflineSnapshot/);
   assert.match(uiFeatCacheJs, /mergeQueuedOfflineTx/);
