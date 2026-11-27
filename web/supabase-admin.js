@@ -251,8 +251,11 @@
         const key = String(k).slice(0, 120);
         const v = String(dueMap[k] || '').slice(0, 10);
         // Format YYYY-MM-DD + tanggal kalender nyata (tolak 2026-02-30).
+        // Parse sebagai UTC ('Z'): tanpa itu, round-trip via toISOString()
+        // (UTC) gagal di zona waktu positif — mis. di WIB 2026-12-01
+        // 00:00 lokal = 2026-11-30 17:00 UTC, jadi tanggal valid ditolak.
         const roundTrips = /^\d{4}-\d{2}-\d{2}$/.test(v)
-          && new Date(v + 'T00:00:00').toISOString().slice(0, 10) === v;
+          && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v;
         if (roundTrips) clean[key] = v;
         else invalid.push(key);
       });
