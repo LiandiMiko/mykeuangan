@@ -1,11 +1,21 @@
 <!-- Preconnect & Libs (pinned versions) -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<!-- Wave 3.4 / S24: TIDAK ada preconnect CDN — semua vendor self-hosted
+  di web/vendor/ dan diganti saat build. Tag CDN di bawah ini hanya jangkar
+  source: build.mjs me-rewrite semuanya ke ./vendor/ (dan gagal kalau ada
+  vendor yang hilang), jadi tidak satu pun URL ini sampai ke dist/. -->
+<!-- Google Fonts di bawah TIDAK bisa diberi SRI (Google menyajikan bytes
+  per-user-agent) — ia diganti build menjadi ./vendor/inter/inter.css
+  (Inter self-hosted). Jangan tambahkan integrity di sini. -->
 <link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
   crossorigin="anonymous">
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- Tailwind Play CDN: diganti build menjadi <style> berisi
+  web/vendor/tailwind.min.css yang sudah dikompilasi. SRI di sini hanya
+  pengaman jangkar source (sha384 dari skrip Play CDN, yang me-redirect
+  ke 3.4.17 — sama dengan pin build:css). -->
+<script src="https://cdn.tailwindcss.com"
+  integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"
+  crossorigin="anonymous"></script>
 <script>
   tailwind.config = {
     darkMode: 'class',
@@ -29,24 +39,43 @@
 </script>
 
 <!-- Libs (pinned versions) -->
+<!-- Wave 3.4 / S24: setiap tag CDN di bawah membawa integrity="sha384-…"
+  (SRI) dari bytes yang dipin di scripts/fetch-vendors.mjs — hash yang sama
+  diverifikasi saat fetch dan saat build. Setelah rewrite ke ./vendor/,
+  atribut integrity tetap menempel dan tetap valid karena bytes file lokal
+  identik dengan bytes CDN yang di-hash. -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js"
+  integrity="sha384-YB/DdIkloKoRpclWB8bNcYXWakt57USgtQPDzvnIDHYU0lasD5eWlXVo1S4ODukY"
   crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@phosphor-icons/web@2.1.1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"
+  integrity="sha384-cPFV+/abYd3INVFHPmSKpBmcnH+Q+bTZW7dv/EiuShUNPkHyFmRF8PsL7Ibfvunk"
+  crossorigin="anonymous"></script>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css"
+  integrity="sha384-RkASv+6KfBMW9eknReJIJ6b3UnjKOKC5bOUaNgIY778NFbQ8MtWq9Lr/khUgqtTt"
   crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/style.css"
+  integrity="sha384-iENKmnGeeAGTWfH/ajxq1dMSwLjASdk1v+taA112fikKow0tdV9cbUJcAiBEfHhG"
   crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"
+  integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6"
   crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/id.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"
+  integrity="sha384-6p33UqcS/7ZxiJzlAi3gfOsrVSlBlFNr/6gfN12AC0ETbTmPgMGSfHuN+H0QcWoO"
+  crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/id.js"
+  integrity="sha384-KMhDAY3QD073iimt/X068iLaMgNPBD+J57j7adrjgvlWbfAv2ONSvLFyOtU9TzDN"
+  crossorigin="anonymous"></script>
 
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+  integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk"
   crossorigin="anonymous"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"
+  integrity="sha384-vxxMdt1K6XlME6zkLsgFrrHIeC7XIdAo1GW/uhhObjJXnymxiIi/eoMXsKJA13ZJ"
   crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+  integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
+  crossorigin="anonymous"></script>
 
 <style>
   :root {

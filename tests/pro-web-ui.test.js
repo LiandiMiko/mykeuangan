@@ -311,9 +311,24 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   const deployYml = fs.readFileSync('.github/workflows/deploy.yml', 'utf8');
   assert.match(deployYml, /window\.APP_CONFIG/);
   assert.match(deployYml, /scripts\/fetch-vendors\.mjs/);
+  // Wave 3.4 / S25: fetch vendor berjalan JUGA di PR — langkah fetch tidak
+  // boleh digate ke non-PR, dan harus jalan SEBELUM build PR, supaya PR
+  // memverifikasi artefak yang sama dengan yang di-deploy.
+  const fetchStep = deployYml.match(/- name: Fetch self-hosted vendor assets[\s\S]*?(?=\n      - name:|\n  deploy:|\n$)/);
+  assert.ok(fetchStep, 'langkah fetch vendor harus ada di deploy.yml');
+  assert.doesNotMatch(fetchStep[0], /^\s*if:/m, 'langkah fetch vendor tidak boleh digate (harus jalan di PR juga)');
+  assert.ok(deployYml.indexOf('Fetch self-hosted vendor assets') < deployYml.indexOf('Build dist (PR check)'), 'fetch vendor harus jalan SEBELUM build PR');
 
   assert.match(buildMjs, /native-bridge\.js/);
   assert.match(buildMjs, /rewriteLocalVendorTags/);
+  // Wave 3.4 / S24–S25: tidak ada lagi fallback CDN diam-diam.
+  assert.doesNotMatch(buildMjs, /document\.write/, 'build tidak boleh lagi memakai document.write (fallback Supabase dihapus)');
+  assert.doesNotMatch(buildMjs, /SUPABASE_JS_FALLBACK/, 'konstanta fallback CDN Supabase sudah dihapus');
+  assert.match(buildMjs, /verifyRequiredVendorFiles/, 'build harus memverifikasi vendor di awal (gerbang vendor)');
+  assert.match(buildMjs, /verifyAllVendors/, 'build harus memakai verifikasi hash dari fetch-vendors.mjs');
+  const fetchVendorsMjs = fs.readFileSync('scripts/fetch-vendors.mjs', 'utf8');
+  assert.match(fetchVendorsMjs, /sha256/, 'manifest vendor harus membawa hash sha256 (verifikasi)');
+  assert.match(fetchVendorsMjs, /sha384/, 'manifest vendor harus membawa hash sha384 (SRI)');
   assert.match(fs.readFileSync('web/sw.js', 'utf8'), /__VENDOR_ASSETS__/);
   assert.match(indexHtml, /isCapNative/);
   assert.match(stylesHtml, /--safe-area-inset-top/);

@@ -30,12 +30,15 @@ jobs:
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
         run: |
           node -e "const fs=require('fs'); if(!fs.existsSync('web/config.js') && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY){ fs.writeFileSync('web/config.js', 'window.APP_CONFIG = ' + JSON.stringify({ SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY }) + ';\n'); }"
+      - name: Fetch self-hosted vendor assets
+        # Wave 3.4 / S25: fetch vendor BERJALAN JUGA di PR (dulu hanya di
+        # deploy). Build gagal kalau vendor hilang/rusak, jadi PR harus
+        # memverifikasi artefak yang sama dengan yang di-deploy — bukan
+        # build yang diam-diam bergantung CDN.
+        run: node scripts/fetch-vendors.mjs
       - name: Build dist (PR check)
         if: github.event_name == 'pull_request'
         run: node -e "const fs=require('fs'), cp=require('child_process'); if(fs.existsSync('web/config.js')) cp.execSync('node build.mjs', {stdio:'inherit'});"
-      - name: Fetch self-hosted vendor assets
-        if: github.event_name != 'pull_request'
-        run: node scripts/fetch-vendors.mjs
       - name: Build dist (Deploy)
         if: github.event_name != 'pull_request'
         run: |

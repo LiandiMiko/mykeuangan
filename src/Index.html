@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="app-version" content="3.20.6">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; font-src 'self' data: https://fonts.gstatic.com https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://liandimiko.github.io https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://api.coingecko.com https://latest.currency-api.pages.dev; worker-src 'self'; object-src 'none'; base-uri 'self';">
+  <!-- Wave 3.4 / S24: CSP tanpa host CDN untuk script/style/font — semua
+    vendor self-hosted (./vendor/). 'unsafe-inline'/'unsafe-eval' TETAP:
+    arsitektur build masih meng-inline modul web/*.js (lihat blocker Wave 2,
+    pengetatan itu follow-up terpisah). Satu pengecualian: cdn.jsdelivr.net
+    TETAP di connect-src karena fetch runtime mata uang di
+    web/supabase-portfolio.js (file Wave 3.5, di luar cakupan ini) memakai
+    URL jsdelivr sebagai sumber utama (fallback: currency-api.pages.dev);
+    menghapusnya akan memblokir sumber itu via CSP. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://liandimiko.github.io https://cdn.jsdelivr.net https://api.coingecko.com https://latest.currency-api.pages.dev; worker-src 'self'; object-src 'none'; base-uri 'self';">
   <title>MyKeuGuech — Dashboard</title>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="color-scheme" content="light dark">
