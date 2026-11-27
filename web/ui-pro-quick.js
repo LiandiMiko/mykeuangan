@@ -1,4 +1,4 @@
-/* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, renderSelectOptions, walletOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, cycleOfDate, localToday, t */
+/* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, renderSelectOptions, walletOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, cycleOfDate, localToday, t, mkActionAttrs */
 /* ============================================================
    PRO FEATURES — QUICK-ADD, TEMPLATES & PWA UPDATE TOAST
    ============================================================ */
@@ -169,7 +169,7 @@
       const tone = tpl.tipe === 'Pemasukan'
         ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200/70 dark:border-emerald-900/40'
         : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700';
-      return `<button type="button" onclick="applyQuickTemplate(${idx})" class="min-h-8 px-2.5 py-1 rounded-full border text-xs font-bold inline-flex items-center gap-1 hover:border-brand transition-colors shrink-0 whitespace-nowrap tabular-nums ${tone}">${iconHtml}<span>${escapeHtmlJS(tpl.label)} · ${escapeHtmlJS(formatShortIDR(tpl.nominal))}</span></button>`;
+      return `<button type="button" ${mkActionAttrs('applyQuickTemplate', [idx])} class="min-h-8 px-2.5 py-1 rounded-full border text-xs font-bold inline-flex items-center gap-1 hover:border-brand transition-colors shrink-0 whitespace-nowrap tabular-nums ${tone}">${iconHtml}<span>${escapeHtmlJS(tpl.label)} · ${escapeHtmlJS(formatShortIDR(tpl.nominal))}</span></button>`;
     }).join(''));
   }
 

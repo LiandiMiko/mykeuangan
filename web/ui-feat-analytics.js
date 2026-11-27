@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, buildEmptyTxPlaceholder, isInPeriod, walletName, walletBalances, t */
+/* global DB, FinanceAnalysis, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, buildEmptyTxPlaceholder, isInPeriod, walletName, walletBalances, t, mkActionAttrs */
 /* ============================================================
    FEATURES — HISTORI FILTER, FINANCIAL RATIOS, ALLOCATION & ANOMALIES
    ============================================================ */
@@ -58,10 +58,10 @@
           <div class="flex items-center gap-2 shrink-0 ml-2">
             <p class="${colClass} font-bold text-sm tabular-nums">${formatRupiah(tx.nominal).replace(',00', '')}</p>
             <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-              <button type="button" onclick="editTransaction('${idAttr}')" aria-label="Edit transaksi ${catHtml}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
+              <button type="button" ${mkActionAttrs('editTransaction', [tx.id])} aria-label="Edit transaksi ${catHtml}" title="Edit" class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
                 <i class="ph ph-pencil text-base" aria-hidden="true"></i>
               </button>
-              <button type="button" onclick="deleteTransaction('${idAttr}')" aria-label="Hapus transaksi ${catHtml}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
+              <button type="button" ${mkActionAttrs('deleteTransaction', [tx.id])} aria-label="Hapus transaksi ${catHtml}" title="Hapus" class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
                 <i class="ph ph-trash text-base" aria-hidden="true"></i>
               </button>
             </div>

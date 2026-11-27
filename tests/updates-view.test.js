@@ -19,15 +19,15 @@ test('updates view provides release metadata, filters, and complete changelog en
   assert.match(updatesHtml, /data-latest-release="[^"]+"/);
   assert.match(updatesHtml, /data-latest-version="[^"]+"/);
   assert.match(updatesHtml, /id="updatesSearchInput"/);
-  assert.match(updatesHtml, /setUpdatesTopic\('/);
-  assert.match(updatesHtml, /toggleAllReleaseDetails\(\)/);
+  assert.match(updatesHtml, /data-action=\"setUpdatesTopic\" data-args='\[[\"']all[\"']\]'/);
+  assert.match(updatesHtml, /data-action="toggleAllReleaseDetails"/);
   assert.match(updatesHtml, /datetime="2026-11-20"/);
   assert.match(updatesHtml, /datetime="2026-11-18"/);
   assert.match(updatesHtml, /datetime="2026-11-17"/);
 });
 
 test('admin panel links to public updates page without duplicating release cards', () => {
-  assert.match(adminHtml, /switchView\('updates'\)/);
+  assert.match(adminHtml, /data-action=\"switchView\" data-args='\[[\"']updates[\"']\]'/);
   assert.doesNotMatch(adminHtml, /<article\b/i);
 });
 

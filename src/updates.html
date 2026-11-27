@@ -21,12 +21,12 @@
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
         <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.5</strong></span>
       </span>
-      <button type="button" id="btnCheckAppUpdate" onclick="checkRemoteAppUpdate({ manual: true })"
+      <button type="button" id="btnCheckAppUpdate" data-action="checkRemoteAppUpdate" data-args='[{"manual": true}]'
         class="min-h-11 px-3.5 py-2 rounded-2xl bg-brand text-white hover:opacity-95 text-xs font-bold transition-opacity flex items-center gap-1.5 shadow-xs">
         <i class="ph ph-arrows-clockwise text-sm" aria-hidden="true"></i>
         <span id="btnCheckAppUpdateText" data-i18n="updates.check_now">Cek Pembaruan</span>
       </button>
-      <button type="button" id="btnToggleAllReleases" onclick="toggleAllReleaseDetails()"
+      <button type="button" id="btnToggleAllReleases" data-action="toggleAllReleaseDetails"
         class="min-h-11 px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand hover:text-brand dark:hover:text-brand-ink text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs">
         <i class="ph ph-arrows-out-line-vertical text-sm" aria-hidden="true"></i>
         <span id="btnToggleAllReleasesText" data-i18n="updates.expand_all">Buka Semua</span>
@@ -49,7 +49,7 @@
           tetap mutakhir.</p>
       </div>
     </div>
-    <button type="button" onclick="checkRemoteAppUpdate({ manual: true })"
+    <button type="button" data-action="checkRemoteAppUpdate" data-args='[{"manual": true}]'
       class="min-h-11 px-4 py-2 rounded-2xl bg-brand text-white text-xs font-bold hover:opacity-95 transition-opacity shrink-0 shadow-xs"
       data-i18n="updates.update_now">Update Sekarang</button>
   </div>
@@ -61,7 +61,7 @@
       <div class="relative flex-1">
         <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"
           aria-hidden="true"></i>
-        <input id="updatesSearchInput" type="search" enterkeyhint="search" oninput="filterUpdatesList()"
+        <input id="updatesSearchInput" type="search" enterkeyhint="search" data-action="filterUpdatesList" data-action-on="input"
           placeholder="Cari fitur, mis. kalender, telegram, emas..." data-i18n-placeholder="updates.search_placeholder"
           aria-label="Cari riwayat pembaruan"
           class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
@@ -70,19 +70,19 @@
         aria-live="polite">Menampilkan 26 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
-      <button type="button" data-updates-topic="all" onclick="setUpdatesTopic('all')"
+      <button type="button" data-updates-topic="all" data-action="setUpdatesTopic" data-args='["all"]'
         class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-brand text-white shadow-xs"
         data-i18n="updates.filter_all">Semua</button>
-      <button type="button" data-updates-topic="security" onclick="setUpdatesTopic('security')"
+      <button type="button" data-updates-topic="security" data-action="setUpdatesTopic" data-args='["security"]'
         class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
         data-i18n="updates.filter_security">Keamanan &amp; Akun</button>
-      <button type="button" data-updates-topic="assets" onclick="setUpdatesTopic('assets')"
+      <button type="button" data-updates-topic="assets" data-action="setUpdatesTopic" data-args='["assets"]'
         class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
         data-i18n="updates.filter_assets">Aset &amp; Dompet</button>
-      <button type="button" data-updates-topic="reports" onclick="setUpdatesTopic('reports')"
+      <button type="button" data-updates-topic="reports" data-action="setUpdatesTopic" data-args='["reports"]'
         class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
         data-i18n="updates.filter_reports">Kalender, Budget &amp; Laporan</button>
-      <button type="button" data-updates-topic="ai" onclick="setUpdatesTopic('ai')"
+      <button type="button" data-updates-topic="ai" data-action="setUpdatesTopic" data-args='["ai"]'
         class="min-h-9 px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
         data-i18n="updates.filter_ai">AI, Bot &amp; PWA</button>
     </div>

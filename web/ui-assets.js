@@ -1,4 +1,4 @@
-/* global DB, Chart, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, showActionError */
+/* global DB, Chart, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, showActionError, mkActionAttrs */
 /* ============================================================
    ASSETS & 30-DAY PORTFOLIO CHART
    ============================================================ */
@@ -184,13 +184,13 @@
             ${pnlHtml}
           </div>
           <div class="flex items-center gap-1 opacity-100 sm:opacity-75 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-            <button type="button" onclick="topUpAsset('${idAttr}')" aria-label="Tambah nilai aset ${safeName}" title="Tambah nilai aset" class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-100 transition-colors">
+            <button type="button" ${mkActionAttrs('topUpAsset', [a.id])} aria-label="Tambah nilai aset ${safeName}" title="Tambah nilai aset" class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 flex items-center justify-center hover:bg-emerald-100 transition-colors">
               <i class="ph-bold ph-plus text-sm" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="withdrawAsset('${idAttr}')" aria-label="Cairkan atau jual aset ${safeName}" title="Cairkan / Jual ke Dompet" class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center hover:bg-amber-100 transition-colors">
+            <button type="button" ${mkActionAttrs('withdrawAsset', [a.id])} aria-label="Cairkan atau jual aset ${safeName}" title="Cairkan / Jual ke Dompet" class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center hover:bg-amber-100 transition-colors">
               <i class="ph ph-hand-coins text-sm" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="deleteAsset('${idAttr}')" aria-label="Hapus aset ${safeName}" title="Hapus aset" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors">
+            <button type="button" ${mkActionAttrs('deleteAsset', [a.id])} aria-label="Hapus aset ${safeName}" title="Hapus aset" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors">
               <i class="ph ph-trash text-sm" aria-hidden="true"></i>
             </button>
           </div>

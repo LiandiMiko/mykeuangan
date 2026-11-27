@@ -51,32 +51,32 @@
           <p class="text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1">Personal Finance</p>
         </div>
       </div>
-      <button id="sidebarCloseBtn" type="button" class="lg:hidden w-11 h-11 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-xl transition-colors" onclick="toggleSidebar()" aria-label="Tutup menu" data-i18n-aria-label="header.close_menu"><i class="ph ph-x" aria-hidden="true"></i></button>
+      <button id="sidebarCloseBtn" type="button" class="lg:hidden w-11 h-11 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-xl transition-colors" data-action="toggleSidebar" aria-label="Tutup menu" data-i18n-aria-label="header.close_menu"><i class="ph ph-x" aria-hidden="true"></i></button>
     </div>
     
 <nav class="flex-1 px-3.5 space-y-1 overflow-y-auto mt-1" aria-label="Menu utama">
   <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2 px-4 uppercase tracking-widest" data-i18n="nav.utama">Menu Utama</p>
-  <button type="button" onclick="switchView('dashboard')" id="nav-dashboard" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["dashboard"]' id="nav-dashboard" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-squares-four text-xl" aria-hidden="true"></i> <span data-i18n="nav.dashboard">Dashboard</span>
   </button>
-  <button type="button" onclick="switchView('aset')" id="nav-aset" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["aset"]' id="nav-aset" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-piggy-bank text-xl" aria-hidden="true"></i> <span data-i18n="nav.aset">Tabungan &amp; Investasi</span>
   </button>
-  <button type="button" onclick="switchView('histori')" id="nav-histori" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["histori"]' id="nav-histori" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-list-bullets text-xl" aria-hidden="true"></i> <span data-i18n="nav.histori">Histori Transaksi</span>
   </button>
   <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
-  <button type="button" onclick="switchView('budgeting')" id="nav-budgeting" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["budgeting"]' id="nav-budgeting" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-chart-pie-slice text-xl" aria-hidden="true"></i> <span data-i18n="nav.budgeting">Budgeting</span>
   </button>
-  <button type="button" onclick="switchView('laporan')" id="nav-laporan" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["laporan"]' id="nav-laporan" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-file-pdf text-xl" aria-hidden="true"></i> <span data-i18n="nav.laporan">Laporan &amp; Ekspor</span>
   </button>
-  <button type="button" onclick="switchView('ai')" id="nav-ai" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["ai"]' id="nav-ai" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-sparkle text-xl" aria-hidden="true"></i> <span data-i18n="nav.ai">Analisis AI</span>
   </button>
   <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
-  <button type="button" onclick="switchView('updates')" id="nav-updates" class="w-full min-h-12 flex items-center justify-between gap-2 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["updates"]' id="nav-updates" class="w-full min-h-12 flex items-center justify-between gap-2 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <span class="flex items-center gap-3 min-w-0">
       <i class="ph ph-megaphone-simple text-xl shrink-0" aria-hidden="true"></i>
       <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
@@ -86,7 +86,7 @@
       <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
     </span>
   </button>
-  <button type="button" onclick="switchView('admin')" id="nav-admin" style="display:none;" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+  <button type="button" data-action="switchView" data-args='["admin"]' id="nav-admin" style="display:none;" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-shield-check text-xl text-brand dark:text-brand-ink" aria-hidden="true"></i> <span data-i18n="nav.admin">Panel Admin</span>
   </button>
 </nav>
@@ -96,10 +96,10 @@
       <div class="mb-4 px-2">
         <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase" data-i18n="lang.title">Bahasa</p>
         <div class="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl" role="group" aria-label="Pilih bahasa">
-          <button type="button" data-lang-btn="id" onclick="setLang('id')" aria-pressed="true" class="flex-1 min-h-9 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-600 transition-colors">
+          <button type="button" data-lang-btn="id" data-action="setLang" data-args='["id"]' aria-pressed="true" class="flex-1 min-h-9 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-600 transition-colors">
             ID
           </button>
-          <button type="button" data-lang-btn="en" onclick="setLang('en')" aria-pressed="false" class="flex-1 min-h-9 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-600 transition-colors">
+          <button type="button" data-lang-btn="en" data-action="setLang" data-args='["en"]' aria-pressed="false" class="flex-1 min-h-9 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-600 transition-colors">
             EN
           </button>
         </div>
@@ -109,31 +109,31 @@
       <div class="mb-3 px-2">
         <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase" data-i18n="nav.tema">Tema Warna</p>
         <div class="flex gap-1 items-center" role="group" aria-label="Pilih tema warna">
-          <button type="button" data-theme-btn="" onclick="setTheme('')" aria-pressed="false" aria-label="Tema warna Default (Indigo)" title="Indigo (Default)" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-indigo-600 block"></span></button>
-          <button type="button" data-theme-btn="theme-pink" onclick="setTheme('theme-pink')" aria-pressed="false" aria-label="Tema warna Pink" title="Pink" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-pink-600 block"></span></button>
-          <button type="button" data-theme-btn="theme-violet" onclick="setTheme('theme-violet')" aria-pressed="false" aria-label="Tema warna Violet" title="Violet" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-violet-600 block"></span></button>
-          <button type="button" data-theme-btn="theme-blue" onclick="setTheme('theme-blue')" aria-pressed="false" aria-label="Tema warna Biru" title="Biru" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-blue-600 block"></span></button>
-          <button type="button" data-theme-btn="theme-emerald" onclick="setTheme('theme-emerald')" aria-pressed="false" aria-label="Tema warna Emerald" title="Emerald" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-emerald-600 block"></span></button>
+          <button type="button" data-theme-btn="" data-action="setTheme" data-args='[""]' aria-pressed="false" aria-label="Tema warna Default (Indigo)" title="Indigo (Default)" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-indigo-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-pink" data-action="setTheme" data-args='["theme-pink"]' aria-pressed="false" aria-label="Tema warna Pink" title="Pink" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-pink-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-violet" data-action="setTheme" data-args='["theme-violet"]' aria-pressed="false" aria-label="Tema warna Violet" title="Violet" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-violet-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-blue" data-action="setTheme" data-args='["theme-blue"]' aria-pressed="false" aria-label="Tema warna Biru" title="Biru" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-blue-600 block"></span></button>
+          <button type="button" data-theme-btn="theme-emerald" data-action="setTheme" data-args='["theme-emerald"]' aria-pressed="false" aria-label="Tema warna Emerald" title="Emerald" class="w-10 h-10 rounded-full flex items-center justify-center focus:outline-none"><span class="theme-swatch w-7 h-7 rounded-full bg-emerald-600 block"></span></button>
         </div>
       </div>
 
       <!-- TANGGAL GAJIAN (AKSES CEPAT MOBILE) -->
       <div class="sm:hidden mb-2 px-2">
-        <button type="button" onclick="settingPayrollDay()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+        <button type="button" data-action="settingPayrollDay" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
           <i class="ph ph-gear text-base" aria-hidden="true"></i> <span data-i18n="header.payday">Atur tanggal gajian</span>
         </button>
       </div>
 
       <!-- INSTALL PWA -->
       <div id="pwaInstallWrap" class="hidden mb-2 px-2">
-        <button type="button" onclick="installPwaApp()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-brand dark:text-brand-ink bg-brand/10 hover:bg-brand/20 transition-colors flex items-center justify-center gap-2">
+        <button type="button" data-action="installPwaApp" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-brand dark:text-brand-ink bg-brand/10 hover:bg-brand/20 transition-colors flex items-center justify-center gap-2">
           <i class="ph ph-download-simple text-base" aria-hidden="true"></i> <span data-i18n="nav.install_pwa">Install Aplikasi (PWA)</span>
         </button>
       </div>
 
       <!-- HUBUNGKAN TELEGRAM -->
       <div class="mb-4 px-2">
-        <button type="button" onclick="openTelegramPairingModal()" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors flex items-center justify-center gap-2">
+        <button type="button" data-action="openTelegramPairingModal" class="w-full min-h-11 py-2 px-3 rounded-xl text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors flex items-center justify-center gap-2">
           <i class="ph ph-telegram-logo text-base" aria-hidden="true"></i> <span data-i18n="nav.telegram">Hubungkan Telegram</span>
         </button>
       </div>
@@ -150,12 +150,12 @@
               <p id="ui-role" class="text-[11px] uppercase text-slate-500 dark:text-slate-400">User</p>
             </div>
           </div>
-          <button type="button" onclick="openAccountSettingsModal()" aria-label="Pengaturan Akun & PIN" title="Pengaturan Akun & PIN" data-i18n-aria-label="account.settings" data-i18n-title="account.settings"
+          <button type="button" data-action="openAccountSettingsModal" aria-label="Pengaturan Akun & PIN" title="Pengaturan Akun & PIN" data-i18n-aria-label="account.settings" data-i18n-title="account.settings"
                   class="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
             <i class="ph ph-user-gear text-lg" aria-hidden="true"></i>
           </button>
         </div>
-        <button type="button" onclick="logout()" class="w-full min-h-11 mt-2 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-200/70 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex justify-center items-center gap-2">
+        <button type="button" data-action="logout" class="w-full min-h-11 mt-2 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-200/70 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex justify-center items-center gap-2">
           <i class="ph ph-sign-out text-sm" aria-hidden="true"></i> <span data-i18n="nav.logout">Keluar (Logout)</span>
         </button>
       </div>
@@ -167,7 +167,7 @@
     <h1 class="sr-only">MyKeuGuech — Personal Finance</h1>
     <header id="appHeader" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md min-h-[56px] px-3 py-2 sm:px-6 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 flex flex-row items-center justify-between gap-1.5 sm:gap-2 sticky top-0 z-30 shadow-xs transition-colors">
       <div class="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
-        <button id="sidebarToggleBtn" type="button" onclick="toggleSidebar()" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
+        <button id="sidebarToggleBtn" type="button" data-action="toggleSidebar" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
           <i class="ph ph-list" aria-hidden="true"></i>
         </button>
         <div class="hidden min-[430px]:flex lg:hidden min-w-0 items-center gap-2">
@@ -183,28 +183,28 @@
                  placeholder="Pilih Bulan">
           <i class="ph ph-calendar absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base" aria-hidden="true"></i>
         </div>
-        <button type="button" onclick="settingPayrollDay()" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
+        <button type="button" data-action="settingPayrollDay" aria-label="Atur tanggal gajian" title="Atur tanggal gajian" data-i18n-aria-label="header.payday" data-i18n-title="header.payday"
                 class="hidden sm:flex w-10 h-10 lg:w-11 lg:h-11 items-center justify-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i class="ph ph-gear" aria-hidden="true"></i>
         </button>
-        <button type="button" onclick="openCommandPalette()" aria-label="Pencarian cepat (Ctrl+K)" title="Perintah Cepat (Ctrl+K)"
+        <button type="button" data-action="openCommandPalette" aria-label="Pencarian cepat (Ctrl+K)" title="Perintah Cepat (Ctrl+K)"
                 class="hidden lg:inline-flex items-center gap-1.5 h-11 px-3.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
           <i class="ph ph-magnifying-glass text-base" aria-hidden="true"></i>
           <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold">Ctrl K</kbd>
         </button>
-        <button id="networkStatusPill" type="button" onclick="flushOfflineQueue(false)" aria-label="Status jaringan dan antrean offline"
+        <button id="networkStatusPill" type="button" data-action="flushOfflineQueue" data-args='[false]' aria-label="Status jaringan dan antrean offline"
                 class="hide inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-full border text-[11px] font-bold transition-colors shrink-0">
         </button>
-        <button id="notifBellBtn" type="button" onclick="openNotificationsModal()" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
+        <button id="notifBellBtn" type="button" data-action="openNotificationsModal" aria-label="Pusat Notifikasi" title="Pusat Notifikasi" data-i18n-aria-label="notif.title" data-i18n-title="notif.title"
                 class="relative w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-full border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i class="ph ph-bell" aria-hidden="true"></i>
           <span id="notifBadge" class="hide absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">0</span>
         </button>
-        <button id="toggleHideBtn" type="button" onclick="toggleHideNominal()" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
+        <button id="toggleHideBtn" type="button" data-action="toggleHideNominal" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
                 class="w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-full border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i id="eyeIcon" class="ph ph-eye" aria-hidden="true"></i>
         </button>
-        <button type="button" onclick="toggleDarkMode()" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
+        <button type="button" data-action="toggleDarkMode" aria-label="Ganti tema terang atau gelap" data-i18n-aria-label="header.theme"
                 class="w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-full border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-white hover:border-brand transition-colors text-lg lg:text-xl shrink-0">
           <i class="ph ph-moon dark:hidden" aria-hidden="true"></i><i class="ph ph-sun hidden dark:block" aria-hidden="true"></i>
         </button>
@@ -229,32 +229,32 @@
   <!-- Android M3 Bottom Navigation Bar -->
   <nav id="mobileBottomNav" aria-label="Navigasi mobile"
        class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-1.5 pt-1.5 grid grid-cols-5 items-end">
-    <button type="button" onclick="switchView('dashboard')" data-mobile-nav="dashboard" class="mobile-nav-tab mobile-nav-active min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+    <button type="button" data-action="switchView" data-args='["dashboard"]' data-mobile-nav="dashboard" class="mobile-nav-tab mobile-nav-active min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
       <span class="mobile-nav-icon w-14 h-8 rounded-full flex items-center justify-center">
         <i class="ph ph-squares-four text-[21px]" aria-hidden="true"></i>
       </span>
       <span class="leading-none truncate max-w-full" data-i18n="nav.dashboard">Dashboard</span>
     </button>
-    <button type="button" onclick="switchView('histori')" data-mobile-nav="histori" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+    <button type="button" data-action="switchView" data-args='["histori"]' data-mobile-nav="histori" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
       <span class="mobile-nav-icon w-14 h-8 rounded-full flex items-center justify-center">
         <i class="ph ph-list-bullets text-[21px]" aria-hidden="true"></i>
       </span>
       <span class="leading-none truncate max-w-full" data-i18n="nav.histori_short">Histori</span>
     </button>
     <div class="flex flex-col items-center justify-end pb-0.5">
-      <button id="mobileFabBtn" type="button" onclick="openQuickAddMenu()" aria-label="Tambah transaksi cepat" title="Catat Cepat"
+      <button id="mobileFabBtn" type="button" data-action="openQuickAddMenu" aria-label="Tambah transaksi cepat" title="Catat Cepat"
               class="w-12 h-12 -mt-4 rounded-2xl brand-gradient brand-border-glow text-white flex items-center justify-center ring-4 ring-white dark:ring-slate-900 shadow-lg">
         <i class="ph-bold ph-plus text-xl leading-none" aria-hidden="true"></i>
       </button>
       <span class="text-[11px] font-bold text-brand dark:text-brand-ink leading-none mt-1" data-i18n="nav.add_short">Catat</span>
     </div>
-    <button type="button" onclick="switchView('budgeting')" data-mobile-nav="budgeting" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+    <button type="button" data-action="switchView" data-args='["budgeting"]' data-mobile-nav="budgeting" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
       <span class="mobile-nav-icon w-14 h-8 rounded-full flex items-center justify-center">
         <i class="ph ph-chart-pie-slice text-[21px]" aria-hidden="true"></i>
       </span>
       <span class="leading-none truncate max-w-full" data-i18n="nav.budgeting">Budget</span>
     </button>
-    <button type="button" onclick="switchView('aset')" data-mobile-nav="aset" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
+    <button type="button" data-action="switchView" data-args='["aset"]' data-mobile-nav="aset" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 transition-colors">
       <span class="mobile-nav-icon w-14 h-8 rounded-full flex items-center justify-center">
         <i class="ph ph-piggy-bank text-[21px]" aria-hidden="true"></i>
       </span>
@@ -263,7 +263,7 @@
   </nav>
 
   <!-- Sidebar Overlay for Mobile -->
-  <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+  <div id="sidebarOverlay" data-action="toggleSidebar" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300 opacity-0 pointer-events-none"></div>
 
   <?!= include('scripts'); ?>
   <?!= include('features-v21'); ?>

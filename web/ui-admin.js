@@ -40,7 +40,7 @@
           <tr>
             <td colspan="5" class="px-6 py-8 text-center text-rose-600 dark:text-rose-400">
               <p>Gagal memuat data pengguna: ${errMsg}</p>
-              <button type="button" onclick="loadAdminData()" class="mt-3 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
+              <button type="button" data-action="loadAdminData" class="mt-3 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
             </td>
           </tr>`);
       }
@@ -48,7 +48,7 @@
         renderHtml(mobileList, `
           <div class="p-6 text-center text-xs text-rose-600 dark:text-rose-400">
             <p>Gagal memuat data pengguna: ${errMsg}</p>
-            <button type="button" onclick="loadAdminData()" class="mt-2 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
+            <button type="button" data-action="loadAdminData" class="mt-2 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
           </div>`);
       }
       return false;

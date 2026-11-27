@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, isInPeriod, getPeriodLabel, walletBalances, walletOptions, localToday, openForm, renderAssets, t */
+/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, isInPeriod, getPeriodLabel, walletBalances, walletOptions, localToday, openForm, renderAssets, t, mkActionAttrs */
 /* ============================================================
    DASHBOARD & FINANCIAL GOALS
    ============================================================ */
@@ -62,10 +62,10 @@
         <div class="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2 shrink-0">
           <p class="${colClass} font-bold text-xs sm:text-sm tabular-nums">${formatRupiah(tx.nominal).replace(',00', '')}</p>
           <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
-            <button type="button" onclick="editTransaction('${safeIdAttr}')" aria-label="Edit transaksi ${safeCatHtml}" title="Edit" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
+            <button type="button" ${mkActionAttrs('editTransaction', [tx.id])} aria-label="Edit transaksi ${safeCatHtml}" title="Edit" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-500/30">
               <i class="ph ph-pencil text-base" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="deleteTransaction('${safeIdAttr}')" aria-label="Hapus transaksi ${safeCatHtml}" title="Hapus" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
+            <button type="button" ${mkActionAttrs('deleteTransaction', [tx.id])} aria-label="Hapus transaksi ${safeCatHtml}" title="Hapus" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center justify-center hover:bg-rose-200 dark:hover:bg-rose-500/30">
               <i class="ph ph-trash text-base" aria-hidden="true"></i>
             </button>
           </div>
@@ -89,7 +89,7 @@
       <div class="py-8 px-4 text-center">
         <i class="ph ph-${isIn ? 'tray-arrow-down' : 'tray-arrow-up'} text-3xl text-slate-300 dark:text-slate-600 mb-2 block" aria-hidden="true"></i>
         <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Belum ada ${isIn ? 'pemasukan' : 'pengeluaran'} pada siklus ini.</p>
-        <button type="button" onclick="openForm('${tipe}')" class="mt-3 min-h-10 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold hover:bg-brand/20 transition-colors">
+        <button type="button" ${mkActionAttrs('openForm', [tipe])} class="mt-3 min-h-10 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold hover:bg-brand/20 transition-colors">
           + Catat ${isIn ? 'Pemasukan' : 'Pengeluaran'}
         </button>
       </div>`;

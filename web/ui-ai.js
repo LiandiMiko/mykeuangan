@@ -350,8 +350,8 @@
             </div>
           </div>
           <div class="flex items-center gap-2 self-start sm:self-center shrink-0">
-            <button type="button" onclick="copyAiCashflowSummary()" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Salin</button>
-            <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Tutup</button>
+            <button type="button" data-action="copyAiCashflowSummary" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Salin</button>
+            <button type="button" data-action="hideAiAnalysisResult" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Tutup</button>
           </div>
         </div>
         ${parsed.ringkasan ? `<div class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">${formatAiMarkdownSafe(parsed.ringkasan)}</div>` : ''}
@@ -414,7 +414,7 @@
       renderHtml(box, `
         <div class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
           <span>Gagal menjalankan analisis AI: ${escapeSafe(String((err && err.message) || err))}</span>
-          <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
+          <button type="button" data-action="hideAiAnalysisResult" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
         </div>`);
     } finally {
       if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }

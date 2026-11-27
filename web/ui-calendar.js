@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, getPeriodRange, getMonthName, getMonthShort, openForm, walletName, t */
+/* global DB, FinanceAnalysis, Swal, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, getPeriodRange, getMonthName, getMonthShort, openForm, walletName, t, mkActionAttrs */
 /* ============================================================
    CALENDAR VIEW
    ============================================================ */
@@ -273,8 +273,8 @@
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <span class="font-black tabular-nums ${color}">${sign}${formatRupiah(tx.nominal).replace(',00', '')}</span>
-              <button type="button" onclick="Swal.close(); editTransaction('${idAttr}')" aria-label="Edit transaksi" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
-              <button type="button" onclick="Swal.close(); deleteTransaction('${idAttr}')" aria-label="Hapus transaksi" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('swalClose|editTransaction', [tx.id])} aria-label="Edit transaksi" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('swalClose|deleteTransaction', [tx.id])} aria-label="Hapus transaksi" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
             </div>
           </div>`;
       }).join('')

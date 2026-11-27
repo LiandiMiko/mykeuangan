@@ -1,4 +1,4 @@
-/* global DB, laporanState, TransactionImport, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, getPeriodRange, walletName, getAutoCategoryRules, updateReportBulkBar, t */
+/* global DB, laporanState, TransactionImport, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, getPeriodRange, walletName, getAutoCategoryRules, updateReportBulkBar, t, mkActionAttrs */
 /* ============================================================
    REPORTS, PAGINATION, FILTERS & CSV IMPORT
    ============================================================ */
@@ -49,7 +49,7 @@
 
     return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-        <td class="px-4 py-4"><input type="checkbox" class="lap-row-check w-4 h-4 rounded accent-brand" value="${idHtml}" onchange="typeof syncReportRowCheck==='function'?syncReportRowCheck(this.value,this.checked):updateReportBulkBar()" aria-label="Pilih transaksi"></td>
+        <td class="px-4 py-4"><input type="checkbox" class="lap-row-check w-4 h-4 rounded accent-brand" value="${idHtml}" data-action="syncReportRowCheck" data-args='["$value","$checked"]' data-action-on="change" data-fallback-action="updateReportBulkBar" aria-label="Pilih transaksi"></td>
         <td class="px-6 py-4 whitespace-nowrap tabular-nums">${escapeHtmlJS(r.tanggal)}</td>
         <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[11px] font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span></td>
         <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${escapeHtmlJS(r.kategori)}</td>
@@ -57,8 +57,8 @@
         <td class="px-6 py-4">${escapeHtmlJS(r.keterangan || '-')}</td>
         <td class="px-6 py-4 text-right font-bold whitespace-nowrap tabular-nums ${textColor}">${isM ? '+' : '-'} ${formatRupiah(r.nominal)}</td>
         <td class="px-6 py-4 text-center">
-          <button type="button" onclick="editTransaction('${idAttr}')" aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-11 h-11 text-blue-700 dark:text-blue-400 hover:text-blue-800"><i class="ph ph-pencil text-lg" aria-hidden="true"></i></button>
-          <button type="button" onclick="deleteTransaction('${idAttr}')" aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-11 h-11 text-rose-600 dark:text-rose-400 hover:text-rose-700"><i class="ph ph-trash text-lg" aria-hidden="true"></i></button>
+          <button type="button" ${mkActionAttrs('editTransaction', [r.id])} aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-11 h-11 text-blue-700 dark:text-blue-400 hover:text-blue-800"><i class="ph ph-pencil text-lg" aria-hidden="true"></i></button>
+          <button type="button" ${mkActionAttrs('deleteTransaction', [r.id])} aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-11 h-11 text-rose-600 dark:text-rose-400 hover:text-rose-700"><i class="ph ph-trash text-lg" aria-hidden="true"></i></button>
         </td>
       </tr>`;
   }
@@ -75,7 +75,7 @@
 
     return `
       <div class="p-4 flex items-start gap-3">
-        <input type="checkbox" class="lap-row-check-mobile mt-1 w-4 h-4 rounded accent-brand shrink-0" value="${idHtml}" onchange="typeof syncReportRowCheck==='function'&&syncReportRowCheck(this.value,this.checked)" aria-label="Pilih transaksi">
+        <input type="checkbox" class="lap-row-check-mobile mt-1 w-4 h-4 rounded accent-brand shrink-0" value="${idHtml}" data-action="syncReportRowCheck" data-args='["$value","$checked"]' data-action-on="change" aria-label="Pilih transaksi">
         <div class="min-w-0 flex-1">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
@@ -90,8 +90,8 @@
           <div class="flex items-center justify-between gap-2 mt-2">
             <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(r.keterangan || '-')}</p>
             <div class="flex items-center gap-1 shrink-0">
-              <button type="button" onclick="editTransaction('${idAttr}')" aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil text-base" aria-hidden="true"></i></button>
-              <button type="button" onclick="deleteTransaction('${idAttr}')" aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash text-base" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('editTransaction', [r.id])} aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil text-base" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('deleteTransaction', [r.id])} aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash text-base" aria-hidden="true"></i></button>
             </div>
           </div>
         </div>
@@ -175,7 +175,7 @@
       if (requestId !== laporanState.requestId) return;
       laporanState.dirty = true;
       if (status) status.textContent = String(error.message || error);
-      const errBtn = `<button type="button" onclick="retryReportLoad()" class="min-h-[44px] px-4 rounded-xl bg-brand text-white font-semibold">${escapeHtmlJS(t('lap.retry'))}</button>`;
+      const errBtn = `<button type="button" data-action="retryReportLoad" class="min-h-[44px] px-4 rounded-xl bg-brand text-white font-semibold">${escapeHtmlJS(t('lap.retry'))}</button>`;
       renderHtml(tbody, `<tr><td colspan="8" class="px-8 py-12 text-center"><p class="text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>${errBtn}</td></tr>`);
       if (mobileList) renderHtml(mobileList, `<div class="p-8 text-center"><p class="text-xs text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>${errBtn}</div>`);
     }

@@ -9,12 +9,12 @@
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-lg sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight truncate" data-i18n="budget.title">Budgeting</h2>
           <div class="flex items-center gap-1.5 sm:hidden shrink-0">
-            <button type="button" onclick="shiftCurrentPeriod(-1)" data-i18n-title="budget.previous_month" data-i18n-aria-label="budget.previous_month"
+            <button type="button" data-action="shiftCurrentPeriod" data-args='[-1]' data-i18n-title="budget.previous_month" data-i18n-aria-label="budget.previous_month"
                     aria-label="Bulan sebelumnya"
                     class="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 flex items-center justify-center">
               <i class="ph ph-caret-left" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="shiftCurrentPeriod(1)" data-i18n-title="budget.next_month" data-i18n-aria-label="budget.next_month"
+            <button type="button" data-action="shiftCurrentPeriod" data-args='[1]' data-i18n-title="budget.next_month" data-i18n-aria-label="budget.next_month"
                     aria-label="Bulan berikutnya"
                     class="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 flex items-center justify-center">
               <i class="ph ph-caret-right" aria-hidden="true"></i>
@@ -26,12 +26,12 @@
           <span class="text-brand dark:text-brand-ink font-bold" id="budgetMonthLabel">—</span>
         </p>
         <div class="mt-2.5 hidden sm:flex items-center gap-2">
-          <button type="button" onclick="shiftCurrentPeriod(-1)" data-i18n-title="budget.previous_month" data-i18n-aria-label="budget.previous_month"
+          <button type="button" data-action="shiftCurrentPeriod" data-args='[-1]' data-i18n-title="budget.previous_month" data-i18n-aria-label="budget.previous_month"
                   aria-label="Bulan sebelumnya"
                   class="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors flex items-center justify-center">
             <i class="ph ph-caret-left" aria-hidden="true"></i>
           </button>
-          <button type="button" onclick="shiftCurrentPeriod(1)" data-i18n-title="budget.next_month" data-i18n-aria-label="budget.next_month"
+          <button type="button" data-action="shiftCurrentPeriod" data-args='[1]' data-i18n-title="budget.next_month" data-i18n-aria-label="budget.next_month"
                   aria-label="Bulan berikutnya"
                   class="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors flex items-center justify-center">
             <i class="ph ph-caret-right" aria-hidden="true"></i>
@@ -40,10 +40,10 @@
       </div>
     </div>
     <div class="grid grid-cols-2 w-full sm:w-auto sm:flex items-center gap-2">
-      <button type="button" onclick="openAutoBudgetModal()" class="min-h-11 px-3 sm:px-4 py-2 bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 hover:bg-brand hover:text-white rounded-2xl text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5">
+      <button type="button" data-action="openAutoBudgetModal" class="min-h-11 px-3 sm:px-4 py-2 bg-brand/10 text-brand dark:text-brand-ink border border-brand/25 hover:bg-brand hover:text-white rounded-2xl text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5">
         <i class="ph ph-magic-wand shrink-0" aria-hidden="true"></i> <span class="truncate" data-i18n="budget.btn_auto">Rekomendasi Otomatis</span>
       </button>
-      <button type="button" id="budgetCopyBtn" onclick="copyBudgetFromLastMonth()" class="inline-flex min-h-11 px-3 sm:px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-2xl text-xs font-bold transition-colors items-center justify-center gap-1.5 mk-card-surface">
+      <button type="button" id="budgetCopyBtn" data-action="copyBudgetFromLastMonth" class="inline-flex min-h-11 px-3 sm:px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand hover:text-brand rounded-2xl text-xs font-bold transition-colors items-center justify-center gap-1.5 mk-card-surface">
         <i class="ph ph-copy shrink-0" aria-hidden="true"></i> <span class="truncate" data-i18n="budget.btn_copy">Copy dari Bulan Lalu</span>
       </button>
     </div>
@@ -63,7 +63,7 @@
         <label for="budgetJumlah" class="block text-[11px] font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="budget.jumlah">Jumlah Budget (Rp)</label>
         <input type="text" id="budgetJumlah" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="0" class="w-full min-h-12 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-bold text-slate-800 dark:text-white text-sm tabular-nums">
       </div>
-      <button type="button" onclick="saveBudget()" class="min-h-12 px-6 py-2.5 bg-brand text-white rounded-2xl font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm flex items-center gap-2 justify-center">
+      <button type="button" data-action="saveBudget" class="min-h-12 px-6 py-2.5 bg-brand text-white rounded-2xl font-bold text-sm hover:bg-brand-hover transition-colors shadow-sm flex items-center gap-2 justify-center">
         <i class="ph-bold ph-check" aria-hidden="true"></i> <span data-i18n="btn.simpan">Simpan</span>
       </button>
     </div>
@@ -123,7 +123,7 @@
           <p class="hidden sm:block text-xs text-slate-500 dark:text-slate-400 mt-0.5" data-i18n="goal.subtitle">Pantau progres tabungan menuju target.</p>
         </div>
       </div>
-      <button type="button" onclick="openGoalForm()" class="min-h-11 px-4 py-2 bg-brand text-white rounded-2xl text-xs font-bold hover:bg-brand-hover flex items-center justify-center gap-2 shadow-sm transition-colors">
+      <button type="button" data-action="openGoalForm" class="min-h-11 px-4 py-2 bg-brand text-white rounded-2xl text-xs font-bold hover:bg-brand-hover flex items-center justify-center gap-2 shadow-sm transition-colors">
         <i class="ph-bold ph-plus" aria-hidden="true"></i> <span data-i18n="goal.add">Tambah target</span>
       </button>
     </div>
@@ -142,7 +142,7 @@
           <p class="hidden sm:block text-xs text-slate-500 dark:text-slate-400 mt-0.5" data-i18n="rec.subtitle">Jadwal pemasukan atau pengeluaran otomatis setiap bulan.</p>
         </div>
       </div>
-      <button type="button" onclick="openRecurringForm()" class="min-h-11 px-4 py-2 bg-brand text-white rounded-2xl text-xs font-bold hover:bg-brand-hover flex items-center justify-center gap-2 shadow-sm transition-colors">
+      <button type="button" data-action="openRecurringForm" class="min-h-11 px-4 py-2 bg-brand text-white rounded-2xl text-xs font-bold hover:bg-brand-hover flex items-center justify-center gap-2 shadow-sm transition-colors">
         <i class="ph-bold ph-plus" aria-hidden="true"></i> <span data-i18n="rec.add">Tambah Jadwal Rutin</span>
       </button>
     </div>

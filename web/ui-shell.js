@@ -233,7 +233,7 @@
           <p class="text-sm font-extrabold text-rose-700 dark:text-rose-300">Gagal memuat data keuangan dari Supabase</p>
           <p class="text-xs text-rose-600/90 dark:text-rose-400 mt-1">${escapeHtmlJS(String((err && err.message) || err))}</p>
         </div>
-        <button type="button" onclick="retryInitialAppLoad()" class="min-h-11 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0">
+        <button type="button" data-action="retryInitialAppLoad" class="min-h-11 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0">
           Muat Ulang Data
         </button>
       </div>
@@ -258,7 +258,7 @@
           <p class="text-sm font-extrabold text-amber-800 dark:text-amber-300">Mode Offline · Data Cache Lokal</p>
           <p class="text-xs text-amber-700/90 dark:text-amber-400 mt-0.5">Menampilkan data tersimpan terakhir (${escapeHtmlJS(timeText)}). Catatan baru tetap tersimpan ke antrean offline.</p>
         </div>
-        <button type="button" onclick="retryInitialAppLoad()" class="min-h-11 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0">
+        <button type="button" data-action="retryInitialAppLoad" class="min-h-11 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0">
           Coba Sinkronkan
         </button>
       </div>

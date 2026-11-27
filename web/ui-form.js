@@ -1,4 +1,4 @@
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t, mkActionAttrs */
 /* ============================================================
    TRANSACTION FORM & CATEGORY MANAGEMENT
    ============================================================ */
@@ -140,8 +140,8 @@
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs">
             <span class="font-bold text-slate-800 dark:text-white truncate">${safe}</span>
             <div class="flex items-center gap-1 shrink-0">
-              <button type="button" onclick="renameCategoryUI('${tipe}', '${attr}')" aria-label="Ubah nama ${safe}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
-              <button type="button" onclick="deleteCategoryUI('${tipe}', '${attr}')" aria-label="Hapus kategori ${safe}" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('renameCategoryUI', [tipe, name])} aria-label="Ubah nama ${safe}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('deleteCategoryUI', [tipe, name])} aria-label="Hapus kategori ${safe}" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
             </div>
           </div>`;
       }).join('')
@@ -151,8 +151,8 @@
       title: 'Kelola Kategori (' + (tipe === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran') + ')',
       html: `
         <div class="flex gap-2 mb-3">
-          <button type="button" onclick="openManageCategoriesModal('pengeluaran')" class="flex-1 py-2 rounded-xl text-xs font-bold ${tipe === 'pengeluaran' ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">Pengeluaran</button>
-          <button type="button" onclick="openManageCategoriesModal('pemasukan')" class="flex-1 py-2 rounded-xl text-xs font-bold ${tipe === 'pemasukan' ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">Pemasukan</button>
+          <button type="button" data-action="openManageCategoriesModal" data-args='["pengeluaran"]' class="flex-1 py-2 rounded-xl text-xs font-bold ${tipe === 'pengeluaran' ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">Pengeluaran</button>
+          <button type="button" data-action="openManageCategoriesModal" data-args='["pemasukan"]' class="flex-1 py-2 rounded-xl text-xs font-bold ${tipe === 'pemasukan' ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">Pemasukan</button>
         </div>
         <div class="space-y-2 max-h-64 overflow-y-auto text-left">${rowsHtml}</div>`,
       showConfirmButton: true,

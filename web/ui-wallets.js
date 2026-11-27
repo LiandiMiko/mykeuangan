@@ -1,4 +1,4 @@
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, t */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, t, mkActionAttrs */
 /* ============================================================
    WALLETS, TRANSFERS & DATE HELPERS
    ============================================================ */
@@ -86,7 +86,7 @@
     const idAttr = escapeAttrJS(w.id);
     return `
       <div class="px-3.5 py-2.5 sm:px-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-2">
-        <button type="button" data-wallet-detail="${idAttr}" onclick="typeof openWalletDetailModal==='function'&&openWalletDetailModal('${idAttr}')"
+        <button type="button" data-wallet-detail="${idAttr}" ${mkActionAttrs('openWalletDetailModal', [w.id])}
                 aria-label="Lihat rincian dompet ${safeName}"
                 class="flex-1 min-w-0 min-h-11 py-1 px-1 rounded-xl flex items-center justify-between gap-3 text-left">
           <span class="flex items-center gap-3 min-w-0">
@@ -103,11 +103,11 @@
           </span>
           <span class="text-sm sm:text-base font-extrabold tabular-nums shrink-0 ${bal < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}">${formatRupiah(bal)}</span>
         </button>
-        ${isBank && !isPrimary ? `<button type="button" onclick="setPrimaryBankWallet('${idAttr}')" aria-label="Jadikan ${safeName} dompet utama" title="Jadikan dompet utama (acuan Cashflow Runway)"
+        ${isBank && !isPrimary ? `<button type="button" ${mkActionAttrs('setPrimaryBankWallet', [w.id])} aria-label="Jadikan ${safeName} dompet utama" title="Jadikan dompet utama (acuan Cashflow Runway)"
           class="min-h-9 px-2.5 rounded-full border border-brand/30 bg-brand/5 text-brand dark:text-brand-ink text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors hover:bg-brand/10">
           <i class="ph ph-star" aria-hidden="true"></i> Jadikan Utama
         </button>` : ''}
-        <button type="button" onclick="editWallet('${idAttr}')" aria-label="Edit dompet ${safeName}" title="Edit saldo"
+        <button type="button" ${mkActionAttrs('editWallet', [w.id])} aria-label="Edit dompet ${safeName}" title="Edit saldo"
           class="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
           <i class="ph ph-pencil-simple text-base" aria-hidden="true"></i>
         </button>
@@ -152,7 +152,7 @@
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="font-black text-slate-800 dark:text-slate-200 tabular-nums">${formatRupiah(x.nominal)}</span>
-          <button type="button" onclick="deleteTransfer('${escapeAttrJS(x.id)}')" aria-label="Hapus transfer" title="Hapus transfer" class="min-w-10 min-h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100 transition-colors">
+          <button type="button" ${mkActionAttrs('deleteTransfer', [x.id])} aria-label="Hapus transfer" title="Hapus transfer" class="min-w-10 min-h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100 transition-colors">
             <i class="ph ph-trash text-sm" aria-hidden="true"></i>
           </button>
         </div>

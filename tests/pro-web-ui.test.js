@@ -25,7 +25,7 @@ const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 test('index includes features-v35, mobile bottom nav, command palette trigger, and SW toast hook', () => {
   assert.match(indexHtml, /id="mobileBottomNav"/);
   assert.match(indexHtml, /include\('features-v35'\)/);
-  assert.match(indexHtml, /openCommandPalette\(\)/);
+  assert.match(indexHtml, /data-action="openCommandPalette"/);
   assert.match(indexHtml, /showPwaUpdateToast/);
   assert.match(buildMjs, /finance-pro\.js/);
 });
@@ -35,7 +35,7 @@ test('dashboard provides 1-line quick add form and quick template container', ()
   assert.match(dashboardHtml, /id="quickAddInput"/);
   assert.match(dashboardHtml, /id="quickAddPreview"/);
   assert.match(dashboardHtml, /id="quickTemplateChips"/);
-  assert.match(dashboardHtml, /openQuickTemplatesModal\(\)/);
+  assert.match(dashboardHtml, /data-action="openQuickTemplatesModal"/);
 });
 
 test('laporan, histori, aset, and ai views wire grouped menus, bulk actions, tags, and calculators', () => {
@@ -44,11 +44,11 @@ test('laporan, histori, aset, and ai views wire grouped menus, bulk actions, tag
   assert.match(laporanHtml, /id="lapBulkBar"/);
   assert.match(laporanHtml, /id="lapSelectAll"/);
   assert.match(laporanHtml, /id="lapTagBar"/);
-  assert.match(laporanHtml, /openAnnualRecapModal\(\)/);
+  assert.match(laporanHtml, /data-action="openAnnualRecapModal"/);
   assert.match(historiHtml, /id="historiTagBar"/);
-  assert.match(asetHtml, /openFinancialCalculatorsModal\(\)/);
-  assert.match(aiHtml, /openFinancialCalculatorsModal\(\)/);
-  assert.match(aiHtml, /clearAiChatHistory\(\)/);
+  assert.match(asetHtml, /data-action="openFinancialCalculatorsModal"/);
+  assert.match(aiHtml, /data-action="openFinancialCalculatorsModal"/);
+  assert.match(aiHtml, /data-action="clearAiChatHistory"/);
 });
 
 test('mobile bottom nav, responsive dropdowns, and Phosphor v2 icons use valid cohesive syntax', () => {
@@ -74,7 +74,7 @@ test('mobile bottom nav, responsive dropdowns, and Phosphor v2 icons use valid c
   assert.match(laporanHtml, /id="lapSelectAllMobile"/);
   assert.match(indexHtml, /id="networkStatusPill"/);
   assert.match(indexHtml, /a11y\.skip_main/);
-  assert.match(formHtml, /addQuickNominalAmount\(/);
+  assert.match(formHtml, /data-action=\"addQuickNominalAmount\" data-args='\[25000\]'/);
   assert.match(budgetingHtml, /id="budgetForecastCard"/);
   assert.match(uiProPaletteJs, /ArrowDown/);
   assert.match(uiProPaletteJs, /Enter/);
@@ -96,7 +96,7 @@ test('wave v3.13 enforces MyKeuGuech branding, mobile-native polish, motion toke
   assert.match(stylesHtml, /prefers-reduced-motion:\s*reduce/);
 
   assert.match(dashboardHtml, /id="heroHideNominalBtn"/);
-  assert.match(dashboardHtml, /showNetWorthInfo\(\)/);
+  assert.match(dashboardHtml, /data-action="showNetWorthInfo"/);
   assert.match(formHtml, /novalidate/);
   assert.match(formHtml, /for="tr_nominal"/);
   assert.match(uiFormJs, /setFormFieldError/);
