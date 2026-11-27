@@ -239,18 +239,21 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
     code: 'pkce_123',
     accessToken: '',
     refreshToken: '',
+    state: '',
     error: ''
   });
   assert.deepEqual({ ...webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback#access_token=at_1&refresh_token=rt_2') }, {
     code: '',
     accessToken: 'at_1',
     refreshToken: 'rt_2',
+    state: '',
     error: ''
   });
   assert.deepEqual({ ...webSandbox.parseOAuthCallbackParams('com.mykeuguech.app://auth-callback?error=access_denied&error_description=User%20cancelled') }, {
     code: '',
     accessToken: '',
     refreshToken: '',
+    state: '',
     error: 'User cancelled'
   });
 

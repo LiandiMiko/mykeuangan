@@ -15,6 +15,41 @@
   const PIN_LOCKOUT_PASSWORD_RESET_AFTER = 3;
   const PIN_FAILURES_PASSWORD_RESET_AFTER = 15;
   const AUTO_LOCK_IDLE_MS = 120000;
+  // Wave 3.1 / S4 — visible-tab idle auto-lock. The old code only locked
+  // when the tab was hidden for >= AUTO_LOCK_IDLE_MS; a visible idle tab
+  // never locked. lastActivityAt is updated (throttled to 1/s) on user
+  // input, and an interval checks for idleness.
+  const AUTO_LOCK_CHECK_MS = 20000;
+  let lastActivityAt = Date.now();
+  let lastActivityRecordAt = 0;
+  let autoLockBound = false;
+
+  function noteActivity(now) {
+    const t = typeof now === 'number' ? now : Date.now();
+    if (t - lastActivityRecordAt < 1000) return;
+    lastActivityRecordAt = t;
+    lastActivityAt = t;
+  }
+
+  function getPasswordPolicy() {
+    return (root.__mkFeat && root.__mkFeat.passwordPolicy) || root.__mkPasswordPolicy || null;
+  }
+
+  // First PIN-policy error message, or '' when the PIN is acceptable.
+  // Falls back to the old format-only check when the policy file has
+  // not been loaded (yet).
+  function checkPinPolicy(pin) {
+    const pol = getPasswordPolicy();
+    if (pol && typeof pol.validatePin === 'function') {
+      const res = pol.validatePin(pin);
+      return res.ok ? '' : (res.errors[0] && res.errors[0].message) || '';
+    }
+    return /^\d{4,6}$/.test(String(pin || '')) ? '' : txMsg('PIN harus 4 sampai 6 angka.', 'PIN must be 4 to 6 digits.');
+  }
+
+  function isPinFormatValid(pin) {
+    return checkPinPolicy(pin) === '';
+  }
   let pinPromptShown = false;
   let pinLastHiddenAt = 0;
   // Mirror state cooldown di memori agar pembacaan cepat (getPinCooldownSeconds
@@ -177,9 +212,48 @@
     return true;
   }
 
+  // Wave 3.1 / S6 — legacy unsalted PIN hashes stop being accepted once
+  // the app reaches v3.20.7. The version comes from the
+  // <meta name="app-version"> tag (or a root.__mkAppVersion override);
+  // when it cannot be read, legacy hashes keep migrating (fail-open
+  // towards usability for old cached builds, never towards acceptance
+  // after the cut-off is known).
+  const LEGACY_PIN_CUTOFF_VERSION = '3.20.7';
+  function getAppVersion() {
+    if (typeof root.__mkAppVersion === 'string' && root.__mkAppVersion) return root.__mkAppVersion;
+    try {
+      const meta = typeof document !== 'undefined' && document.querySelector
+        ? document.querySelector('meta[name="app-version"]') : null;
+      if (meta && typeof meta.getAttribute === 'function') return meta.getAttribute('content') || '';
+    } catch (_) { /* ignore */ }
+    return '';
+  }
+  function compareSemver(a, b) {
+    const pa = String(a || '').split('.').map((x) => Number(x) || 0);
+    const pb = String(b || '').split('.').map((x) => Number(x) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  }
+  function isLegacyPinCutoffPassed() {
+    const v = getAppVersion();
+    return Boolean(v) && compareSemver(v, LEGACY_PIN_CUTOFF_VERSION) >= 0;
+  }
+  function isLegacyPinHash(savedHash) {
+    return Boolean(savedHash) && !String(savedHash).startsWith('pbkdf2$');
+  }
+
   async function promptVerifyCurrentPin(title) {
     const savedHash = localStorage.getItem('mk_app_pin_hash');
     if (!savedHash) return true;
+    // S6: after the cut-off, a legacy hash can no longer be "verified"
+    // with the PIN — the user must re-verify the account password
+    // instead, then set a fresh PIN.
+    if (isLegacyPinHash(savedHash) && isLegacyPinCutoffPassed()) {
+      return promptAccountPasswordReverify();
+    }
     await ensurePinLockStateLoaded();
     if (isPinPasswordResetRequired()) {
       return promptAccountPasswordReverify();
@@ -239,8 +313,12 @@
       );
       return 'pbkdf2$' + Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     }
-    const buf = await crypto.subtle.digest('SHA-256', enc.encode(String(saltHex || '') + ':' + String(pin)));
-    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    // S6 (latent bug): the old fallback returned a bare hex SHA-256
+    // hash with NO pbkdf2$ prefix, so a freshly created hash was
+    // misclassified as legacy on the next read. PBKDF2 is required now:
+    // when it is unavailable we throw instead of minting a hash that
+    // looks legacy.
+    throw new Error('PBKDF2 tidak tersedia pada perangkat ini, PIN tidak dapat dibuat dengan aman.');
   }
 
   async function hashPin(pin) {
@@ -254,6 +332,13 @@
       const salt = localStorage.getItem('mk_app_pin_salt') || '';
       return (await derivePinHash(pin, salt)) === savedHash;
     }
+    // S6: legacy unsalted SHA-256('mkpin:'+pin). Before the v3.20.7
+    // cut-off, a correct PIN still migrates the hash to PBKDF2 (as
+    // before). AFTER the cut-off, legacy hashes are rejected outright —
+    // the caller routes the user to a PIN reset via account-password
+    // re-verification (promptAccountPasswordReverify), never a silent
+    // accept. A wrong PIN never migrates anything.
+    if (isLegacyPinCutoffPassed()) return false;
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('mkpin:' + String(pin)));
     const legacyHex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
     if (legacyHex === savedHash) {
@@ -443,8 +528,8 @@
           Swal.showValidationMessage(txMsg('Nama tampilan minimal 2 karakter.', 'Display name must be at least 2 characters.'));
           return false;
         }
-        if (pin && !/^\d{4,6}$/.test(pin)) {
-          Swal.showValidationMessage(txMsg('PIN harus 4 sampai 6 angka.', 'PIN must be 4 to 6 digits.'));
+        if (pin && checkPinPolicy(pin) !== '') {
+          Swal.showValidationMessage(checkPinPolicy(pin));
           return false;
         }
         return { displayName, pin };
@@ -581,6 +666,26 @@
     const savedHash = localStorage.getItem('mk_app_pin_hash');
     if (!savedHash || sessionStorage.getItem('mk_pin_unlocked') === '1' || pinPromptShown) return true;
     await ensurePinLockStateLoaded();
+    // S6: after the v3.20.7 cut-off, a legacy PIN hash is dead. The user
+    // proves ownership with the account password, the legacy hash/salt/
+    // wrap are wiped, and they set a fresh PIN afterwards. A failed or
+    // cancelled re-verification keeps the app locked (returns false).
+    if (isLegacyPinHash(savedHash) && isLegacyPinCutoffPassed()) {
+      const pwOk = await promptAccountPasswordReverify();
+      if (!pwOk) return false;
+      localStorage.removeItem('mk_app_pin_hash');
+      localStorage.removeItem('mk_app_pin_salt');
+      localStorage.removeItem(PIN_DATA_KEY_WRAP_KEY);
+      clearPinDataKey();
+      try { sessionStorage.setItem('mk_pin_unlocked', '1'); } catch (_) { /* ignore */ }
+      await Swal.fire({
+        icon: 'info',
+        title: txMsg('PIN Lama Direset', 'Old PIN Reset'),
+        text: txMsg('PIN lama Anda sudah tidak berlaku lagi demi keamanan. Silakan buat PIN baru di Pengaturan Akun.', 'Your old PIN no longer applies for security reasons. Please create a new PIN in Account Settings.'),
+        customClass: { popup: getSwalClass() }
+      });
+      return true;
+    }
     pinPromptShown = true;
     const mainEl = document.getElementById('mainContent');
     if (mainEl) mainEl.classList.add('blur-md', 'pointer-events-none');
@@ -724,6 +829,42 @@
     }, 120);
   }
 
+  // S4: the exact re-lock sequence, shared by the hidden-tab rule and
+  // the visible-tab idle timer. Re-locking drops the DEK from memory,
+  // so the next unlock needs the PIN once to unwrap it (biometrics
+  // alone are not enough). Limitation (pre-existing): data already
+  // rendered in this session stays in the DOM; verifyAppPinIfEnabled
+  // only blurs it as a mitigation.
+  function lockForIdle() {
+    try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) { /* ignore */ }
+    clearPinDataKey();
+    verifyAppPinIfEnabled();
+  }
+
+  // S4: returns true when an idle lock was triggered. `now` is
+  // injectable for tests; defaults to Date.now().
+  function checkIdleLock(now) {
+    let pinSet = false;
+    try { pinSet = Boolean(localStorage.getItem('mk_app_pin_hash')); } catch (_) { pinSet = false; }
+    if (!pinSet || pinPromptShown) return false;
+    if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return false;
+    const t = typeof now === 'number' ? now : Date.now();
+    if (t - lastActivityAt < AUTO_LOCK_IDLE_MS) return false;
+    lockForIdle();
+    return true;
+  }
+
+  function bindAutoLockListeners() {
+    if (autoLockBound || typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+    autoLockBound = true;
+    ['pointerdown', 'keydown', 'touchstart', 'scroll', 'wheel'].forEach((evt) => {
+      document.addEventListener(evt, () => noteActivity(), { passive: true });
+    });
+    if (typeof setInterval === 'function') {
+      setInterval(() => { checkIdleLock(); }, AUTO_LOCK_CHECK_MS);
+    }
+  }
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       pinLastHiddenAt = Date.now();
@@ -731,19 +872,14 @@
       const elapsed = Date.now() - pinLastHiddenAt;
       pinLastHiddenAt = 0;
       if (elapsed >= AUTO_LOCK_IDLE_MS && localStorage.getItem('mk_app_pin_hash') && !pinPromptShown) {
-        try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) { /* ignore */ }
-        // Re-lock: DEK dihapus dari memori — unlock berikutnya harus memasukkan
-        // PIN sekali lagi untuk unwrap DEK (biometrik saja tidak cukup).
-        // Batasan: data yang sudah dirender di sesi ini tetap ada di DOM;
-        // verifyAppPinIfEnabled hanya men-blur sebagai mitigasi.
-        clearPinDataKey();
-        verifyAppPinIfEnabled();
+        lockForIdle();
       }
     }
   });
+  bindAutoLockListeners();
 
   async function saveInitialAppPin(pin) {
-    if (localStorage.getItem('mk_app_pin_hash') || !/^\d{4,6}$/.test(String(pin || ''))) return false;
+    if (localStorage.getItem('mk_app_pin_hash') || checkPinPolicy(pin) !== '') return false;
     localStorage.setItem('mk_app_pin_hash', await hashPin(String(pin)));
     try { await createPinDataKey(String(pin)); } catch (_) { /* tanpa DEK, data lokal tidak akan tersimpan terenkripsi */ }
     await markPinUnlocked();
@@ -769,5 +905,24 @@
     getPinCooldownSeconds,
     isPinPasswordResetRequired,
     lockoutDurationMs: pinLockoutDurationMs
+  };
+  // Wave 3.1 — test/diagnostic surface: PIN verification (S6), idle
+  // auto-lock (S4) and PIN policy (S5).
+  root.__mkFeat.wave3Auth = {
+    verifyPinMatches,
+    derivePinHash,
+    hashPin,
+    isLegacyPinHash,
+    isLegacyPinCutoffPassed,
+    LEGACY_PIN_CUTOFF_VERSION,
+    checkPinPolicy,
+    AUTO_LOCK_IDLE_MS,
+    autoLock: {
+      noteActivity,
+      checkIdleLock,
+      lockForIdle,
+      getLastActivityAt: () => lastActivityAt,
+      setLastActivityAt: (ms) => { lastActivityAt = Number(ms) || 0; lastActivityRecordAt = 0; }
+    }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
