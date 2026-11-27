@@ -53,6 +53,12 @@
   }
 
   const ENCRYPTED_BACKUP_FORMAT = 'mykeuguech-encrypted-backup-v1';
+  // Wave 3.5 §8: PBKDF2 600.000 iterasi (OWASP) & kata sandi min 12.
+  // BACK-COMPAT: decrypt memakai env.iterations (backup lama 150.000
+  // tetap terbuka); hanya backup BARU yang ditulis dengan 600.000.
+  const BACKUP_PBKDF2_ITERATIONS = 600000;
+  const BACKUP_LEGACY_PBKDF2_ITERATIONS = 150000;
+  const BACKUP_MIN_PASSWORD_LENGTH = 12;
 
   function bytesToB64(bytes) {
     let bin = '';
@@ -67,12 +73,12 @@
     return out;
   }
 
-  async function deriveBackupAesKey(password, saltBytes, usages) {
+  async function deriveBackupAesKey(password, saltBytes, usages, iterations) {
     const subtle = root.crypto && root.crypto.subtle;
     if (!subtle) throw new Error('Web Crypto AES-GCM tidak tersedia pada perangkat ini.');
     const keyMat = await subtle.importKey('raw', new TextEncoder().encode(String(password || '')), 'PBKDF2', false, ['deriveKey']);
     return subtle.deriveKey(
-      { name: 'PBKDF2', salt: saltBytes, iterations: 150000, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: saltBytes, iterations: Number(iterations) > 0 ? Number(iterations) : BACKUP_PBKDF2_ITERATIONS, hash: 'SHA-256' },
       keyMat,
       { name: 'AES-GCM', length: 256 },
       false,
@@ -82,7 +88,7 @@
 
   async function encryptBackupPayload(snapshot, password) {
     const pass = String(password || '');
-    if (pass.length < 6) throw new Error('Kata sandi enkripsi minimal 6 karakter.');
+    if (pass.length < BACKUP_MIN_PASSWORD_LENGTH) throw new Error('Kata sandi enkripsi minimal 12 karakter.');
     const salt = new Uint8Array(16);
     const iv = new Uint8Array(12);
     root.crypto.getRandomValues(salt);
@@ -92,7 +98,7 @@
     return {
       format: ENCRYPTED_BACKUP_FORMAT,
       kdf: 'PBKDF2-SHA256',
-      iterations: 150000,
+      iterations: BACKUP_PBKDF2_ITERATIONS,
       salt: bytesToB64(salt),
       iv: bytesToB64(iv),
       ciphertext: bytesToB64(new Uint8Array(cipherBuf))
@@ -107,7 +113,10 @@
     const salt = b64ToBytes(env.salt);
     const iv = b64ToBytes(env.iv);
     const cipherBytes = b64ToBytes(env.ciphertext);
-    const key = await deriveBackupAesKey(pass, salt, ['decrypt']);
+    // Backup lama (150.000 iterasi) tetap bisa dibuka: pakai iterasi yang
+    // tercatat di envelope; hanya envelope tanpa catatan yang jatuh ke 150.000.
+    const iterations = Number(env.iterations) > 0 ? Number(env.iterations) : BACKUP_LEGACY_PBKDF2_ITERATIONS;
+    const key = await deriveBackupAesKey(pass, salt, ['decrypt'], iterations);
     const plainBuf = await root.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
     return JSON.parse(new TextDecoder().decode(plainBuf));
   }
@@ -149,13 +158,13 @@
     const passRes = await Swal.fire({
       title: 'Kata Sandi Enkripsi Backup',
       input: 'password',
-      inputPlaceholder: 'Minimal 6 karakter',
+      inputPlaceholder: 'Minimal 12 karakter',
       inputAttributes: { autocomplete: 'new-password' },
       showCancelButton: true,
       confirmButtonText: 'Enkripsi & Unduh',
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
-      preConfirm: (v) => (String(v || '').length < 6 ? (Swal.showValidationMessage('Minimal 6 karakter.'), false) : String(v))
+      preConfirm: (v) => (String(v || '').length < 12 ? (Swal.showValidationMessage('Minimal 12 karakter.'), false) : String(v))
     });
     if (!passRes.isConfirmed || !passRes.value) return;
     try {
@@ -174,7 +183,13 @@
     }
   }
 
-  function resolveRestoredWalletId(oldWalletId, walletNameByOldId, fallbackWalletId) {
+  // Wave 3.5 §2: TIDAK ADA lagi fallback diam-diam ke dompet pertama.
+  // Bila dompet lama tidak cocok dengan id maupun nama, kembalikan null
+  // dan biarkan pemanggil membatalkan restore (bukan menaruh transaksi
+  // orang ke dompet yang salah). Transaksi yang memang TANPA dompet
+  // (walletId kosong, mis. dari bot) tetap ditangani pemanggil/RPC
+  // lewat dompet default — itu bukan kasus "dompet hilang".
+  function resolveRestoredWalletId(oldWalletId, walletNameByOldId) {
     const wallets = DB.wallets || [];
     if (oldWalletId && wallets.some((w) => String(w.id) === String(oldWalletId))) return String(oldWalletId);
     const mappedName = oldWalletId && walletNameByOldId ? String(walletNameByOldId[String(oldWalletId)] || '').trim().toLowerCase() : '';
@@ -182,30 +197,83 @@
       const matched = wallets.find((w) => String(w.name || '').trim().toLowerCase() === mappedName);
       if (matched && matched.id) return String(matched.id);
     }
-    return fallbackWalletId;
+    return null;
   }
 
-  async function applyBackupRestorePlan(plan) {
-    Swal.fire({
-      title: 'Memulihkan data...',
-      text: 'Mohon tunggu sebentar.',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-      customClass: { popup: getSwalClass() }
-    });
+  function makeRestoreIdempotencyKey() {
+    const c = root.crypto || (typeof crypto !== 'undefined' ? crypto : null);
+    if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+    return 'restore-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  // Payload satu panggilan untuk RPC restore_backup (§3): semua 10
+  // koleksi, dompet dirujuk BERDASARKAN NAMA (id lama tidak berlaku
+  // lintas akun), transaksi membawa legacyId untuk dedup retry-aman.
+  function buildRestoreRpcPayload(plan) {
+    return {
+      wallets: (plan.newWallets || []).map((w) => ({ name: w.name, kind: w.kind, openingBalance: w.openingBalance })),
+      categories: (plan.newCategories || []).map((c) => ({ tipe: c.tipe, name: c.name })),
+      entities: (plan.newEntities || []).map((e) => ({ grp: e.grp, name: e.name })),
+      transactions: (plan.newTransactions || []).map((t) => ({
+        legacyId: t.legacyId || t.id || '',
+        tanggal: t.tanggal, tipe: t.tipe, kategori: t.kategori,
+        nominal: t.nominal, keterangan: t.keterangan || '',
+        walletName: t.walletName || ''
+      })),
+      transfers: (plan.newTransfers || []).map((x) => ({
+        legacyId: x.legacyId || x.id || '',
+        tanggal: x.tanggal, kind: x.kind,
+        fromWalletName: x.fromWalletName || '', toWalletName: x.toWalletName || '',
+        nominal: x.nominal, fee: x.fee || 0, keterangan: x.keterangan || ''
+      })),
+      budgets: (plan.newBudgets || []).map((b) => ({ bulan: b.bulan, kategori: b.kategori, jumlah: b.jumlah })),
+      goals: (plan.newGoals || []).map((g) => ({
+        name: g.name, targetAmount: g.targetAmount,
+        currentAmount: g.currentAmount || 0, targetDate: g.targetDate || ''
+      })),
+      recurring: (plan.newRecurring || []).map((r) => ({
+        tipe: r.tipe, kategori: r.kategori, nominal: r.nominal,
+        dayOfMonth: r.dayOfMonth, keterangan: r.keterangan || '', active: r.active !== false
+      })),
+      assets: (plan.newAssets || []).map((a) => ({
+        name: a.name, type: a.type, symbol: a.symbol || '',
+        quantity: a.quantity || 0, buyPrice: a.buyPrice || 0, value: a.value || 0
+      })),
+      debtDueDates: plan.newDebtDueDates || {}
+    };
+  }
+
+  async function applyBackupRestorePlanSequential(plan) {
     for (const c of (plan.newCategories || [])) {
       await refreshFromServer(await callServer('api_addCategory', c.tipe, c.name));
     }
     for (const w of (plan.newWallets || [])) {
       await refreshFromServer(await callServer('api_addWallet', w));
     }
-    const fallbackWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+    for (const e of (plan.newEntities || [])) {
+      await refreshFromServer(await callServer('api_addEntity', e.grp, e.name));
+    }
+    // Urutan fallback: transaksi DULU lalu transfer, supaya saldo
+    // turunan dompet asal sudah terbentuk saat RPC transfer mengecek
+    // saldo (di RPC restore urutan ini ditangani di dalam server).
     for (let i = 0; i < plan.newTransactions.length; i += 500) {
-      const chunk = plan.newTransactions.slice(i, i + 500).map((tx) => ({
-        ...tx,
-        walletId: resolveRestoredWalletId(tx.walletId, plan.walletNameByOldId, fallbackWalletId)
-      }));
+      const chunk = plan.newTransactions.slice(i, i + 500).map((tx) => {
+        const walletId = tx.walletId ? resolveRestoredWalletId(tx.walletId, plan.walletNameByOldId) : '';
+        if (tx.walletId && !walletId) {
+          throw new Error('Dompet tidak ditemukan untuk transaksi ' + tx.tanggal + ' · ' + tx.kategori + ' · ' + tx.nominal + '. Restore dibatalkan.');
+        }
+        return { ...tx, walletId: walletId || '' };
+      });
       await refreshFromServer(await callServer('api_importTransactions', chunk));
+    }
+    for (const x of (plan.newTransfers || [])) {
+      await refreshFromServer(await callServer('api_addTransfer', {
+        tanggal: x.tanggal, kind: x.kind,
+        fromWallet: resolveRestoredWalletId(x.fromWallet, plan.walletNameByOldId),
+        toWallet: x.kind === 'investasi' ? '' : resolveRestoredWalletId(x.toWallet, plan.walletNameByOldId),
+        nominal: x.nominal, fee: x.fee || 0, keterangan: x.keterangan || '',
+        idempotencyKey: makeRestoreIdempotencyKey()
+      }));
     }
     for (const b of plan.newBudgets) {
       await refreshFromServer(await callServer('api_saveBudget', b.kategori, b.bulan, b.jumlah));
@@ -226,12 +294,43 @@
     }
   }
 
+  async function applyBackupRestorePlan(plan) {
+    Swal.fire({
+      title: 'Memulihkan data...',
+      text: 'Mohon tunggu sebentar.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+      customClass: { popup: getSwalClass() }
+    });
+    // Jalur utama (§3): SATU panggilan RPC restore_backup — atomik di
+    // server. Bila RPC belum ada di server (migrasi belum diterapkan),
+    // jatuh ke jalur sekuensial klien (tidak atomik — dicatat di UI
+    // lewat error bila gagal di tengah jalan).
+    try {
+      const payload = buildRestoreRpcPayload(plan);
+      const res = await callServer('api_restoreBackup', payload);
+      if (res && res.restored) {
+        await refreshFromServer(await callServer('getInitialData'));
+        return;
+      }
+      await applyBackupRestorePlanSequential(plan);
+    } catch (err) {
+      if (/could not find the function|PGRST202/i.test(String((err && err.message) || err || ''))) {
+        await applyBackupRestorePlanSequential(plan);
+        return;
+      }
+      throw err;
+    }
+  }
+
   function buildRestoreSummaryHtml(plan) {
     const dueCount = Object.keys(plan.newDebtDueDates || {}).length;
     const rows = [
       ['Kategori baru', (plan.newCategories || []).length, plan.skippedCategories || 0],
       ['Dompet baru', (plan.newWallets || []).length, plan.skippedWallets || 0],
+      ['Entitas utang/piutang baru', (plan.newEntities || []).length, plan.skippedEntities || 0],
       ['Transaksi baru', plan.newTransactions.length, plan.skippedTransactions],
+      ['Transfer baru', (plan.newTransfers || []).length, plan.skippedTransfers || 0],
       ['Budget baru', plan.newBudgets.length, plan.skippedBudgets],
       ['Target keuangan baru', plan.newGoals.length, plan.skippedGoals],
       ['Jadwal rutin baru', (plan.newRecurring || []).length, plan.skippedRecurring || 0],
@@ -288,7 +387,28 @@
     const dueCount = Object.keys(plan.newDebtDueDates || {}).length;
     const totalNew = plan.newTransactions.length + plan.newBudgets.length + plan.newGoals.length
       + (plan.newCategories || []).length + (plan.newWallets || []).length
-      + (plan.newRecurring || []).length + (plan.newAssets || []).length + dueCount;
+      + (plan.newRecurring || []).length + (plan.newAssets || []).length + dueCount
+      + (plan.newTransfers || []).length + (plan.newEntities || []).length;
+    // §2: BATALKAN restore bila ada transaksi/transfer yang dompetnya
+    // tidak dapat dipetakan — jangan alihkan diam-diam ke dompet lain.
+    const unmappedTx = plan.unmappedTransactions || [];
+    const unmappedTr = plan.unmappedTransfers || [];
+    if (unmappedTx.length || unmappedTr.length) {
+      const walletNames = [...new Set([
+        ...unmappedTx.map((t) => t.oldWalletName),
+        ...unmappedTr.map((t) => t.missingWalletName)
+      ].filter(Boolean))];
+      const detail = unmappedTx.slice(0, 5).map((t) =>
+        `${t.tanggal} · ${t.kategori} · ${t.nominal}`
+      ).join('<br>');
+      Swal.fire({
+        icon: 'error',
+        title: 'Restore Dibatalkan — Dompet Tidak Ditemukan',
+        html: `<div class="text-left text-xs space-y-2"><p>Backup merujuk dompet yang tidak ada di akun ini dan tidak ada di dalam backup: <strong>${walletNames.map((n) => escapeHtmlJS(n)).join(', ')}</strong>.</p><p>${unmappedTx.length} transaksi dan ${unmappedTr.length} transfer terdampak.</p>${detail ? `<p>${detail}</p>` : ''}<p>Pulihkan dompet tersebut dulu (atau tambahkan ke backup), lalu coba lagi. Tidak ada data yang diubah.</p></div>`,
+        customClass: { popup: getSwalClass() }
+      });
+      return;
+    }
     if (totalNew === 0) {
       Swal.fire({
         icon: 'info',
@@ -424,5 +544,5 @@
     });
   }
 
-  Object.assign(root, { exportExcel, exportBackupJson, triggerRestoreJson, handleRestoreJsonFile, openFinancialStatementModal, encryptBackupPayload, decryptBackupPayload });
+  Object.assign(root, { exportExcel, exportBackupJson, triggerRestoreJson, handleRestoreJsonFile, openFinancialStatementModal, encryptBackupPayload, decryptBackupPayload, resolveRestoredWalletId, buildRestoreRpcPayload, BACKUP_PBKDF2_ITERATIONS, BACKUP_MIN_PASSWORD_LENGTH });
 })(typeof window !== 'undefined' ? window : globalThis);

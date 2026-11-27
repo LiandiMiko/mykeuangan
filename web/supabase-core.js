@@ -116,6 +116,8 @@
     }
   }
 
+  const MAX_NOMINAL = 999999999999.99;
+
   const trxRow = (d) => {
     if (!d || typeof d !== 'object') throw new Error('Data transaksi tidak valid.');
     const date = String(d.tanggal || '').slice(0, 10);
@@ -133,8 +135,15 @@
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error('Nominal transaksi harus lebih dari 0.');
     }
+    if (amount > MAX_NOMINAL) {
+      throw new Error('Nominal transaksi tidak boleh melebihi Rp 999.999.999.999,99.');
+    }
     const row = { tanggal: date, tipe: d.tipe, kategori: d.kategori.trim(), nominal: amount, keterangan: d.keterangan || '' };
     if (d.walletId) row.wallet_id = d.walletId;
+    // Id stabil dibawa sebagai legacy_id (§4): dedup berbasis id di
+    // jalur impor/restore, dan retry yang sama tidak duplikat.
+    const stableId = String(d.legacyId || d.legacy_id || d.id || '').trim();
+    if (stableId) row.legacy_id = stableId;
     return row;
   };
 
@@ -306,6 +315,7 @@
     fetchAll, getSettings, setSetting, cycleFor, syncPeriod, trxRow, trxFromRow,
     fetchCategoriesOnly, fetchEntitiesOnly, fetchBudgetsOnly, fetchWalletsOnly,
     fetchWalletsAndTransfers, fetchAssetsOnly, fetchRecurringOnly, goalFromRow,
+    MAX_NOMINAL,
     handlers: { getInitialData }
   };
 })();

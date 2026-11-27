@@ -482,7 +482,7 @@ test('computeCycleForecast estimates burn rate, safe daily allowance, and end-of
   assert.equal(doneForecast.projectedExpense, 1000000);
 });
 
-test('prepareBackupRestorePayload supports 8 collections additively and removes goal emoji', () => {
+test('prepareBackupRestorePayload supports 10 collections additively and removes goal emoji', () => {
   const plan = prepareBackupRestorePayload(
     {
       categories: { pemasukan: ['Gaji', 'Dividen'], pengeluaran: ['Makan', 'Internet'] },
@@ -493,6 +493,10 @@ test('prepareBackupRestorePayload supports 8 collections additively and removes 
       transactions: [
         { tanggal: '2026-11-10', tipe: 'Pengeluaran', kategori: 'Internet', nominal: 350000, keterangan: 'Fiber', walletId: 'old-ovo' }
       ],
+      transfers: [
+        { id: 'trx-1', tanggal: '2026-11-12', kind: 'transfer', nominal: 500000, fee: 0, keterangan: 'Pindah dana', fromWallet: 'old-bca', toWallet: 'old-ovo' }
+      ],
+      entities: { UtangPerson: ['Budi', 'Ani'], Piutang: ['Cici'] },
       recurring: [
         { tipe: 'Pengeluaran', kategori: 'Internet', nominal: 350000, dayOfMonth: 10, keterangan: 'Fiber', active: true },
         { tipe: 'Pengeluaran', kategori: 'Listrik', nominal: 200000, dayOfMonth: 5, keterangan: 'PLN', active: true }
@@ -532,6 +536,16 @@ test('prepareBackupRestorePayload supports 8 collections additively and removes 
   assert.equal(plan.newAssets[0].symbol, 'XAU');
   assert.deepEqual(plan.newDebtDueDates, { 'UtangPerson - Ani': '2026-12-15' });
   assert.equal(plan.skippedDebtDueDates, 2);
+  // Wave 3.5 / S26: restore kini mencakup transfer + entitas (10 koleksi).
+  assert.equal(plan.newTransfers.length, 1);
+  assert.equal(plan.newTransfers[0].fromWalletName, 'BCA Utama');
+  assert.equal(plan.newTransfers[0].toWalletName, 'OVO');
+  assert.equal(plan.newTransfers[0].nominal, 500000);
+  assert.deepEqual(plan.newEntities, [
+    { grp: 'UtangPerson', name: 'Budi' },
+    { grp: 'UtangPerson', name: 'Ani' },
+    { grp: 'Piutang', name: 'Cici' }
+  ]);
 
   const partialOnlyWallets = prepareBackupRestorePayload({ wallets: [{ name: 'Dana Baru', kind: 'ewallet' }] }, {});
   assert.equal(partialOnlyWallets.valid, true);

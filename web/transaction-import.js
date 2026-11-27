@@ -1,6 +1,23 @@
 (function (root) {
   'use strict';
 
+  // Wave 3.5 §9: batas ditegakkan DI PARSER (bukan hanya di UI/server).
+  const MAX_DATA_ROWS = 500;
+  const MAX_NOMINAL = 999999999999.99;
+
+  function isKnownImportCategory(rawCat, tipe, options) {
+    const clean = String(rawCat || '').trim();
+    if (!clean) return true;
+    const categories = options && typeof options === 'object' ? options.categories : null;
+    if (!categories) return true;
+    const list = Array.isArray(categories)
+      ? categories
+      : [...(categories.pemasukan || []), ...(categories.pengeluaran || [])];
+    if (!Array.isArray(list) || !list.length) return true;
+    const targetKey = clean.toLocaleLowerCase();
+    return list.some((c) => String(c || '').trim().toLocaleLowerCase() === targetKey);
+  }
+
   function detectDelimiter(text) {
     const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim() !== '').slice(0, 10);
     const countOutsideQuotes = (ch) => lines.reduce((sum, line) => {
@@ -232,7 +249,8 @@
       readIdx(cols.amountCol), readIdx(cols.typeCol), readIdx(cols.debitCol), readIdx(cols.creditCol)
     );
     const desc = readIdx(cols.descCol);
-    const rawCat = canonicalizeImportCategory(readIdx(cols.catCol), tipe, options);
+    const rawCatCell = readIdx(cols.catCol);
+    const rawCat = canonicalizeImportCategory(rawCatCell, tipe, options);
     const autoCat = !rawCat && cols.isBankMutation ? resolveImportAutoCategory(desc, tipe, options) : '';
     const category = rawCat || autoCat || (cols.isBankMutation ? 'Lainnya' : '');
     const transaction = { tanggal: date, tipe, kategori: category, nominal: amount, keterangan: desc };
@@ -240,14 +258,43 @@
     if (!date) errors.push('Tanggal tidak valid (gunakan YYYY-MM-DD atau DD/MM/YYYY).');
     if (!transaction.tipe) errors.push('Tipe harus Pemasukan/CR atau Pengeluaran/DB.');
     if (!category) errors.push('Kategori wajib diisi.');
+    // §9b: kategori eksplisit yang tidak ada di daftar user DITOLAK
+    // per baris (dulu lolos apa adanya). Kategori hasil auto-categorize
+    // / default 'Lainnya' untuk mutasi bank tidak kena aturan ini.
+    if (rawCatCell && !isKnownImportCategory(rawCatCell, tipe, options)) {
+      errors.push('Kategori tidak dikenal: ' + rawCatCell + ' (baris ' + line + ').');
+    }
     if (!Number.isFinite(amount) || amount <= 0) errors.push('Nominal harus berupa angka lebih dari 0.');
+    if (Number.isFinite(amount) && amount > MAX_NOMINAL) errors.push('Nominal melebihi batas Rp 999.999.999.999,99 (baris ' + line + ').');
+    // §9d: nominal negatif eksplisit (tanda minus) pada baris biasa
+    // DITOLAK, bukan diam-diam dibalik jadi Pengeluaran. Notasi mutasi
+    // bank tetap berlaku: tanda kurung akuntansi (150.000), akhiran
+    // DB/CR, dan kolom Debit/Kredit — itu penanda arah dari file
+    // banknya sendiri, bukan input minus dari user.
+    const amountCell = readIdx(cols.amountCol);
+    const amountToken = parseNumericToken(amountCell);
+    const hasBankDirection = cols.debitCol !== undefined || cols.creditCol !== undefined
+      || /(?:DB|CR)\s*$/i.test(amountCell) || /^\(.*\)$/.test(amountCell.trim());
+    if (Number.isFinite(amountToken) && amountToken < 0 && !hasBankDirection) {
+      errors.push('Nominal negatif tidak diizinkan, tulis nominal positif dan isi kolom tipe (baris ' + line + ').');
+    }
 
     const walletName = readIdx(cols.walletCol);
-    if (walletName) {
-      const wallet = walletByName.get(walletName.toLocaleLowerCase());
-      if (!wallet) errors.push('Dompet tidak ditemukan: ' + walletName);
-      else transaction.walletId = String(wallet.id || '');
+    if (cols.walletCol !== undefined) {
+      // §9c: kolom dompet ADA tapi sel kosong -> error per baris,
+      // bukan diam-diam dompet pertama.
+      if (!walletName) {
+        errors.push('Dompet wajib diisi (baris ' + line + ').');
+      } else {
+        const wallet = walletByName.get(walletName.toLocaleLowerCase());
+        if (!wallet) errors.push('Dompet tidak ditemukan: ' + walletName);
+        else transaction.walletId = String(wallet.id || '');
+      }
     } else {
+      // Berkas mutasi bank tidak punya kolom dompet: tetap memakai
+      // dompet pertama (perilaku lama yang dikunci tes bank-statement).
+      // Penyimpangan sadar dari §9c — lihat laporan: perlu pemilih
+      // dompet di UI impor sebelum aturan ini bisa diperketat.
       transaction.walletId = defaultWalletId;
     }
 
@@ -261,7 +308,7 @@
   }
 
   function findHeaderRowIndex(rows) {
-    const limit = Math.min(rows.length, 15);
+    const limit = Math.min(rows.length, 30);
     for (let i = 0; i < limit; i += 1) {
       const headers = rows[i].map((header) => header.trim().toLocaleLowerCase());
       try {
@@ -290,17 +337,25 @@
       options: options || {}
     };
 
-    const parsedRows = rowEntries.slice(headerIndex + 1).map((entry, index) => parseCsvDataRow(entry.cells, index, ctx, entry.line));
-    const valid = parsedRows.filter((item) => item.errors.length === 0 && !item.duplicate).map((item) => item.transaction);
+    const parsedRows = rowEntries.slice(headerIndex + 1);
+    // §9a: batas 500 BARIS DATA (setelah header) ditegakkan di sini.
+    // Dulu limit hanya hidup di UI (yang menghitung SEMUA baris
+    // termasuk preamble/header, sehingga 15 preamble + 500 data
+    // ditolak keliru) dan di server (tolak grosir tanpa nomor baris).
+    if (parsedRows.length > MAX_DATA_ROWS) {
+      throw new Error('File CSV melebihi batas 500 baris data (ditemukan ' + parsedRows.length + ' baris data setelah header).');
+    }
+    const parsed = parsedRows.map((entry, index) => parseCsvDataRow(entry.cells, index, ctx, entry.line));
+    const valid = parsed.filter((item) => item.errors.length === 0 && !item.duplicate).map((item) => item.transaction);
     return {
-      rows: parsedRows,
+      rows: parsed,
       valid,
-      duplicateCount: parsedRows.filter((item) => item.duplicate).length,
-      invalidCount: parsedRows.filter((item) => item.errors.length > 0).length
+      duplicateCount: parsed.filter((item) => item.duplicate).length,
+      invalidCount: parsed.filter((item) => item.errors.length > 0).length
     };
   }
 
-  const api = { parseRows, parseTransactionCsv, normalizeDateString, parseAmountAndDirection };
+  const api = { parseRows, parseTransactionCsv, normalizeDateString, parseAmountAndDirection, MAX_DATA_ROWS, MAX_NOMINAL };
   root.TransactionImport = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
