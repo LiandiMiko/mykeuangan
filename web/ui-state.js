@@ -17,7 +17,8 @@
     goals: [],
     recurring: [],
     currentPeriod: new Date().toISOString().slice(0, 7),
-    payrollDay: 28
+    payrollDay: 28,
+    primaryBankWalletId: ''
   };
 
   root.sessionUser = 'User';

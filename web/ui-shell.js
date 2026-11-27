@@ -209,6 +209,7 @@
     DB.budgets = data.budgets || [];
     DB.currentPeriod = data.currentPeriod || DB.currentPeriod;
     DB.payrollDay = data.payrollDay || 1;
+    DB.primaryBankWalletId = data.primaryBankWalletId || '';
     DB.snapshots = data.snapshots || [];
     DB.wallets = data.wallets || [];
     DB.transfers = data.transfers || [];

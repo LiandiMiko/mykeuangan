@@ -193,6 +193,21 @@
       return true;
     },
 
+    // Dompet bank utama sebagai acuan Cashflow Runway. Nilai kosong ('')
+    // menghapus pengaturan sehingga runway kembali memakai total semua dompet.
+    async api_savePrimaryBankWallet(walletId) {
+      const id = String(walletId || '').trim();
+      if (id) {
+        const { data: wallet, error } = await sb.from('wallets').select('id,kind').eq('id', id).maybeSingle();
+        fail(error);
+        if (!wallet || String(wallet.kind || '') !== 'bank') {
+          throw new Error('Dompet utama harus berupa dompet bank yang sudah ada.');
+        }
+      }
+      await setSetting('primaryBankWalletId', id);
+      return true;
+    },
+
     async api_savePeriod(period) {
       await setSetting('currentPeriod', period);
       return true;

@@ -75,6 +75,8 @@
   function buildWalletRowHtml(w, bal) {
     const isCash = w.kind === 'cash';
     const isEwallet = w.kind === 'ewallet';
+    const isBank = !isCash && !isEwallet;
+    const isPrimary = isBank && (DB.primaryBankWalletId || '') === w.id;
     const iconBoxClass = isCash
       ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
       : isEwallet
@@ -93,16 +95,51 @@
             </span>
             <span class="min-w-0">
               <span class="block text-slate-800 dark:text-white text-sm font-bold truncate">${safeName}</span>
-              <span class="block text-[11px] text-slate-500 dark:text-slate-400 truncate">${walletKindLabel(w.kind)}</span>
+              <span class="mt-0.5 flex items-center gap-1.5 min-w-0">
+                <span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${walletKindLabel(w.kind)}</span>
+                ${isPrimary ? '<span class="shrink-0 px-1.5 py-px rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-black uppercase tracking-wide">Dompet Utama</span>' : ''}
+              </span>
             </span>
           </span>
           <span class="text-sm sm:text-base font-extrabold tabular-nums shrink-0 ${bal < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}">${formatRupiah(bal)}</span>
         </button>
+        ${isBank && !isPrimary ? `<button type="button" onclick="setPrimaryBankWallet('${idAttr}')" aria-label="Jadikan ${safeName} dompet utama" title="Jadikan dompet utama (acuan Cashflow Runway)"
+          class="min-h-9 px-2.5 rounded-full border border-brand/30 bg-brand/5 text-brand dark:text-brand-ink text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors hover:bg-brand/10">
+          <i class="ph ph-star" aria-hidden="true"></i> Jadikan Utama
+        </button>` : ''}
         <button type="button" onclick="editWallet('${idAttr}')" aria-label="Edit dompet ${safeName}" title="Edit saldo"
           class="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink flex items-center justify-center shrink-0 transition-colors">
           <i class="ph ph-pencil-simple text-base" aria-hidden="true"></i>
         </button>
       </div>`;
+  }
+
+  async function setPrimaryBankWallet(id) {
+    const w = (DB.wallets || []).find((x) => x.id === id);
+    if (!w || String(w.kind || '') !== 'bank') return;
+    if ((DB.primaryBankWalletId || '') === id) return;
+    try {
+      await callServer('api_savePrimaryBankWallet', id);
+      DB.primaryBankWalletId = id;
+      renderWallets();
+      if (typeof root.renderCashflowRunwayStrip === 'function') root.renderCashflowRunwayStrip();
+      Swal.fire({
+        icon: 'success', title: 'Dompet utama diatur',
+        text: w.name + ' kini menjadi acuan Cashflow Runway.',
+        timer: 1800, showConfirmButton: false, customClass: { popup: getSwalClass() }
+      });
+    } catch (e) {
+      showActionError(e);
+    }
+  }
+
+  // Menghapus pengaturan dompet utama bila dompet yang dihapus adalah dompet
+  // utama, sehingga runway kembali memakai total semua dompet.
+  async function clearPrimaryBankWalletSetting() {
+    try { await callServer('api_savePrimaryBankWallet', ''); } catch (_) { /* tetap bersihkan lokal */ }
+    DB.primaryBankWalletId = '';
+    renderWallets();
+    if (typeof root.renderCashflowRunwayStrip === 'function') root.renderCashflowRunwayStrip();
   }
 
   function buildTransferRowHtml(x) {
@@ -204,6 +241,7 @@
     if (!conf.isConfirmed) return;
     try {
       await refreshFromServer(await callServer('api_deleteWallet', id));
+      if ((DB.primaryBankWalletId || '') === id) await clearPrimaryBankWalletSetting();
       Swal.fire({ icon: 'success', title: 'Dompet dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
       showActionError(e);
@@ -260,6 +298,14 @@
     const newOpening = (Number(w.openingBalance) || 0) + (res.value.balance - bal);
     try {
       await refreshFromServer(await callServer('api_updateWallet', id, { name: res.value.name, kind: res.value.kind, openingBalance: newOpening }));
+      if ((DB.primaryBankWalletId || '') === id && res.value.kind !== 'bank') {
+        await clearPrimaryBankWalletSetting();
+        Swal.fire({
+          icon: 'info', title: 'Dompet utama dihapus',
+          text: 'Jenis dompet diubah dari bank, jadi Cashflow Runway kembali memakai total semua dompet.',
+          timer: 2400, showConfirmButton: false, customClass: { popup: getSwalClass() }
+        });
+      }
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
     }
@@ -367,6 +413,7 @@
     renderWallets,
     addWallet,
     editWallet,
+    setPrimaryBankWallet,
     deleteWalletUI,
     openTransferModal,
     deleteTransfer

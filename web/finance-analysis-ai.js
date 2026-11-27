@@ -67,7 +67,8 @@
       enriched.runway = {
         daysLeftInCycle: rw.daysLeftInCycle, upcomingRecurringExpense: rw.upcomingRecurringExpense,
         upcomingRecurringIncome: rw.upcomingRecurringIncome, projectedEndCash: rw.projectedEndCash,
-        safeDailyBudget: rw.safeDailyBudget, status: rw.status
+        safeDailyBudget: rw.safeDailyBudget, status: rw.status,
+        referenceWalletName: rw.referenceWalletName || ''
       };
     }
     if (pf && typeof pf.detectSpendingAnomalies === 'function') {

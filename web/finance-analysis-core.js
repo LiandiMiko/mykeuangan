@@ -226,12 +226,15 @@
     };
 
     const walletsTotal = wallets.length ? Array.from(walletBal.values()).reduce((s, v) => s + v, 0) : saldoKasFallback;
+    const walletBalances = {};
+    walletBal.forEach((balance, walletId) => { walletBalances[walletId] = balance; });
     return {
       incomeTotal,
       expenseTotal,
       incomeByCat: buildLabeledMap(incomeTotals, incomeLabels),
       expenseByCat: buildLabeledMap(expenseTotals, expenseLabels),
       walletsTotal,
+      walletBalances,
       utangTotal,
       piutangTotal
     };

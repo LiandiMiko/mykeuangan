@@ -26,7 +26,9 @@ const {
   getDueRecurringBills,
   computeNetWorthSeries,
   compileOnePageFinancialStatement,
-  computeCycleForecast
+  computeCycleForecast,
+  aggregateWalletAndPeriodFlows,
+  computeCashflowRunway
 } = require('../web/finance-analysis.js');
 
 test('payroll cycle spans month and year boundaries', () => {
@@ -580,4 +582,98 @@ test('category matching normalizes case and whitespace across budgeting, insight
   assert.equal(recs[0].category, 'Laundry');
   assert.equal(recs[0].averageActual, 150000);
   assert.equal(recs[0].activeCycles, 2);
+});
+
+function primaryRunwayDb(overrides) {
+  const base = {
+    wallets: [
+      { id: 'bca', name: 'BCA', kind: 'bank', openingBalance: 5000000 },
+      { id: 'seabank', name: 'SeaBank', kind: 'bank', openingBalance: 1000000 },
+      { id: 'cash', name: 'Cash', kind: 'cash', openingBalance: 500000 }
+    ],
+    transactions: [
+      { id: 't1', tanggal: '2026-11-10', tipe: 'Pengeluaran', kategori: 'Makan', nominal: 500000, walletId: 'bca' },
+      { id: 't2', tanggal: '2026-11-11', tipe: 'Pemasukan', kategori: 'Gaji', nominal: 2000000, walletId: 'seabank' }
+    ],
+    transfers: [],
+    recurring: []
+  };
+  return { ...base, ...(overrides || {}) };
+}
+
+test('aggregateWalletAndPeriodFlows exposes per-wallet balances including transfers', () => {
+  const db = primaryRunwayDb({
+    transfers: [{ id: 'x1', fromWallet: 'bca', toWallet: 'cash', nominal: 200000, fee: 0 }]
+  });
+  const flows = aggregateWalletAndPeriodFlows(db.transactions, db.wallets, db.transfers, '2026-11', 1);
+  // BCA 5.000.000 - 500.000 - 200.000; SeaBank 1.000.000 + 2.000.000; Cash 500.000 + 200.000.
+  assert.equal(flows.walletsTotal, 8000000);
+  assert.deepEqual(flows.walletBalances, { bca: 4300000, seabank: 3000000, cash: 700000 });
+});
+
+test('computeCashflowRunway uses only the primary bank wallet balance when set', () => {
+  const db = primaryRunwayDb({ primaryBankWalletId: 'bca' });
+  const rw = computeCashflowRunway(db, '2026-11', 1, '2026-11-21');
+  assert.equal(rw.liquidCash, 4500000);
+  assert.equal(rw.referenceWalletId, 'bca');
+  assert.equal(rw.referenceWalletName, 'BCA');
+  assert.equal(rw.daysLeftInCycle, 10);
+  assert.equal(rw.projectedEndCash, 4500000);
+  assert.equal(rw.safeDailyBudget, 450000);
+  assert.equal(rw.status, 'safe');
+
+  const withTransfer = primaryRunwayDb({
+    primaryBankWalletId: 'bca',
+    transfers: [{ id: 'x1', fromWallet: 'bca', toWallet: 'cash', nominal: 200000, fee: 0 }]
+  });
+  const rwTransfer = computeCashflowRunway(withTransfer, '2026-11', 1, '2026-11-21');
+  assert.equal(rwTransfer.liquidCash, 4300000);
+  assert.equal(rwTransfer.referenceWalletId, 'bca');
+});
+
+test('computeCashflowRunway falls back to all wallets when the primary setting is missing or invalid', () => {
+  const cases = [
+    primaryRunwayDb(),
+    primaryRunwayDb({ primaryBankWalletId: '' }),
+    primaryRunwayDb({ primaryBankWalletId: 'tidak-ada' }),
+    primaryRunwayDb({ primaryBankWalletId: 123 }),
+    primaryRunwayDb({ primaryBankWalletId: null })
+  ];
+  for (const db of cases) {
+    const rw = computeCashflowRunway(db, '2026-11', 1, '2026-11-21');
+    assert.equal(rw.liquidCash, 8000000);
+    assert.equal(rw.referenceWalletId, '');
+    assert.equal(rw.referenceWalletName, '');
+    assert.equal(rw.projectedEndCash, 8000000);
+    assert.equal(rw.safeDailyBudget, 800000);
+  }
+});
+
+test('computeCashflowRunway ignores a non-bank wallet as primary', () => {
+  const cashDb = primaryRunwayDb({ primaryBankWalletId: 'cash' });
+  const cashRw = computeCashflowRunway(cashDb, '2026-11', 1, '2026-11-21');
+  assert.equal(cashRw.liquidCash, 8000000);
+  assert.equal(cashRw.referenceWalletId, '');
+
+  const ewalletDb = primaryRunwayDb({
+    primaryBankWalletId: 'seabank',
+    wallets: primaryRunwayDb().wallets.map((w) => (w.id === 'seabank' ? { ...w, kind: 'ewallet' } : w))
+  });
+  const ewalletRw = computeCashflowRunway(ewalletDb, '2026-11', 1, '2026-11-21');
+  assert.equal(ewalletRw.liquidCash, 8000000);
+  assert.equal(ewalletRw.referenceWalletId, '');
+});
+
+test('computeFinancialHealthRatios ignores primaryBankWalletId and keeps total-based emergency runway', () => {
+  const withPrimary = primaryRunwayDb({ primaryBankWalletId: 'bca' });
+  const withoutPrimary = primaryRunwayDb();
+  const rWith = computeFinancialHealthRatios(withPrimary, '2026-11', 1);
+  const rWithout = computeFinancialHealthRatios(withoutPrimary, '2026-11', 1);
+  // Total liquid cash 8.000.000 / rata-rata belanja 500.000 = 16 bulan, di kedua kasus.
+  assert.equal(rWith.liquidCash, 8000000);
+  assert.equal(rWith.emergencyRunwayMonths, 16);
+  assert.deepEqual(
+    { liquidCash: rWith.liquidCash, emergencyRunwayMonths: rWith.emergencyRunwayMonths },
+    { liquidCash: rWithout.liquidCash, emergencyRunwayMonths: rWithout.emergencyRunwayMonths }
+  );
 });

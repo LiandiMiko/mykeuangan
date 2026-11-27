@@ -8,7 +8,7 @@
   const SNAPSHOT_KEY = 'latest';
   const SNAPSHOT_FIELDS = [
     'transactions', 'categories', 'entities', 'assets', 'budgets',
-    'currentPeriod', 'payrollDay', 'snapshots', 'wallets', 'transfers',
+    'currentPeriod', 'payrollDay', 'primaryBankWalletId', 'snapshots', 'wallets', 'transfers',
     'goals', 'recurring', 'debtDueDates'
   ];
   let saveTimer = null;
