@@ -302,6 +302,19 @@
     return '';
   }
 
+  // Dompet bank utama sebagai acuan Cashflow Runway. Mengembalikan null bila
+  // pengaturan kosong, dompetnya tidak ada, bukan bank, atau saldonya tidak
+  // ditemukan — pemanggil lalu memakai total semua dompet seperti sebelumnya.
+  function resolvePrimaryRunwayWallet(src, walletBalances) {
+    const id = typeof src.primaryBankWalletId === 'string' ? src.primaryBankWalletId.trim() : '';
+    if (!id) return null;
+    const wallet = (Array.isArray(src.wallets) ? src.wallets : []).find((w) => w && w.id === id);
+    if (!wallet || String(wallet.kind || '') !== 'bank') return null;
+    if (!walletBalances || typeof walletBalances !== 'object'
+      || !Object.prototype.hasOwnProperty.call(walletBalances, id)) return null;
+    return { id, name: String(wallet.name || ''), balance: Number(walletBalances[id]) || 0 };
+  }
+
   function computeCashflowRunway(data, period, payrollDay, todayStr) {
     core.parsePeriod(period);
     const src = data && typeof data === 'object' ? data : {};
@@ -312,7 +325,8 @@
     const range = core.getPeriodRange(period, payrollDay);
     const refToday = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || '')) ? String(todayStr) : range.start;
     const flows = core.aggregateWalletAndPeriodFlows(txs, wallets, transfers, period, payrollDay);
-    const liquidCash = Math.round(flows.walletsTotal);
+    const referenceWallet = resolvePrimaryRunwayWallet(src, flows.walletBalances);
+    const liquidCash = Math.round(referenceWallet ? referenceWallet.balance : flows.walletsTotal);
 
     const effectiveStart = refToday < range.start ? range.start : refToday;
     const msDay = 86400000;
@@ -343,6 +357,8 @@
     const status = projectedEndCash < 0 ? 'deficit' : (safeDailyBudget < 50000 ? 'caution' : 'safe');
     return {
       period, range, liquidCash, daysLeftInCycle,
+      referenceWalletId: referenceWallet ? referenceWallet.id : '',
+      referenceWalletName: referenceWallet ? referenceWallet.name : '',
       upcomingRecurringIncome: Math.round(upcomingRecurringIncome),
       upcomingRecurringExpense: Math.round(upcomingRecurringExpense),
       upcomingRecurringNet, upcomingCount, projectedEndCash, safeDailyBudget, status

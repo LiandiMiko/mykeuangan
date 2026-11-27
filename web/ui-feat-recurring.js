@@ -31,7 +31,7 @@
           </span>
           <div class="min-w-0">
             <p class="text-xs font-extrabold truncate">Cashflow Runway · Sisa ${rw.daysLeftInCycle} hari siklus ini</p>
-            <p class="text-[11px] opacity-85 truncate tabular-nums">Proyeksi akhir siklus ${fmt(rw.projectedEndCash)}${rw.upcomingCount ? ` (termasuk ${rw.upcomingCount} jadwal rutin mendatang)` : ''}</p>
+            <p class="text-[11px] opacity-85 truncate tabular-nums">Proyeksi akhir siklus ${fmt(rw.projectedEndCash)}${rw.upcomingCount ? ` (termasuk ${rw.upcomingCount} jadwal rutin mendatang)` : ''}${rw.referenceWalletName ? ` · Acuan: ${escapeHtmlJS(rw.referenceWalletName)}` : ''}</p>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">

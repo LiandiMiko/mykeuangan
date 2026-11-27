@@ -259,6 +259,7 @@
       })),
       debtDueDates: parseDebtDueDatesSetting(settings.debtDueDates),
       currentPeriod: settings.currentPeriod || cycleFor(ymd(new Date()), payrollDay),
+      primaryBankWalletId: settings.primaryBankWalletId || '',
       payrollDay
     };
   }
