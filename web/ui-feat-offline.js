@@ -530,12 +530,52 @@
     }, 40);
   }
 
+  /* ============================================================
+     IDEMPOTENCY KEY ANTREAN OFFLINE (T13, Gelombang 2.5)
+     - Kunci dibuat SEKALI saat item masuk antrean (enqueue),
+       TIDAK PERNAH dibuat ulang saat flush/retry — kalau dibuat
+       ulang, retry tetap akan menduplikat di server.
+     - Kunci disimpan di DUA tempat: di dalam `payload` (ikut
+       terenkripsi K2, ikut terkirim saat flush, dan menjadi
+       `idempotency_key` di server) dan sebagai field top-level
+       item (debugging + cadangan bila payload diganti, mis.
+       update yang menimpa antrean add yang masih tertunda).
+     - Item lama (sebelum 2.5) tanpa kunci tetap jalan: kunci
+       opsional di server, insert tanpa kunci berperilaku lama.
+     ============================================================ */
+  function generateIdempotencyKey() {
+    const cryptoObj = root.crypto || (typeof crypto !== 'undefined' ? crypto : null);
+    if (cryptoObj && typeof cryptoObj.randomUUID === 'function') return cryptoObj.randomUUID();
+    // Fallback untuk browser tanpa randomUUID — pola yang sama seperti
+    // generator OTP di web/supabase-admin.js: getRandomValues + format
+    // UUID v4 manual (16 byte acak, bit versi & varian disetel).
+    if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16);
+      cryptoObj.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+    }
+    throw new Error('Browser ini tidak mendukung pembuatan kunci idempotensi yang aman.');
+  }
+
+  // Menempelkan kunci idempotensi pada item antrean BARU. Bila item
+  // sudah membawa kunci (mis. update menimpa antrean add yang masih
+  // tertunda), kunci lama DIPERTAHANKAN — jangan pernah diganti.
+  function attachIdempotencyKey(item) {
+    const existing = (item.payload && item.payload.idempotencyKey) || item.idempotencyKey || '';
+    const key = existing || generateIdempotencyKey();
+    const payload = item.payload ? Object.assign({}, item.payload, { idempotencyKey: key }) : item.payload;
+    return Object.assign({}, item, { idempotencyKey: key, payload });
+  }
+
   async function queueOfflineMutation(op, args) {
     const stamp = () => 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     if (op === 'api_addTransaction') {
       const payload = Object.assign({}, args[0] || {});
       const localId = stamp();
-      await saveOfflineQueueItem({ localId, op, payload, createdAt: new Date().toISOString() });
+      await saveOfflineQueueItem(attachIdempotencyKey({ localId, op, payload, createdAt: new Date().toISOString() }));
       bumpOfflineBadgeRefresh();
       return buildOfflineTransactionResponse(localId, payload);
     }
@@ -545,8 +585,8 @@
       const queued = id.startsWith('offline-') ? readLocalQueue().find((x) => x.localId === id && (x.op || 'api_addTransaction') === 'api_addTransaction') : null;
       const itemId = queued ? id : ('offline-upd-' + id);
       const nextItem = queued
-        ? Object.assign({}, queued, { payload })
-        : { localId: itemId, op, targetId: id, payload, createdAt: new Date().toISOString() };
+        ? attachIdempotencyKey(Object.assign({}, queued, { payload }))
+        : attachIdempotencyKey({ localId: itemId, op, targetId: id, payload, createdAt: new Date().toISOString() });
       await saveOfflineQueueItem(nextItem);
       bumpOfflineBadgeRefresh();
       return {
@@ -571,7 +611,7 @@
     }
     const trPayload = Object.assign({}, args[0] || {});
     const localId = stamp();
-    await saveOfflineQueueItem({ localId, op: 'api_addTransfer', payload: trPayload, createdAt: new Date().toISOString() });
+    await saveOfflineQueueItem(attachIdempotencyKey({ localId, op: 'api_addTransfer', payload: trPayload, createdAt: new Date().toISOString() }));
     const optimistic = {
       id: localId, tanggal: trPayload.tanggal || new Date().toISOString().slice(0, 10),
       kind: trPayload.kind || 'transfer', fromWallet: trPayload.fromWallet || '', toWallet: trPayload.toWallet || '',
@@ -706,6 +746,7 @@
   root.__mkFeat.encryptQueuePayload = encryptQueuePayload;
   root.__mkFeat.decryptQueuePayload = decryptQueuePayload;
   root.__mkFeat.saveOfflineQueueItem = saveOfflineQueueItem;
+  root.__mkFeat.generateIdempotencyKey = generateIdempotencyKey;
   root.__mkFeat.getOfflineQueueSummary = getOfflineQueueSummary;
   root.__mkFeat.exportOfflineQueuePlaintext = exportOfflineQueuePlaintext;
   root.__mkFeat.migrateQueueToEncrypted = migrateQueueToEncrypted;

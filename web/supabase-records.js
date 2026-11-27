@@ -78,8 +78,36 @@
 
     async api_addTransaction(d) {
       const row = trxRow(d);
-      const { data, error } = await sb.from('transactions').insert({ ...row, source: 'web' })
+      // Idempotency key antrean offline (T13, Gelombang 2.5): dibuat sekali
+      // di klien saat enqueue, dikirim di dalam payload. trxRow() hanya
+      // mengambil field yang dikenal, jadi kunci ditempel eksplisit di sini.
+      const idempotencyKey = typeof d.idempotencyKey === 'string' ? d.idempotencyKey.trim() : '';
+      const { data, error } = await sb.from('transactions').insert({
+        ...row, source: 'web',
+        ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {})
+      })
         .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id').single();
+      if (error && error.code === '23505' && idempotencyKey) {
+        // Insert pertama berhasil tapi responsnya hilang, lalu retry
+        // meng-insert ulang: unique index (user_id, idempotency_key)
+        // menolaknya. JANGAN lempar — ambil baris yang sudah ada dan
+        // kembalikan seperti insert berhasil, supaya flush menghapus
+        // item antrean dan mengganti baris optimistis lokal.
+        // Select terikat RLS (hanya baris milik sendiri), jadi filter
+        // kunci saja sudah setara dengan pencarian (user_id, key).
+        // (Cek code SEBELUM fail(): fail() membuang code dari error.)
+        const existing = await sb.from('transactions')
+          .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
+          .eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (existing.error) fail(existing.error);
+        if (existing.data) {
+          const currentPeriod = await syncPeriod(existing.data.tanggal);
+          return { transaction: trxFromRow(existing.data), ...(currentPeriod ? { currentPeriod } : {}) };
+        }
+        // Balapan: baris belum terlihat — lempar error asli agar flush
+        // menandai retry, bukan menghapus item antrean.
+        fail(error);
+      }
       fail(error);
       const currentPeriod = await syncPeriod(row.tanggal);
       return { transaction: trxFromRow(data), ...(currentPeriod ? { currentPeriod } : {}) };
