@@ -55,7 +55,7 @@ Sebelum uji login Google di HP Android:
 
 ### 3A. Opsi Cepat: Cloud Build APK & AAB via GitHub Actions (Tanpa Install Android Studio)
 
-Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (lockfile-free tanpa `cache: npm` + caching Gradle lewat `gradle/actions/setup-gradle@v4`) yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` dengan nama berversi (`MyKeuGuech-v3.20.5-*.apk`):
+Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (lockfile-free tanpa `cache: npm` + caching Gradle lewat `gradle/actions/setup-gradle@v4`) yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` dengan nama berversi (`MyKeuGuech-v3.20.6-*.apk`):
 
 1. **Buat test APK untuk HP Android Anda (`debug-apk`):**
    - Buka repo GitHub → tab **Actions** → pilih **Build Android APK & AAB (Capacitor 8)** → klik **Run workflow** → pilih **`debug-apk`** *(atau cukup push ke `main` untuk trigger `all`)* → tunggu ±3–5 menit → unduh artifact **`mykeuguech-android-debug-apk`** atau langsung dari **GitHub Releases** (`releases/latest`).
