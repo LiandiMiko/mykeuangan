@@ -1,3 +1,4 @@
+/* global Swal */
 /* supabase-auth.js — session check, Google OAuth, password recovery & offline profile cache */
 (function () {
   'use strict';
@@ -12,6 +13,7 @@
     'mk_gemini_thinking',
     'mk_app_pin_hash',
     'mk_app_pin_salt',
+    'mk_pin_data_key_wrap',
     'mk_pin_lock_state_v1',
     'mk_cached_profile_v1',
     'mk_offline_tx_queue_v1',
@@ -305,7 +307,248 @@
     finishLogin(session);
   };
 
-  window.logout = async function () {
+  /* ============================================================
+     K3 — LOGOUT GUARD: never purge an unsynced offline queue.
+     The queue lives in IndexedDB ('mykeuangan_offline_db') with a
+     localStorage mirror ('mk_offline_tx_queue_v1'). Queue readers
+     here are defensive: the K2 encrypted-queue APIs
+     (__mkFeat.getOfflineQueueSummary / exportOfflineQueuePlaintext /
+     clearPinDataKey) are used when present, otherwise the legacy
+     readers below are used. NOTE: ui-feat-offline.js does NOT expose
+     getOfflineQueueItems() on window, so the IndexedDB read goes
+     through the exposed __mkFeat.openOfflineDb() instead.
+     ============================================================ */
+  const OFFLINE_IDB_NAME = 'mykeuangan_offline_db';
+  const OFFLINE_QUEUE_STORE_FALLBACK = 'pending_transactions';
+
+  function swalPopupClass() {
+    return typeof window.getSwalClass === 'function' ? window.getSwalClass() : '';
+  }
+
+  function confirmNative(message) {
+    try { return window.confirm(message); } catch (_) { return false; }
+  }
+
+  async function readOfflineQueueItems() {
+    const feat = window.__mkFeat || {};
+    let idbItems = [];
+    try {
+      if (typeof feat.openOfflineDb === 'function' && 'indexedDB' in window) {
+        const db = await feat.openOfflineDb();
+        if (db) {
+          const snapshotStore = feat.IDB_SNAPSHOT_STORE || 'offline_snapshot';
+          const storeNames = Array.from(db.objectStoreNames || []);
+          const storeName = storeNames.find((name) => name === OFFLINE_QUEUE_STORE_FALLBACK)
+            || storeNames.find((name) => name !== snapshotStore)
+            || OFFLINE_QUEUE_STORE_FALLBACK;
+          idbItems = await new Promise((resolve) => {
+            try {
+              const tx = db.transaction(storeName, 'readonly');
+              const req = tx.objectStore(storeName).getAll();
+              req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+              req.onerror = () => resolve([]);
+            } catch (_) { resolve([]); }
+          });
+        }
+      }
+    } catch (_) { /* fall through to the localStorage mirror */ }
+    let localItems = [];
+    try {
+      localItems = typeof feat.readLocalQueue === 'function' ? feat.readLocalQueue() : [];
+    } catch (_) { localItems = []; }
+    if (!Array.isArray(localItems)) localItems = [];
+    if (!idbItems.length) return localItems;
+    const seen = new Set(idbItems.map((x) => x && x.localId));
+    localItems.forEach((x) => { if (x && !seen.has(x.localId)) idbItems.push(x); });
+    return idbItems;
+  }
+
+  function summarizeOfflineQueue(items) {
+    const list = Array.isArray(items) ? items : [];
+    const failed = list.filter((x) => x && x.failed).length;
+    return { items: list, pending: list.length - failed, failed, total: list.length };
+  }
+
+  async function getOfflineQueueStatus() {
+    const feat = window.__mkFeat || {};
+    if (typeof feat.getOfflineQueueSummary === 'function') {
+      try {
+        const summary = await feat.getOfflineQueueSummary();
+        if (summary && typeof summary === 'object'
+          && (typeof summary.total === 'number' || typeof summary.pending === 'number')) {
+          const pending = Math.max(0, Number(summary.pending) || 0);
+          const failed = Math.max(0, Number(summary.failed) || 0);
+          const total = typeof summary.total === 'number' ? Math.max(0, summary.total) : pending + failed;
+          return { pending, failed, total, items: await readOfflineQueueItems() };
+        }
+      } catch (_) { /* fall through to the raw queue */ }
+    }
+    return summarizeOfflineQueue(await readOfflineQueueItems());
+  }
+
+  async function getOfflineQueueExportItems() {
+    const feat = window.__mkFeat || {};
+    if (typeof feat.exportOfflineQueuePlaintext === 'function') {
+      try {
+        const items = await feat.exportOfflineQueuePlaintext();
+        if (Array.isArray(items)) return items;
+        // null means the queue is locked (PIN): fall through to the raw queue
+        // so the user still gets an export of whatever is readable.
+      } catch (_) { /* fall through to the raw queue */ }
+    }
+    return readOfflineQueueItems();
+  }
+
+  function downloadOfflineQueueExport(items) {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      user: window.sessionUser || '',
+      items: Array.isArray(items) ? items : []
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = 'MyKeuGuech_OfflineQueue_Emergency_' + today + '.json';
+    if (typeof window.saveOrShareFile === 'function') {
+      window.saveOrShareFile(json, filename, 'application/json;charset=utf-8');
+      return;
+    }
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // Emergency export, then ask once more before logout deletes the queue.
+  // Returns true only when the user confirms logout after the export.
+  async function confirmEmergencyExportAndLogout() {
+    const en = isAuthEn();
+    let items = [];
+    try {
+      items = await getOfflineQueueExportItems();
+      downloadOfflineQueueExport(items);
+    } catch (err) {
+      console.warn('Gagal membuat ekspor darurat antrean offline:', err);
+      if (typeof Swal !== 'undefined') {
+        await Swal.fire({
+          icon: 'error',
+          title: en ? 'Export Failed' : 'Ekspor Gagal',
+          text: en ? 'Could not create the emergency export. Logout was cancelled; nothing was deleted.' : 'Ekspor darurat gagal dibuat. Logout dibatalkan; tidak ada data yang dihapus.',
+          customClass: { popup: swalPopupClass() }
+        });
+      }
+      return false;
+    }
+    if (typeof Swal === 'undefined') {
+      return confirmNative(en
+        ? 'Emergency export downloaded. Continue logging out and delete the local queue?'
+        : 'Ekspor darurat sudah diunduh. Lanjutkan logout dan hapus antrean lokal?');
+    }
+    const res = await Swal.fire({
+      icon: 'question',
+      title: en ? 'Export created' : 'Ekspor dibuat',
+      text: en
+        ? 'The emergency export was downloaded. Continue logging out and delete the local queue?'
+        : 'Ekspor darurat sudah diunduh. Lanjutkan logout dan hapus antrean lokal?',
+      showCancelButton: true,
+      confirmButtonText: en ? 'Log Out & Delete Queue' : 'Lanjutkan Logout & Hapus Antrean',
+      cancelButtonText: en ? 'Cancel' : 'Batal',
+      customClass: { popup: swalPopupClass() }
+    });
+    return !!res.isConfirmed;
+  }
+
+  // Shown when items remain after "Sync Now". Returns true when logout may proceed.
+  async function handleRemainingQueueAfterSync(status) {
+    const en = isAuthEn();
+    const firstError = (status.items.find((x) => x && x.lastError) || {}).lastError || '';
+    if (typeof Swal === 'undefined') {
+      return confirmNative(en
+        ? `Sync did not finish: ${status.total} transaction(s) still unsynced${firstError ? ' (first error: ' + firstError + ')' : ''}. Logging out will permanently delete them. Continue?`
+        : `Sinkronisasi belum selesai: ${status.total} transaksi masih belum tersinkronisasi${firstError ? ' (alasan gagal pertama: ' + firstError + ')' : ''}. Logout akan menghapusnya secara permanen. Lanjutkan?`);
+    }
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: en ? `${status.total} transaction(s) still unsynced` : `${status.total} transaksi masih belum tersinkronisasi`,
+      text: (en ? `Sync did not finish (${status.pending} pending, ${status.failed} failed). ` : `Sinkronisasi belum selesai (${status.pending} menunggu, ${status.failed} gagal). `)
+        + (firstError
+          ? (en ? `First error: ${firstError} ` : `Alasan gagal pertama: ${firstError} `)
+          : '')
+        + (en ? 'Logging out now will also delete the remaining items.' : 'Logout sekarang juga akan menghapus item yang tersisa.'),
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: en ? 'Emergency Export' : 'Ekspor Darurat',
+      denyButtonText: en ? 'Discard Failed & Log Out' : 'Buang Item Gagal & Lanjutkan Logout',
+      cancelButtonText: en ? 'Cancel' : 'Batal',
+      customClass: { popup: swalPopupClass() }
+    });
+    if (res.isConfirmed) return confirmEmergencyExportAndLogout();
+    if (res.isDenied) {
+      // Discard ONLY failed items — pending items are never discarded here.
+      if (status.failed > 0 && typeof window.discardFailedOfflineItems === 'function') {
+        try { await window.discardFailedOfflineItems(); } catch (_) { /* purge below still needs consent, which was given */ }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // Returns true when logout may proceed, false when it must be cancelled.
+  // Never deletes anything itself — it only reads the queue and asks the user.
+  async function guardOfflineQueueBeforeLogout() {
+    const status = await getOfflineQueueStatus();
+    if (!status.total) return true;
+    const en = isAuthEn();
+    if (typeof Swal === 'undefined') {
+      return confirmNative(en
+        ? `You have ${status.total} unsynced offline transaction(s) (${status.pending} pending, ${status.failed} failed). Logging out will permanently delete them. Continue logging out?`
+        : `Ada ${status.total} transaksi offline yang belum tersinkronisasi (${status.pending} menunggu, ${status.failed} gagal). Logout akan menghapusnya secara permanen. Lanjutkan logout?`);
+    }
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: en ? `${status.total} unsynced offline transaction(s)` : `${status.total} transaksi offline belum tersinkronisasi`,
+      text: en
+        ? 'Logging out will permanently delete these offline transactions before they reach the server. Sync them now, export them first, or cancel.'
+        : 'Logout akan menghapus transaksi offline ini secara permanen sebelum sempat tersinkronisasi ke server. Sinkronkan sekarang, ekspor dulu, atau batalkan.',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: en ? 'Sync Now' : 'Sinkronkan Sekarang',
+      denyButtonText: en ? 'Emergency Export' : 'Ekspor Darurat',
+      cancelButtonText: en ? 'Cancel' : 'Batal',
+      customClass: { popup: swalPopupClass() }
+    });
+    if (res.isDenied) return confirmEmergencyExportAndLogout();
+    if (!res.isConfirmed) return false;
+    try {
+      if (typeof window.flushOfflineQueue === 'function') await window.flushOfflineQueue(false);
+    } catch (_) { /* re-check below decides */ }
+    const after = await getOfflineQueueStatus();
+    if (!after.total) return true;
+    return handleRemainingQueueAfterSync(after);
+  }
+
+  // K3: logout(opts) with opts = { force: false }.
+  // force: true skips the offline-queue guard and runs the legacy purge as-is.
+  // Use it only after the server account is already gone (e.g. from
+  // deleteOwnAccountFlow after api_deleteOwnAccount succeeds), where the
+  // queue can never sync again. Normal logouts must go through the guard.
+  window.logout = async function (opts) {
+    const force = !!(opts && opts.force);
+    if (!force) {
+      let mayProceed = false;
+      try {
+        mayProceed = await guardOfflineQueueBeforeLogout();
+      } catch (err) {
+        // Fail closed: never purge when the queue state is unknown.
+        console.warn('Pemeriksaan antrean offline sebelum logout gagal:', err);
+        mayProceed = false;
+      }
+      if (!mayProceed) return;
+    }
     try {
       await sb.auth.signOut();
     } catch (_) {
@@ -318,8 +561,19 @@
         sessionStorage.removeItem('mk_pin_unlocked');
         sessionStorage.removeItem('mk_last_market_refresh_ts');
       } catch (_) { /* ignore */ }
+      try {
+        const feat = window.__mkFeat || {};
+        if (typeof feat.clearPinDataKey === 'function') await feat.clearPinDataKey();
+      } catch (_) { /* ignore */ }
       if ('indexedDB' in window) {
-        try { window.indexedDB.deleteDatabase('mykeuangan_offline_db'); } catch (_) { /* ignore */ }
+        try {
+          await new Promise((resolve) => {
+            const req = window.indexedDB.deleteDatabase(OFFLINE_IDB_NAME);
+            req.onsuccess = () => resolve();
+            req.onerror = () => resolve();
+            req.onblocked = () => resolve();
+          });
+        } catch (_) { /* ignore */ }
       }
       if ('caches' in window) {
         try {

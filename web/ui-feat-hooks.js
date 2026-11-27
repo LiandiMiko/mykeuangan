@@ -248,6 +248,25 @@
       root._origRenderAll = root.renderAll;
       root.renderAll = function () {
         const feat = root.__mkFeat || {};
+        // T1: verifikasi PIN terjadi SEBELUM render pertama, bukan sesudahnya
+        // (sebelumnya verifyAppPinIfEnabled dipanggil setelah _origRenderAll).
+        // Bila PIN diset dan sesi belum unlocked, jangan render sama sekali;
+        // setelah unlock berhasil, render dijalankan dari .then().
+        // Batasan: untuk render ulang setelah re-lock di tengah sesi
+        // (mis. via visibilitychange), data memang sudah pernah tampil di
+        // sesi itu — mitigasinya hanya blur di verifyAppPinIfEnabled.
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('mk_app_pin_hash') && sessionStorage.getItem('mk_pin_unlocked') !== '1') {
+          if (typeof feat.verifyAppPinIfEnabled === 'function') {
+            feat.verifyAppPinIfEnabled().then((ok) => {
+              if (ok) runRenderAllWithExtras();
+            }).catch(() => { /* tetap terkunci: jangan render */ });
+          }
+          return;
+        }
+        runRenderAllWithExtras();
+      };
+      var runRenderAllWithExtras = function () {
+        const feat = root.__mkFeat || {};
         root._origRenderAll();
         filterHistoriView();
         renderFinancialRatios();
@@ -256,7 +275,6 @@
         checkAndRenderDueRecurringBanner();
         refreshNotificationBell();
         if (typeof root.filterUpdatesList === 'function') root.filterUpdatesList();
-        if (typeof feat.verifyAppPinIfEnabled === 'function') feat.verifyAppPinIfEnabled();
         if (typeof feat.handlePwaShortcutAction === 'function') feat.handlePwaShortcutAction();
         if (root.isDataReady && typeof root.checkRemoteAppUpdate === 'function') {
           setTimeout(() => { root.checkRemoteAppUpdate({ manual: false }); }, 2200);

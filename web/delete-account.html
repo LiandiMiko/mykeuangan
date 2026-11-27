@@ -80,6 +80,78 @@
       var sb = window.supabase.createClient(sbUrl, sbAnonKey);
       var hasActiveSession = false;
 
+      // K3 — emergency-export helpers for the offline queue. This page is
+      // standalone (no __mkFeat / Swal), so the queue is read directly from
+      // its localStorage mirror and, when readable, from IndexedDB.
+      function readStoredOfflineQueue() {
+        try {
+          var raw = localStorage.getItem('mk_offline_tx_queue_v1');
+          var parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_) { return []; }
+      }
+
+      function readLocalOfflineQueue() {
+        return new Promise(function (resolve) {
+          var localItems = readStoredOfflineQueue();
+          if (!('indexedDB' in window)) { resolve(localItems); return; }
+          var done = false;
+          var finish = function (idbItems) {
+            if (done) return;
+            done = true;
+            var items = Array.isArray(idbItems) ? idbItems : [];
+            if (!items.length) { resolve(localItems); return; }
+            var seen = {};
+            items.forEach(function (x) { if (x && x.localId) seen[x.localId] = true; });
+            localItems.forEach(function (x) { if (x && !seen[x.localId]) items.push(x); });
+            resolve(items);
+          };
+          try {
+            var req = window.indexedDB.open('mykeuangan_offline_db');
+            req.onsuccess = function () {
+              var db = req.result;
+              try {
+                var storeName = null;
+                for (var i = 0; i < db.objectStoreNames.length; i++) {
+                  if (db.objectStoreNames[i] === 'pending_transactions') { storeName = db.objectStoreNames[i]; break; }
+                }
+                if (!storeName) {
+                  for (var j = 0; j < db.objectStoreNames.length; j++) {
+                    if (db.objectStoreNames[j] !== 'offline_snapshot') { storeName = db.objectStoreNames[j]; break; }
+                  }
+                }
+                if (!storeName) { try { db.close(); } catch (_) {} finish([]); return; }
+                var tx = db.transaction(storeName, 'readonly');
+                var getReq = tx.objectStore(storeName).getAll();
+                getReq.onsuccess = function () { try { db.close(); } catch (_) {} finish(getReq.result); };
+                getReq.onerror = function () { try { db.close(); } catch (_) {} finish([]); };
+              } catch (_) { try { db.close(); } catch (_) {} finish([]); }
+            };
+            req.onerror = function () { finish([]); };
+            req.onblocked = function () { finish([]); };
+          } catch (_) { finish([]); }
+          setTimeout(function () { finish([]); }, 3000);
+        });
+      }
+
+      function downloadOfflineQueueExport(items) {
+        var payload = {
+          exportedAt: new Date().toISOString(),
+          user: (activeEmail && activeEmail.textContent) || '',
+          items: Array.isArray(items) ? items : []
+        };
+        var today = new Date().toISOString().slice(0, 10);
+        var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'MyKeuGuech_OfflineQueue_Emergency_' + today + '.json';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      }
+
       sb.auth.getSession().then(function (res) {
         var sess = res && res.data && res.data.session;
         if (sess && sess.user) {
@@ -121,10 +193,34 @@
             throw new Error(msg);
           }
           if (!res.data || res.data.success !== true) throw new Error((res.data && res.data.error) || 'Penghapusan akun gagal.');
+          // K3: the server account is already gone, so the offline queue can
+          // never sync again. Offer an emergency export before wiping local
+          // data; continuing without an export is an explicit, informed
+          // choice (the dialog states the queue will be lost permanently).
+          var queueItems = await readLocalOfflineQueue();
+          if (queueItems.length) {
+            var exportFirst = window.confirm('Akun Anda sudah terhapus di server dan ' + queueItems.length + ' transaksi offline yang belum tersinkronisasi tidak dapat dikirim lagi. Klik OK untuk mengunduh Ekspor Darurat terlebih dahulu, atau Batal untuk melanjutkan penghapusan lokal tanpa ekspor.');
+            if (exportFirst) {
+              downloadOfflineQueueExport(queueItems);
+            } else if (!window.confirm('Lanjutkan penghapusan lokal tanpa ekspor? ' + queueItems.length + ' transaksi offline akan hilang secara permanen. Klik Batal untuk membatalkan penghapusan lokal dan menyimpan data di perangkat ini.')) {
+              statusEl.className = 'status err';
+              statusEl.textContent = 'Penghapusan lokal dibatalkan. Akun sudah terhapus di server, tetapi data lokal (termasuk antrean offline) masih tersimpan di perangkat ini.';
+              btn.disabled = false;
+              btn.textContent = 'Hapus Akun Saya Secara Permanen';
+              return;
+            }
+          }
           try { await sb.auth.signOut(); } catch (_) {}
           try { localStorage.clear(); sessionStorage.clear(); } catch (_) {}
           if ('indexedDB' in window) {
-            try { window.indexedDB.deleteDatabase('mykeuangan_offline_db'); } catch (_) {}
+            try {
+              await new Promise(function (resolve) {
+                var delReq = window.indexedDB.deleteDatabase('mykeuangan_offline_db');
+                delReq.onsuccess = function () { resolve(); };
+                delReq.onerror = function () { resolve(); };
+                delReq.onblocked = function () { resolve(); };
+              });
+            } catch (_) {}
           }
           statusEl.className = 'status ok';
           statusEl.textContent = 'Akun dan seluruh data finansial Anda telah dihapus secara permanen.';

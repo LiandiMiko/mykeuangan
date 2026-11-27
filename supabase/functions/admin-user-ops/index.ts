@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
   const action = typeof body.action === 'string' ? body.action.trim() : '';
   const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
-  if (!['delete_user', 'unlink_telegram'].includes(action) ||
+  if (!['delete_user', 'unlink_telegram', 'set_user_role', 'set_user_status'].includes(action) ||
       !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(userId)) {
     return jsonResponse(req, { error: 'Aksi atau ID pengguna tidak valid.' }, 400);
   }
@@ -70,6 +70,60 @@ Deno.serve(async (req) => {
   const { data: target, error: targetErr } = await adminClient.from('profiles').select('id,email,role,status').eq('id', userId).maybeSingle();
   if (targetErr) return jsonResponse(req, { error: 'Gagal memeriksa akun tujuan.' }, 500);
   if (!target) return jsonResponse(req, { error: 'Akun pengguna tidak ditemukan.' }, 404);
+
+  if (action === 'set_user_role' || action === 'set_user_status') {
+    const isRoleChange = action === 'set_user_role';
+    const newValue = isRoleChange
+      ? (typeof body.role === 'string' ? body.role.trim() : '')
+      : (typeof body.status === 'string' ? body.status.trim() : '');
+    const allowedValues = isRoleChange ? ['user', 'admin'] : ['active', 'suspended'];
+    if (!allowedValues.includes(newValue)) {
+      return jsonResponse(req, { error: isRoleChange ? 'Role tidak valid.' : 'Status tidak valid.' }, 400);
+    }
+
+    // Admin tidak boleh mendemosi/menonaktifkan akunnya sendiri. Cek ini harus
+    // di server: trigger DB prevent_admin_lockout mengandalkan auth.uid() yang
+    // bernilai null untuk service_role, jadi tidak menangkap kasus ini.
+    const selfDemotes = userId === authData.user.id &&
+      ((isRoleChange && newValue !== 'admin') || (!isRoleChange && newValue !== 'active'));
+    if (selfDemotes) {
+      return jsonResponse(req, {
+        error: isRoleChange
+          ? 'Admin tidak dapat menurunkan role akunnya sendiri.'
+          : 'Admin tidak dapat menonaktifkan akunnya sendiri.',
+      }, 400);
+    }
+
+    // Jangan sampai sistem kehabisan admin aktif (cermin logika delete_user).
+    const removesActiveAdmin = target.role === 'admin' && target.status === 'active' &&
+      ((isRoleChange && newValue !== 'admin') || (!isRoleChange && newValue !== 'active'));
+    if (removesActiveAdmin) {
+      const { data: otherAdmins } = await adminClient.from('profiles').select('id').neq('id', userId).eq('role', 'admin').eq('status', 'active').limit(1);
+      if (!otherAdmins || !otherAdmins.length) {
+        return jsonResponse(req, {
+          error: isRoleChange
+            ? 'Tidak dapat menurunkan role satu-satunya admin aktif.'
+            : 'Tidak dapat menonaktifkan satu-satunya admin aktif.',
+        }, 400);
+      }
+    }
+
+    const patch = isRoleChange ? { role: newValue } : { status: newValue };
+    const { error: updateError } = await adminClient.from('profiles').update(patch).eq('id', userId);
+    if (updateError) return jsonResponse(req, { error: updateError.message || 'Gagal memperbarui akun pengguna.' }, 500);
+
+    try {
+      await adminClient.from('admin_audit_logs').insert({
+        actor_user_id: authData.user.id, actor_email: requester.email || '',
+        action: isRoleChange ? `role_${newValue}` : `status_${newValue}`,
+        target_user_id: userId, target_email: target.email || '',
+        details: isRoleChange
+          ? { old_role: target.role, new_role: newValue }
+          : { old_status: target.status, new_status: newValue },
+      });
+    } catch { /* ignore if audit table not migrated yet */ }
+    return jsonResponse(req, { success: true });
+  }
 
   if (action === 'unlink_telegram') {
     const { data: deletedChats, error: chatErr } = await adminClient.from('telegram_chats').delete().eq('user_id', userId).select('chat_id');
