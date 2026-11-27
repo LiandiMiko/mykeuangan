@@ -30,6 +30,39 @@ Prasyarat: Supabase CLI terpasang (`npm i -g supabase` atau `npx supabase`), sud
 Log/debug: Supabase Dashboard → Edge Functions → telegram-bot → Logs.
 
 ---
+# Penunjukan admin pertama (manual, wajib setelah migrasi Gelombang 1)
+
+Sejak migrasi `20261128000000_wave1_admin_hardening.sql`, pendaftar baru
+**tidak pernah** otomatis menjadi admin: `handle_new_user()` selalu memberi
+role `'user'`, dan perubahan role/status hanya bisa dilakukan lewat edge
+function `admin-user-ops` (service_role). Migrasi ini **tidak membuat admin
+baru** — tanpa langkah manual di bawah, sistem tidak punya admin sama sekali
+dan panel admin tidak bisa dipakai siapa pun. Lakukan berurutan:
+
+1. Apply migrasi di SQL Editor sesuai urutan timestamp (termasuk
+   `20261128000000_wave1_admin_hardening.sql`). Pastikan tidak ada error.
+2. Deploy ulang edge function yang berubah:
+   `supabase functions deploy admin-user-ops` (jangan gunakan
+   `--no-verify-jwt` — endpoint ini memverifikasi JWT pemanggil sendiri).
+3. Sebagai pemilik, tunjuk admin pertama lewat SQL Editor (ganti emailnya):
+   `update public.profiles set role = 'admin' where email = 'email@pemilik';`
+   Hanya akun pemilik yang ditunjuk di langkah ini — jangan menunjuk akun
+   lain sebelum admin pertama aktif.
+4. Verifikasi hanya admin yang dimaksud yang ada:
+   `select email, role, status from public.profiles where role = 'admin';`
+   Hasilnya harus tepat satu baris (akun pemilik, status `active`). Bila ada
+   admin lain yang tidak dikenal, segera ubah ke `'user'` dan selidiki
+   sebelum lanjut.
+5. Deploy klien baru (push ke GitHub) supaya `api_setUserRole` /
+   `api_setUserStatus` memakai edge function, bukan update langsung.
+
+Catatan: sebelum langkah 3 selesai, tidak ada yang bisa menjadi admin lewat
+pendaftaran — ini disengaja. Admin tambahan setelahnya ditunjuk lewat panel
+admin (oleh admin aktif), bukan lewat SQL. Edge function menolak demosi /
+penonaktifan admin aktif terakhir, begitu pula trigger DB
+`prevent_admin_lockout`, jadi selalu sisakan minimal satu admin aktif.
+
+---
 # Tahap 3c — otomatisasi (reminder, laporan mingguan, recurring, snapshot, harga crypto)
 
 Update dari 3b-1: tempel ulang index.ts + Deploy (Verify JWT tetap MATI), lalu:

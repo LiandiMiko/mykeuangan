@@ -73,28 +73,30 @@
     },
 
     async api_setUserStatus(userId, status) {
+      // Pre-check UX saja: window.sessionRole bisa diubah dari DevTools, jadi
+      // otorisasi sesungguhnya ditegakkan server oleh edge function admin-user-ops.
       if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (authData.user && authData.user.id === userId && status !== 'active') {
         throw new Error('Admin tidak dapat menonaktifkan akunnya sendiri.');
       }
-      const { error } = await sb.from('profiles').update({ status }).eq('id', userId);
-      fail(error);
-      await logAdminActionSafe(`status_${status}`, userId, '', { status });
+      // Audit dicatat server oleh edge function (tidak lagi logAdminActionSafe di sini).
+      await invokeEdgeFunction('admin-user-ops', { action: 'set_user_status', userId, status }, 'Gagal memperbarui status pengguna.');
       return true;
     },
 
     async api_setUserRole(userId, role) {
+      // Pre-check UX saja: window.sessionRole bisa diubah dari DevTools, jadi
+      // otorisasi sesungguhnya ditegakkan server oleh edge function admin-user-ops.
       if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (authData.user && authData.user.id === userId && role !== 'admin') {
         throw new Error('Admin tidak dapat menurunkan role akunnya sendiri.');
       }
-      const { error } = await sb.from('profiles').update({ role }).eq('id', userId);
-      fail(error);
-      await logAdminActionSafe(`role_${role}`, userId, '', { role });
+      // Audit dicatat server oleh edge function (tidak lagi logAdminActionSafe di sini).
+      await invokeEdgeFunction('admin-user-ops', { action: 'set_user_role', userId, role }, 'Gagal memperbarui role pengguna.');
       return true;
     },
 
