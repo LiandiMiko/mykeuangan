@@ -553,38 +553,53 @@
       await sb.auth.signOut();
     } catch (_) {
       /* ignore signOut errors after account deletion or offline */
-    } finally {
-      LOGOUT_STORAGE_KEYS.forEach((k) => {
-        try { localStorage.removeItem(k); } catch (_) { /* ignore */ }
-      });
-      try {
-        sessionStorage.removeItem('mk_pin_unlocked');
-        sessionStorage.removeItem('mk_last_market_refresh_ts');
-      } catch (_) { /* ignore */ }
-      try {
-        const feat = window.__mkFeat || {};
-        if (typeof feat.clearPinDataKey === 'function') await feat.clearPinDataKey();
-      } catch (_) { /* ignore */ }
-      if ('indexedDB' in window) {
-        try {
-          await new Promise((resolve) => {
-            const req = window.indexedDB.deleteDatabase(OFFLINE_IDB_NAME);
-            req.onsuccess = () => resolve();
-            req.onerror = () => resolve();
-            req.onblocked = () => resolve();
-          });
-        } catch (_) { /* ignore */ }
-      }
-      if ('caches' in window) {
-        try {
-          const keys = await caches.keys();
-          await Promise.all(keys.map((key) => caches.delete(key)));
-        } catch (cacheErr) {
-          console.warn('Gagal membersihkan cache logout:', cacheErr);
-        }
-      }
-      location.reload();
     }
+    // T4 — fail-closed untuk token lokal: bila signOut() ke server gagal
+    // (offline / server error), sesi di perangkat ini tetap harus mati.
+    // signOut({ scope: 'local' }) menghapus sesi lokal tanpa round-trip
+    // server; sapuan kunci di bawah menutup celah bila penyimpanan memakai
+    // kunci kustom — kunci token Supabase (`sb-<ref>-auth-token`) TIDAK ada
+    // di LOGOUT_STORAGE_KEYS, jadi tanpa sapuan ini token lama bisa
+    // dipakai bootAuth untuk masuk otomatis setelah reload.
+    try {
+      if (sb.auth && typeof sb.auth.signOut === 'function') await sb.auth.signOut({ scope: 'local' });
+    } catch (_) { /* ignore: sapuan kunci di bawah tetap berjalan */ }
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const key = localStorage.key(i);
+        if (typeof key === 'string' && /^sb-[^-]+-auth-token/.test(key)) localStorage.removeItem(key);
+      }
+    } catch (_) { /* ignore */ }
+    LOGOUT_STORAGE_KEYS.forEach((k) => {
+      try { localStorage.removeItem(k); } catch (_) { /* ignore */ }
+    });
+    try {
+      sessionStorage.removeItem('mk_pin_unlocked');
+      sessionStorage.removeItem('mk_last_market_refresh_ts');
+    } catch (_) { /* ignore */ }
+    try {
+      const feat = window.__mkFeat || {};
+      if (typeof feat.clearPinDataKey === 'function') await feat.clearPinDataKey();
+    } catch (_) { /* ignore */ }
+    if ('indexedDB' in window) {
+      try {
+        await new Promise((resolve) => {
+          const req = window.indexedDB.deleteDatabase(OFFLINE_IDB_NAME);
+          req.onsuccess = () => resolve();
+          req.onerror = () => resolve();
+          req.onblocked = () => resolve();
+        });
+      } catch (_) { /* ignore */ }
+    }
+    if ('caches' in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      } catch (cacheErr) {
+        console.warn('Gagal membersihkan cache logout:', cacheErr);
+      }
+    }
+    location.reload();
   };
 
   core.bootAuth = function () {

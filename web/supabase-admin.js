@@ -100,12 +100,36 @@
       return true;
     },
 
-    async api_updateOwnPassword(password) {
-      if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    // T3: ganti password wajib membuktikan password lama dulu, lalu cabut
+    // semua sesi lain (scope 'others') agar sesi di perangkat lain / yang
+    // dicuri tidak tetap hidup setelah password diganti. Sesi saat ini
+    // tetap berjalan. Pesan error sengaja generik: jangan membocorkan
+    // apakah akun ada atau password mana yang salah.
+    async api_updateOwnPassword(oldPassword, newPassword) {
+      if (typeof oldPassword !== 'string' || !oldPassword) {
+        throw new Error('Masukkan password lama Anda saat ini.');
+      }
+      if (typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
         throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
       }
-      const { error } = await sb.auth.updateUser({ password });
+      const { data: authData, error: authError } = await sb.auth.getUser();
+      fail(authError);
+      if (!authData.user || !authData.user.email) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
+      let verifyError = null;
+      try {
+        const res = await sb.auth.signInWithPassword({ email: authData.user.email, password: oldPassword });
+        verifyError = res && res.error ? res.error : null;
+      } catch (err) {
+        verifyError = err;
+      }
+      if (verifyError) throw new Error('Password lama tidak valid.');
+      const { error } = await sb.auth.updateUser({ password: newPassword });
       fail(error);
+      try {
+        await sb.auth.signOut({ scope: 'others' });
+      } catch (revokeError) {
+        throw new Error('Password berhasil diubah, tetapi sesi lain gagal dicabut. Silakan logout lalu masuk kembali.');
+      }
     },
 
     async api_updateOwnProfile(displayName) {
@@ -173,12 +197,19 @@
       return { debtDueDates: clean };
     },
 
-    async api_deleteOwnAccount(confirmation) {
+    // T4: hapus akun wajib autentikasi ulang dengan password saat ini.
+    // Password diteruskan ke edge function `delete-account`, yang
+    // memverifikasinya di server sebelum menghapus apa pun — klien hanya
+    // memeriksa format, bukan kebenaran password.
+    async api_deleteOwnAccount(confirmation, password) {
       const confirmToken = String(confirmation || '').trim().toUpperCase();
       if (confirmToken !== 'HAPUS' && confirmToken !== 'DELETE') {
         throw new Error('Ketik HAPUS untuk mengonfirmasi penghapusan akun.');
       }
-      await invokeEdgeFunction('delete-account', { confirmation: confirmToken }, 'Penghapusan akun gagal.');
+      if (typeof password !== 'string' || !password) {
+        throw new Error('Masukkan password akun Anda saat ini untuk mengonfirmasi penghapusan akun.');
+      }
+      await invokeEdgeFunction('delete-account', { confirmation: confirmToken, password }, 'Penghapusan akun gagal.');
       return true;
     }
   });

@@ -70,6 +70,21 @@ Deno.serve(async (req) => {
   if (authError || !authData.user) return jsonResponse(req, { error: 'Sesi login tidak valid.' }, 401);
   const userId = authData.user.id;
 
+  // T4: autentikasi ulang — penghapusan akun wajib membuktikan password
+  // saat ini. Pesan sengaja generik ("Kata sandi tidak valid.") agar tidak
+  // membocorkan apakah password yang dikirim kosong, salah, atau akun
+  // tidak punya password (mis. akun OAuth-only). signInWithPassword di
+  // sini memakai klien anon tanpa persistSession, jadi tidak ada sesi
+  // baru yang tersimpan di server fungsi ini.
+  if (!isRecord(body) || typeof body.password !== 'string' || !body.password) {
+    return jsonResponse(req, { error: 'Kata sandi tidak valid.' }, 401);
+  }
+  const { error: passwordError } = await userClient.auth.signInWithPassword({
+    email: authData.user.email,
+    password: body.password,
+  });
+  if (passwordError) return jsonResponse(req, { error: 'Kata sandi tidak valid.' }, 401);
+
   const { data: profile, error: profileError } = await adminClient
     .from('profiles')
     .select('role,status')

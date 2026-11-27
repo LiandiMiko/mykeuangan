@@ -1,4 +1,4 @@
-/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKey, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
+/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKeyAsync, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
 /* ============================================================
    PRO FEATURES — CALCULATORS, MULTI-TURN AI CHAT & REBALANCING
    ============================================================ */
@@ -264,7 +264,7 @@
     const question = ((input && input.value) || '').trim();
     if (!question) { if (input) input.focus(); return; }
 
-    let apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
+    let apiKey = typeof getGeminiApiKeyAsync === 'function' ? await getGeminiApiKeyAsync() : '';
     if (!apiKey && typeof configureGeminiApiKey === 'function') {
       apiKey = await configureGeminiApiKey();
       if (!apiKey) return;

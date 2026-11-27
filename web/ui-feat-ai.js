@@ -1,4 +1,4 @@
-/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKey, configureGeminiApiKey, callGeminiApi, extractGeminiText, syncFormCategorySelect, localToday, currentLang, t */
+/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKeyAsync, configureGeminiApiKey, callGeminiApi, extractGeminiText, syncFormCategorySelect, localToday, currentLang, t */
 /* ============================================================
    FEATURES — RECEIPT OCR SCANNER & AI CHAT BASE
    ============================================================ */
@@ -6,7 +6,7 @@
   'use strict';
 
   async function runReceiptOcrWithImage(mimeType, base64) {
-    const apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
+    const apiKey = typeof getGeminiApiKeyAsync === 'function' ? await getGeminiApiKeyAsync() : '';
     if (!apiKey || !base64) return;
     const btn = document.getElementById('btnScanReceipt');
     if (btn) btn.disabled = true;
@@ -53,7 +53,7 @@
   }
 
   async function triggerReceiptOcr() {
-    let key = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : (localStorage.getItem('mk_gemini_api_key') || '');
+    let key = typeof getGeminiApiKeyAsync === 'function' ? await getGeminiApiKeyAsync() : '';
     if (!key && typeof configureGeminiApiKey === 'function') {
       key = await configureGeminiApiKey();
       if (!key) return;

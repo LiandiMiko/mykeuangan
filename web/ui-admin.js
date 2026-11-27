@@ -210,11 +210,21 @@
     });
   }
 
-  async function promptNewPassword(title) {
-    const { value: password } = await Swal.fire({
+  // T3: bila opts.requireCurrent, minta password lama juga (ganti password
+  // sendiri). Reset password oleh admin (resetUserPassword) tidak memakai
+  // opsi itu — admin tidak tahu password lama pengguna dan tidak boleh
+  // diminta memasukkannya.
+  async function promptNewPassword(title, opts) {
+    const requireCurrent = Boolean(opts && opts.requireCurrent);
+    const { value: result } = await Swal.fire({
       title,
       html: `
         <div class="text-left space-y-3">
+          ${requireCurrent ? `
+          <div>
+            <label for="admin-current-password" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Password lama</label>
+            <input id="admin-current-password" type="password" class="swal2-input" style="margin:0;width:100%" autocomplete="current-password" placeholder="Password akun saat ini">
+          </div>` : ''}
           <div>
             <label for="admin-new-password" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Password baru</label>
             <input id="admin-new-password" type="password" class="swal2-input" style="margin:0;width:100%" autocomplete="new-password" minlength="8" placeholder="Minimal 8 karakter">
@@ -223,6 +233,7 @@
             <label for="admin-confirm-password" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Ulangi password</label>
             <input id="admin-confirm-password" type="password" class="swal2-input" style="margin:0;width:100%" autocomplete="new-password" minlength="8" placeholder="Ketik ulang password">
           </div>
+          ${requireCurrent ? `<p class="text-[11px] text-slate-500 dark:text-slate-400">Setelah password diganti, semua sesi di perangkat lain akan dicabut; sesi di perangkat ini tetap berjalan.</p>` : ''}
         </div>`,
       showCancelButton: true,
       confirmButtonText: 'Simpan Password',
@@ -230,8 +241,13 @@
       focusConfirm: false,
       customClass: { popup: getSwalClass() },
       preConfirm: () => {
+        const oldPassword = requireCurrent ? document.getElementById('admin-current-password').value : '';
         const newPassword = document.getElementById('admin-new-password').value;
         const confirmPassword = document.getElementById('admin-confirm-password').value;
+        if (requireCurrent && !oldPassword) {
+          Swal.showValidationMessage('Masukkan password lama Anda saat ini.');
+          return false;
+        }
         if (newPassword.length < 8 || newPassword.length > 128) {
           Swal.showValidationMessage('Password harus terdiri dari 8 sampai 128 karakter.');
           return false;
@@ -240,18 +256,18 @@
           Swal.showValidationMessage('Konfirmasi password tidak cocok.');
           return false;
         }
-        return newPassword;
+        return requireCurrent ? { oldPassword, newPassword } : newPassword;
       }
     });
-    return password;
+    return result;
   }
 
   async function changeOwnPassword() {
-    const password = await promptNewPassword('Ganti password akun Anda');
-    if (!password) return;
+    const result = await promptNewPassword('Ganti password akun Anda', { requireCurrent: true });
+    if (!result) return;
     try {
-      await callServer('api_updateOwnPassword', password);
-      await Swal.fire({ icon: 'success', title: 'Password berhasil diperbarui.', customClass: { popup: getSwalClass() } });
+      await callServer('api_updateOwnPassword', result.oldPassword, result.newPassword);
+      await Swal.fire({ icon: 'success', title: 'Password berhasil diperbarui. Sesi di perangkat lain telah dicabut.', customClass: { popup: getSwalClass() } });
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'Gagal mengganti password', text: err.message || String(err), customClass: { popup: getSwalClass() } });
     }
