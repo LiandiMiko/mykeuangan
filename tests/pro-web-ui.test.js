@@ -161,7 +161,7 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
   assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
   assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
-  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3\.20\.6</);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3.20.7</);
   assert.match(updatesHtml, /datetime="2026-11-23"/);
 
   assert.match(botCoreTs, /AbortSignal\.timeout/);
@@ -223,8 +223,8 @@ test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete accou
   assert.match(uiReportsJs, /template-transaksi-mykeuguech\.csv/);
   assert.doesNotMatch(uiReportsJs, /template-transaksi-mykeuangan\.csv/);
   assert.match(swJs, /targetCacheKey/);
-  assert.match(updatesHtml, /data-latest-release="2026-11-28-v3\.20\.6"/);
-  assert.match(updatesHtml, /Menampilkan 27 rilis/);
+  assert.match(updatesHtml, /data-latest-release="2026-11-28-v3.20.7"/);
+  assert.match(updatesHtml, /Menampilkan 28 rilis/);
 });
 
 test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android bridge, and config fixes', () => {
@@ -342,7 +342,7 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.match(fs.readFileSync('web/ui-feat-account.js', 'utf8'), /localStorage\.getItem\('lang'\) === 'en'/);
 
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  assert.equal(pkg.version, '3.20.6');
+  assert.equal(pkg.version, '3.20.7');
   assert.ok(pkg.dependencies && pkg.dependencies['@capacitor/core']);
   assert.ok(pkg.scripts && pkg.scripts['cap:sync'] && pkg.scripts['vendors:fetch']);
 });
