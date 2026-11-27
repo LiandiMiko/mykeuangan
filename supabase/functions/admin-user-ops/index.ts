@@ -31,6 +31,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+// --- Dekripsi token bot personal (Gelombang 2.2) ----------------------------
+// Desain sama dengan telegram-bot/core.ts dan telegram-setup/index.ts
+// (AES-GCM, kunci = SHA-256 dari TELEGRAM_TOKEN_ENCRYPTION_KEY).
+// Dipakai unlink_telegram untuk memanggil deleteWebhook pada bot pengguna.
+const b64ToBytes = (s: string) => {
+  const bin = atob(s);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+};
+
+async function decryptBotToken(ivB64: string, cipherB64: string): Promise<string> {
+  const secret = Deno.env.get('TELEGRAM_TOKEN_ENCRYPTION_KEY') ?? '';
+  if (!secret) throw new Error('TELEGRAM_TOKEN_ENCRYPTION_KEY belum dikonfigurasi.');
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  const key = await crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: b64ToBytes(ivB64) },
+    key,
+    b64ToBytes(cipherB64),
+  );
+  return new TextDecoder().decode(plain);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCorsHeaders(req) });
   if (req.method !== 'POST') return jsonResponse(req, { error: 'Method not allowed.' }, 405);
@@ -126,14 +148,31 @@ Deno.serve(async (req) => {
   }
 
   if (action === 'unlink_telegram') {
+    // Ambil baris bot personal SEBELUM dihapus, supaya webhook bot itu
+    // bisa dicabut (deleteWebhook). Tanpa ini, webhook tetap terpasang
+    // di Telegram dan update-nya terus datang (ditolak 404) setelah unlink.
+    const { data: botRow } = await adminClient.from('telegram_bots')
+      .select('token_encrypted,token_iv').eq('user_id', userId).maybeSingle();
     const { data: deletedChats, error: chatErr } = await adminClient.from('telegram_chats').delete().eq('user_id', userId).select('chat_id');
     if (chatErr) return jsonResponse(req, { error: chatErr.message || 'Gagal memutus tautan Telegram.' }, 500);
     await adminClient.from('telegram_pairings').delete().eq('user_id', userId);
+    await adminClient.from('telegram_bots').delete().eq('user_id', userId);
+    if (botRow) {
+      try {
+        const token = await decryptBotToken(botRow.token_iv, botRow.token_encrypted);
+        await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ drop_pending_updates: true }),
+          signal: AbortSignal.timeout(10000),
+        });
+      } catch { /* best-effort: token bisa sudah dicabut via BotFather */ }
+    }
     try {
       await adminClient.from('admin_audit_logs').insert({
         actor_user_id: authData.user.id, actor_email: requester.email || '', action: 'unlink_telegram',
         target_user_id: userId, target_email: target.email || '',
-        details: { chats_removed: (deletedChats || []).length }
+        details: { chats_removed: (deletedChats || []).length, bots_removed: botRow ? 1 : 0 }
       });
     } catch { /* ignore if audit table not migrated yet */ }
     return jsonResponse(req, { success: true, unlinkedCount: (deletedChats || []).length });

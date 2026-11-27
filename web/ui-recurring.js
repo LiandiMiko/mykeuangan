@@ -1,4 +1,4 @@
-/* global DB, Swal, callServer, refreshFromServer, renderAll, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, getPeriodLabel, t */
+/* global DB, Swal, callServer, refreshFromServer, renderAll, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, getPeriodLabel, t, mkActionAttrs */
 /* ============================================================
    PAYROLL CYCLE & RECURRING TRANSACTIONS
    ============================================================ */
@@ -76,16 +76,16 @@
           <p class="font-black text-sm mt-1 tabular-nums ${amountClass}">${isIncome ? '+' : '-'}${formatRupiah(r.nominal)}</p>
         </div>
         <div class="flex items-center gap-1 shrink-0">
-          <button type="button" onclick="recordRecurringFromNotif('${idAttr}')" aria-label="Catat sekarang ${catHtml}" title="Catat transaksi ini sekarang" class="h-10 px-2.5 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-ink text-[11px] font-bold flex items-center justify-center gap-1 hover:bg-brand hover:text-white transition-colors">
+          <button type="button" ${mkActionAttrs('recordRecurringFromNotif', [r.id])} aria-label="Catat sekarang ${catHtml}" title="Catat transaksi ini sekarang" class="h-10 px-2.5 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-ink text-[11px] font-bold flex items-center justify-center gap-1 hover:bg-brand hover:text-white transition-colors">
             <i class="ph-bold ph-lightning" aria-hidden="true"></i> <span>Catat</span>
           </button>
-          <button type="button" onclick="toggleRecurringItem('${idAttr}', ${!isActive})" aria-label="${isActive ? 'Jeda' : 'Aktifkan'} jadwal ${catHtml}" title="${isActive ? 'Jeda' : 'Aktifkan'}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700">
+          <button type="button" ${mkActionAttrs('toggleRecurringItem', [r.id, !isActive])} aria-label="${isActive ? 'Jeda' : 'Aktifkan'} jadwal ${catHtml}" title="${isActive ? 'Jeda' : 'Aktifkan'}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700">
             <i class="ph ph-${isActive ? 'pause' : 'play'}" aria-hidden="true"></i>
           </button>
-          <button type="button" onclick="openRecurringForm('${idAttr}')" aria-label="Edit jadwal ${catHtml}" title="Edit" class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100">
+          <button type="button" ${mkActionAttrs('openRecurringForm', [r.id])} aria-label="Edit jadwal ${catHtml}" title="Edit" class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100">
             <i class="ph ph-pencil" aria-hidden="true"></i>
           </button>
-          <button type="button" onclick="deleteRecurringItem('${idAttr}')" aria-label="Hapus jadwal ${catHtml}" title="Hapus" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100">
+          <button type="button" ${mkActionAttrs('deleteRecurringItem', [r.id])} aria-label="Hapus jadwal ${catHtml}" title="Hapus" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center hover:bg-rose-100">
             <i class="ph ph-trash" aria-hidden="true"></i>
           </button>
         </div>

@@ -1,4 +1,4 @@
-/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKey, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
+/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKeyAsync, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
 /* ============================================================
    PRO FEATURES — CALCULATORS, MULTI-TURN AI CHAT & REBALANCING
    ============================================================ */
@@ -264,7 +264,7 @@
     const question = ((input && input.value) || '').trim();
     if (!question) { if (input) input.focus(); return; }
 
-    let apiKey = typeof getGeminiApiKey === 'function' ? getGeminiApiKey() : '';
+    let apiKey = typeof getGeminiApiKeyAsync === 'function' ? await getGeminiApiKeyAsync() : '';
     if (!apiKey && typeof configureGeminiApiKey === 'function') {
       apiKey = await configureGeminiApiKey();
       if (!apiKey) return;
@@ -411,7 +411,7 @@
             (<span class="${r.action === 'Tambah' ? 'text-emerald-700 dark:text-emerald-400' : r.action === 'Kurangi' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'} font-bold">${escapeHtmlJS(r.action)}${r.action !== 'Seimbang' ? ' ' + escapeHtmlJS(formatShortIDR(Math.abs(r.deltaAmount))) : ''}</span>)
           </span>`).join('') : '<span class="text-slate-500 dark:text-slate-400">Belum ada target alokasi rebalancing.</span>'}
       </div>
-      <button type="button" onclick="openRebalanceTargetsModal()" class="min-h-9 px-3 py-1.5 rounded-xl bg-brand/10 text-brand dark:text-brand-ink font-bold hover:bg-brand/20">Atur Target</button>
+      <button type="button" data-action="openRebalanceTargetsModal" class="min-h-9 px-3 py-1.5 rounded-xl bg-brand/10 text-brand dark:text-brand-ink font-bold hover:bg-brand/20">Atur Target</button>
     `);
     card.appendChild(strip);
   }

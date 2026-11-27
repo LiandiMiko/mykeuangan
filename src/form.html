@@ -3,19 +3,19 @@
   <div class="max-w-2xl bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl mk-card-surface border border-slate-200/80 dark:border-slate-800 p-4 sm:p-8 md:p-10 mx-auto transition-colors">
     <div class="flex items-center justify-between gap-3 mb-5 sm:mb-7 border-b border-slate-100 dark:border-slate-800 pb-4 sm:pb-5 flex-wrap">
       <div class="flex items-center gap-2.5 sm:gap-3">
-        <button type="button" onclick="switchView('dashboard')" aria-label="Kembali ke Dashboard" data-i18n-aria-label="form.back" class="w-11 h-11 bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+        <button type="button" data-action="switchView" data-args='["dashboard"]' aria-label="Kembali ke Dashboard" data-i18n-aria-label="form.back" class="w-11 h-11 bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
           <i class="ph ph-arrow-left text-xl" aria-hidden="true"></i>
         </button>
         <h2 id="formTitle" class="text-lg sm:text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">Input Data</h2>
       </div>
       <div>
-        <button type="button" id="btnScanReceipt" onclick="triggerReceiptOcr()" class="min-h-11 px-3.5 py-2 brand-gradient text-white rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-sm hover:opacity-95 transition-opacity">
+        <button type="button" id="btnScanReceipt" data-action="triggerReceiptOcr" class="min-h-11 px-3.5 py-2 brand-gradient text-white rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-sm hover:opacity-95 transition-opacity">
           <i class="ph ph-camera text-base" aria-hidden="true"></i> <span data-i18n="form.scan_receipt">Scan Struk (AI)</span>
         </button>
-        <input type="file" id="trReceiptInput" accept="image/*" capture="environment" class="hidden" onchange="handleReceiptOcrFile(event)">
+        <input type="file" id="trReceiptInput" accept="image/*" capture="environment" class="hidden" data-action="handleReceiptOcrFile" data-args='["$event"]' data-action-on="change">
       </div>
     </div>
-    <form id="formTransaction" novalidate onsubmit="submitTransaction(event)">
+    <form id="formTransaction" novalidate data-action="submitTransaction" data-args='["$event"]' data-action-on="submit">
       <input type="hidden" id="tr_tipe">
       <input type="hidden" id="tr_action">
       <input type="hidden" id="tr_row">
@@ -33,10 +33,10 @@
               <select id="tr_kategori" required class="w-full min-w-0 min-h-12 pl-4 pr-10 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white appearance-none"></select>
               <i class="ph ph-caret-down pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true"></i>
             </div>
-            <button type="button" onclick="promptAddCategory()" aria-label="Tambah kategori" title="Tambah kategori" data-i18n-aria-label="form.add_category" data-i18n-title="form.add_category" class="w-12 h-12 shrink-0 flex items-center justify-center bg-emerald-700 text-white hover:bg-emerald-800 active:bg-emerald-900 rounded-2xl transition-colors">
+            <button type="button" data-action="promptAddCategory" aria-label="Tambah kategori" title="Tambah kategori" data-i18n-aria-label="form.add_category" data-i18n-title="form.add_category" class="w-12 h-12 shrink-0 flex items-center justify-center bg-emerald-700 text-white hover:bg-emerald-800 active:bg-emerald-900 rounded-2xl transition-colors">
               <i class="ph-bold ph-plus" aria-hidden="true"></i>
             </button>
-            <button type="button" onclick="openManageCategoriesModal()" aria-label="Kelola kategori" title="Kelola kategori" data-i18n-aria-label="form.manage_category" data-i18n-title="form.manage_category" class="w-12 h-12 shrink-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl transition-colors border border-slate-200 dark:border-slate-700">
+            <button type="button" data-action="openManageCategoriesModal" aria-label="Kelola kategori" title="Kelola kategori" data-i18n-aria-label="form.manage_category" data-i18n-title="form.manage_category" class="w-12 h-12 shrink-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl transition-colors border border-slate-200 dark:border-slate-700">
               <i class="ph ph-sliders-horizontal" aria-hidden="true"></i>
             </button>
           </div>
@@ -57,19 +57,19 @@
         </div>
         <p id="tr_nominal_calc_preview" class="hide mt-1.5 text-xs font-bold text-brand dark:text-brand-ink tabular-nums" aria-live="polite"></p>
         <div class="mt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-          <button type="button" onclick="addQuickNominalAmount(25000)" class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+25rb</button>
-          <button type="button" onclick="addQuickNominalAmount(50000)" class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+50rb</button>
-          <button type="button" onclick="addQuickNominalAmount(100000)" class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+100rb</button>
-          <button type="button" onclick="addQuickNominalAmount(500000)" class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+500rb</button>
-          <button type="button" onclick="resetQuickNominalAmount()" class="min-h-10 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-xs font-bold text-rose-600 dark:text-rose-400 transition-colors ml-auto shrink-0">Reset</button>
+          <button type="button" data-action="addQuickNominalAmount" data-args='[25000]' class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+25rb</button>
+          <button type="button" data-action="addQuickNominalAmount" data-args='[50000]' class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+50rb</button>
+          <button type="button" data-action="addQuickNominalAmount" data-args='[100000]' class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+100rb</button>
+          <button type="button" data-action="addQuickNominalAmount" data-args='[500000]' class="min-h-10 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors tabular-nums shrink-0">+500rb</button>
+          <button type="button" data-action="resetQuickNominalAmount" class="min-h-10 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-xs font-bold text-rose-600 dark:text-rose-400 transition-colors ml-auto shrink-0">Reset</button>
         </div>
         <div class="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Kalkulator cepat nominal">
           <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Hitung:</span>
-          <button type="button" onclick="insertNominalCalcOp('+')" aria-label="Tambah" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">+</button>
-          <button type="button" onclick="insertNominalCalcOp('-')" aria-label="Kurang" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&minus;</button>
-          <button type="button" onclick="insertNominalCalcOp('*')" aria-label="Kali" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&times;</button>
-          <button type="button" onclick="insertNominalCalcOp('/')" aria-label="Bagi" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&divide;</button>
-          <button type="button" onclick="applyNominalCalc()" aria-label="Hitung hasil" class="min-w-10 min-h-9 px-3 rounded-xl bg-brand/15 text-brand dark:text-brand-ink text-xs font-black shrink-0">=</button>
+          <button type="button" data-action="insertNominalCalcOp" data-args='["+"]' aria-label="Tambah" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">+</button>
+          <button type="button" data-action="insertNominalCalcOp" data-args='["-"]' aria-label="Kurang" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&minus;</button>
+          <button type="button" data-action="insertNominalCalcOp" data-args='["*"]' aria-label="Kali" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&times;</button>
+          <button type="button" data-action="insertNominalCalcOp" data-args='["/"]' aria-label="Bagi" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&divide;</button>
+          <button type="button" data-action="applyNominalCalc" aria-label="Hitung hasil" class="min-w-10 min-h-9 px-3 rounded-xl bg-brand/15 text-brand dark:text-brand-ink text-xs font-black shrink-0">=</button>
         </div>
         <p id="tr_nominal_error" role="alert" class="hide mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
       </div>
@@ -79,7 +79,7 @@
       </div>
       <div id="splitBillBox" class="mb-5 sm:mb-8 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
         <label for="tr_split_enable" class="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-          <input type="checkbox" id="tr_split_enable" onchange="toggleSplitBillFields()" class="w-4 h-4 rounded accent-brand">
+          <input type="checkbox" id="tr_split_enable" data-action="toggleSplitBillFields" data-action-on="change" class="w-4 h-4 rounded accent-brand">
           <span>Split Bill / Patungan (catatkan porsi teman otomatis ke Piutang)</span>
         </label>
         <div id="tr_split_fields" class="hide grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">

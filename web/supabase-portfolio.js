@@ -295,6 +295,9 @@
       if (d.kind !== 'investasi' && (!d.fromWallet || !d.toWallet || d.fromWallet === d.toWallet)) {
         throw new Error('Pilih dompet asal dan tujuan yang berbeda');
       }
+      // Idempotency key antrean offline (T13, Gelombang 2.5): dibuat sekali
+      // di klien saat enqueue, dikirim di dalam payload.
+      const idempotencyKey = typeof d.idempotencyKey === 'string' ? d.idempotencyKey.trim() : '';
       const { error } = await sb.from('transfers').insert({
         tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
         kind: d.kind || 'transfer',
@@ -302,8 +305,23 @@
         to_wallet: d.toWallet || null,
         nominal,
         fee: Math.max(0, num(d.fee)),
-        keterangan: d.keterangan || ''
+        keterangan: d.keterangan || '',
+        ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {})
       });
+      if (error && error.code === '23505' && idempotencyKey) {
+        // Retry setelah respons hilang: baris sudah ada — kembalikan
+        // daftar dompet+transfer terbaru (bentuk hasil yang sama seperti
+        // insert berhasil) supaya flush menghapus item antrean. Select
+        // terikat RLS, jadi filter kunci saja sudah setara dengan
+        // pencarian (user_id, key). (Cek code SEBELUM fail().)
+        const existing = await sb.from('transfers')
+          .select('id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan')
+          .eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (existing.error) fail(existing.error);
+        if (existing.data) return fetchWalletsAndTransfers();
+        // Balapan: baris belum terlihat — lempar error asli agar retry.
+        fail(error);
+      }
       fail(error);
       return fetchWalletsAndTransfers();
     },

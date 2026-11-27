@@ -1,6 +1,7 @@
 import {
-  Any, Ctx, Tx, SECRET, sb, esc, safeEqual, getCategories, isActiveUser,
-  setTemp, getTemp, delTemp, saveTx, savedMsg, tg, send, mainKb, tambahKb, kategoriKb,
+  Any, Ctx, Tx, TOKEN, SECRET, sb, esc, safeEqual, getCategories, isActiveUser,
+  setTemp, getTemp, delTemp, saveTx, savedMsg, tgWithToken, send, sendWithToken, mainKb, tambahKb, kategoriKb,
+  sha256Hex, decryptBotToken, getBotRowByLink,
 } from './core.ts';
 import { getWallets, handleTarik, handleTransfer, handleUtang, handlePiutang } from './wallets.ts';
 import { confirmPreview, handleMediaMessage, handleInsight } from './ai.ts';
@@ -12,7 +13,8 @@ import {
 import { buildCorsHeaders, handleJob } from './jobs.ts';
 
 async function handleCallback(c: Ctx, cbq: Any) {
-  await tg('answerCallbackQuery', { callback_query_id: cbq.id });
+  // Callback harus dijawab lewat bot yang sama yang mengirim tombolnya.
+  await tgWithToken(c.token ?? TOKEN, 'answerCallbackQuery', { callback_query_id: cbq.id });
   const data: string = cbq.data || '';
   const quickCmds: Record<string, () => Promise<unknown>> = {
     cmd_saldo: () => handleSaldo(c),
@@ -120,20 +122,32 @@ async function handleMessage(c: Ctx, msg: Any) {
   return send(c.chat, '🤖 Perintah tidak dikenal. Ketik transaksi mis. <i>makan siang 25rb</i>', mainKb());
 }
 
-async function handlePairingCommand(chat: number, firstName: string, otp: string) {
+/**
+ * Pairing chat ke akun. OTP TIDAK PERNAH disimpan plaintext: yang dicari
+ * adalah hash SHA-256-nya, dan bila webhook ini milik bot personal
+ * (knownUid terisi dari link_secret), lookup DIBATASI ke user_id pemilik
+ * bot itu — kode pairing milik pengguna A tidak bisa menautkan chat lewat
+ * bot pengguna B (T7). Balasan dikirim lewat token bot yang menerima
+ * pesan (chat belum terhubung, jadi belum bisa di-resolve per chat).
+ */
+async function handlePairingCommand(chat: number, firstName: string, otp: string, token: string, knownUid: string | null) {
   const { data: allowed, error: attemptErr } = await sb.rpc('consume_telegram_pairing_attempt', { p_chat_id: chat });
   if (attemptErr) throw attemptErr;
-  if (!allowed) return send(chat, 'Terlalu banyak percobaan kode. Tunggu 10 menit sebelum mencoba lagi.');
+  if (!allowed) return sendWithToken(token, chat, 'Terlalu banyak percobaan kode. Tunggu 10 menit sebelum mencoba lagi.');
 
-  const { data: pair, error: pairErr } = await sb.from('telegram_pairings')
-    .delete().eq('otp', otp).gt('expires_at', new Date().toISOString()).select('user_id, expires_at').maybeSingle();
+  const otpHash = await sha256Hex(otp);
+  let q = sb.from('telegram_pairings')
+    .delete().eq('otp_hash', otpHash).gt('expires_at', new Date().toISOString());
+  if (knownUid) q = q.eq('user_id', knownUid);
+  const { data: pair, error: pairErr } = await q.select('user_id, expires_at').maybeSingle();
   if (pairErr) throw pairErr;
-  if (!pair) return send(chat, 'Kode pairing salah atau sudah kedaluwarsa (10 menit).');
-  if (!await isActiveUser(pair.user_id)) return send(chat, 'Akun ini sedang dinonaktifkan.');
+  if (!pair) return sendWithToken(token, chat, 'Kode pairing salah atau sudah kedaluwarsa (10 menit).');
+  if (knownUid && pair.user_id !== knownUid) return sendWithToken(token, chat, 'Kode pairing ini bukan untuk akun Anda.');
+  if (!await isActiveUser(pair.user_id)) return sendWithToken(token, chat, 'Akun ini sedang dinonaktifkan.');
 
   const { error: upsertErr } = await sb.from('telegram_chats').upsert({ chat_id: chat, user_id: pair.user_id, name: firstName || 'User' }, { onConflict: 'chat_id' });
   if (upsertErr) throw upsertErr;
-  return send(chat, '🎉 <b>Selamat!</b> Akun Telegram Anda berhasil terhubung dengan MyKeuGuech.', mainKb());
+  return sendWithToken(token, chat, '🎉 <b>Selamat!</b> Akun Telegram Anda berhasil terhubung dengan MyKeuGuech.', mainKb());
 }
 
 Deno.serve(async (req) => {
@@ -142,11 +156,36 @@ Deno.serve(async (req) => {
   let update: Any;
   try { update = await req.json(); } catch { return new Response('bad request', { status: 400 }); }
   if (typeof update?.job === 'string') return handleJob(req, update.job);
-  if (!await safeEqual(req.headers.get('x-telegram-bot-api-secret-token') ?? '', SECRET)) return new Response('forbidden', { status: 403 });
+
+  // --- Resolusi bot (Gelombang 2.2) ---
+  // Webhook bot personal membawa ?bot=<link_secret> dan header
+  // x-telegram-bot-api-secret-token berisi webhook_secret milik bot itu.
+  // Webhook lama (bot bersama, tanpa parameter) memakai secret env.
+  // link_secret HANYA mengidentifikasi bot; otentikasi tetap di header —
+  // bocornya link_secret saja tidak cukup untuk memalsukan update (T8).
+  const url = new URL(req.url);
+  const linkSecret = url.searchParams.get('bot') || '';
+  let requestToken = TOKEN;
+  let requestBotId = 0;
+  let knownUid: string | null = null;
+  if (linkSecret) {
+    const row = await getBotRowByLink(linkSecret).catch(() => null);
+    if (!row) return new Response('unknown bot', { status: 404 });
+    if (!await safeEqual(req.headers.get('x-telegram-bot-api-secret-token') ?? '', row.webhook_secret)) {
+      return new Response('forbidden', { status: 403 });
+    }
+    requestToken = await decryptBotToken(row.token_iv, row.token_encrypted).catch(() => '');
+    if (!requestToken) return new Response('misconfigured bot', { status: 500 });
+    requestBotId = row.bot_user_id;
+    knownUid = row.user_id;
+  } else {
+    if (!await safeEqual(req.headers.get('x-telegram-bot-api-secret-token') ?? '', SECRET)) return new Response('forbidden', { status: 403 });
+  }
 
   try {
     if (update.update_id) {
-      const { error } = await sb.from('telegram_updates').insert({ update_id: update.update_id });
+      // Dedup PER BOT: update_id hanya unik di dalam satu bot.
+      const { error } = await sb.from('telegram_updates').insert({ update_id: update.update_id, bot_user_id: requestBotId });
       if (error?.code === '23505') return new Response('dup');
       if (Math.random() < 0.02) {
         await sb.from('telegram_updates').delete().lt('received_at', new Date(Date.now() - 86_400_000).toISOString());
@@ -158,14 +197,14 @@ Deno.serve(async (req) => {
     if (!msg || !from) return new Response('ok');
     const chat: number = msg.chat.id;
     const mPair = String(update.message?.text || '').trim().match(/^\/(?:start\s+PAIR_|link\s+)(\d{8})$/i);
-    if (mPair) { await handlePairingCommand(chat, from.first_name || 'User', mPair[1]); return new Response('ok'); }
+    if (mPair) { await handlePairingCommand(chat, from.first_name || 'User', mPair[1], requestToken, knownUid); return new Response('ok'); }
 
     const { data: reg, error: regErr } = await sb.from('telegram_chats').select('user_id').eq('chat_id', chat).maybeSingle();
     if (regErr) throw regErr;
     if (!reg) { await send(chat, `🔒 Chat belum terhubung. <code>chat_id: ${chat}</code>`); return new Response('ok'); }
     if (!await isActiveUser(reg.user_id)) { await send(chat, 'Akun ini sedang dinonaktifkan.'); return new Response('ok'); }
 
-    const c: Ctx = { chat, uid: reg.user_id, name: from.first_name || 'User' };
+    const c: Ctx = { chat, uid: reg.user_id, name: from.first_name || 'User', token: requestToken };
     try {
       if (update.callback_query) await handleCallback(c, update.callback_query);
       else await handleMessage(c, update.message);

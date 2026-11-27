@@ -241,14 +241,14 @@
       html: `
         <div class="text-left space-y-3">
           <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
-            <select id="recapYearSel" aria-label="Pilih Tahun Rekap" class="col-span-2 sm:w-auto min-w-0 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand" onchange="renderAnnualRecapBody(this.value)">
+            <select id="recapYearSel" aria-label="Pilih Tahun Rekap" class="col-span-2 sm:w-auto min-w-0 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand" data-action="renderAnnualRecapBody" data-args='["$value"]' data-action-on="change">
               ${years.map((y) => `<option value="${escapeHtmlJS(y)}" ${y === curYear ? 'selected' : ''}>Tahun ${escapeHtmlJS(y)}</option>`).join('')}
             </select>
             <span class="col-span-2 sm:w-auto text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium px-0.5">atau bandingkan:</span>
             <input id="cmpPeriodA" aria-label="Periode pertama" type="month" value="${escapeHtmlJS(prevPeriod)}" class="w-full sm:w-auto min-w-0 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
             <span class="hidden sm:inline text-slate-500 dark:text-slate-400 font-semibold">vs</span>
             <input id="cmpPeriodB" aria-label="Periode kedua" type="month" value="${escapeHtmlJS(curPeriod)}" class="w-full sm:w-auto min-w-0 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
-            <button type="button" onclick="renderPeriodCompareBody()" class="col-span-2 sm:w-auto h-9 px-3.5 rounded-xl bg-brand text-white font-bold hover:opacity-95 transition-opacity">Bandingkan</button>
+            <button type="button" data-action="renderPeriodCompareBody" class="col-span-2 sm:w-auto h-9 px-3.5 rounded-xl bg-brand text-white font-bold hover:opacity-95 transition-opacity">Bandingkan</button>
           </div>
           <div id="annualRecapBody"></div>
         </div>

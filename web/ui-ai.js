@@ -34,8 +34,103 @@
     return clean;
   }
 
+  // S20 — kunci Gemini terenkripsi saat disimpan (bukan plaintext).
+  // Memakai kembali DEK Wave 1 (PIN-derived AES-GCM 256-bit) lewat
+  // `__mkFeat.pinCrypto` dari ui-feat-offline.js — tidak ada skema kripto
+  // kedua. Format tersimpan: `v1:` + base64( IV 12 byte || ciphertext ),
+  // satu envelope AES-GCM per simpan (IV acak). DEK hanya ada di memori
+  // setelah PIN dibuka; tanpa DEK, kunci TIDAK PERNAH ditulis plaintext.
+  const GEMINI_KEY_ENCRYPTED_PREFIX = 'v1:';
+  const GEMINI_KEY_NO_DEK_ERROR = 'Buka kunci PIN aplikasi terlebih dahulu untuk menyimpan API key Gemini. Tanpa PIN, kunci tidak bisa disimpan terenkripsi.';
+
+  function getPinCrypto() {
+    const feat = root.__mkFeat || {};
+    return feat.pinCrypto || null;
+  }
+
+  function getPinDek() {
+    const feat = root.__mkFeat || {};
+    return typeof feat.getPinDataKey === 'function' ? feat.getPinDataKey() : null;
+  }
+
+  function hasPinDek() {
+    return Boolean(getPinDek()) && Boolean(getPinCrypto());
+  }
+
+  async function encryptGeminiApiKey(plaintext) {
+    const dek = getPinDek();
+    const pc = getPinCrypto();
+    if (!dek || !pc) throw new Error(GEMINI_KEY_NO_DEK_ERROR);
+    const env = await pc.encryptWithDek(dek, String(plaintext));
+    const iv = pc.b64ToBytes(env.iv);
+    const ct = pc.b64ToBytes(env.ct);
+    const combined = new Uint8Array(iv.length + ct.length);
+    combined.set(iv, 0);
+    combined.set(ct, iv.length);
+    return GEMINI_KEY_ENCRYPTED_PREFIX + pc.bytesToB64(combined);
+  }
+
+  // Mengembalikan '' bila DEK tidak tersedia atau dekripsi gagal (kunci
+  // salah / data rusak) — pemanggil memperlakukannya sebagai "tidak ada key".
+  async function decryptGeminiApiKey(stored) {
+    const dek = getPinDek();
+    const pc = getPinCrypto();
+    if (!dek || !pc) return '';
+    try {
+      const combined = pc.b64ToBytes(String(stored || '').slice(GEMINI_KEY_ENCRYPTED_PREFIX.length));
+      if (!combined || combined.length <= 12) return '';
+      const iv = combined.slice(0, 12);
+      const ct = combined.slice(12);
+      return await pc.decryptWithDek(dek, { iv: pc.bytesToB64(iv), ct: pc.bytesToB64(ct) });
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // Simpan terenkripsi. Menolak (throw) bila DEK tidak tersedia — jangan
+  // pernah fallback diam-diam ke plaintext.
+  async function saveGeminiApiKey(key) {
+    const clean = String(key || '').trim();
+    if (!clean) throw new Error('Masukkan API Key Gemini terlebih dahulu.');
+    const stored = await encryptGeminiApiKey(clean);
+    try {
+      localStorage.setItem(GEMINI_KEY_STORAGE, stored);
+    } catch (_) { /* ignore: penyimpanan penuh / diblokir */ }
+    return clean;
+  }
+
+  function hasStoredGeminiApiKey() {
+    try {
+      return Boolean((localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim());
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Pembaca asinkron (dipakai semua pemanggil AI). Nilai `v1:` didekripsi;
+  // nilai plaintext lama dipakai sekali lalu langsung dimigrasi ke
+  // terenkripsi bila DEK tersedia; bila DEK tidak tersedia dan hanya ada
+  // nilai lama, kembalikan '' (AI akan meminta key lewat modal).
+  async function getGeminiApiKeyAsync() {
+    let raw = '';
+    try { raw = (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim(); } catch (_) { return ''; }
+    if (!raw) return '';
+    if (raw.startsWith(GEMINI_KEY_ENCRYPTED_PREFIX)) return decryptGeminiApiKey(raw);
+    if (!hasPinDek()) return '';
+    try { await saveGeminiApiKey(raw); } catch (_) { /* nilai lama tetap dipakai sekali ini */ }
+    return raw;
+  }
+
   function getGeminiApiKey() {
-    return (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
+    // Shim sinkron: hanya untuk pengecekan keberadaan / kompatibilitas.
+    // Nilai terenkripsi TIDAK BISA didekripsi sinkron, jadi kembalikan ''
+    // untuknya — pemanggil yang butuh key asli wajib memakai
+    // getGeminiApiKeyAsync(). Nilai plaintext lama dikembalikan apa adanya
+    // hanya bila DEK tersedia (migrasi dilakukan jalur asinkron).
+    let raw = '';
+    try { raw = (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim(); } catch (_) { return ''; }
+    if (!raw || raw.startsWith(GEMINI_KEY_ENCRYPTED_PREFIX)) return '';
+    return hasPinDek() ? raw : '';
   }
 
   function getGeminiModel() {
@@ -210,7 +305,7 @@
   function updateAiKeyStatusUI() {
     const badge = document.getElementById('aiKeyStatus');
     if (!badge) return;
-    const hasKey = Boolean(getGeminiApiKey());
+    const hasKey = hasStoredGeminiApiKey();
     badge.textContent = hasKey ? (t('ai.key_saved') + ' · ' + getGeminiModel()) : t('ai.key_missing');
     badge.className = hasKey
       ? 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
@@ -225,6 +320,7 @@
     return `
       <div class="text-left text-xs space-y-3">
         <p class="text-slate-500 dark:text-slate-400">API Key disimpan lokal di browser Anda, dipanggil dengan mode privat (<code>store: false</code>), dan hanya aktif saat Anda menekan tombol AI.</p>
+        <p class="text-slate-500 dark:text-slate-400">Kunci disimpan terenkripsi dengan PIN aplikasi (AES-GCM) dan tidak pernah dikirim ke server mana pun kecuali API Google AI, langsung dari perangkat Anda. Jika Anda lupa PIN, kunci yang tersimpan tidak bisa dipulihkan dan harus dimasukkan ulang.</p>
         <div>
           <div class="flex items-center justify-between mb-1">
             <label for="swal-gemini-key" class="font-bold text-slate-600 dark:text-slate-300">API Key Google AI Studio</label>
@@ -250,7 +346,7 @@
   }
 
   async function configureGeminiApiKey() {
-    const existing = getGeminiApiKey();
+    const existing = await getGeminiApiKeyAsync();
     const res = await Swal.fire({
       title: 'Konfigurasi Gemini 4 AI',
       width: 540,
@@ -294,7 +390,12 @@
       return '';
     }
     if (res.isConfirmed && res.value) {
-      localStorage.setItem(GEMINI_KEY_STORAGE, res.value.key);
+      try {
+        await saveGeminiApiKey(res.value.key);
+      } catch (saveErr) {
+        Swal.fire({ icon: 'error', title: 'API Key tidak tersimpan', text: String((saveErr && saveErr.message) || saveErr), customClass: { popup: getSwalClass() } });
+        return '';
+      }
       localStorage.setItem(GEMINI_MODEL_STORAGE, res.value.model);
       localStorage.setItem(GEMINI_THINKING_STORAGE, res.value.thinking);
       updateAiKeyStatusUI();
@@ -350,8 +451,8 @@
             </div>
           </div>
           <div class="flex items-center gap-2 self-start sm:self-center shrink-0">
-            <button type="button" onclick="copyAiCashflowSummary()" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Salin</button>
-            <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Tutup</button>
+            <button type="button" data-action="copyAiCashflowSummary" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Salin</button>
+            <button type="button" data-action="hideAiAnalysisResult" class="min-h-10 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-brand">Tutup</button>
           </div>
         </div>
         ${parsed.ringkasan ? `<div class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">${formatAiMarkdownSafe(parsed.ringkasan)}</div>` : ''}
@@ -373,7 +474,7 @@
   }
 
   async function runAiCashflowAnalysis() {
-    let apiKey = getGeminiApiKey();
+    let apiKey = await getGeminiApiKeyAsync();
     if (!apiKey) {
       apiKey = await configureGeminiApiKey();
       if (!apiKey) return;
@@ -414,7 +515,7 @@
       renderHtml(box, `
         <div class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
           <span>Gagal menjalankan analisis AI: ${escapeSafe(String((err && err.message) || err))}</span>
-          <button type="button" onclick="document.getElementById('aiAnalysisResult').classList.add('hide')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
+          <button type="button" data-action="hideAiAnalysisResult" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
         </div>`);
     } finally {
       if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
@@ -422,7 +523,8 @@
   }
 
   Object.assign(root, {
-    GEMINI_MODEL_PRESETS, normalizeGeminiModel, getGeminiApiKey, getGeminiModel,
+    GEMINI_MODEL_PRESETS, normalizeGeminiModel, getGeminiApiKey, getGeminiApiKeyAsync,
+    saveGeminiApiKey, encryptGeminiApiKey, decryptGeminiApiKey, hasStoredGeminiApiKey, getGeminiModel,
     getGeminiThinkingLevel, extractGeminiText, formatAiMarkdownSafe, copyAiCashflowSummary,
     callGeminiApi, updateAiKeyStatusUI, configureGeminiApiKey, runAiCashflowAnalysis, renderAiCashflowResult
   });

@@ -85,10 +85,10 @@
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-center">
-            <button type="button" onclick="toggleAutoPostRecurring()" class="min-h-11 px-3 py-2 rounded-2xl border ${autoOn ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-400 text-amber-900 dark:text-amber-200' : 'bg-white/80 dark:bg-slate-800 border-amber-200 dark:border-amber-700 text-slate-600 dark:text-slate-300'} text-xs font-bold transition-colors">
+            <button type="button" data-action="toggleAutoPostRecurring" class="min-h-11 px-3 py-2 rounded-2xl border ${autoOn ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-400 text-amber-900 dark:text-amber-200' : 'bg-white/80 dark:bg-slate-800 border-amber-200 dark:border-amber-700 text-slate-600 dark:text-slate-300'} text-xs font-bold transition-colors">
               Auto-Catat: ${autoOn ? 'ON' : 'OFF'}
             </button>
-            <button type="button" onclick="batchRecordRecurring()" class="min-h-11 px-4 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-amber-600/20 transition-colors">
+            <button type="button" data-action="batchRecordRecurring" class="min-h-11 px-4 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-amber-600/20 transition-colors">
               <i class="ph-bold ph-lightning" aria-hidden="true"></i>
               <span data-i18n="dash.batch_record">Catat Semua Sekaligus</span>
             </button>

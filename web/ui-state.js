@@ -39,7 +39,8 @@
   };
   root.laporanState = laporanState;
 
-  /* Helper sanitasi HTML & JS string di dalam atribut HTML (mis. onclick="fn('${escapeAttrJS(v)}')") */
+  /* Helper sanitasi HTML & JS string di dalam atribut HTML (dipakai
+     template yang dulu menulis handler inline dengan nilai dinamis). */
   function escapeHtmlJS(s) {
     if (s == null) return '';
     return String(s).replace(/[&<>"']/g, (c) => ({
@@ -62,6 +63,190 @@
       .replace(/"/g, '&quot;');
   }
 
+  /* ============================================================
+     SANITIZER ALLOWLIST — Gelombang 2.4 (T11)
+     ------------------------------------------------------------
+     renderHtml() dulu hanya membuang <script>. Itu tidak cukup:
+     event handler (onclick/onerror/...), <iframe srcdoc>, URL
+     javascript:, dan vektor SVG (mis. <animate onbegin>) semuanya
+     lolos. Sanitizer ini bekerja dengan allowlist, bukan blocklist:
+
+     - TAG YANG DIIZINKAN (ALLOWED_TAGS): hanya tag presentasi/
+       struktur yang tidak bisa mengeksekusi kode. Semua tag lain
+       yang tidak dikenal di-unwrap: tagnya dibuang, anak teks/
+       elemennya dipertahankan (jadi teks pengguna tetap tampil).
+     - TAG YANG DIHAPUS BESERTA ISINYA (REMOVE_TAGS): script,
+       iframe (termasuk srcdoc), object, embed, form, style, link,
+       meta, base, title, noscript, template, svg beserta seluruh
+       turunannya (animate, script di dalam svg, ...), dan kawan-
+       kawan yang bisa memuat konten aktif/eksternal (frame,
+       frameset, applet, audio, video, canvas, map, ...).
+       Keputusan soal <svg>: TIDAK ADA satu pun call-site
+       renderHtml yang memakai svg (satu-satunya svg di aplikasi,
+       logo Google di web/supabase-auth-ui.js, dipasang lewat
+       innerHTML langsung, bukan lewat renderHtml). Karena itu svg
+       dihapus seluruhnya; bila suatu hari ada kebutuhan svg
+       legit, tambahkan ke ALLOWED_TAGS beserta penghapusan
+       on* dan <animate>/<script> di dalamnya.
+     - ATRIBUT: semua atribut on* dibuang (pertahanan lapis kedua
+       setelah allowlist). Hanya atribut dalam ALLOWED_ATTRS yang
+       dipertahankan, plus atribut data-* dan aria-* (nilainya
+       string polos, tidak dieksekusi). Atribut style="" BOLEH:
+       aplikasi memakainya di mana-mana dan CSS inline tidak bisa
+       mengeksekusi JS di browser modern; nilai style yang
+       mengandung expression( atau javascript: tetap dibuang.
+     - URL (href/src/cite/dll): hanya http:, https:, mailto:,
+       tel:, URL relatif, URL diawali //, dan #fragment. Skema
+       javascript:, vbscript:, file:, dan data: (kecuali
+       data:image/* dan hanya untuk <img src>) membuat atributnya
+       dibuang. URL dinormalisasi dulu (trim + buang karakter
+       kontrol) agar "java\tscript:" atau " javascript:" tidak lolos.
+     - Sanitizer ini sengaja hanya memakai API DOM minimal
+       (childNodes, tagName, attributes, get/set/removeAttribute,
+       remove, insertBefore) supaya bisa diuji di node --test
+       dengan DOMParser stub — lihat tests/wave2-xss-csp.test.js.
+     ============================================================ */
+  const SANITIZER_ALLOWED_TAGS = new Set([
+    'a', 'abbr', 'article', 'aside', 'b', 'blockquote', 'br', 'button',
+    'caption', 'code', 'col', 'colgroup', 'dd', 'del', 'details', 'div',
+    'dl', 'dt', 'em', 'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3',
+    'h4', 'h5', 'h6', 'header', 'hr', 'i', 'img', 'input', 'ins', 'kbd',
+    'label', 'li', 'main', 'mark', 'nav', 'ol', 'option', 'optgroup', 'p',
+    'pre', 'q', 's', 'section', 'select', 'small', 'span', 'strong', 'sub',
+    'summary', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'time',
+    'tr', 'u', 'ul'
+  ]);
+  // Dihapus beserta seluruh subtree-nya (bukan di-unwrap).
+  const SANITIZER_REMOVE_TAGS = new Set([
+    'script', 'iframe', 'object', 'embed', 'form', 'style', 'link', 'meta',
+    'base', 'title', 'noscript', 'template', 'svg', 'frameset', 'frame',
+    'applet', 'audio', 'video', 'source', 'track', 'canvas', 'map', 'area',
+    'math', 'xmp', 'listing', 'plaintext', 'slot', 'dialog'
+  ]);
+  // Atribut yang boleh dipertahankan (di luar data-* dan aria-*).
+  const SANITIZER_GLOBAL_ATTRS = new Set([
+    'class', 'id', 'style', 'title', 'role', 'tabindex', 'colspan',
+    'rowspan', 'scope'
+  ]);
+  const SANITIZER_TAG_ATTRS = {
+    a: new Set(['href', 'target', 'rel']),
+    blockquote: new Set(['cite']),
+    q: new Set(['cite']),
+    img: new Set(['src', 'alt', 'width', 'height', 'loading']),
+    input: new Set(['type', 'value', 'placeholder', 'disabled', 'checked',
+      'readonly', 'name', 'min', 'max', 'step', 'maxlength']),
+    select: new Set(['name', 'disabled', 'multiple', 'size']),
+    option: new Set(['value', 'selected', 'disabled']),
+    optgroup: new Set(['label', 'disabled']),
+    button: new Set(['type', 'disabled', 'name', 'value']),
+    td: new Set(['colspan', 'rowspan']),
+    th: new Set(['colspan', 'rowspan', 'scope']),
+    col: new Set(['span']),
+    label: new Set(['for']),
+    ol: new Set(['start', 'reversed']),
+    li: new Set(['value']),
+    time: new Set(['datetime']),
+    details: new Set(['open'])
+  };
+  const SANITIZER_URL_ATTRS = new Set(['href', 'src', 'cite', 'action',
+    'formaction', 'xlink:href', 'poster']);
+
+  function sanitizeUrlValue(raw, allowDataImage) {
+    const value = String(raw == null ? '' : raw).trim()
+      .replace(/[\u0000-\u0020]+/g, '');
+    if (!value) return '';
+    const lower = value.toLowerCase();
+    if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') ||
+      lower.startsWith('file:')) return '';
+    if (lower.startsWith('data:')) {
+      return (allowDataImage && /^data:image\//i.test(value)) ? value : '';
+    }
+    if (/^(https?:|mailto:|tel:|\/\/|#|\/|\?|\.)/.test(lower)) return value;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return ''; // skema lain: tolak
+    return value; // relatif tanpa skema
+  }
+
+  function sanitizeElementAttrs(el, tag) {
+    const allowed = SANITIZER_TAG_ATTRS[tag] || null;
+    const attrs = Array.from(el.attributes || []);
+    for (const attr of attrs) {
+      const name = String(attr.name || '').toLowerCase();
+      const value = attr.value;
+      if (name.startsWith('on')) { el.removeAttribute(attr.name); continue; }
+      if (name.startsWith('data-') || name.startsWith('aria-')) continue;
+      if (!SANITIZER_GLOBAL_ATTRS.has(name) &&
+        !(allowed && allowed.has(name))) {
+        el.removeAttribute(attr.name);
+        continue;
+      }
+      if (SANITIZER_URL_ATTRS.has(name)) {
+        const safe = sanitizeUrlValue(value, tag === 'img' && name === 'src');
+        if (!safe) el.removeAttribute(attr.name);
+        else if (safe !== value) el.setAttribute(attr.name, safe);
+        continue;
+      }
+      if (name === 'style' &&
+        /expression\s*\(|javascript\s*:/i.test(String(value || ''))) {
+        el.removeAttribute(attr.name);
+      }
+    }
+    // target="_blank" tanpa rel noopener = tab-nabbing; perbaiki diam-diam.
+    if (tag === 'a' && el.getAttribute &&
+      String(el.getAttribute('target') || '').toLowerCase() === '_blank') {
+      const rel = String(el.getAttribute('rel') || '');
+      if (!/\bnoopener\b/i.test(rel)) {
+        el.setAttribute('rel', (rel ? rel + ' ' : '') + 'noopener');
+      }
+    }
+  }
+
+  function sanitizeNode(node) {
+    if (!node || node.nodeType !== 1) return;
+    const tag = String(node.tagName || '').toLowerCase();
+    if (SANITIZER_REMOVE_TAGS.has(tag)) { node.remove(); return; }
+    if (!SANITIZER_ALLOWED_TAGS.has(tag)) {
+      // Tag tak dikenal: unwrap — pindahkan anak ke parent, buang tag.
+      const parent = node.parentNode;
+      if (!parent) { node.remove(); return; }
+      const moved = Array.from(node.childNodes || []);
+      for (const child of moved) parent.insertBefore(child, node);
+      node.remove();
+      for (const child of moved) sanitizeNode(child);
+      return;
+    }
+    sanitizeElementAttrs(node, tag);
+    const children = Array.from(node.childNodes || []);
+    for (const child of children) {
+      if (child.nodeType === 3) continue; // teks: aman apa adanya
+      if (child.nodeType !== 1) { child.remove(); continue; } // komentar dll
+      sanitizeNode(child);
+    }
+  }
+
+  // Sanitasi in-place pada dokumen hasil DOMParser (dipakai renderHtml).
+  function sanitizeDocument(doc) {
+    if (!doc || !doc.body) return;
+    const children = Array.from(doc.body.childNodes || []);
+    for (const child of children) {
+      if (child.nodeType === 3) continue;
+      if (child.nodeType !== 1) { child.remove(); continue; }
+      sanitizeNode(child);
+    }
+  }
+
+  // Mengembalikan markup yang sudah disanitasi (string). Parameter
+  // parserOverride hanya untuk pengujian node --test (DOMParser stub);
+  // di browser, DOMParser global yang dipakai.
+  function sanitizeHtml(markup, parserOverride) {
+    const Parser = parserOverride ||
+      (typeof DOMParser !== 'undefined' ? DOMParser : null);
+    if (!Parser) return '';
+    const doc = new Parser().parseFromString(
+      String(markup == null ? '' : markup), 'text/html');
+    sanitizeDocument(doc);
+    return doc.body ? doc.body.innerHTML : '';
+  }
+
   /* Merender markup ter-sanitasi tanpa assignment innerHTML langsung */
   function renderHtml(el, html) {
     if (!el) return;
@@ -78,13 +263,28 @@
         ? `<table>${markup}</table>`
         : markup;
     const doc = new DOMParser().parseFromString(wrapped, 'text/html');
-    doc.querySelectorAll('script').forEach((node) => node.remove());
+    sanitizeDocument(doc);
     const container = isTableSection
       ? doc.body.querySelector('tbody')
       : tag === 'TABLE'
         ? doc.body.querySelector('table')
         : doc.body;
     if (container) el.replaceChildren(...Array.from(container.childNodes));
+  }
+
+  /* Atribut data-action/data-args untuk delegated listener
+     (web/ui-delegated-actions.js). Dipakai template JS yang dulu
+     menulis handler inline dengan nilai dinamis: nilai mentah
+     (bukan escapeAttrJS) yang dimasukkan — JSON.stringify +
+     escapeHtmlJS yang menjaga keamanannya — supaya id
+     ber-apostrof tidak rusak oleh escaping ganda. */
+  function mkActionAttrs(action, args, on) {
+    let out = 'data-action="' + escapeHtmlJS(action) + '"';
+    if (args !== undefined) {
+      out += ' data-args="' + escapeHtmlJS(JSON.stringify(args)) + '"';
+    }
+    if (on && on !== 'click') out += ' data-action-on="' + escapeHtmlJS(on) + '"';
+    return out;
   }
 
   function renderSelectOptions(selectEl, items, defaultLabel, selectedValue) {
@@ -395,6 +595,9 @@
     escapeHtmlJS,
     escapeAttrJS,
     renderHtml,
+    sanitizeHtml,
+    sanitizeDocument,
+    mkActionAttrs,
     renderSelectOptions,
     formatNominalInputValue,
     parseFormattedNominal,

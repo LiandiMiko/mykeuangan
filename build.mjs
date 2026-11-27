@@ -25,6 +25,7 @@ const WEB_MODULES = [
 
 const UI_CORE_MODULES = [
   'ui-state.js',
+  'ui-delegated-actions.js',
   'ui-shell.js',
   'ui-dashboard.js',
   'ui-calendar.js',

@@ -195,6 +195,15 @@ async function refreshPrices(uid: string) {
   return { updated, missing: [...missing] };
 }
 
+// T9 (Gelombang 2.3): batas transaksi recurring yang boleh dibuat dalam
+// satu run. Tanpa batas, satu pemanggilan cron memproses SEMUA baris
+// jatuh tempo untuk SEMUA pengguna — bila bot lama tidak jalan (atau ada
+// lonjakan baris jatuh tempo), satu run bisa membanjiri database dan
+// notifikasi. 200 transaksi per run sudah jauh di atas kebutuhan harian
+// normal, dan sisa baris TIDAK diklaim (last_run tidak diubah) sehingga
+// diambil oleh run hari berikutnya.
+const MAX_RECURRING_CREATED_PER_RUN = 200;
+
 async function runRecurring() {
   const t = today();
   const [yearStr, monthStr, dayStr] = t.split('-');
@@ -206,9 +215,16 @@ async function runRecurring() {
   const activeIds = await getActiveUserIds();
   const byUser = new Map<string, string[]>();
   let created = 0;
+  let skipped = 0;
   const defaultWalletCache = new Map<string, string | null>();
   for (const r of data ?? []) {
     if (!activeIds.has(r.user_id)) continue;
+    // Batas per-run (T9): begitu `created` mencapai batas, baris jatuh
+    // tempo yang tersisa TIDAK diproses dan TIDAK diklaim — pengecekan
+    // ini harus terjadi SEBELUM update last_run di bawah, supaya
+    // last_run baris yang dilewati tetap lama dan run berikutnya
+    // mengambilnya. Baris yang dilewati dihitung sebagai `skipped`.
+    if (created >= MAX_RECURRING_CREATED_PER_RUN) { skipped++; continue; }
     const claim = await sb.from('recurring').update({ last_run: t }).eq('id', r.id).or(`last_run.is.null,last_run.neq.${t}`).select('id');
     if (claim.error) throw claim.error;
     if (!claim.data || claim.data.length === 0) continue;
@@ -230,7 +246,7 @@ async function runRecurring() {
   for (const [uid, lines] of byUser) {
     for (const ch of await chatsOf(uid)) await send(ch.chat_id, `🔄 <b>Recurring hari ini</b>\n\n${lines.length} transaksi:\n\n${lines.join('\n')}`);
   }
-  return { created };
+  return { created, skipped, notified: byUser.size };
 }
 
 async function dailyReminder() {
@@ -308,6 +324,67 @@ async function snapshotAll() {
   return { users: done };
 }
 
+// --- Pencatatan pemanggilan job (Gelombang 2.3, T9) -----------------------
+// Setiap pemanggilan yang lolos autentikasi dicatat di tabel
+// `cron_job_runs` (lihat migrasi 20261128010000): satu baris saat job
+// mulai (status 'running'), diperbarui saat selesai (status 'ok' /
+// 'error' + hitungan created/notified/skipped + pesan error bila gagal).
+// Pencatatan TIDAK BOLEH merusak job itu sendiri: semua pemanggilan ke
+// tabel log dibungkus try/catch dan gagalnya hanya masuk console.error.
+// Bila insert awal gagal, runId null dan job tetap jalan tanpa log.
+//
+// Sengaja TIDAK mencatat percobaan yang ditolak autentikasi (403):
+// pemanggilnya belum teridentifikasi, dan mencatatnya akan membiarkan
+// siapa pun membanjiri tabel log hanya dengan mengirim secret salah.
+type JobRunCounts = { created?: number; notified?: number; skipped?: number };
+
+async function logJobRunStart(job: string, invokedBy: string): Promise<string | null> {
+  try {
+    const { data, error } = await sb.from('cron_job_runs').insert({
+      job, invoked_by: invokedBy, started_at: new Date().toISOString(), status: 'running',
+    }).select('id');
+    if (error) { console.error('cron_job_runs insert', error); return null; }
+    return (data?.[0] as { id?: string } | undefined)?.id ?? null;
+  } catch (e) {
+    console.error('cron_job_runs insert', e);
+    return null;
+  }
+}
+
+async function logJobRunFinish(
+  runId: string | null, status: 'ok' | 'error', counts: JobRunCounts, error?: string,
+): Promise<void> {
+  if (!runId) return;
+  try {
+    const { error: updErr } = await sb.from('cron_job_runs').update({
+      finished_at: new Date().toISOString(), status,
+      created_count: counts.created ?? 0,
+      notified_count: counts.notified ?? 0,
+      skipped_count: counts.skipped ?? 0,
+      error: error ?? null,
+    }).eq('id', runId);
+    if (updErr) console.error('cron_job_runs update', updErr);
+  } catch (e) {
+    console.error('cron_job_runs update', e);
+  }
+}
+
+// Petakan hasil tiap job ke kolom hitungan cron_job_runs. Job yang tidak
+// membuat transaksi / tidak mengirim notifikasi (snapshot, refresh_prices)
+// mengembalikan hitungan kosong — angka users/updated-nya tetap ada di
+// respons JSON, hanya tidak dipaksakan ke kolom yang bukan maknanya.
+function countsFromJobResult(job: string, result: Record<string, unknown>): JobRunCounts {
+  if (job === 'recurring') {
+    return {
+      created: Number(result.created) || 0,
+      skipped: Number(result.skipped) || 0,
+      notified: Number(result.notified) || 0,
+    };
+  }
+  if (job === 'daily' || job === 'weekly') return { notified: Number(result.sent) || 0 };
+  return {};
+}
+
 export async function handleJob(req: Request, job: string): Promise<Response> {
   const cron = await safeEqual(req.headers.get('x-cron-secret') ?? '', CRON_SECRET);
   let uid: string | null = null;
@@ -317,20 +394,38 @@ export async function handleJob(req: Request, job: string): Promise<Response> {
     uid = data?.user?.id ?? null;
     if (!uid || job !== 'refresh_prices' || !await isActiveUser(uid)) return json(req, { error: 'forbidden' }, 403);
   }
+  const invokedBy = cron ? 'cron' : 'user';
+  const runId = await logJobRunStart(job, invokedBy);
   try {
-    if (job === 'refresh_prices' && uid) return json(req, await refreshPrices(uid));
-    if (job === 'refresh_prices') {
+    let result: Record<string, unknown>;
+    let counts: JobRunCounts = {};
+    if (job === 'refresh_prices' && uid) {
+      const r = await refreshPrices(uid);
+      result = { updated: r.updated, missing: r.missing };
+    } else if (job === 'refresh_prices') {
       const activeIds = await getActiveUserIds();
       const { data } = await sb.from('assets').select('user_id');
       const users = [...new Set((data ?? []).map((r: Any) => r.user_id as string))].filter((u) => activeIds.has(u));
       let done = 0;
       for (const u of users) { try { await refreshPrices(u); done++; } catch (e) { console.error('refreshPrices', u, e); } }
-      return json(req, { users: done });
+      result = { users: done };
+    } else {
+      const jobs: Record<string, () => Promise<unknown>> = { daily: dailyReminder, weekly: weeklyReport, recurring: runRecurring, snapshot: snapshotAll };
+      const fn = jobs[job];
+      if (!fn) {
+        await logJobRunFinish(runId, 'error', {}, `unknown job: ${job}`);
+        return json(req, { error: 'unknown job' }, 400);
+      }
+      const r = await fn() as Record<string, unknown>;
+      result = { ...r };
+      counts = countsFromJobResult(job, r);
     }
-    const jobs: Record<string, () => Promise<unknown>> = { daily: dailyReminder, weekly: weeklyReport, recurring: runRecurring, snapshot: snapshotAll };
-    return jobs[job] ? json(req, await jobs[job]()) : json(req, { error: 'unknown job' }, 400);
+    await logJobRunFinish(runId, 'ok', counts);
+    return json(req, { ...result, ...counts, run_id: runId });
   } catch (e) {
+    const msg = String((e as Error).message || e);
+    await logJobRunFinish(runId, 'error', {}, msg);
     console.error('job', job, e);
-    return json(req, { error: String((e as Error).message || e) }, 500);
+    return json(req, { error: msg }, 500);
   }
 }

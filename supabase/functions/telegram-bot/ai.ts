@@ -1,5 +1,5 @@
 import {
-  Any, Ctx, Tx, TOKEN, TG, GEMINI_KEY, GEMINI_MODEL, GEMINI_INSIGHT_MODEL,
+  Any, Ctx, Tx, TOKEN, GEMINI_KEY, GEMINI_MODEL, GEMINI_INSIGHT_MODEL,
   esc, rp, today, sleep, safeHtml, getCategories, normalizeCatKey, isFlow, loadCore,
   inPeriod, getTemp, setTemp, send, mainKb,
 } from './core.ts';
@@ -152,13 +152,17 @@ export async function handleMediaMessage(c: Ctx, msg: Any) {
   const fileId = photo?.file_id ?? voice?.file_id;
   if (!fileId) return;
 
+  // File media milik bot yang menerima pesan: getFile + unduhan HARUS
+  // memakai token bot pemilik request (c.token), bukan token bersama —
+  // file_id hanya berlaku di bot yang menerimanya (Gelombang 2.2).
+  const botToken = c.token ?? TOKEN;
   await send(c.chat, photo ? '📸 Membaca foto struk dengan Gemini 4 AI...' : '🎙️ Memahami voice note dengan Gemini 4 AI...');
-  const metaJson = await (await fetch(`${TG}/getFile?file_id=${encodeURIComponent(fileId)}`, { signal: AbortSignal.timeout(12000) })).json();
+  const metaJson = await (await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`, { signal: AbortSignal.timeout(12000) })).json();
   const filePath = metaJson?.result?.file_path;
   if (!filePath) throw new Error('Gagal mengambil file dari Telegram.');
   if (Number(metaJson?.result?.file_size || 0) > 4 * 1024 * 1024) throw new Error('Ukuran media melebihi batas 4 MB.');
 
-  const fileRes = await fetch(`https://api.telegram.org/file/bot${TOKEN}/${filePath}`, { signal: AbortSignal.timeout(20000) });
+  const fileRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`, { signal: AbortSignal.timeout(20000) });
   if (!fileRes.ok) throw new Error('Gagal mengunduh file media Telegram.');
   const base64 = bytesToBase64(new Uint8Array(await fileRes.arrayBuffer()));
   const caption = String(msg.caption || '').trim();

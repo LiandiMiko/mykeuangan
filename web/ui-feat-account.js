@@ -383,7 +383,7 @@
           <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">${txMsg('PIN mengenkripsi snapshot & antrean offline di perangkat ini (AES-GCM 256-bit). Tanpa PIN yang benar, data lokal tidak bisa dibaca. Percobaan salah berulang mengunci PIN makin lama (60 detik → 5 → 15 → 60 menit); setelah 3 kali terkunci, buka kunci membutuhkan verifikasi password akun.', 'Your PIN encrypts the offline snapshot & queue on this device (AES-GCM 256-bit). Without the correct PIN, local data cannot be read. Repeated wrong attempts lock the PIN for longer (60 seconds → 5 → 15 → 60 minutes); after 3 lockouts, unlocking requires verifying your account password.')}</p>
         </div>
         <div class="flex flex-wrap gap-2 pt-2">
-          <button type="button" onclick="Swal.close();changeOwnPassword()" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>${txMsg('Ganti Password', 'Change Password')}</span></button>
+          <button type="button" data-action="swalClose|changeOwnPassword" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>${txMsg('Ganti Password', 'Change Password')}</span></button>
           ${hasPin ? `<button type="button" id="acc-clear-pin-btn" class="min-h-11 py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5"><i class="ph ph-lock-open" aria-hidden="true"></i> <span>${txMsg('Hapus PIN', 'Remove PIN')}</span></button>` : ''}
         </div>
         <div class="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
@@ -503,6 +503,9 @@
           <p>${txMsg('Seluruh transaksi, dompet, aset, anggaran, jadwal rutin, dan profil Anda akan <strong>dihapus permanen</strong> dan tidak bisa dipulihkan.', 'All your transactions, wallets, assets, budgets, recurring items, and profile will be <strong>permanently deleted</strong> and cannot be recovered.')}</p>
           <label for="del-acc-confirm" class="block font-bold pt-1">${txMsg('Ketik', 'Type')} <span class="text-rose-600">${keyword}</span> ${txMsg('untuk konfirmasi', 'to confirm')}</label>
           <input id="del-acc-confirm" type="text" autocomplete="off" class="swal2-input" style="margin:0;width:100%" placeholder="${keyword}">
+          <label for="del-acc-password" class="block font-bold pt-1">${txMsg('Password akun saat ini', 'Current account password')}</label>
+          <input id="del-acc-password" type="password" autocomplete="current-password" class="swal2-input" style="margin:0;width:100%" placeholder="${txMsg('Password akun', 'Account password')}">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">${txMsg('Password diminta ulang untuk memastikan yang menghapus akun benar-benar pemiliknya.', 'Your password is asked again to make sure the account is deleted by its owner.')}</p>
         </div>`,
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
@@ -515,13 +518,18 @@
           Swal.showValidationMessage(txMsg('Ketik HAPUS terlebih dahulu.', 'Type DELETE first to confirm.'));
           return false;
         }
-        return v;
+        const password = String((document.getElementById('del-acc-password') || {}).value || '');
+        if (!password) {
+          Swal.showValidationMessage(txMsg('Masukkan password akun Anda saat ini.', 'Enter your current account password.'));
+          return false;
+        }
+        return { confirmation: v, password };
       }
     });
     if (!confirmRes.isConfirmed || !confirmRes.value) return;
     Swal.fire({ title: txMsg('Menghapus akun...', 'Deleting account...'), text: txMsg('Mohon tunggu sebentar.', 'Please wait a moment.'), allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { popup: getSwalClass() } });
     try {
-      await callServer('api_deleteOwnAccount', confirmRes.value);
+      await callServer('api_deleteOwnAccount', confirmRes.value.confirmation, confirmRes.value.password);
       await Swal.fire({ icon: 'success', title: txMsg('Akun Dihapus', 'Account Deleted'), text: txMsg('Seluruh data Anda telah dihapus permanen.', 'All of your data has been permanently deleted.'), timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       // Akun sudah terhapus di server: antrean offline tidak mungkin lagi
       // tersinkronisasi, jadi lewati penjaga antrean logout (K3) di sini.

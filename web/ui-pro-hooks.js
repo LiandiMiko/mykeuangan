@@ -1,4 +1,4 @@
-/* global Swal, escapeHtmlJS, escapeAttrJS, localToday, getCurrentNotifications, openCommandPalette, closeCommandPalette, renderQuickTemplates, renderTagBars, restoreAiAnalysisCache, t */
+/* global Swal, escapeHtmlJS, escapeAttrJS, localToday, getCurrentNotifications, openCommandPalette, closeCommandPalette, renderQuickTemplates, renderTagBars, restoreAiAnalysisCache, t, mkActionAttrs */
 /* ============================================================
    PRO FEATURES — NOTIFICATIONS MODAL, BROWSER ALERTS & HOOKS
    ============================================================ */
@@ -71,7 +71,7 @@
     const nativeOn = localStorage.getItem(NATIVE_NOTIF_KEY) === '1';
     const toggleOn = isNative ? nativeOn : browserOn;
     const toggleLabel = isNative ? 'Pengingat Android (20:00):' : 'Notifikasi Browser:';
-    const toggleFn = isNative ? 'toggleNativeNotifications()' : 'toggleBrowserNotifications()';
+    const toggleAction = isNative ? 'toggleNativeNotifications' : 'toggleBrowserNotifications';
     const sevStyle = {
       danger: 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300',
       warning: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300',
@@ -80,13 +80,13 @@
     const rows = list.length ? list.map((n) => {
       let actionBtn = '';
       if (n.actionType === 'view' && n.actionPayload && n.actionPayload.view) {
-        actionBtn = `<button type="button" onclick="Swal.close();switchView('${escapeAttrJS(n.actionPayload.view)}')" class="mt-2 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">Lihat</button>`;
+        actionBtn = `<button type="button" ${mkActionAttrs('swalClose|switchView', [n.actionPayload.view])} class="mt-2 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">Lihat</button>`;
       } else if (n.actionType === 'recurring' && n.actionPayload && n.actionPayload.id) {
-        actionBtn = `<button type="button" onclick="recordRecurringFromNotif('${escapeAttrJS(n.actionPayload.id)}')" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Catat Sekarang</button>`;
+        actionBtn = `<button type="button" ${mkActionAttrs('recordRecurringFromNotif', [n.actionPayload.id])} class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Catat Sekarang</button>`;
       } else if (n.actionType === 'sync_offline') {
-        actionBtn = '<button type="button" onclick="Swal.close();flushOfflineQueue(false)" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Sinkronisasi</button>';
+        actionBtn = '<button type="button" data-action="swalClose|flushOfflineQueue" data-args="[false]" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Sinkronisasi</button>';
       } else if (n.actionType === 'offline_failed') {
-        actionBtn = '<div class="mt-2 flex flex-wrap gap-2"><button type="button" onclick="Swal.close();if(typeof retryFailedOfflineItems===\'function\')retryFailedOfflineItems()" class="px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Coba Ulang</button><button type="button" onclick="Swal.close();if(typeof discardFailedOfflineItems===\'function\')discardFailedOfflineItems()" class="px-3 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-bold">Buang Gagal</button></div>';
+        actionBtn = '<div class="mt-2 flex flex-wrap gap-2"><button type="button" data-action="swalClose|retryFailedOfflineItems" class="px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Coba Ulang</button><button type="button" data-action="swalClose|discardFailedOfflineItems" class="px-3 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-bold">Buang Gagal</button></div>';
       }
       return `
         <div class="p-3 rounded-xl border text-left ${sevStyle[n.severity] || sevStyle.info}">
@@ -101,7 +101,7 @@
       html: `
         <div class="mb-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs">
           <span>${toggleLabel} <strong>${toggleOn ? 'Aktif' : 'Nonaktif'}</strong></span>
-          <button type="button" onclick="${toggleFn}" class="px-2.5 py-1 rounded-lg ${toggleOn ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand text-white'} font-bold">${toggleOn ? 'Matikan' : 'Aktifkan'}</button>
+          <button type="button" data-action="${toggleAction}" class="px-2.5 py-1 rounded-lg ${toggleOn ? 'bg-slate-200 dark:bg-slate-700' : 'bg-brand text-white'} font-bold">${toggleOn ? 'Matikan' : 'Aktifkan'}</button>
         </div>
         <div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">${rows}</div>
       `,

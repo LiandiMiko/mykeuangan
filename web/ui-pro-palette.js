@@ -1,4 +1,4 @@
-/* global DB, FinancePro, FinanceAnalysis, Swal, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, switchView, openForm, triggerReceiptOcr, toggleDarkMode, setLang, currentLang, filterHistoriView, t */
+/* global DB, FinancePro, FinanceAnalysis, Swal, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, switchView, openForm, triggerReceiptOcr, toggleDarkMode, setLang, currentLang, filterHistoriView, t, mkActionAttrs */
 /* ============================================================
    PRO FEATURES — COMMAND PALETTE, #TAGS & AUTO-CATEGORY RULES
    ============================================================ */
@@ -177,7 +177,7 @@
       bar.classList.remove('hide');
       renderHtml(bar, '<span class="text-[11px] font-bold text-slate-400 mr-1">Tag:</span>' +
         items.slice(0, 10).map((it) => `
-          <button type="button" onclick="applyTagFilter('${escapeAttrJS(target)}', '${escapeAttrJS(it.tag)}')"
+          <button type="button" ${mkActionAttrs('applyTagFilter', [target, it.tag])}
                   class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-bold hover:bg-brand/20 transition-colors">
             ${escapeHtmlJS(it.tag)} <span class="opacity-75">(${it.count} · ${escapeHtmlJS(formatShortIDR(it.expense || it.income))})</span>
           </button>

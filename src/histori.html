@@ -14,10 +14,10 @@
       </div>
     </div>
     <div class="grid grid-cols-2 w-full sm:w-auto sm:flex gap-2">
-      <button type="button" onclick="openForm('Pemasukan')" class="min-h-11 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
+      <button type="button" data-action="openForm" data-args='["Pemasukan"]' class="min-h-11 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
         <i class="ph ph-plus-circle text-base" aria-hidden="true"></i> <span data-i18n="dash.btn_pemasukan">Pemasukan</span>
       </button>
-      <button type="button" onclick="openForm('Pengeluaran')" class="min-h-11 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
+      <button type="button" data-action="openForm" data-args='["Pengeluaran"]' class="min-h-11 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors">
         <i class="ph ph-minus-circle text-base" aria-hidden="true"></i> <span data-i18n="dash.btn_pengeluaran">Pengeluaran</span>
       </button>
     </div>
@@ -27,13 +27,13 @@
   <div class="mb-4 sm:mb-5 flex flex-col sm:flex-row gap-2.5 sm:gap-3">
     <div class="relative flex-1">
       <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
-      <input type="search" id="historiSearch" enterkeyhint="search" oninput="filterHistoriView()" maxlength="100" data-i18n-placeholder="histori.search_placeholder" placeholder="Cari kategori atau catatan di siklus ini..."
+      <input type="search" id="historiSearch" enterkeyhint="search" data-action="filterHistoriView" data-action-on="input" maxlength="100" data-i18n-placeholder="histori.search_placeholder" placeholder="Cari kategori atau catatan di siklus ini..."
              class="w-full min-h-12 pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm text-slate-800 dark:text-white mk-card-surface">
     </div>
-    <select id="historiWalletFilter" onchange="filterHistoriView()" aria-label="Filter dompet histori" class="sm:w-56 min-h-12 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 mk-card-surface">
+    <select id="historiWalletFilter" data-action="filterHistoriView" data-action-on="change" aria-label="Filter dompet histori" class="sm:w-56 min-h-12 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 mk-card-surface">
       <option value="" data-i18n="lap.all_wallets">Semua dompet</option>
     </select>
-    <button type="button" id="historiResetFilterBtn" onclick="resetHistoriFilters()" class="hide min-h-11 px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 shrink-0 transition-colors">
+    <button type="button" id="historiResetFilterBtn" data-action="resetHistoriFilters" class="hide min-h-11 px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 shrink-0 transition-colors">
       <i class="ph ph-x-circle text-base" aria-hidden="true"></i>
       <span data-i18n="filter.reset">Reset Filter</span>
     </button>

@@ -68,17 +68,82 @@ penonaktifan admin aktif terakhir, begitu pula trigger DB
 Update dari 3b-1: tempel ulang index.ts + Deploy (Verify JWT tetap MATI), lalu:
 
 1. Secrets baru (Edge Functions → Secrets):
-   CRON_SECRET        = string acak panjang (huruf/angka)
+   CRON_SECRET        = string acak panjang (huruf/angka, >= 32 karakter)
    COINGECKO_API_KEY  = key demo CoinGecko BARU (key lama pernah tertulis di kode → rotate)
    (opsional) APP_TIMEZONE=Asia/Jakarta
-2. Dashboard → Database → Extensions: aktifkan pg_cron dan pg_net.
-3. Buka schedule.sql, ganti PROJECT_REF dan CRON_SECRET_ANDA, jalankan di SQL Editor.
+   Nilai CRON_SECRET yang SAMA wajib juga disimpan di Vault dengan nama
+   'cron_secret' (lihat "Rotasi CRON_SECRET" di bawah) — schedule.sql
+   membaca secret dari Vault saat job dipicu, bukan dari teks definisi job.
+2. Dashboard → Database → Extensions: aktifkan pg_cron, pg_net, dan Vault.
+3. Buka schedule.sql, ganti PROJECT_REF saja (tidak ada lagi secret di
+   file ini), jalankan di SQL Editor. File ini menghapus dulu jadwal
+   lama (mk-daily-reminder, mk-weekly-report, mk-recurring, mk-snapshot)
+   lalu membuat ulang keempatnya dengan secret dari Vault.
 4. Matikan trigger lama di Apps Script (ikon jam → Triggers → hapus SEMUA:
    dailyReminder, weeklyReport, runRecurring, savePortfolioSnapshot, dan polling bila masih ada).
    Kalau tidak, pesan akan terkirim dobel.
-5. Tes manual (SQL Editor), mis. reminder harian sekarang juga:
+5. Tes manual (SQL Editor), mis. reminder harian sekarang juga — secret
+   dibaca dari Vault, jangan pernah menempel nilai aslinya di query:
    select net.http_post(
      url := 'https://PROJECT_REF.supabase.co/functions/v1/telegram-bot',
-     headers := jsonb_build_object('Content-Type','application/json','x-cron-secret','CRON_SECRET_ANDA'),
+     headers := jsonb_build_object('Content-Type','application/json','x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
      body := jsonb_build_object('job','daily'));
 6. Website: deploy ulang frontend (push ke GitHub). Tombol refresh harga di dashboard sekarang aktif.
+
+---
+# Rotasi CRON_SECRET (Gelombang 2.3, T9)
+
+Sejak Gelombang 2.3, `CRON_SECRET` tidak lagi tertulis di definisi job
+`pg_cron` — job membaca secret dari Supabase Vault saat dipicu. Tapi
+secret lama yang pernah tertulis di `cron.job` (dan di riwayat git)
+harus dianggap sudah bocor: rotasi adalah solusinya, bukan sekadar
+menghapusnya dari file. Lakukan urutan ini setiap kali secret diduga
+bocor, dan berkala sebagai kebiasaan baik. Nilai secret yang baru
+HANYA diketik di SQL Editor / Dashboard — jangan pernah menuliskannya
+di file repo, chat, atau tiket.
+
+a) Buat secret baru (>= 32 karakter acak) di terminal lokal:
+   `openssl rand -hex 32`
+   (menghasilkan 64 karakter hex — simpan sementara di tempat aman
+   sampai langkah (b) dan (c) selesai, lalu hapus dari riwayat shell
+   bila perlu.)
+b) Simpan nilai yang SAMA di Vault (SQL Editor). Pertama kali:
+   `select vault.create_secret('<NILAI_CRON_SECRET_BARU>', 'cron_secret');`
+   Rotasi berikutnya (secret 'cron_secret' sudah ada — membuat lagi
+   dengan nama yang sama akan gagal duplikat, jadi update yang ada
+   berdasarkan id-nya):
+   `select vault.update_secret((select id from vault.secrets where name = 'cron_secret'), '<NILAI_CRON_SECRET_BARU>');`
+   Tanda `vault.update_secret(secret_id, new_secret, ...)` mengikuti
+   dokumentasi resmi Vault (supabase.com/docs/guides/database/vault).
+c) Set nilai yang SAMA sebagai secret edge function `CRON_SECRET`
+   (nilai inilah yang dibandingkan `handleJob` di
+   `supabase/functions/telegram-bot/jobs.ts`):
+   Dashboard → Edge Functions → telegram-bot → Secrets, atau lewat CLI:
+   `supabase secrets set CRON_SECRET=<NILAI_CRON_SECRET_BARU>`
+   lalu deploy ulang fungsinya supaya secret baru dipakai:
+   `supabase functions deploy telegram-bot --no-verify-jwt`
+   (Verify JWT tetap MATI untuk fungsi ini — autentikasi cron memakai
+   header `x-cron-secret`, bukan JWT.)
+d) Jadwalkan ulang keempat job dari schedule.sql yang sudah diperbarui
+   (file ini menghapus jadwal lama dulu, jadi cukup jalankan ulang
+   seluruh file di SQL Editor). Bila ingin menghapus manual:
+   `select cron.unschedule('mk-daily-reminder');`
+   `select cron.unschedule('mk-weekly-report');`
+   `select cron.unschedule('mk-recurring');`
+   `select cron.unschedule('mk-snapshot');`
+e) Verifikasi setelah run berikutnya (setiap pemanggilan job yang lolos
+   autentikasi tercatat di `cron_job_runs` — lihat migrasi
+   `20261128010000_wave2_cron_job_runs.sql`):
+   `select * from cron_job_runs order by started_at desc limit 5;`
+   Harus muncul baris baru dengan status 'ok' dan invoked_by 'cron'.
+   Bila status 'error' atau tidak ada baris baru, cek
+   `cron.job_run_details` dan log Edge Functions — kemungkinan Vault
+   dan secret edge function berisi nilai yang berbeda (langkah (b)
+   dan (c) harus sama persis).
+
+Catatan: Vault menutup kebocoran lewat definisi `cron.job`, tetapi
+selama request menunggu di antrean `net.http_request_queue`, header
+yang sudah didekripsi masih bisa dibaca role database yang punya
+akses ke antrean itu (lihat catatan di schedule.sql). Jadi batasi
+akses SQL langsung hanya untuk operator tepercaya, dan rotasi lagi
+bila akses itu pernah jatuh ke tangan yang salah.

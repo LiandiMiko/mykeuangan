@@ -1,7 +1,7 @@
 <!-- ================= UTANG / PIUTANG ================= -->
 <section id="view-utang" class="view-section hide fade-in">
   <div class="mb-4 sm:mb-6 flex items-center sm:items-start gap-2.5 sm:gap-3">
-    <button type="button" onclick="switchView('dashboard')" aria-label="Kembali ke Dashboard" class="w-11 h-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0 mk-card-surface">
+    <button type="button" data-action="switchView" data-args='["dashboard"]' aria-label="Kembali ke Dashboard" class="w-11 h-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0 mk-card-surface">
       <i class="ph ph-arrow-left text-xl" aria-hidden="true"></i>
     </button>
     <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0">
@@ -19,7 +19,7 @@
         <h3 class="font-bold text-sm sm:text-base text-rose-600 dark:text-rose-400 flex items-center gap-2">
           <i class="ph ph-device-mobile text-xl" aria-hidden="true"></i> <span data-i18n="utang.pinjol">Utang Pinjol / App</span>
         </h3>
-        <button type="button" onclick="manageDebtEntity('add', 'UtangApp')" aria-label="Tambah entitas utang pinjol atau aplikasi" title="Tambah Entitas Pinjol" class="min-h-11 min-w-11 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center hover:bg-rose-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
+        <button type="button" data-action="manageDebtEntity" data-args='["add", "UtangApp"]' aria-label="Tambah entitas utang pinjol atau aplikasi" title="Tambah Entitas Pinjol" class="min-h-11 min-w-11 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center hover:bg-rose-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
       </div>
       <div id="list-utang-app" class="space-y-3 sm:space-y-4 flex-1 overflow-y-auto"></div>
     </div>
@@ -28,7 +28,7 @@
         <h3 class="font-bold text-sm sm:text-base text-amber-700 dark:text-amber-400 flex items-center gap-2">
           <i class="ph ph-users text-xl" aria-hidden="true"></i> <span data-i18n="utang.personal">Utang Personal</span>
         </h3>
-        <button type="button" onclick="manageDebtEntity('add', 'UtangPerson')" aria-label="Tambah entitas utang personal" title="Tambah Teman/Keluarga" class="min-h-11 min-w-11 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-2xl flex items-center justify-center hover:bg-amber-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
+        <button type="button" data-action="manageDebtEntity" data-args='["add", "UtangPerson"]' aria-label="Tambah entitas utang personal" title="Tambah Teman/Keluarga" class="min-h-11 min-w-11 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-2xl flex items-center justify-center hover:bg-amber-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
       </div>
       <div id="list-utang-person" class="space-y-3 sm:space-y-4 flex-1 overflow-y-auto"></div>
     </div>
@@ -37,7 +37,7 @@
         <h3 class="font-bold text-sm sm:text-base text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
           <i class="ph ph-hand-coins text-xl" aria-hidden="true"></i> <span data-i18n="utang.piutang">Piutang (Mengutangi)</span>
         </h3>
-        <button type="button" onclick="manageDebtEntity('add', 'Piutang')" aria-label="Tambah entitas piutang" title="Tambah Peminjam" class="min-h-11 min-w-11 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-2xl flex items-center justify-center hover:bg-emerald-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
+        <button type="button" data-action="manageDebtEntity" data-args='["add", "Piutang"]' aria-label="Tambah entitas piutang" title="Tambah Peminjam" class="min-h-11 min-w-11 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-2xl flex items-center justify-center hover:bg-emerald-100 transition-colors"><i class="ph-bold ph-plus" aria-hidden="true"></i></button>
       </div>
       <div id="list-piutang" class="space-y-3 sm:space-y-4 flex-1 overflow-y-auto"></div>
     </div>
