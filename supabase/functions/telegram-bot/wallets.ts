@@ -1,5 +1,5 @@
 import {
-  Any, Ctx, Tx, Wallet, sb, esc, rp, today, parseNominal, fetchAll, getSettings,
+  Any, Ctx, Tx, Wallet, sb, esc, rp, today, parseNominal, validateNominal, fetchAll, getSettings,
   isPiutang, isUtang, balances, saveTx, send, mainKb,
 } from './core.ts';
 
@@ -101,7 +101,9 @@ export async function handleTransfer(c: Ctx, arg: string) {
       'Contoh:\n<code>/transfer bca cash 200rb</code>\n<code>/transfer gopay bca 50rb transfer balik</code>', mainKb());
   }
   const nominal = parseNominal(parts[2]);
-  if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid. Contoh: <code>/transfer bca cash 150rb</code>', mainKb());
+  // S14 (Gelombang 3.3): transfer tunduk pada batas nominal yang sama.
+  const nominalCheck = validateNominal(nominal);
+  if (!nominalCheck.ok) return send(c.chat, `❌ ${nominalCheck.error}`, mainKb());
   const notes = parts.slice(3).join(' ').trim();
   const ws = await getWallets(c.uid);
   if (ws.length < 2) return send(c.chat, '❌ Butuh minimal 2 dompet untuk transfer.', mainKb());

@@ -4,26 +4,36 @@ import {
 } from './core.ts';
 import { getWallets } from './wallets.ts';
 
+// --- CORS fail-closed (Gelombang 3.3, S14) ---------------------------------
+// ALLOWED_ORIGIN wajib diisi (daftar origin dipisah koma, tanpa trailing
+// slash). '*' di daftar DITOLAK — bukan wildcard. Origin request yang
+// tidak ada di daftar TIDAK mendapat header Access-Control-Allow-Origin
+// sama sekali (browser menolak). Request tanpa header Origin (cron /
+// server-to-server) memakai origin pertama yang dikonfigurasi, atau
+// default aman https://liandimiko.github.io bila env kosong.
+// Pengecualian eksplisit & terdokumentasi: WebView native aplikasi
+// (Capacitor) berjalan dari https://localhost / capacitor://localhost /
+// http://localhost — origin-origin ini selalu diizinkan.
+const DEFAULT_ALLOWED_ORIGIN = 'https://liandimiko.github.io';
 const NATIVE_WEBVIEW_ORIGINS = new Set(['https://localhost', 'capacitor://localhost', 'http://localhost']);
 
-function resolveAllowedOrigin(req: Request): string {
+function resolveAllowedOrigin(req: Request): string | null {
   const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
   if (reqOrigin && NATIVE_WEBVIEW_ORIGINS.has(reqOrigin)) return reqOrigin;
-  const raw = Deno.env.get('ALLOWED_ORIGIN') || '*';
-  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
-  if (!list.length || list.includes('*')) return '*';
-  if (reqOrigin && list.includes(reqOrigin)) return reqOrigin;
-  return list[0];
+  const raw = Deno.env.get('ALLOWED_ORIGIN') ?? '';
+  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter((s) => s && s !== '*');
+  if (reqOrigin) return list.includes(reqOrigin) ? reqOrigin : null;
+  return list[0] ?? DEFAULT_ALLOWED_ORIGIN;
 }
 
 export function buildCorsHeaders(req: Request): Record<string, string> {
   const origin = resolveAllowedOrigin(req);
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
   };
-  if (origin !== '*') headers['Vary'] = 'Origin';
+  if (origin) headers['Access-Control-Allow-Origin'] = origin;
   return headers;
 }
 
@@ -57,18 +67,29 @@ async function getActiveUserIds(): Promise<Set<string>> {
   return new Set((data ?? []).map((p: { id: string }) => p.id));
 }
 
-async function fetchCoinGeckoSimple(ids: string[], useKey: boolean): Promise<Record<string, { idr?: number; usd?: number }> | null> {
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd` +
-    (useKey && CG_KEY ? `&x_cg_demo_api_key=${encodeURIComponent(CG_KEY)}` : '');
-  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+// Versi currency-api yang di-pin (Gelombang 3.3, S14) — diverifikasi dari
+// registry npm pada 2026-11-28: latest stabil = 2026.11.27. JANGAN pakai
+// @latest: build/deploy di tanggal berbeda bisa menarik versi berbeda.
+// Versi ini juga ditulis ke ~/workspace/wave3-currency-api-version.txt
+// supaya web/supabase-portfolio.js memakai versi yang IDENTIK.
+export const CURRENCY_API_VERSION = '2026.11.27';
+
+export async function fetchCoinGeckoSimple(ids: string[], useKey: boolean): Promise<Record<string, { idr?: number; usd?: number }> | null> {
+  // S14: kunci CoinGecko dikirim sebagai HEADER x-cg-demo-api-key (cara
+  // auth yang didokumentasikan CoinGecko) — JANGAN PERNAH di query string,
+  // karena URL tercatat di log/proxy dan membocorkan kunci.
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=idr,usd`;
+  const headers: Record<string, string> = {};
+  if (useKey && CG_KEY) headers['x-cg-demo-api-key'] = CG_KEY;
+  const r = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
   if (useKey && CG_KEY && (r.status === 401 || r.status === 403)) return fetchCoinGeckoSimple(ids, false);
   if (!r.ok) return null;
   return await r.json();
 }
 
-async function fetchCurrencyApiIdr(): Promise<Record<string, number> | null> {
+export async function fetchCurrencyApiIdr(): Promise<Record<string, number> | null> {
   const urls = [
-    'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/idr.min.json',
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${CURRENCY_API_VERSION}/v1/currencies/idr.min.json`,
     'https://latest.currency-api.pages.dev/v1/currencies/idr.min.json',
   ];
   for (const url of urls) {
@@ -385,6 +406,21 @@ function countsFromJobResult(job: string, result: Record<string, unknown>): JobR
   return {};
 }
 
+// --- Purge pairing OTP kedaluwarsa (Gelombang 3.3) ------------------------
+// Fungsi DB purge_expired_telegram_pairings() (migrasi Gelombang 3) dihapus
+// baris telegram_pairings yang kedaluwarsa. Dipanggil sekali di awal
+// setiap pemanggilan cron — best-effort: bila fungsi belum ada di DB
+// (migrasi belum diterapkan) atau RPC gagal, error hanya masuk log dan
+// job tetap jalan. JANGAN biarkan purge merusak job.
+async function purgeExpiredPairings(): Promise<void> {
+  try {
+    const { error } = await sb.rpc('purge_expired_telegram_pairings');
+    if (error) console.error('purge_expired_telegram_pairings', error.message);
+  } catch (e) {
+    console.error('purge_expired_telegram_pairings', e);
+  }
+}
+
 export async function handleJob(req: Request, job: string): Promise<Response> {
   const cron = await safeEqual(req.headers.get('x-cron-secret') ?? '', CRON_SECRET);
   let uid: string | null = null;
@@ -396,6 +432,7 @@ export async function handleJob(req: Request, job: string): Promise<Response> {
   }
   const invokedBy = cron ? 'cron' : 'user';
   const runId = await logJobRunStart(job, invokedBy);
+  if (cron) await purgeExpiredPairings();
   try {
     let result: Record<string, unknown>;
     let counts: JobRunCounts = {};

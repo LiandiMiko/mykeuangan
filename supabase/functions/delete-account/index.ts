@@ -1,22 +1,32 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
-function resolveAllowedOrigin(req: Request): string {
-  const raw = Deno.env.get('ALLOWED_ORIGIN') || '*';
-  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
-  if (!list.length || list.includes('*')) return '*';
+// --- CORS fail-closed (Gelombang 3.3, S14 — diperbaiki koordinator saat
+// final assembly; sebelumnya fail-open seperti fungsi lain) ----------------
+// ALLOWED_ORIGIN wajib diisi (daftar origin dipisah koma, tanpa trailing
+// slash). '*' di daftar DITOLAK — bukan wildcard. Origin request yang
+// tidak ada di daftar TIDAK mendapat header Access-Control-Allow-Origin
+// sama sekali (browser menolak). Request tanpa header Origin memakai
+// origin pertama yang dikonfigurasi, atau default aman
+// https://liandimiko.github.io bila env kosong. Set secret-nya eksplisit
+// per environment saat deploy (lihat supabase/README.md).
+const DEFAULT_ALLOWED_ORIGIN = 'https://liandimiko.github.io';
+
+function resolveAllowedOrigin(req: Request): string | null {
+  const raw = Deno.env.get('ALLOWED_ORIGIN') ?? '';
+  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter((s) => s && s !== '*');
   const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
-  if (reqOrigin && list.includes(reqOrigin)) return reqOrigin;
-  return list[0];
+  if (reqOrigin) return list.includes(reqOrigin) ? reqOrigin : null;
+  return list[0] ?? DEFAULT_ALLOWED_ORIGIN;
 }
 
 function buildCorsHeaders(req: Request): Record<string, string> {
   const origin = resolveAllowedOrigin(req);
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
   };
-  if (origin !== '*') headers['Vary'] = 'Origin';
+  if (origin) headers['Access-Control-Allow-Origin'] = origin;
   return headers;
 }
 

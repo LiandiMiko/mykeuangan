@@ -1,22 +1,31 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
-function resolveAllowedOrigin(req: Request): string {
-  const raw = Deno.env.get('ALLOWED_ORIGIN') || '*';
-  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
-  if (!list.length || list.includes('*')) return '*';
+// --- CORS fail-closed (Gelombang 3.3, S14) ---------------------------------
+// ALLOWED_ORIGIN wajib diisi (daftar origin dipisah koma, tanpa trailing
+// slash). '*' di daftar DITOLAK — bukan wildcard. Origin request yang
+// tidak ada di daftar TIDAK mendapat header Access-Control-Allow-Origin
+// sama sekali (browser menolak). Request tanpa header Origin memakai
+// origin pertama yang dikonfigurasi, atau default aman
+// https://liandimiko.github.io bila env kosong. Set secret-nya eksplisit
+// per environment saat deploy (lihat supabase/README.md).
+const DEFAULT_ALLOWED_ORIGIN = 'https://liandimiko.github.io';
+
+function resolveAllowedOrigin(req: Request): string | null {
+  const raw = Deno.env.get('ALLOWED_ORIGIN') ?? '';
+  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter((s) => s && s !== '*');
   const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
-  if (reqOrigin && list.includes(reqOrigin)) return reqOrigin;
-  return list[0];
+  if (reqOrigin) return list.includes(reqOrigin) ? reqOrigin : null;
+  return list[0] ?? DEFAULT_ALLOWED_ORIGIN;
 }
 
 function buildCorsHeaders(req: Request): Record<string, string> {
   const origin = resolveAllowedOrigin(req);
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
   };
-  if (origin !== '*') headers['Vary'] = 'Origin';
+  if (origin) headers['Access-Control-Allow-Origin'] = origin;
   return headers;
 }
 
@@ -51,6 +60,75 @@ async function decryptBotToken(ivB64: string, cipherB64: string): Promise<string
     b64ToBytes(cipherB64),
   );
   return new TextDecoder().decode(plain);
+}
+
+// --- Audit lewat RPC (Gelombang 3.3, S14) -----------------------------------
+// Migrasi Gelombang 3 (20261128040000_wave3_database.sql) mencabut
+// INSERT langsung ke admin_audit_logs; semua pencatatan HARUS lewat
+// admin_log_action() dengan allowlist aksi. Bentuk panggilan edge
+// function menurut migrasi itu: adminClient (service_role) dengan actor
+// eksplisit (p_actor_user_id/p_actor_email) — JWT service_role tidak
+// membawa auth.uid(), jadi tanpa actor RPC menolak. Gagal audit di sini
+// best-effort (dicatat ke console) supaya aksi admin tidak gagal hanya
+// karena log — pengecualian: reset password di admin-password/index.ts
+// yang gagal auditnya dikembalikan 500.
+async function logAdminAction(
+  adminClient: ReturnType<typeof createClient>,
+  action: string,
+  targetUserId: string,
+  targetEmail: string,
+  details: Record<string, unknown>,
+  actorUserId: string,
+  actorEmail: string,
+): Promise<void> {
+  const { error } = await adminClient.rpc('admin_log_action', {
+    p_action: action,
+    p_target_user_id: targetUserId,
+    p_target_email: targetEmail,
+    p_details: details,
+    p_actor_user_id: actorUserId,
+    p_actor_email: actorEmail,
+  });
+  if (error) console.error('admin-user-ops: audit log gagal', action, error.message);
+}
+
+// --- Notifikasi pemilik akun via Telegram (Gelombang 3.3, S14) -------------
+// Best-effort, mekanisme sama seperti admin-password/index.ts: bot
+// personal pemilik akun dulu, fallback token env bersama. Bila tidak ada
+// chat tertaut / token, kembalikan alasan — dicatat di audit.
+async function notifyUserByTelegram(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  message: string,
+): Promise<{ notified: boolean; reason: string }> {
+  try {
+    const { data: chats } = await adminClient.from('telegram_chats').select('chat_id').eq('user_id', userId);
+    if (!chats?.length) return { notified: false, reason: 'no_linked_chat' };
+    let token = '';
+    try {
+      const { data: botRow } = await adminClient.from('telegram_bots')
+        .select('token_encrypted,token_iv').eq('user_id', userId).maybeSingle();
+      if (botRow) token = await decryptBotToken(botRow.token_iv, botRow.token_encrypted);
+    } catch { /* fallback ke token env di bawah */ }
+    if (!token) token = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
+    if (!token) return { notified: false, reason: 'no_bot_token' };
+    let ok = false;
+    for (const ch of chats as { chat_id: number }[]) {
+      try {
+        const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ chat_id: ch.chat_id, text: message, parse_mode: 'HTML' }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (r.ok) ok = true;
+      } catch { /* coba chat berikutnya */ }
+    }
+    return ok ? { notified: true, reason: 'sent' } : { notified: false, reason: 'send_failed' };
+  } catch (e) {
+    console.error('admin-user-ops: notify telegram gagal', e);
+    return { notified: false, reason: 'error' };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -134,16 +212,26 @@ Deno.serve(async (req) => {
     const { error: updateError } = await adminClient.from('profiles').update(patch).eq('id', userId);
     if (updateError) return jsonResponse(req, { error: updateError.message || 'Gagal memperbarui akun pengguna.' }, 500);
 
-    try {
-      await adminClient.from('admin_audit_logs').insert({
-        actor_user_id: authData.user.id, actor_email: requester.email || '',
-        action: isRoleChange ? `role_${newValue}` : `status_${newValue}`,
-        target_user_id: userId, target_email: target.email || '',
-        details: isRoleChange
-          ? { old_role: target.role, new_role: newValue }
-          : { old_status: target.status, new_status: newValue },
-      });
-    } catch { /* ignore if audit table not migrated yet */ }
+    // S14: beri tahu pemilik akun, lalu audit lewat RPC (bukan INSERT
+    // langsung — dicabut migrasi Gelombang 3).
+    const notify = await notifyUserByTelegram(
+      adminClient,
+      userId,
+      isRoleChange
+        ? `⚠️ <b>Role akun Anda diubah oleh admin.</b>\n\nRole baru: <b>${newValue}</b>\n\nBila ini bukan permintaan Anda, segera hubungi admin MyKeuGuech.`
+        : `⚠️ <b>Status akun Anda diubah oleh admin.</b>\n\nStatus baru: <b>${newValue}</b>\n\nBila ini bukan permintaan Anda, segera hubungi admin MyKeuGuech.`,
+    );
+    await logAdminAction(
+      adminClient,
+      isRoleChange ? `role_${newValue}` : `status_${newValue}`,
+      userId,
+      target.email || '',
+      isRoleChange
+        ? { old_role: target.role, new_role: newValue, telegram_notified: notify.notified, telegram_reason: notify.reason }
+        : { old_status: target.status, new_status: newValue, telegram_notified: notify.notified, telegram_reason: notify.reason },
+      authData.user.id,
+      requester.email || '',
+    );
     return jsonResponse(req, { success: true });
   }
 
@@ -168,13 +256,11 @@ Deno.serve(async (req) => {
         });
       } catch { /* best-effort: token bisa sudah dicabut via BotFather */ }
     }
-    try {
-      await adminClient.from('admin_audit_logs').insert({
-        actor_user_id: authData.user.id, actor_email: requester.email || '', action: 'unlink_telegram',
-        target_user_id: userId, target_email: target.email || '',
-        details: { chats_removed: (deletedChats || []).length, bots_removed: botRow ? 1 : 0 }
-      });
-    } catch { /* ignore if audit table not migrated yet */ }
+    // unlink_telegram: tidak ada notifikasi — chat target baru saja
+    // dihapus, jadi tidak ada lagi jalur Telegram ke pemilik akun.
+    await logAdminAction(adminClient, 'unlink_telegram', userId, target.email || '', {
+      chats_removed: (deletedChats || []).length, bots_removed: botRow ? 1 : 0,
+    }, authData.user.id, requester.email || '');
     return jsonResponse(req, { success: true, unlinkedCount: (deletedChats || []).length });
   }
 
@@ -191,12 +277,17 @@ Deno.serve(async (req) => {
       return jsonResponse(req, { error: 'Tidak dapat menghapus satu-satunya admin aktif.' }, 400);
     }
   }
-  try {
-    await adminClient.from('admin_audit_logs').insert({
-      actor_user_id: authData.user.id, actor_email: requester.email || '', action: 'delete_user',
-      target_user_id: userId, target_email: target.email || '', details: { target_role: target.role }
-    });
-  } catch { /* ignore if audit table not migrated yet */ }
+  // S14: beri tahu pemilik akun DAHULU — telegram_chats ikut terhapus
+  // (ON DELETE CASCADE) begitu auth user dihapus, jadi setelah delete
+  // tidak ada lagi jalur notifikasi. Lalu audit lewat RPC, baru hapus.
+  const notify = await notifyUserByTelegram(
+    adminClient,
+    userId,
+    '🗑️ <b>Akun Anda telah dihapus oleh admin.</b>\n\nBila ini bukan permintaan Anda, segera hubungi admin MyKeuGuech.',
+  );
+  await logAdminAction(adminClient, 'delete_user', userId, target.email || '', {
+    target_role: target.role, telegram_notified: notify.notified, telegram_reason: notify.reason,
+  }, authData.user.id, requester.email || '');
 
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
   if (deleteError) return jsonResponse(req, { error: deleteError.message || 'Gagal menghapus pengguna.' }, 500);

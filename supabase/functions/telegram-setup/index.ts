@@ -22,17 +22,30 @@ const sbUrl = Deno.env.get('SUPABASE_URL')!;
 const anonClient = createClient(sbUrl, Deno.env.get('SUPABASE_ANON_KEY')!, { auth: { persistSession: false } });
 const adminClient = createClient(sbUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 
-const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-function resolveAllowedOrigin(req: Request) {
-  const o = req.headers.get('origin') ?? '';
-  return ALLOWED_ORIGINS.includes(o) ? o : (ALLOWED_ORIGINS[0] ?? '*');
+// --- CORS fail-closed (Gelombang 3.3, S14) ---------------------------------
+// Diseragamkan ke ALLOWED_ORIGIN (tunggal) seperti fungsi lain — sebelumnya
+// file ini membaca ALLOWED_ORIGINS (jamak). '*' di daftar DITOLAK.
+// Origin request yang tidak ada di daftar TIDAK mendapat header
+// Access-Control-Allow-Origin sama sekali. Request tanpa header Origin
+// memakai origin pertama yang dikonfigurasi, atau default aman
+// https://liandimiko.github.io bila env kosong.
+const DEFAULT_ALLOWED_ORIGIN = 'https://liandimiko.github.io';
+function resolveAllowedOrigin(req: Request): string | null {
+  const raw = Deno.env.get('ALLOWED_ORIGIN') ?? '';
+  const list = raw.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter((s) => s && s !== '*');
+  const reqOrigin = (req.headers.get('origin') || '').trim().replace(/\/+$/, '');
+  if (reqOrigin) return list.includes(reqOrigin) ? reqOrigin : null;
+  return list[0] ?? DEFAULT_ALLOWED_ORIGIN;
 }
 function buildCorsHeaders(req: Request) {
-  return {
-    'access-control-allow-origin': resolveAllowedOrigin(req),
+  const origin = resolveAllowedOrigin(req);
+  const headers: Record<string, string> = {
     'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
     'access-control-allow-methods': 'POST, OPTIONS',
+    'vary': 'Origin',
   };
+  if (origin) headers['access-control-allow-origin'] = origin;
+  return headers;
 }
 function jsonResponse(req: Request, status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: { ...buildCorsHeaders(req), 'content-type': 'application/json' } });

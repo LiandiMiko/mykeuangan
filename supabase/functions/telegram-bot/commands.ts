@@ -1,5 +1,5 @@
 import {
-  Ctx, Tx, TZ, sb, esc, rp, today, parseNominal, fetchAll,
+  Ctx, Tx, TZ, sb, esc, rp, today, parseNominal, validateNominal, isValidCalendarDate, fetchAll,
   getSettings, getCategories, normalizeCatKey, resolveUserCategory, cycleFor, inPeriod, periodLabel, syncPeriod,
   isFlow, streak, streakEmoji, setTemp, getTemp, delTemp, saveTx, savedMsg,
   send, mainKb, kategoriKb, statusKb,
@@ -73,7 +73,8 @@ export async function handleTambah(c: Ctx, arg: string) {
   const lastTok = parts[parts.length - 1];
   const trailingHint = parseNominal(lastTok) <= 0 ? parts.pop()! : '';
   const nominal = parts.length >= 3 ? parseNominal(parts[parts.length - 1]) : 0;
-  if (nominal <= 0) return send(c.chat, '❌ Nominal tidak valid.');
+  const nominalCheck = validateNominal(nominal);
+  if (!nominalCheck.ok) return send(c.chat, `❌ ${nominalCheck.error}`, mainKb());
   const w = trailingHint ? matchWalletFromText(ws, trailingHint) : ws[0];
   const kategori = await resolveUserCategory(c.uid, tipe, parts.slice(1, -1).join(' '));
   const p: Tx = { tanggal: today(), tipe, kategori, nominal, keterangan: 'Via Telegram', wallet_id: w?.id ?? null, walletName: w?.name };
@@ -142,10 +143,21 @@ export async function handleUndo(c: Ctx) {
   await send(c.chat, savedMsg('↩️ <b>Berhasil di-undo!</b>', p), mainKb());
 }
 
-function parseBatchLine(line: string, defaultDate: string): { ok: true; data: Tx } | { ok: false; error: string } {
+// Batas /batch (Gelombang 3.3, S14+S15): maks 50 baris per perintah dan
+// maks 1 batch per menit per chat — tanpa batas, satu pesan bisa
+// membanjiri DB dan kuota, dan /batch berulang jadi jalur spam.
+export const MAX_BATCH_LINES = 50;
+export const BATCH_MIN_INTERVAL_SECONDS = 60;
+
+export function parseBatchLine(line: string, defaultDate: string): { ok: true; data: Tx } | { ok: false; error: string } {
   let tanggal = defaultDate, s = line;
   const dm = s.match(/^\[(\d{4}-\d{2}-\d{2})\]\s*/);
-  if (dm) { tanggal = dm[1]; s = s.slice(dm[0].length); }
+  if (dm) {
+    // Regex saja tidak cukup: 2026-02-30 / 2026-13-01 lolos pola tapi
+    // bukan tanggal kalender. Tolak sebelum disimpan.
+    if (!isValidCalendarDate(dm[1])) return { ok: false, error: `Tanggal tidak valid: ${dm[1]}` };
+    tanggal = dm[1]; s = s.slice(dm[0].length);
+  }
   const sep = ['|', ';', '\t', ','].sort((a, b) => s.split(b).length - s.split(a).length)[0];
   if (!s.includes(sep)) return { ok: false, error: 'Tidak ada separator' };
   const parts = s.split(sep).map((p) => p.trim()).filter(Boolean);
@@ -155,14 +167,25 @@ function parseBatchLine(line: string, defaultDate: string): { ok: true; data: Tx
     : raw.includes('peng') || raw === 'out' || raw === '-' ? 'Pengeluaran' : null;
   const nominal = parseNominal(parts[2]);
   if (!tipe || nominal <= 0) return { ok: false, error: 'Tipe/nominal tidak valid' };
+  const check = validateNominal(nominal);
+  if (!check.ok) return { ok: false, error: check.error };
   return { ok: true, data: { tanggal, tipe, kategori: parts[1], nominal, keterangan: parts.slice(3).join(' ').trim() } };
 }
 
 export async function handleBatch(c: Ctx, fullText: string) {
   const lines = fullText.split('\n').map((l) => l.trim()).filter((l) => l && !l.toLowerCase().startsWith('/batch') && l.toLowerCase() !== 'batch');
   if (lines.length === 0) return send(c.chat, '📦 <b>Format /batch</b>\n\n<code>/batch\nPemasukan | Gaji | 8000000\nPengeluaran | Makanan | 50000</code>', mainKb());
+  // Frekuensi: 1 batch/menit per chat.
+  if (await getTemp(c.chat, 'batch')) {
+    return send(c.chat, '⏳ Tunggu sebentar — /batch hanya bisa dipakai 1 kali per menit. Coba lagi nanti.', mainKb());
+  }
+  await setTemp(c.chat, 'batch', { at: Date.now() }, BATCH_MIN_INTERVAL_SECONDS);
   const rows: Tx[] = [], errors: string[] = [];
-  lines.forEach((line, i) => { const r = parseBatchLine(line, today()); if (r.ok) rows.push(r.data); else errors.push(`Baris ${i + 1}: ${r.error}`); });
+  // Baris di luar batas ditolak — masing-masing dengan error per baris.
+  for (let i = MAX_BATCH_LINES; i < lines.length; i++) {
+    errors.push(`Baris ${i + 1}: melebihi batas ${MAX_BATCH_LINES} baris per /batch`);
+  }
+  lines.slice(0, MAX_BATCH_LINES).forEach((line, i) => { const r = parseBatchLine(line, today()); if (r.ok) rows.push(r.data); else errors.push(`Baris ${i + 1}: ${r.error}`); });
   if (rows.length === 0) return send(c.chat, '❌ Tidak ada baris valid.\n' + errors.join('\n'));
 
   const [inc, exp, ws] = await Promise.all([

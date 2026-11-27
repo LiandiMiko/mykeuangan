@@ -12,6 +12,50 @@
   const GEMINI_FALLBACK_MODELS = ['gemini-4-hydrogen', 'gemini-3.5-flash-lite', 'gemini-4-argon'];
   const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1/interactions';
 
+  // S15 (Gelombang 3.3): jeda + kuota harian di sisi klien — pelengkap
+  // pembatas server. Jeda minimal 10 detik antar panggilan AI dan maks
+  // 50 panggilan per hari (perangkat ini), dicatat di localStorage
+  // (kunci mk_gemini_ai_usage: { date: 'YYYY-MM-DD', count, lastAt }).
+  // Bila terblokir, pengguna melihat pesan "coba lagi" beserta sisa
+  // waktu/kuota — fetch ke Gemini TIDAK dilakukan.
+  const AI_COOLDOWN_MS = 10000;
+  const AI_DAILY_LIMIT = 50;
+  const AI_USAGE_STORAGE = 'mk_gemini_ai_usage';
+
+  function aiTodayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function getAiDailyUsage() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(AI_USAGE_STORAGE) || 'null');
+      if (raw && raw.date === aiTodayKey()) return { count: Number(raw.count) || 0, lastAt: Number(raw.lastAt) || 0 };
+    } catch (_) { /* abaikan: anggap kosong */ }
+    return { count: 0, lastAt: 0 };
+  }
+
+  function checkAiCooldown() {
+    const usage = getAiDailyUsage();
+    const remaining = Math.max(0, AI_DAILY_LIMIT - usage.count);
+    if (usage.count >= AI_DAILY_LIMIT) {
+      return { allowed: false, reason: 'daily', waitSeconds: 0, remaining, message: 'Kuota analisis AI hari ini sudah habis (' + AI_DAILY_LIMIT + '/hari). Coba lagi besok.' };
+    }
+    const waitMs = usage.lastAt ? (AI_COOLDOWN_MS - (Date.now() - usage.lastAt)) : 0;
+    if (waitMs > 0) {
+      const waitSeconds = Math.ceil(waitMs / 1000);
+      return { allowed: false, reason: 'cooldown', waitSeconds, remaining, message: 'Tunggu ' + waitSeconds + ' detik sebelum analisis AI berikutnya (jeda minimal 10 detik).' };
+    }
+    return { allowed: true, reason: '', waitSeconds: 0, remaining, message: '' };
+  }
+
+  function recordAiCall() {
+    const usage = getAiDailyUsage();
+    try {
+      localStorage.setItem(AI_USAGE_STORAGE, JSON.stringify({ date: aiTodayKey(), count: usage.count + 1, lastAt: Date.now() }));
+    } catch (_) { /* abaikan: penyimpanan diblokir */ }
+  }
+
   const GEMINI_MODEL_PRESETS = [
     { id: 'gemini-4-hydrogen', label: 'Gemini 4 Hydrogen (Rekomendasi · Seimbang & 1M Konteks)', note: 'Model harian terbaru: cepat, akurat untuk analisis arus kas, chat, dan OCR struk (Free & Paid tier).' },
     { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (Cepat & Hemat Kuota)', note: 'Respons ultra-cepat dan hemat kuota untuk OCR struk maupun tanya jawab harian.' },
@@ -437,6 +481,8 @@
         items.map((item) => `<li>${formatInlineMarkdownSafe(escapeSafe(item))}</li>`).join('') + '</ul>';
     };
 
+    const aiUsage = getAiDailyUsage();
+
     renderHtml(box, `
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
@@ -470,6 +516,7 @@
             ${renderBullets(parsed.rekomendasi, '-')}
           </div>
         </div>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
       </div>`);
   }
 
@@ -483,6 +530,19 @@
     const btn = document.getElementById('btnRunAiAnalysis');
     const box = document.getElementById('aiAnalysisResult');
     if (!box) return;
+
+    // S15: jeda + kuota harian — blokir SEBELUM fetch ke Gemini.
+    const cooldown = checkAiCooldown();
+    if (!cooldown.allowed) {
+      box.classList.remove('hide');
+      renderHtml(box, `
+        <div class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-700 dark:text-amber-300 flex items-center justify-between gap-3">
+          <span>⏳ ${escapeSafe(cooldown.message)} Sisa kuota hari ini: ${cooldown.remaining}/${AI_DAILY_LIMIT}.</span>
+          <button type="button" data-action="hideAiAnalysisResult" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
+        </div>`);
+      return;
+    }
+
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
     box.classList.remove('hide');
     renderHtml(box, `
@@ -499,6 +559,7 @@
       const prompt = FinanceAnalysis.buildGeminiCashflowPrompt(payload, currentLang);
       const systemInstruction = typeof FinanceAnalysis.buildGeminiSystemInstruction === 'function'
         ? FinanceAnalysis.buildGeminiSystemInstruction('cashflow', currentLang) : '';
+      recordAiCall();
       const { text, model } = await callGeminiApi(apiKey, {
         input: prompt,
         systemInstruction,
@@ -526,6 +587,7 @@
     GEMINI_MODEL_PRESETS, normalizeGeminiModel, getGeminiApiKey, getGeminiApiKeyAsync,
     saveGeminiApiKey, encryptGeminiApiKey, decryptGeminiApiKey, hasStoredGeminiApiKey, getGeminiModel,
     getGeminiThinkingLevel, extractGeminiText, formatAiMarkdownSafe, copyAiCashflowSummary,
-    callGeminiApi, updateAiKeyStatusUI, configureGeminiApiKey, runAiCashflowAnalysis, renderAiCashflowResult
+    callGeminiApi, updateAiKeyStatusUI, configureGeminiApiKey, runAiCashflowAnalysis, renderAiCashflowResult,
+    AI_COOLDOWN_MS, AI_DAILY_LIMIT, AI_USAGE_STORAGE, getAiDailyUsage, checkAiCooldown, recordAiCall
   });
 })(typeof window !== 'undefined' ? window : globalThis);

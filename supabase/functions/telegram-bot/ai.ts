@@ -1,9 +1,49 @@
 import {
-  Any, Ctx, Tx, TOKEN, GEMINI_KEY, GEMINI_MODEL, GEMINI_INSIGHT_MODEL,
+  Any, Ctx, Tx, TOKEN, GEMINI_KEY, GEMINI_MODEL, GEMINI_INSIGHT_MODEL, MAX_NOMINAL,
   esc, rp, today, sleep, safeHtml, getCategories, normalizeCatKey, isFlow, loadCore,
   inPeriod, getTemp, setTemp, send, mainKb,
 } from './core.ts';
 import { getWallets, matchWalletFromText } from './wallets.ts';
+
+// --- Pembatas panggilan Gemini per pengguna (Gelombang 3.3, S15) ------------
+// Sebelumnya satu-satunya kontrol preventif adalah lock insight 30 detik
+// per chat; OCR/voice note tanpa batas — tiap foto/voice note memicu
+// panggilan Gemini, dan satu request bisa kipas ke banyak model × 3
+// percobaan. Guard ini (counter in-memory per user_id, jendela geser
+// 1 jam) dipakai handleInsight DAN handleMediaMessage. Bila kuota habis,
+// pengguna mendapat pesan ramah "coba lagi nanti" — Gemini TIDAK
+// dipanggil sama sekali. Catatan: counter hidup di memori satu instance
+// Edge Function; ini pembatas biaya/kuota, bukan penegakan keras
+// lintas-instance (kuota keras tetap di sisi Google AI).
+export const GEMINI_OCR_LIMIT_PER_HOUR = 10;
+export const GEMINI_INSIGHT_LIMIT_PER_HOUR = 3;
+export const GEMINI_QUOTA_WINDOW_MS = 60 * 60 * 1000;
+// Maksimal model yang dicoba per satu request (primer + fallback).
+// Sebelumnya daftar kandidat bisa tumbuh tanpa batas dari nama model
+// yang disebut di pesan error Gemini.
+export const GEMINI_MAX_MODEL_CANDIDATES = 4;
+export const GEMINI_QUOTA_MESSAGE = '⏳ Kuota AI sudah habis untuk sementara. Coba lagi nanti, ya.';
+const geminiQuota = new Map<string, { count: number; windowStart: number }>();
+
+/** Konsumsi 1 kuota untuk uid+kind. true = masih boleh (kuota terpakai),
+ *  false = kuota habis — jangan panggil Gemini. */
+export function consumeGeminiQuota(uid: string, kind: 'ocr' | 'insight'): boolean {
+  const limit = kind === 'ocr' ? GEMINI_OCR_LIMIT_PER_HOUR : GEMINI_INSIGHT_LIMIT_PER_HOUR;
+  const now = Date.now();
+  const key = `${uid}:${kind}`;
+  const rec = geminiQuota.get(key);
+  if (!rec || now - rec.windowStart >= GEMINI_QUOTA_WINDOW_MS) {
+    geminiQuota.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  if (rec.count >= limit) return false;
+  rec.count++;
+  return true;
+}
+
+export function resetGeminiQuota(): void {
+  geminiQuota.clear();
+}
 
 const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1/interactions';
 const TX_AI_SCHEMA = {
@@ -77,6 +117,8 @@ export async function callGeminiJson(parts: Any[], responseSchema: Any, systemIn
 function buildParsedTx(parsed: Any, inc: string[], exp: string[], fallbackNote: string, invalidAmtMsg: string): Tx & { keterangan: string } {
   const nominal = Math.round(Number(parsed?.nominal));
   if (!nominal || nominal <= 0) throw new Error(invalidAmtMsg);
+  // S14: hasil parse AI juga tunduk pada batas nominal yang sama.
+  if (nominal > MAX_NOMINAL) throw new Error(`Nominal melebihi batas maksimum ${rp(MAX_NOMINAL)}.`);
   const tipe: 'Pemasukan' | 'Pengeluaran' = parsed?.tipe === 'Pemasukan' ? 'Pemasukan' : 'Pengeluaran';
   const cats = tipe === 'Pemasukan' ? inc : exp;
   const rawCat = String(parsed?.kategori || '').trim();
@@ -152,6 +194,12 @@ export async function handleMediaMessage(c: Ctx, msg: Any) {
   const fileId = photo?.file_id ?? voice?.file_id;
   if (!fileId) return;
 
+  // S15: kuota OCR dicek SEBELUM getFile/unduh/panggil Gemini — bila
+  // habis, kirim pesan ramah dan berhenti (tidak ada fetch Gemini).
+  if (!consumeGeminiQuota(c.uid, 'ocr')) {
+    return send(c.chat, `${GEMINI_QUOTA_MESSAGE}\n\nBatas: ${GEMINI_OCR_LIMIT_PER_HOUR} foto/voice note per jam.`, mainKb());
+  }
+
   // File media milik bot yang menerima pesan: getFile + unduhan HARUS
   // memakai token bot pemilik request (c.token), bukan token bersama —
   // file_id hanya berlaku di bot yang menerimanya (Gelombang 2.2).
@@ -198,7 +246,7 @@ async function callInteractions(
   const candidates: string[] = [];
   const addCandidate = (modelName: string) => {
     const clean = normalizeBotGeminiModel(modelName);
-    if (clean && !candidates.includes(clean)) candidates.push(clean);
+    if (clean && !candidates.includes(clean) && candidates.length < GEMINI_MAX_MODEL_CANDIDATES) candidates.push(clean);
   };
   [primaryModel, ...candidatesFallback].forEach(addCandidate);
 
@@ -247,11 +295,18 @@ async function callInteractions(
 export async function handleInsight(c: Ctx) {
   if (await getTemp(c.chat, 'lock')) return send(c.chat, '⏳ Sabar ya, insight sebelumnya masih diproses.\nTunggu ~30 detik lagi.', mainKb());
   await setTemp(c.chat, 'lock', { at: Date.now() }, 30);
-  await send(c.chat, '🤖 <b>Menganalisis data keuangan...</b>\n\nMohon tunggu ~5 detik ⏳');
 
   const { trx, pd, period } = await loadCore(c.uid);
   const monthTx = trx.filter((t) => inPeriod(String(t.tanggal), period, pd));
   if (monthTx.length === 0) return send(c.chat, '📭 Belum ada transaksi bulan ini untuk dianalisis.', mainKb());
+
+  // S15: kuota insight dicek SETELAH terbukti ada data untuk dianalisis
+  // (supaya insight kosong tidak membakar kuota) dan SEBELUM Gemini
+  // dipanggil. Lock 30 detik di atas tetap dipertahankan.
+  if (!consumeGeminiQuota(c.uid, 'insight')) {
+    return send(c.chat, `${GEMINI_QUOTA_MESSAGE}\n\nBatas: ${GEMINI_INSIGHT_LIMIT_PER_HOUR} insight per jam.`, mainKb());
+  }
+  await send(c.chat, '🤖 <b>Menganalisis data keuangan...</b>\n\nMohon tunggu ~5 detik ⏳');
 
   let totalIn = 0, totalOut = 0;
   const byCat = new Map<string, { label: string; total: number }>();

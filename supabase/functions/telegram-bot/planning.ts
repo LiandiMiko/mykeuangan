@@ -1,7 +1,10 @@
 import {
-  Ctx, Tx, sb, esc, rp, pad, parseNominal, fetchAll, getCategories, normalizeCatKey, resolveUserCategory,
-  periodLabel, isFlow, inPeriod, loadCore, actualFor, getBudgets, send, mainKb,
+  Ctx, Tx, sb, esc, rp, pad, parseNominal, validateNominal, fetchAll, getCategories, normalizeCatKey, resolveUserCategory,
+  periodLabel, isFlow, inPeriod, loadCore, actualFor, getBudgets, setTemp, getTemp, delTemp, send, mainKb,
 } from './core.ts';
+
+// UUID lengkap — pola yang sama dipakai admin-password/index.ts.
+const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function budgetBar(pct: number): string {
   const filled = Math.max(0, Math.min(10, Math.round(pct / 10)));
@@ -150,7 +153,7 @@ async function showRecurring(c: Ctx) {
   for (const r of list) {
     s += `${r.active ? '🟢' : '⚫'} <b>${esc(r.kategori)}</b> · ${rp(Number(r.nominal))} · tgl <b>${r.day_of_month}</b> · <code>${r.id.slice(0, 8)}</code>\n`;
   }
-  await send(c.chat, s + '\n• <code>/recurring toggle [id]</code>\n• <code>/recurring hapus [id]</code>', mainKb());
+  await send(c.chat, s + '\n• <code>/recurring toggle [id]</code>\n• <code>/recurring hapus [id]</code>\n💡 Pakai ID lengkap (UUID), bukan 8 karakter pertama. Lihat ID lengkap: <code>/recurring id [awalan]</code>', mainKb());
 }
 
 export async function handleRecurring(c: Ctx, arg: string) {
@@ -162,19 +165,59 @@ export async function handleRecurring(c: Ctx, arg: string) {
     const tipe = (parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase()) as Tx['tipe'];
     const day = parseInt(parts[parts.length - 1], 10);
     const nominal = parseNominal(parts[parts.length - 2]);
-    if ((tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !day || day < 1 || day > 31 || nominal <= 0) {
-      return send(c.chat, '❌ Tipe, tanggal (1-31), atau nominal tidak valid.', mainKb());
+    if ((tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !day || day < 1 || day > 31) {
+      return send(c.chat, '❌ Tipe atau tanggal (1-31) tidak valid.', mainKb());
     }
+    const nominalCheck = validateNominal(nominal);
+    if (!nominalCheck.ok) return send(c.chat, `❌ ${nominalCheck.error}`, mainKb());
     const kategori = await resolveUserCategory(c.uid, tipe, parts.slice(2, -2).join(' '));
     const { error } = await sb.from('recurring').insert({ user_id: c.uid, tipe, kategori, nominal, keterangan: 'Auto via Telegram', day_of_month: day, active: true });
     if (error) throw error;
     return send(c.chat, `✅ <b>Recurring ditambahkan!</b> ${esc(kategori)} (${rp(nominal)}) tgl ${day}`, mainKb());
   }
+  // Lihat ID lengkap (UUID) dari awalan — daftar ini hanya menampilkan,
+  // tidak pernah bertindak. Hapus/toggle tetap butuh UUID lengkap.
+  if ((action === 'id' || action === 'detail') && parts.length >= 2) {
+    const rows = await fetchAll('recurring', 'id,kategori,nominal,active', c.uid, ['id']);
+    const matches = rows.filter((r) => String(r.id).toLowerCase().startsWith(parts[1].toLowerCase()));
+    if (matches.length === 0) return send(c.chat, '❌ Recurring tidak ditemukan untuk awalan itu.', mainKb());
+    const lines = matches.map((r) => `• <b>${esc(r.kategori)}</b> · ${rp(Number(r.nominal))}${r.active ? '' : ' (nonaktif)'}\n  <code>${r.id}</code>`);
+    return send(c.chat, `🔑 <b>ID lengkap (${matches.length})</b>\n\n${lines.join('\n')}\n\nSalin UUID di atas untuk <code>/recurring hapus</code> / <code>/recurring toggle</code>.`, mainKb());
+  }
   if (['hapus', 'delete', 'toggle', 'aktif'].includes(action) && parts.length >= 2) {
-    const rows = await fetchAll('recurring', 'id,kategori,active', c.uid, ['id']);
-    const found = rows.find((r) => r.id.startsWith(parts[1].toLowerCase()));
+    const input = parts[1];
+    const rows = await fetchAll('recurring', 'id,kategori,nominal,active', c.uid, ['id']);
+    // S14 (Gelombang 3.3): JANGAN PERNAH cocokkan by-prefix lalu bertindak
+    // pada hasil pertama — dua recurring bisa berbagi 8 karakter pertama
+    // dan hapus bisa mengenai tagihan yang salah. Prefix hanya boleh
+    // DITOLAK (dengan petunjuk) atau DIDAFTAR; aksi butuh UUID lengkap.
+    if (!UUID_RE.test(input)) {
+      const matches = rows.filter((r) => String(r.id).toLowerCase().startsWith(input.toLowerCase()));
+      if (matches.length === 0) {
+        return send(c.chat, '❌ Recurring tidak ditemukan. Masukkan ID lengkap (UUID) — lihat lewat <code>/recurring id [awalan]</code>.', mainKb());
+      }
+      if (matches.length === 1) {
+        return send(c.chat, `⚠️ ID tidak lengkap. Recurring yang cocok:\n• <b>${esc(matches[0].kategori)}</b>\n  <code>${matches[0].id}</code>\n\nSalin UUID lengkap di atas untuk melanjutkan.`, mainKb());
+      }
+      const lines = matches.map((r) => `• <b>${esc(r.kategori)}</b> · <code>${r.id}</code>`).join('\n');
+      return send(c.chat, `⚠️ Awalan "<code>${esc(input)}</code>" cocok dengan ${matches.length} recurring — tidak ada yang diubah:\n\n${lines}\n\nSalin UUID lengkap salah satunya untuk melanjutkan.`, mainKb());
+    }
+    const found = rows.find((r) => String(r.id).toLowerCase() === input.toLowerCase());
     if (!found) return send(c.chat, '❌ Recurring tidak ditemukan', mainKb());
     const isDel = action === 'hapus' || action === 'delete';
+    if (isDel) {
+      // Konfirmasi dua langkah untuk hapus (destruktif): panggilan pertama
+      // hanya menyimpan niat (kind 'confirm', 5 menit); penghapusan
+      // terjadi hanya bila pengguna mengulang dengan kata 'ya'.
+      const pending = await getTemp(c.chat, 'confirm');
+      const confirmed = parts[2]?.toLowerCase() === 'ya' &&
+        pending?.action === 'recurring_delete' && String(pending?.id).toLowerCase() === String(found.id).toLowerCase();
+      if (!confirmed) {
+        await setTemp(c.chat, 'confirm', { action: 'recurring_delete', id: found.id, kategori: found.kategori }, 300);
+        return send(c.chat, `⚠️ Hapus recurring <b>${esc(found.kategori)}</b> (${rp(Number(found.nominal))})?\n\nKirim <code>/recurring hapus ${found.id} ya</code> untuk mengonfirmasi.`, mainKb());
+      }
+      await delTemp(c.chat, 'confirm');
+    }
     const { error } = isDel
       ? await sb.from('recurring').delete().eq('id', found.id).eq('user_id', c.uid)
       : await sb.from('recurring').update({ active: !found.active }).eq('id', found.id).eq('user_id', c.uid);

@@ -147,3 +147,54 @@ yang sudah didekripsi masih bisa dibaca role database yang punya
 akses ke antrean itu (lihat catatan di schedule.sql). Jadi batasi
 akses SQL langsung hanya untuk operator tepercaya, dan rotasi lagi
 bila akses itu pernah jatuh ke tangan yang salah.
+
+---
+# Gelombang 3.3 — Edge Functions (S14–S19)
+
+## ALLOWED_ORIGIN fail-closed (semua fungsi)
+Sejak Gelombang 3.3, CORS **tidak lagi fail-open**: nilai default `*`
+dihapus dari `admin-password`, `admin-user-ops`, `telegram-setup`, dan
+`telegram-bot` (jobs.ts). Atur secret ini eksplisit per environment:
+
+`supabase secrets set ALLOWED_ORIGIN=https://<username>.github.io,http://localhost:4173`
+
+- Daftar origin dipisah koma, tanpa trailing slash. `*` di dalam daftar
+  **ditolak** (bukan wildcard).
+- Origin request yang tidak ada di daftar TIDAK mendapat header
+  `Access-Control-Allow-Origin` sama sekali — browser menolak respons.
+- Bila secret belum diisi: request tanpa header `Origin` memakai default
+  aman `https://liandimiko.github.io`; request dengan origin lain
+  ditolak.
+- `telegram-setup` sebelumnya membaca `ALLOWED_ORIGINS` (jamak) — sejak
+  3.3 diseragamkan ke `ALLOWED_ORIGIN` (tunggal). Bila Anda masih
+  menyimpan `ALLOWED_ORIGINS` di secrets, hapus dan isi `ALLOWED_ORIGIN`.
+- Pengecualian eksplisit: WebView native (Capacitor) dari
+  `https://localhost`, `capacitor://localhost`, `http://localhost`
+  selalu diizinkan (lihat jobs.ts).
+
+## CoinGecko + currency-api (telegram-bot/jobs.ts)
+- Kunci `COINGECKO_API_KEY` dikirim sebagai **header**
+  `x-cg-demo-api-key`, tidak pernah lagi di query string URL.
+- currency-api di-pin ke versi stabil **2026.11.27** (diverifikasi dari
+  registry npm; konstanta `CURRENCY_API_VERSION` di jobs.ts, dan versi
+  yang sama ditulis di `~/workspace/wave3-currency-api-version.txt`
+  supaya web memakai versi identik). Jangan kembalikan `@latest`.
+
+## Audit admin lewat RPC + notifikasi Telegram
+- `admin-password` dan `admin-user-ops` mencatat audit HANYA lewat RPC
+  `admin_log_action(p_action, p_target_user_id, p_target_email,
+  p_details)` — INSERT langsung ke `admin_audit_logs` dicabut migrasi
+  Gelombang 3. RPC dipanggil lewat klien yang membawa JWT admin peminta
+  (actor diturunkan dari `auth.uid()`).
+- Reset password gagal audit → respons **500** yang menyatakan password
+  sudah berubah tapi audit gagal (jangan diam-diam).
+- Reset password, hapus user, dan ubah role/status mengirim notifikasi
+  Telegram ke pemilik akun (bot personal dulu, fallback token env).
+  Bila tidak ada chat tertaut, hasilnya dicatat di `details` audit
+  (`telegram_notified: false`, `telegram_reason: 'no_linked_chat'`).
+
+## Purge pairing OTP kedaluwarsa
+Setiap pemanggilan cron (`handleJob`, jalur cron saja) memanggil RPC
+`purge_expired_telegram_pairings()` (migrasi Gelombang 3). Best-effort:
+bila fungsi belum ada / RPC gagal, error hanya masuk log dan job tetap
+jalan.
