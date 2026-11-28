@@ -81,7 +81,15 @@
 
   // Penanda teknis: bila pesan mengandung salah satunya, tampilkan
   // pesan umum saja (detailnya tetap ada di console.error).
-  const TECHNICAL_RE = /supabase|postgrest|postgres|database|deno|jwt|token|row.level|\brls\b|permission denied|violates|duplicate key|relation "|column "|function public|schema |constraint "|failed to fetch|networkerror|unexpected token|cannot read propert|is not a function|undefined is not|internal (server )?error|server error|at [A-Za-z_$]+\.[A-Za-z_$]+ \(|status [45]\d\d|error code|ECONN|ETIMEDOUT|ERR_/i;
+  // Hotfix P0 (2026-11-28): DUA pesan mentah lolos ke pengguna di live
+  // v3.20.16 karena tidak cocok dengan pola di bawah:
+  //   - 'column reference "id" is ambiguous' (Postgres 42702):
+  //     "column \"" tidak cocok karena pesannya 'column reference "',
+  //     bukan 'column "'. Tambah 'column reference' + 'is ambiguous'.
+  //   - 'hasPin is not defined' (ReferenceError JS): 'is not a function'
+  //     dan 'undefined is not' tidak cocok dengan 'is not defined'.
+  // Tambah juga 'syntax error', kode Postgres 42702/42P0x, dan PGRST.
+  const TECHNICAL_RE = /supabase|postgrest|postgres|database|deno|jwt|token|row.level|\brls\b|permission denied|violates|duplicate key|relation "|column "|column reference|is ambiguous|is not defined|syntax error|42702|42P0|PGRST|function public|schema |constraint "|failed to fetch|networkerror|unexpected token|cannot read propert|is not a function|undefined is not|internal (server )?error|server error|at [A-Za-z_$]+\.[A-Za-z_$]+ \(|status [45]\d\d|error code|ECONN|ETIMEDOUT|ERR_/i;
 
   function detectLang(lang) {
     if (lang === 'en' || lang === 'id') return lang;
