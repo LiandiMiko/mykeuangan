@@ -88,7 +88,7 @@ $$);
 -- 02:00 WIB = 19:00 UTC. Memanggil edge function account-cleanup
 -- (verify_jwt=false, autentikasi lewat x-cron-secret dari Vault —
 -- pola yang sama dengan 4 job di atas). Timeout 60 detik karena satu
--- run bisa mengirim banyak email Resend dan menghapus banyak akun.
+-- run bisa membuat banyak notifikasi admin dan menghapus banyak akun.
 select cron.schedule('mk-account-cleanup', '0 19 * * *', $$
   select net.http_post(
     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/account-cleanup',

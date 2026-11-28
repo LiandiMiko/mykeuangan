@@ -2,15 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-// Fitur admin "last change": hapus otomatis akun dormant + email
-// Resend (worker Edge Function).
+// Fitur admin "last change": hapus otomatis akun dormant +
+// NOTIFIKASI IN-APP khusus admin (worker Edge Function).
+//
+// Jalur email Resend DIBATALKAN 2026-11-28 — peringatan H-1 dan
+// konfirmasi hapus kini ditulis edge function ke tabel
+// admin_notifications dan hanya dibaca admin di panel admin.
+// Tes ini mengunci penghapusan jalur Resend: tidak ada lagi
+// referensi Resend di logic.ts maupun index.ts.
 //
 // logic.ts adalah TypeScript murni tanpa import dan tanpa Deno —
 // sintaksnya erasable saja sehingga `node --test` bisa me-require()
 // langsung (Node >= 22.18 type stripping) dan logika diuji apa adanya,
-// bukan lewat fixture. index.ts (Deno.serve + wiring Supabase/Resend)
-// dan schedule.sql diuji lewat assertion isi file, mengikuti gaya
-// guard-test repo (tests/wave2-cron.test.js).
+// bukan lewat fixture. index.ts (Deno.serve + wiring Supabase /
+// notifikasi in-app) dan schedule.sql diuji lewat assertion isi
+// file, mengikuti gaya guard-test repo (tests/wave2-cron.test.js).
 //
 // Semua tanggal di tes ini memakai offset +07:00 eksplisit supaya
 // perilakunya sama di TZ=Asia/Jakarta maupun TZ=UTC: yang diuji
@@ -20,8 +26,7 @@ const logic = require('../supabase/functions/account-cleanup/logic.ts');
 const {
   APP_TIMEZONE, WARNING_DAY, DELETE_DAY,
   lastChangeAt, daysInactive, deletionDate, nextDayDate, formatTanggalId,
-  classifyUser, selectCandidates, warningEmail, deletionEmail,
-  buildResendPayload,
+  classifyUser, selectCandidates, warningNotification, deletionNotification,
 } = logic;
 const indexTs = fs.readFileSync('supabase/functions/account-cleanup/index.ts', 'utf8');
 const logicTs = fs.readFileSync('supabase/functions/account-cleanup/logic.ts', 'utf8');
@@ -157,8 +162,9 @@ test('cleanup: tidak ada yang dihapus tanpa pernah diperingatkan (fail-closed)',
   });
   assert.equal(classifyUser(d7warned, NOW_WIB_0030).action, 'delete');
 
-  // Konsekuensi fail-closed: bila Resend mati total (tidak ada flag
-  // peringatan yang pernah diset), selectCandidates tidak menghapus siapa pun.
+  // Konsekuensi fail-closed: bila insert notifikasi gagal total
+  // (tidak ada flag peringatan yang pernah diset),
+  // selectCandidates tidak menghapus siapa pun.
   const sel = selectCandidates([d7, d27], NOW_WIB_0030);
   assert.deepEqual(sel.delete, []);
   assert.equal(sel.warn.length, 2);
@@ -223,90 +229,76 @@ test('cleanup: tanggal penghapusan = perubahan terakhir + 7 hari, format Indones
   assert.equal(formatTanggalId(last), '21 November 2026');
 });
 
-// --- Isi email --------------------------------------------------------------
+// --- Isi notifikasi in-app ------------------------------------------------
 
-test('cleanup: email peringatan H-1 — subjek, tanggal hapus, cara mempertahankan akun', () => {
+test('cleanup: notifikasi peringatan H-1 — type, judul, tanggal hapus, cara mempertahankan akun', () => {
   const u = user({ last_activity_at: '2026-11-22T10:00:00+07:00' });
   const last = lastChangeAt(u);
-  const mail = warningEmail(u, last, 6, deletionDate(last));
+  const notif = warningNotification(u, last, 6, deletionDate(last));
 
-  assert.equal(mail.subject, 'Akun MyKeuGuech Anda akan dihapus dalam 1 hari');
+  assert.equal(notif.type, 'deletion_warning');
+  assert.equal(notif.title, 'Akun pengguna@contoh.id akan dihapus besok');
 
   // Tanggal terakhir aktif + tanggal penghapusan (last + 7 hari = 29 Nov).
-  for (const body of [mail.text, mail.html]) {
-    assert.match(body, /22 November 2026/);
-    assert.match(body, /29 November 2026/);
-    assert.match(body, /6 hari/);
-    assert.match(body, /tidak bisa dikembalikan/);
-  }
+  assert.match(notif.body, /22 November 2026/);
+  assert.match(notif.body, /29 November 2026/);
+  assert.match(notif.body, /6 hari/);
+  assert.match(notif.body, /tidak bisa dikembalikan/);
   // Cara mempertahankan akun: buka aplikasi / lakukan perubahan sebelum tanggal itu.
-  assert.match(mail.text, /Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum 29 November 2026/);
-  assert.match(mail.text, /Login saja sudah cukup untuk membatalkan penghapusan ini/);
-  assert.match(mail.html, /buka aplikasi MyKeuGuech/);
-
-  // Kedua versi tersedia, dan alamat email pengguna tercantum.
-  assert.ok(mail.text.length > 100 && mail.html.length > 100);
-  assert.ok(mail.text.includes('pengguna@contoh.id'));
-  assert.ok(mail.html.includes('pengguna@contoh.id'));
+  assert.match(notif.body, /membuka aplikasi MyKeuGuech dan melakukan perubahan apa pun sebelum 29 November 2026/);
+  assert.match(notif.body, /Login saja sudah cukup untuk membatalkan penghapusan ini/);
+  // Notifikasi ditujukan ke admin: menyebut email target.
+  assert.ok(notif.body.includes('pengguna@contoh.id'));
+  assert.ok(notif.title.length > 10 && notif.body.length > 100);
 });
 
-test('cleanup: email konfirmasi sesudah hapus — subjek, alasan 7 hari, hubungi admin', () => {
+test('cleanup: notifikasi konfirmasi sesudah hapus — type, alasan 7 hari, tidak bisa dipulihkan', () => {
   const u = user({ last_activity_at: '2026-11-21T10:00:00+07:00' });
-  const mail = deletionEmail(u, lastChangeAt(u));
+  const notif = deletionNotification(u, lastChangeAt(u));
 
-  assert.equal(mail.subject, 'Akun MyKeuGuech Anda telah dihapus');
-  for (const body of [mail.text, mail.html]) {
-    assert.match(body, /telah dihapus/);
-    assert.match(body, /7 hari/);
-    assert.match(body, /21 November 2026/);
-    assert.match(body, /tidak bisa dikembalikan/);
-    assert.match(body, /hubungi admin/);
-  }
-  assert.ok(mail.text.includes('pengguna@contoh.id'));
+  assert.equal(notif.type, 'deletion_done');
+  assert.equal(notif.title, 'Akun pengguna@contoh.id sudah dihapus');
+  assert.match(notif.body, /sudah dihapus otomatis/);
+  assert.match(notif.body, /7 hari/);
+  assert.match(notif.body, /21 November 2026/);
+  assert.match(notif.body, /tidak bisa dikembalikan/);
+  assert.match(notif.body, /tidak bisa dipulihkan/);
+  assert.ok(notif.body.includes('pengguna@contoh.id'));
 });
 
-test('cleanup: email peringatan TERLAMBAT — jumlah hari dan tanggal hapus jujur (bukan tanggal lewat)', () => {
+test('cleanup: notifikasi peringatan TERLAMBAT — jumlah hari dan tanggal hapus jujur (bukan tanggal lewat)', () => {
   // Pengguna sudah 8 hari tidak aktif dan belum pernah diperingatkan:
-  // email harus menyebut "8 hari" dan tanggal hapus = run besok
+  // notifikasi harus menyebut "8 hari" dan tanggal hapus = run besok
   // (29 Nov), BUKAN last+7 (= 28 Nov, sudah lewat hari ini).
   const u = user({ last_activity_at: '2026-11-20T10:00:00+07:00' });
   const last = lastChangeAt(u);
-  const mail = warningEmail(u, last, 8, nextDayDate(NOW_WIB_0030));
-  assert.equal(mail.subject, 'Akun MyKeuGuech Anda akan dihapus dalam 1 hari');
-  for (const body of [mail.text, mail.html]) {
-    assert.match(body, /8 hari/);
-    assert.match(body, /29 November 2026/);
-    assert.doesNotMatch(body, /28 November 2026/);
-    assert.match(body, /20 November 2026/);
-  }
+  const notif = warningNotification(u, last, 8, nextDayDate(NOW_WIB_0030));
+  assert.equal(notif.type, 'deletion_warning');
+  assert.match(notif.body, /8 hari/);
+  assert.match(notif.body, /29 November 2026/);
+  assert.doesNotMatch(notif.body, /28 November 2026/);
+  assert.match(notif.body, /20 November 2026/);
 });
 
-test('cleanup: alamat email di-escape di HTML (tidak bisa menyuntik tag)', () => {
-  const u = user({ email: 'a<b>@contoh.id' });
-  const mail = warningEmail(u, new Date('2026-11-22T10:00:00+07:00'), 6, new Date('2026-11-29T10:00:00+07:00'));
-  assert.ok(!mail.html.includes('a<b>@contoh.id'));
-  assert.ok(mail.html.includes('a&lt;b&gt;@contoh.id'));
-  // Versi text polos tetap apa adanya (bukan HTML).
-  assert.ok(mail.text.includes('a<b>@contoh.id'));
-});
+// --- Guard: logic.ts murni (tanpa Deno / secret / Resend) ------------------
 
-test('cleanup: payload Resend dibentuk dari from/to/subjek/html/text', () => {
-  const mail = warningEmail(user(), new Date('2026-11-22T10:00:00+07:00'), 6, new Date('2026-11-29T10:00:00+07:00'));
-  const payload = buildResendPayload('noreply@contoh.id', 'pengguna@contoh.id', mail);
-  assert.deepEqual(Object.keys(payload).sort(), ['from', 'html', 'subject', 'text', 'to']);
-  assert.equal(payload.from, 'noreply@contoh.id');
-  assert.equal(payload.to, 'pengguna@contoh.id');
-  assert.equal(payload.subject, mail.subject);
-});
-
-// --- Guard: logic.ts murni (tanpa Deno / secret) ---------------------------
-
-test('cleanup: logic.ts murni — tanpa Deno, tanpa env, tanpa alamat pengirim hardcode', () => {
+test('cleanup: logic.ts murni — tanpa Deno, tanpa env, tanpa Resend', () => {
   assert.doesNotMatch(logicTs, /Deno\./);
   assert.doesNotMatch(logicTs, /process\.env/);
   assert.doesNotMatch(logicTs, /RESEND_API_KEY/);
   assert.doesNotMatch(logicTs, /@resend\.dev/);
-  assert.doesNotMatch(logicTs, /from:\s*['"][^'"]+@[^'"]+['"]/);
+  // Jalur email Resend sudah dihapus total: tidak ada lagi nama
+  // Resend, URL API-nya, atau pembangun email/payload-nya.
+  assert.doesNotMatch(logicTs, /RESEND/i);
+  assert.doesNotMatch(logicTs, /resend/i);
+  assert.doesNotMatch(logicTs, /api\.resend\.com/);
+  assert.doesNotMatch(logicTs, /warningEmail|deletionEmail|buildResendPayload/);
+  assert.doesNotMatch(logicTs, /CleanupEmail/);
+  // Penggantinya: pembangun notifikasi in-app.
+  assert.match(logicTs, /export function warningNotification\(/);
+  assert.match(logicTs, /export function deletionNotification\(/);
+  assert.match(logicTs, /export interface AdminNotification/);
+  assert.match(logicTs, /type: 'deletion_warning' \| 'deletion_done'/);
   assert.match(logicTs, /export const APP_TIMEZONE = 'Asia\/Jakarta';/);
 });
 
@@ -336,15 +328,17 @@ test('cleanup: index.ts mengambil profiles + last_sign_in_at (paginasi) lalu men
   assert.match(indexTs, /selectCandidates\(users, now\)/);
 });
 
-test('cleanup: index.ts mencabut webhook bot personal lalu deleteUser, email konfirmasi sesudah hapus', () => {
-  // Urutan: revoke webhook -> deleteUser -> kirim email konfirmasi.
+test('cleanup: index.ts mencabut webhook bot personal lalu deleteUser, notifikasi konfirmasi sesudah hapus', () => {
+  // Urutan: revoke webhook -> deleteUser -> tulis notifikasi konfirmasi.
   const revokeIdx = indexTs.indexOf('await revokeBotWebhook(user.id);');
   const deleteIdx = indexTs.indexOf('auth.admin.deleteUser(user.id)');
-  const mailIdx = indexTs.indexOf('sendResendEmail(email, deletionEmail(user, lastChange))');
-  assert.ok(revokeIdx > 0 && deleteIdx > 0 && mailIdx > 0, 'revoke, delete, email harus ada');
-  assert.ok(revokeIdx < deleteIdx && deleteIdx < mailIdx, 'urutan: cabut webhook -> hapus -> email konfirmasi');
-  // Alamat email dicatat SEBELUM penghapusan.
-  assert.match(indexTs, /const email = user\.email;/);
+  const notifIdx = indexTs.indexOf('deletionNotification(user, lastChange)');
+  assert.ok(revokeIdx > 0 && deleteIdx > 0 && notifIdx > 0, 'revoke, delete, notifikasi harus ada');
+  assert.ok(revokeIdx < deleteIdx && deleteIdx < notifIdx, 'urutan: cabut webhook -> hapus -> notifikasi konfirmasi');
+  // Notifikasi konfirmasi memakai insertAdminNotification; gagal
+  // menulis dicatat tapi TIDAK membatalkan penghapusan.
+  assert.match(indexTs, /insertAdminNotification\(\s*getAdminClient\(\), user,\s*deletionNotification\(user, lastChange\),?\s*\)/);
+  assert.match(indexTs, /konfirmasi-hapus \$\{user\.id\}: \$\{made\.error \?\? 'gagal-tulis-notifikasi'\}/);
   // Idempotent: user yang sudah tidak ada dilewati, bukan error.
   assert.match(indexTs, /\/not found\|user not found\|no user\/i\.test\(deleteErr\.message\)/);
   // Dekripsi bot memakai pola yang sama dengan delete-account (AES-GCM + SHA-256).
@@ -353,23 +347,29 @@ test('cleanup: index.ts mencabut webhook bot personal lalu deleteUser, email kon
   assert.match(indexTs, /AbortSignal\.timeout\(10000\)/);
 });
 
-test('cleanup: index.ts mengirim email HANYA via Resend, FROM dari secret, tanpa log isi email', () => {
-  assert.match(indexTs, /fetch\(RESEND_API_URL, \{/);
-  assert.match(indexTs, /'Authorization': `Bearer \$\{apiKey\}`/);
-  assert.match(indexTs, /Deno\.env\.get\('RESEND_API_KEY'\)/);
-  assert.match(indexTs, /Deno\.env\.get\('RESEND_FROM_EMAIL'\)/);
-  assert.doesNotMatch(indexTs, /onboarding@resend\.dev/);
-  assert.doesNotMatch(indexTs, /@resend\.dev/);
-  // Timeout pada fetch keluar.
-  assert.match(indexTs, /AbortSignal\.timeout\(RESEND_TIMEOUT_MS\)/);
+test('cleanup: index.ts TIDAK lagi memakai Resend — peringatan via notifikasi in-app', () => {
+  // Tidak ada lagi pembacaan secret Resend atau fetch ke Resend.
+  assert.doesNotMatch(indexTs, /RESEND_API_KEY/);
+  assert.doesNotMatch(indexTs, /RESEND_FROM_EMAIL/);
+  assert.doesNotMatch(indexTs, /RESEND_API_URL|api\.resend\.com/);
+  assert.doesNotMatch(indexTs, /sendResendEmail|warningEmail|deletionEmail|buildResendPayload/);
+  assert.doesNotMatch(indexTs, /emails_sent|emailsSent/);
+  // Penggantinya: insert ke admin_notifications via insertAdminNotification.
+  assert.match(indexTs, /async function insertAdminNotification\(/);
+  assert.match(indexTs, /\.from\('admin_notifications'\)\.insert\(\{/);
+  assert.match(indexTs, /type: notif\.type,/);
+  assert.match(indexTs, /target_user_id: user\.id,/);
+  assert.match(indexTs, /target_email: user\.email,/);
+  // Insert gagal -> { ok: false } (fail-closed, bukan lanjut diam-diam).
+  assert.match(indexTs, /return \{ ok: false, error: error\.message \};/);
   // Tidak ada console.log (hanya console.error untuk pesan singkat).
   assert.doesNotMatch(indexTs, /console\.log\(/);
-  // Flag peringatan HANYA diset bila email terkirim.
-  const sendIdx = indexTs.indexOf('sendResendEmail(user.email, warningEmail(user, lastChange, c.daysInactive, delDate))');
+  // Flag peringatan HANYA diset bila notifikasi tertulis.
+  const notifIdx = indexTs.indexOf('warningNotification(user, lastChange, c.daysInactive, delDate)');
   const flagIdx = indexTs.indexOf('deletion_warning_sent_at: now.toISOString()');
-  assert.ok(sendIdx > 0 && flagIdx > 0 && sendIdx < flagIdx, 'kirim email dulu, baru set flag');
-  assert.match(indexTs, /if \(!sent\.ok\) \{[\s\S]*?continue; \/\/ jangan set flag/);
-  // Invariant fail-closed: penghapusan mensyaratkan peringatan terkirim.
+  assert.ok(notifIdx > 0 && flagIdx > 0 && notifIdx < flagIdx, 'tulis notifikasi dulu, baru set flag');
+  assert.match(indexTs, /if \(!made\.ok\) \{[\s\S]*?continue; \/\/ jangan set flag/);
+  // Invariant fail-closed: penghapusan mensyaratkan peringatan dibuat.
   assert.match(indexTs, /tidak-aktif-7-hari-belum-diperingatkan/);
   assert.match(indexTs, /nextDayDate\(now\)/);
 });
@@ -382,8 +382,11 @@ test('cleanup: index.ts mencatat run ke cron_job_runs seperti telegram-bot', () 
   assert.match(indexTs, /notified_count: counts\.notified/);
   assert.match(indexTs, /skipped_count: counts\.skipped/);
   assert.match(indexTs, /logJobRunStart\('account-cleanup', 'cron'\)/);
-  // created = akun dihapus, notified = email terkirim.
-  assert.match(indexTs, /\{ created: deleted, notified: emailsSent, skipped \}/);
+  // created = akun dihapus, notified = notifikasi in-app dibuat.
+  assert.match(indexTs, /\{ created: deleted, notified: notificationsSent, skipped \}/);
+  // Response JSON memakai nama field baru (bukan emails_sent).
+  assert.match(indexTs, /notifications_sent: notificationsSent,/);
+  assert.doesNotMatch(indexTs, /emails_sent|emailsSent/);
 });
 
 test('cleanup: index.ts CORS fail-closed seperti delete-account', () => {

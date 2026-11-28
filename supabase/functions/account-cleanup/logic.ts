@@ -1,15 +1,23 @@
 // supabase/functions/account-cleanup/logic.ts
 // ============================================================
-// Logika MURNI fitur admin: hapus otomatis akun dormant + email
-// peringatan/konfirmasi via Resend (Gelombang admin, fitur
+// Logika MURNI fitur admin: hapus otomatis akun dormant +
+// NOTIFIKASI IN-APP khusus admin (Gelombang admin, fitur
 // "last change" — worker Edge Function).
+//
+// Peringatan H-1 dan konfirmasi hapus semula dikirim via email;
+// sejak 2026-11-28 jalur email DIBATALKAN Liandi dan
+// diganti notifikasi in-app yang hanya terlihat oleh admin
+// (ditulis edge function ke tabel admin_notifications,
+// dibaca panel admin lewat RPC get_admin_notifications).
+// File ini membangun isi notifikasi itu (title + body, Bahasa
+// Indonesia ramah awam); penulisan ke tabel tinggal di index.ts.
 //
 // File ini SENGAJA tanpa import dan tanpa Deno/global lain: hanya
 // Date + Intl. Sintaks TypeScript-nya erasable saja (tanpa enum,
 // namespace, atau parameter properties) supaya `node --test` bisa
 // me-require() file ini langsung (Node >= 22.18 type stripping)
 // dan logika bisa diuji tanpa men-deploy edge function.
-// Semua I/O (Supabase, Resend, Deno env) tinggal di index.ts.
+// Semua I/O (Supabase, Deno env) tinggal di index.ts.
 //
 // Aturan (sesuai spesifikasi koordinator):
 // - "Perubahan terakhir" = yang paling baru dari last_activity_at
@@ -19,15 +27,17 @@
 //   menghapus akun suspended secara manual).
 // - Peringatan H-1: tidak aktif >= 6 hari DAN < 7 hari DAN belum
 //   pernah diperingatkan (deletion_warning_sent_at IS NULL).
+//   deletion_warning_sent_at kini berarti "peringatan (notifikasi
+//   in-app) sudah dibuat", bukan lagi "email sudah terkirim".
 // - Hapus: tidak aktif >= 7 hari DAN sudah pernah diperingatkan
 //   (deletion_warning_sent_at terisi). Pengguna hari ke-7+ yang
-//   BELUM sempat diperingatkan — mis. Resend sempat mati di hari
-//   ke-6 — mendapat peringatan TERLAMBAT dulu dan baru dihapus
-//   pada run berikutnya (paling cepat sehari sesudah peringatan),
-//   supaya tidak ada akun yang dihapus tanpa pernah diperingatkan.
-//   Konsekuensinya: bila Resend belum dikonfigurasi sama sekali,
-//   peringatan selalu gagal terkirim, flag tidak pernah diset, dan
-//   tidak ada akun yang dihapus — fail-closed, bukan hapus diam-diam.
+//   BELUM sempat diperingatkan — mis. insert notifikasi gagal di
+//   hari ke-6 — mendapat peringatan TERLAMBAT dulu dan baru
+//   dihapus pada run berikutnya (paling cepat sehari sesudah
+//   peringatan), supaya tidak ada akun yang dihapus tanpa pernah
+//   diperingatkan. Konsekuensinya: bila insert notifikasi selalu
+//   gagal, flag tidak pernah diset, dan tidak ada akun yang
+//   dihapus — fail-closed, bukan hapus diam-diam.
 // - "Hari" dihitung sebagai hari KALENDER di WIB (Asia/Jakarta),
 //   bukan 24 jam mentah: akun yang terakhir aktif kemarin pukul
 //   23:30 WIB sudah dihitung 1 hari tidak aktif keesokan paginya.
@@ -37,8 +47,6 @@
 export const APP_TIMEZONE = 'Asia/Jakarta';
 export const WARNING_DAY = 6;
 export const DELETE_DAY = 7;
-export const RESEND_API_URL = 'https://api.resend.com/emails';
-export const RESEND_TIMEOUT_MS = 15_000;
 
 /** Satu baris gabungan profiles + auth.users untuk satu pengguna. */
 export interface CleanupUser {
@@ -70,10 +78,11 @@ export interface CleanupSelection {
   skipped: number;
 }
 
-export interface CleanupEmail {
-  subject: string;
-  html: string;
-  text: string;
+/** Isi satu baris admin_notifications (type + title + body). */
+export interface AdminNotification {
+  type: 'deletion_warning' | 'deletion_done';
+  title: string;
+  body: string;
 }
 
 /** Tanggal kalender 'YYYY-MM-DD' dari sebuah Date, di zona WIB. */
@@ -119,7 +128,7 @@ export function deletionDate(lastChange: Date): Date {
  * Tanggal run harian berikutnya (+24 jam) — dipakai sebagai tanggal
  * penghapusan pada peringatan TERLAMBAT (pengguna sudah >= 7 hari
  * tapi belum pernah diperingatkan): penghapusannya terjadi pada run
- * besok, jadi tanggal yang dijanjikan di email adalah besok.
+ * besok, jadi tanggal yang dijanjikan di notifikasi adalah besok.
  */
 export function nextDayDate(d: Date): Date {
   return new Date(d.getTime() + 86_400_000);
@@ -135,20 +144,11 @@ export function formatTanggalId(d: Date): string {
   }).format(d);
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /**
  * Klasifikasi satu pengguna pada saat `now`.
  * Urutan pengecekan penting: status/role dulu (pengecualian mutlak),
  * lalu hitung hari. Ambang hapus (>= 7) mensyaratkan peringatan
- * sudah terkirim (deletion_warning_sent_at terisi) — pengguna hari
+ * sudah dibuat (deletion_warning_sent_at terisi) — pengguna hari
  * ke-7+ yang belum sempat diperingatkan masuk 'warn' (peringatan
  * terlambat), bukan 'delete', supaya tidak ada yang dihapus tanpa
  * pernah diperingatkan.
@@ -195,83 +195,56 @@ export function selectCandidates(users: CleanupUser[], now: Date): CleanupSelect
 }
 
 /**
- * Email peringatan H-1 (dikirim saat tidak aktif 6 hari, atau
- * terlambat bila pengguna sudah >= 7 hari tapi belum pernah
- * diperingatkan). `daysInactive` dan `delDate` diparameterisasi
- * supaya isi email jujur pada kasus terlambat: jumlah hari yang
- * disebut adalah hari sebenarnya, dan tanggal penghapusan adalah
- * tanggal run berikutnya (besok), bukan tanggal yang sudah lewat.
+ * Notifikasi peringatan H-1 untuk admin (dibuat saat pengguna
+ * tidak aktif 6 hari, atau terlambat bila pengguna sudah >= 7
+ * hari tapi belum pernah diperingatkan). `daysInactive` dan
+ * `delDate` diparameterisasi supaya isi notifikasi jujur pada
+ * kasus terlambat: jumlah hari yang disebut adalah hari
+ * sebenarnya, dan tanggal penghapusan adalah tanggal run
+ * berikutnya (besok), bukan tanggal yang sudah lewat.
+ * Notifikasi ini ditujukan ke ADMIN (bukan ke pengguna yang
+ * bersangkutan) — karena itu menyebut email target dan cara
+ * pengguna mempertahankan akunnya.
  */
-export function warningEmail(user: CleanupUser, lastChange: Date, daysInactive: number, delDate: Date): CleanupEmail {
-  const subject = 'Akun MyKeuGuech Anda akan dihapus dalam 1 hari';
+export function warningNotification(
+  user: CleanupUser,
+  lastChange: Date,
+  daysInactive: number,
+  delDate: Date,
+): AdminNotification {
   const lastActive = formatTanggalId(lastChange);
   const delDateStr = formatTanggalId(delDate);
-  const text = [
-    'Halo,',
-    '',
-    `Kami melihat akun MyKeuGuech Anda (${user.email}) sudah tidak ada perubahan selama ${daysInactive} hari. Terakhir Anda aktif pada ${lastActive}.`,
-    '',
-    `Bila tidak ada aktivitas, akun Anda akan dihapus otomatis pada ${delDateStr}, dan seluruh data Anda (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.`,
-    '',
-    'Cara mempertahankan akun Anda:',
-    `Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum ${delDateStr} — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.`,
-    '',
-    'Bila Anda memang sudah tidak memakai MyKeuGuech, Anda tidak perlu melakukan apa-apa; akun akan terhapus sendiri sesuai jadwal di atas.',
-    '',
-    'Salam,',
-    'Tim MyKeuGuech',
-  ].join('\n');
-  const html = [
-    '<p>Halo,</p>',
-    `<p>Kami melihat akun MyKeuGuech Anda (${escapeHtml(user.email)}) sudah tidak ada perubahan selama <strong>${daysInactive} hari</strong>. Terakhir Anda aktif pada <strong>${escapeHtml(lastActive)}</strong>.</p>`,
-    `<p>Bila tidak ada aktivitas, akun Anda akan <strong>dihapus otomatis pada ${escapeHtml(delDateStr)}</strong>, dan seluruh data Anda (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.</p>`,
-    '<p><strong>Cara mempertahankan akun Anda:</strong></p>',
-    `<p>Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum <strong>${escapeHtml(delDateStr)}</strong> — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.</p>`,
-    '<p>Bila Anda memang sudah tidak memakai MyKeuGuech, Anda tidak perlu melakukan apa-apa; akun akan terhapus sendiri sesuai jadwal di atas.</p>',
-    '<p>Salam,<br>Tim MyKeuGuech</p>',
-  ].join('\n');
-  return { subject, html, text };
+  return {
+    type: 'deletion_warning',
+    title: `Akun ${user.email} akan dihapus besok`,
+    body: [
+      `Akun ${user.email} sudah ${daysInactive} hari tidak ada perubahan. Terakhir aktif pada ${lastActive}.`,
+      '',
+      `Bila tidak ada aktivitas, akun ini akan dihapus otomatis pada ${delDateStr}, dan seluruh datanya (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.`,
+      '',
+      `Pengguna masih bisa mempertahankan akunnya dengan membuka aplikasi MyKeuGuech dan melakukan perubahan apa pun sebelum ${delDateStr} — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.`,
+    ].join('\n'),
+  };
 }
 
 /**
- * Email konfirmasi sesudah akun dihapus (dikirim ke alamat email yang
- * dicatat SEBELUM penghapusan — setelah deleteUser, alamat itu sudah
- * tidak ada di database).
+ * Notifikasi konfirmasi sesudah akun dihapus (dibuat SETELAH
+ * admin.deleteUser sukses; target_email dicatat SEBELUM
+ * penghapusan karena setelah itu alamat sudah tidak ada di
+ * database). Baris ini sengaja bertahan di admin_notifications
+ * sebagai bukti penghapusan.
  */
-export function deletionEmail(user: CleanupUser, lastChange: Date): CleanupEmail {
-  const subject = 'Akun MyKeuGuech Anda telah dihapus';
+export function deletionNotification(user: CleanupUser, lastChange: Date): AdminNotification {
   const lastActive = formatTanggalId(lastChange);
-  const text = [
-    'Halo,',
-    '',
-    `Akun MyKeuGuech Anda (${user.email}) telah dihapus karena tidak ada perubahan selama 7 hari. Terakhir Anda aktif pada ${lastActive}.`,
-    '',
-    'Seluruh data akun Anda (transaksi, dompet, dan pengaturan) ikut terhapus secara permanen dan tidak bisa dikembalikan.',
-    '',
-    'Bila penghapusan ini keliru — misalnya Anda sebenarnya masih memakai akun ini — silakan hubungi admin MyKeuGuech agar dapat dibantu.',
-    '',
-    'Salam,',
-    'Tim MyKeuGuech',
-  ].join('\n');
-  const html = [
-    '<p>Halo,</p>',
-    `<p>Akun MyKeuGuech Anda (${escapeHtml(user.email)}) <strong>telah dihapus</strong> karena tidak ada perubahan selama 7 hari. Terakhir Anda aktif pada <strong>${escapeHtml(lastActive)}</strong>.</p>`,
-    '<p>Seluruh data akun Anda (transaksi, dompet, dan pengaturan) ikut terhapus secara permanen dan tidak bisa dikembalikan.</p>',
-    '<p>Bila penghapusan ini keliru — misalnya Anda sebenarnya masih memakai akun ini — silakan hubungi admin MyKeuGuech agar dapat dibantu.</p>',
-    '<p>Salam,<br>Tim MyKeuGuech</p>',
-  ].join('\n');
-  return { subject, html, text };
-}
-
-/**
- * Body JSON untuk POST https://api.resend.com/emails.
- * `from` WAJIB berasal dari edge secret RESEND_FROM_EMAIL (index.ts)
- * — JANGAN pernah hardcode alamat pengirim di sini.
- */
-export function buildResendPayload(
-  from: string,
-  to: string,
-  email: CleanupEmail,
-): { from: string; to: string; subject: string; html: string; text: string } {
-  return { from, to, subject: email.subject, html: email.html, text: email.text };
+  return {
+    type: 'deletion_done',
+    title: `Akun ${user.email} sudah dihapus`,
+    body: [
+      `Akun ${user.email} sudah dihapus otomatis karena tidak ada perubahan selama 7 hari. Terakhir aktif pada ${lastActive}.`,
+      '',
+      'Seluruh data akun (transaksi, dompet, dan pengaturan) ikut terhapus secara permanen dan tidak bisa dikembalikan.',
+      '',
+      'Bila penghapusan ini keliru — misalnya pengguna sebenarnya masih memakai akun ini — akun tidak bisa dipulihkan; pengguna perlu mendaftar ulang.',
+    ].join('\n'),
+  };
 }
