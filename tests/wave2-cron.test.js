@@ -76,7 +76,7 @@ test('2.3 cron: schedule.sql tidak lagi menyimpan secret teks-biasa; header diba
   // harus subquery Vault. (Satu-satunya kemunculan 'x-cron-secret'
   // yang diizinkan adalah yang diikuti subquery decrypted_secret.)
   const headerUses = [...scheduleSql.matchAll(/'x-cron-secret', \(select decrypted_secret from vault\.decrypted_secrets where name = 'cron_secret'\)/g)];
-  assert.equal(headerUses.length, 4, 'keempat job harus mengirim header x-cron-secret dari Vault');
+  assert.equal(headerUses.length, 5, 'kelima job (4 lama + mk-account-cleanup) harus mengirim header x-cron-secret dari Vault');
   assert.match(scheduleSql, /vault\.decrypted_secrets/);
   assert.match(scheduleSql, /name = 'cron_secret'/);
 
