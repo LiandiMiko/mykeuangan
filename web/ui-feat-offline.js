@@ -564,6 +564,15 @@
           ...extraRefresh
         });
       }
+      // Admin — antrean offline berhasil tersinkronisasi: catat
+      // aktivitas sendiri (best-effort, throttled 1x/jam di helper;
+      // jangan pernah gagalkan flush bila RPC gagal).
+      if (synced > 0) {
+        try {
+          const feat = root.__mkFeat || {};
+          if (typeof feat.touchOwnActivity === 'function') feat.touchOwnActivity();
+        } catch (_) { /* abaikan */ }
+      }
       if (synced > 0 && !silent && typeof Swal !== 'undefined') {
         Swal.fire({
           icon: 'success',

@@ -75,6 +75,8 @@
           <option value="suspended">Status: Suspended</option>
           <option value="admin">Role: Admin</option>
           <option value="user">Role: User</option>
+          <option value="active_activity" data-i18n="adm.filter_active_activity">Aktivitas: Aktif</option>
+          <option value="dormant" data-i18n="adm.filter_dormant">Aktivitas: Dormant</option>
         </select>
       </div>
     </div>
@@ -87,11 +89,12 @@
             <th class="px-6 py-3.5">Role</th>
             <th class="px-6 py-3.5">Status</th>
             <th class="px-6 py-3.5">Terdaftar Sejak</th>
+            <th class="px-6 py-3.5" data-i18n="adm.last_change">Perubahan Terakhir</th>
             <th class="px-6 py-3.5 text-center">Tindakan</th>
           </tr>
         </thead>
         <tbody id="adm-user-table" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
-          <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Memuat data pengguna...</td></tr>
+          <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Memuat data pengguna...</td></tr>
         </tbody>
       </table>
     </div>

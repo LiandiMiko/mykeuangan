@@ -19,6 +19,29 @@
   const { sb, fail, resolveReady, showCoreNotice } = core;
 
   const PROFILE_CACHE_KEY = 'mk_cached_profile_v1';
+  // Admin — pencatatan aktivitas sendiri (touch_own_activity):
+  // best-effort, tidak pernah memblokir login/sinkronisasi; throttle
+  // maks. 1x per jam per perangkat supaya tidak membanjiri database.
+  const ACTIVITY_TOUCH_KEY = 'mk_last_activity_touch_v1';
+  const ACTIVITY_TOUCH_MIN_INTERVAL_MS = 60 * 60 * 1000;
+  async function touchOwnActivity() {
+    try {
+      const last = Number(localStorage.getItem(ACTIVITY_TOUCH_KEY) || '0') || 0;
+      if (Date.now() - last < ACTIVITY_TOUCH_MIN_INTERVAL_MS) return false;
+      localStorage.setItem(ACTIVITY_TOUCH_KEY, String(Date.now()));
+      const { error } = await sb.rpc('touch_own_activity');
+      if (error) throw error;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  // Diekspos supaya flush antrean offline (ui-feat-offline.js) bisa
+  // memakainya tanpa mengakses `sb` langsung.
+  window.__mkFeat = window.__mkFeat || {};
+  window.__mkFeat.touchOwnActivity = touchOwnActivity;
+  window.__mkFeat.ACTIVITY_TOUCH_KEY = ACTIVITY_TOUCH_KEY;
+  window.__mkFeat.ACTIVITY_TOUCH_MIN_INTERVAL_MS = ACTIVITY_TOUCH_MIN_INTERVAL_MS;
   // Wave 3.1 / S3 — cached profiles expire after 24h. A stale cache must
   // never resurrect a role (especially admin) after it stopped being true.
   const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +63,10 @@
     'mk_browser_notif_enabled',
     'mk_browser_notif_last_date',
     'mk_last_seen_release',
+    // Admin: throttle pencatatan aktivitas ikut terhapus saat logout
+    // supaya pengguna berikutnya di perangkat ini tidak tertunda
+    // pencatatan aktivitasnya sampai 1 jam.
+    'mk_last_activity_touch_v1',
     'mk_onboarding_done_v1',
     'mk_auto_post_recurring',
     'mk_auto_post_last_date',
@@ -166,6 +193,9 @@
         await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (e.message || String(e)));
       }
     }
+    // Setelah login/session restore berhasil: catat aktivitas
+    // sendiri (best-effort, fire-and-forget — jangan tahan resolveReady).
+    try { touchOwnActivity(); } catch (_) { /* abaikan */ }
     resolveReady();
   }
 

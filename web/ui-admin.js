@@ -9,6 +9,123 @@
   let adminUsersCache = [];
   let adminCurrentUserId = '';
 
+  // --- Perubahan Terakhir (aktivitas pengguna) ----------------------
+  // Kontrak RPC get_admin_user_activity: days_inactive (int) dan
+  // deletion_due_in_days (int). Aktif = days_inactive < 4; Dormant =
+  // days_inactive >= 4; penghapusan dalam 7 - days_inactive hari.
+  const ADMIN_DORMANT_AFTER_DAYS = 4;
+  const ADMIN_DELETION_AFTER_DAYS = 7;
+  const ADMIN_JUST_NOW_MINUTES = 60;
+
+  // t() tinggal di src/i18n.html; bila modul dimuat sendiri (tes vm
+  // tanpa i18n), pakai key-nya apa adanya supaya tidak crash.
+  function admT(key) {
+    return (typeof t === 'function') ? t(key) : key;
+  }
+
+  // `now` boleh Date dari realm mana pun (tes vm memakai Date konteks
+  // luar) — jangan instanceof Date, cukup duck-type getTime().
+  function adminRefDate(now) {
+    if (now && typeof now.getTime === 'function' && !Number.isNaN(now.getTime())) return now;
+    return new Date();
+  }
+
+  // Selisih hari kalender LOKAL (bukan UTC) antara timestamp server
+  // dan `now` — penting di WIB: 00:30 WIB masih "hari ini" walau
+  // di UTC masih kemarin. `now` opsional (default: sekarang) supaya
+  // bisa diuji deterministik, termasuk batas tengah malam WIB.
+  function adminDayDiffFromNow(ts, now) {
+    if (!ts) return null;
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return null;
+    const ref = adminRefDate(now);
+    const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    const b = Date.UTC(ref.getFullYear(), ref.getMonth(), ref.getDate());
+    return Math.round((b - a) / 86400000);
+  }
+
+  function formatLastChangeDate(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return String(ts).slice(0, 10);
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  // { date: 'YYYY-MM-DD' | '', rel: 'baru saja' | 'hari ini' |
+  //   'kemarin' | 'N hari lalu' | 'Belum ada perubahan' }
+  function formatLastChangeRelative(ts, now) {
+    if (!ts) return { date: '', rel: admT('adm.no_change') };
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return { date: String(ts).slice(0, 10), rel: admT('adm.no_change') };
+    const ref = adminRefDate(now);
+    const diff = adminDayDiffFromNow(ts, ref);
+    if (diff === null) return { date: formatLastChangeDate(ts), rel: admT('adm.no_change') };
+    if (diff < 0) return { date: formatLastChangeDate(ts), rel: admT('adm.just_now') };
+    if (diff === 0) {
+      const mins = Math.max(0, Math.round((ref.getTime() - d.getTime()) / 60000));
+      return { date: formatLastChangeDate(ts), rel: mins < ADMIN_JUST_NOW_MINUTES ? admT('adm.just_now') : admT('adm.today') };
+    }
+    if (diff === 1) return { date: formatLastChangeDate(ts), rel: admT('adm.yesterday') };
+    return { date: formatLastChangeDate(ts), rel: diff + ' ' + admT('adm.days_ago') };
+  }
+
+  // days_inactive dari RPC bila ada; fallback: hitung dari
+  // last_change_at / last_activity_at; null bila tidak ada data.
+  function adminDaysInactive(u) {
+    if (u && typeof u.days_inactive === 'number' && Number.isFinite(u.days_inactive)) return u.days_inactive;
+    const ts = (u && (u.last_change_at || u.last_activity_at)) || null;
+    const diff = adminDayDiffFromNow(ts, new Date());
+    return diff === null ? null : Math.max(0, diff);
+  }
+
+  function classifyAdminActivity(u) {
+    const days = adminDaysInactive(u);
+    if (days === null) return 'active';
+    return days >= ADMIN_DORMANT_AFTER_DAYS ? 'dormant' : 'active';
+  }
+
+  // Hanya untuk baris dormant; '' untuk yang aktif / tanpa data.
+  function deletionCountdownText(u) {
+    if (classifyAdminActivity(u) !== 'dormant') return '';
+    const due = (u && typeof u.deletion_due_in_days === 'number' && Number.isFinite(u.deletion_due_in_days))
+      ? Math.max(0, Math.floor(u.deletion_due_in_days))
+      : Math.max(0, ADMIN_DELETION_AFTER_DAYS - (adminDaysInactive(u) || 0));
+    if (due <= 0) return admT('adm.delete_today');
+    return admT('adm.delete_in') + ' ' + due + ' ' + admT('adm.days');
+  }
+
+  // Blok "Perubahan Terakhir" — dipakai tabel desktop & kartu mobile.
+  // Semua nilai server lewat escapeHtmlJS; label lewat admT().
+  function buildAdminActivityHtml(u) {
+    const last = formatLastChangeRelative(u && u.last_change_at);
+    const dormant = classifyAdminActivity(u) === 'dormant';
+    const countdown = deletionCountdownText(u);
+    let html = '<p class="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">' + escapeHtmlJS(last.date || '-') + '</p>'
+      + '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtmlJS(last.rel) + '</p>';
+    if (dormant) {
+      html += '<p class="mt-1"><span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">' + escapeHtmlJS(admT('adm.dormant')) + '</span></p>';
+    }
+    if (countdown) {
+      html += '<p class="mt-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400">' + escapeHtmlJS(countdown) + '</p>';
+    }
+    return html;
+  }
+
+  // Fungsi murni (tanpa DOM) supaya filter + pencarian bisa diuji:
+  // filter 'active_activity'/'dormant' digabung dengan pencarian teks.
+  function filterAdminUsers(users, search, filter) {
+    const q = String(search || '').trim().toLocaleLowerCase();
+    return (users || []).filter((u) => {
+      if (q && !`${u.display_name || ''} ${u.email || ''}`.toLocaleLowerCase().includes(q)) return false;
+      if ((filter === 'active' || filter === 'suspended') && u.status !== filter) return false;
+      if ((filter === 'admin' || filter === 'user') && u.role !== filter) return false;
+      if (filter === 'active_activity' && classifyAdminActivity(u) !== 'active') return false;
+      if (filter === 'dormant' && classifyAdminActivity(u) !== 'dormant') return false;
+      return true;
+    });
+  }
+
   async function loadAdminData() {
     const tbody = document.getElementById('adm-user-table');
     const mobileList = document.getElementById('adm-user-mobile-list');
@@ -16,7 +133,7 @@
       const element = document.getElementById(id);
       if (element) element.textContent = String(value);
     };
-    if (tbody) renderHtml(tbody, '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Memuat data pengguna...</td></tr>');
+    if (tbody) renderHtml(tbody, '<tr><td colspan="6" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Memuat data pengguna...</td></tr>');
     if (mobileList) renderHtml(mobileList, '<div class="p-6 text-center text-xs text-slate-500 dark:text-slate-400">Memuat data pengguna...</div>');
 
     try {
@@ -39,7 +156,7 @@
       if (tbody) {
         renderHtml(tbody, `
           <tr>
-            <td colspan="5" class="px-6 py-8 text-center text-rose-600 dark:text-rose-400">
+            <td colspan="6" class="px-6 py-8 text-center text-rose-600 dark:text-rose-400">
               <p>Gagal memuat data pengguna: ${errMsg}</p>
               <button type="button" data-action="loadAdminData" class="mt-3 min-h-[44px] px-3 font-bold underline cursor-pointer">Coba lagi</button>
             </td>
@@ -90,6 +207,7 @@
         <td class="px-6 py-4">${m.roleBadge}</td>
         <td class="px-6 py-4">${m.statusBadge}</td>
         <td class="px-6 py-4 text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(String(u.created_at || '').slice(0, 10))}</td>
+        <td class="px-6 py-4">${buildAdminActivityHtml(u)}</td>
         <td class="px-6 py-4 text-center"><div class="flex items-center justify-center gap-3">${m.actions}</div></td>
       </tr>`;
   }
@@ -106,6 +224,10 @@
           <div class="flex items-center gap-1.5 shrink-0">${m.roleBadge}${m.statusBadge}</div>
         </div>
         <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">Terdaftar: ${escapeHtmlJS(String(u.created_at || '').slice(0, 10) || '-')}</p>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(admT('adm.last_change'))}</p>
+          ${buildAdminActivityHtml(u)}
+        </div>
         <div class="flex flex-wrap gap-2">${m.actions}</div>
       </div>`;
   }
@@ -133,16 +255,11 @@
 
     const search = ((document.getElementById('admSearchInput') || {}).value || '').trim().toLocaleLowerCase();
     const filter = (document.getElementById('admFilterStatus') || {}).value || '';
-    const filtered = adminUsersCache.filter((u) => {
-      if (search && !`${u.display_name || ''} ${u.email || ''}`.toLocaleLowerCase().includes(search)) return false;
-      if ((filter === 'active' || filter === 'suspended') && u.status !== filter) return false;
-      if ((filter === 'admin' || filter === 'user') && u.role !== filter) return false;
-      return true;
-    });
+    const filtered = filterAdminUsers(adminUsersCache, search, filter);
 
     if (countEl) countEl.textContent = String(filtered.length);
     if (!filtered.length) {
-      renderHtml(tbody, '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Tidak ada pengguna yang cocok.</td></tr>');
+      renderHtml(tbody, '<tr><td colspan="6" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Tidak ada pengguna yang cocok.</td></tr>');
       if (mobileList) renderHtml(mobileList, '<div class="p-6 text-center text-xs text-slate-500 dark:text-slate-400">Tidak ada pengguna yang cocok.</div>');
       return;
     }
@@ -557,4 +674,19 @@
     resetUserPassword,
     openTelegramPairingModal
   });
+
+  // Helper Perubahan Terakhir diekspos untuk tes (tests/admin-last-activity.test.js).
+  root.__mkFeat = root.__mkFeat || {};
+  root.__mkFeat.adminActivity = {
+    ADMIN_DORMANT_AFTER_DAYS,
+    ADMIN_DELETION_AFTER_DAYS,
+    formatLastChangeDate,
+    formatLastChangeRelative,
+    adminDaysInactive,
+    classifyAdminActivity,
+    deletionCountdownText,
+    filterAdminUsers,
+    buildAdminUserRowHtml,
+    buildAdminUserMobileCardHtml
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
