@@ -414,3 +414,34 @@ test('cleanup: schedule.sql menambah mk-account-cleanup harian 02:00 WIB dari Va
     assert.ok(scheduleSql.includes(`cron.schedule('${name}', '${expr}'`), `job lama ${name} harus tetap ada`);
   }
 });
+
+test('cleanup: schedule.sql meng-guard unschedule — job yang belum ada tidak boleh error', () => {
+  // Bukti 2026-11-28: cron.unschedule('mk-account-cleanup') tanpa guard
+  // gagal XX000 "could not find valid entry for job" karena job itu
+  // belum pernah dijadwalkan; run schedule.sql pun berhenti di situ.
+  // Setiap unschedule harus dijaga where exists (cron.job).
+  for (const name of [
+    'mk-daily-reminder',
+    'mk-weekly-report',
+    'mk-recurring',
+    'mk-snapshot',
+    'mk-account-cleanup',
+  ]) {
+    assert.ok(
+      scheduleSql.includes(
+        `cron.unschedule('${name}') where exists (select 1 from cron.job where jobname = '${name}')`,
+      ),
+      `unschedule ${name} harus dijaga where exists (cron.job)`,
+    );
+  }
+  // Tidak boleh ada lagi unschedule telanjang (tanpa where exists).
+  // Baris komentar (contoh di akhir file) dikecualikan.
+  const bare = scheduleSql
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('--'))
+    .filter((line) => /cron\.unschedule\('[^']+'\);?\s*$/.test(line));
+  assert.deepEqual(bare, [], 'tidak boleh ada cron.unschedule tanpa guard');
+  // Komentar lama yang salah ("tidak error, mengembalikan false") harus sudah diperbaiki.
+  assert.doesNotMatch(scheduleSql, /tidak error \(mengembalikan false\)/);
+});
