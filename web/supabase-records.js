@@ -153,7 +153,7 @@
         try {
           rows.push(trxRow(item));
         } catch (e) {
-          rowErrors.push({ index: idx + 1, message: String((e && e.message) || e) });
+          rowErrors.push({ index: idx + 1, message: (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(e) : String((e && e.message) || e)) });
           rows.push(null);
         }
       });

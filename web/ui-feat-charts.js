@@ -22,6 +22,7 @@
     }
     if (!nonZero.length) {
       catCanvas.style.display = 'none';
+      catCanvas.setAttribute('aria-label', 'Grafik proporsi pengeluaran per kategori. Belum ada transaksi pengeluaran di periode ini.');
       if (catEmpty) catEmpty.classList.remove('hidden');
       return;
     }
@@ -32,6 +33,12 @@
     const restSum = nonZero.slice(6).reduce((s, r) => s + r.actual, 0);
     if (restSum > 0) top.push({ category: 'Lainnya', actual: restSum });
 
+    // Gelombang 6 (U20): ringkasan kategori terbesar untuk screen reader.
+    const catTotal = nonZero.reduce((s, r) => s + r.actual, 0);
+    const topShare = catTotal > 0 ? Math.round((top[0].actual / catTotal) * 100) : 0;
+    catCanvas.setAttribute('aria-label', 'Grafik proporsi pengeluaran per kategori. Kategori terbesar ' +
+      top[0].category + ', ' + formatRupiah(top[0].actual).replace(',00', '') +
+      ' (' + topShare + '% dari total pengeluaran).');
     const palette = [theme.brandHex, '#10b981', '#f59e0b', '#ec4899', '#0ea5e9', '#8b5cf6', '#64748b'];
     budgetCategoryChartInstance = new Chart(catCanvas.getContext('2d'), {
       type: 'doughnut',
@@ -72,9 +79,17 @@
     }
     if (!hasAny) {
       cfCanvas.style.display = 'none';
+      cfCanvas.setAttribute('aria-label', 'Grafik arus kas 6 bulan. Belum ada data arus kas.');
       if (cfEmpty) cfEmpty.classList.remove('hidden');
       return;
     }
+    // Gelombang 6 (U20): ringkasan siklus terakhir untuk screen reader.
+    const lastCf = series[series.length - 1];
+    const lastNet = (lastCf.incomeTotal || 0) - (lastCf.expenseTotal || 0);
+    cfCanvas.setAttribute('aria-label', 'Grafik arus kas 6 bulan. Siklus terakhir: pemasukan ' +
+      formatRupiah(lastCf.incomeTotal || 0).replace(',00', '') + ', pengeluaran ' +
+      formatRupiah(lastCf.expenseTotal || 0).replace(',00', '') + ', net ' +
+      (lastNet >= 0 ? '+' : '−') + formatRupiah(Math.abs(lastNet)).replace(',00', '') + '.');
 
     cfCanvas.style.display = 'block';
     if (cfEmpty) cfEmpty.classList.add('hidden');
@@ -130,7 +145,10 @@
     if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.computeNetWorthSeries !== 'function') return;
 
     const series = FinanceAnalysis.computeNetWorthSeries(DB, DB.currentPeriod, DB.payrollDay, 6);
-    if (!series || !series.length) return;
+    if (!series || !series.length) {
+      canvas.setAttribute('aria-label', 'Grafik tren kekayaan bersih 6 siklus. Belum ada data.');
+      return;
+    }
     if (root._netWorthChartInstance) {
       root._netWorthChartInstance.destroy();
       root._netWorthChartInstance = null;
@@ -140,6 +158,15 @@
     const gridColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.24)';
     const textColor = isDark ? '#94a3b8' : '#475569';
     const brandColor = (typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() : '') || '#10b981';
+
+    // Gelombang 6 (U20): ringkasan tren untuk screen reader, diperbarui tiap render.
+    const firstNW = Number(series[0].estimatedNetWorth) || 0;
+    const lastNW = Number(series[series.length - 1].estimatedNetWorth) || 0;
+    const pctNW = firstNW !== 0 ? Math.round(((lastNW - firstNW) / Math.abs(firstNW)) * 100) : 0;
+    const dirNW = lastNW > firstNW ? 'naik' : (lastNW < firstNW ? 'turun' : 'tetap');
+    canvas.setAttribute('aria-label', 'Grafik tren kekayaan bersih 6 siklus. Kekayaan bersih ' +
+      formatRupiah(firstNW).replace(',00', '') + ' menjadi ' + formatRupiah(lastNW).replace(',00', '') +
+      ', ' + dirNW + ' ' + Math.abs(pctNW) + '%.');
 
     root._netWorthChartInstance = new Chart(canvas.getContext('2d'), {
       type: 'line',

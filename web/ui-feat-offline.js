@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js
-/* global DB, Swal, refreshFromServer, getSwalClass, refreshNotificationBell */
+/* global DB, Swal, refreshFromServer, getSwalClass, refreshNotificationBell, toUserErrorMessage */
 /* ============================================================
    FEATURES — OFFLINE QUEUE & CALLSERVER WRAPPER
    ============================================================ */
@@ -370,6 +370,67 @@
     return msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed');
   }
 
+  // Gelombang 6 (U14): pil "Offline" di header tidak menjelaskan apa-apa
+  // (penjelasan hanya di atribut title yang tak muncul saat disentuh di
+  // HP). Saat pertama kali masuk mode offline, tampilkan toast sekali per
+  // sesi offline — pola .mk-toast yang sama seperti toast pembaruan PWA
+  // (ui-pro-quick.js): tombol tutup + hilang otomatis. Sekali per sesi
+  // supaya tidak spam tiap perubahan status; flag direset saat online.
+  let offlineToastShown = false;
+  function showOfflineToastOnce() {
+    if (offlineToastShown || typeof document === 'undefined') return;
+    offlineToastShown = true;
+    if (document.getElementById('mkOfflineToast')) return;
+    const toast = document.createElement('div');
+    toast.id = 'mkOfflineToast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('data-open', 'false');
+    toast.className = 'mk-toast fixed left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl p-3.5 flex items-center gap-3 border border-slate-700 dark:border-slate-200';
+    const icon = document.createElement('i');
+    icon.className = 'ph ph-wifi-slash text-xl text-amber-400 dark:text-amber-600 shrink-0';
+    icon.setAttribute('aria-hidden', 'true');
+    const body = document.createElement('div');
+    body.className = 'min-w-0 flex-1 text-xs';
+    const title = document.createElement('p');
+    title.className = 'font-bold';
+    title.textContent = 'Anda offline';
+    const sub = document.createElement('p');
+    sub.className = 'opacity-80 text-[11px]';
+    sub.textContent = 'Transaksi tersimpan di perangkat dan akan terkirim otomatis saat online.';
+    body.append(title, sub);
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', 'Tutup');
+    closeBtn.className = 'w-8 h-8 rounded-lg opacity-75 hover:opacity-100 flex items-center justify-center shrink-0';
+    const closeIcon = document.createElement('i');
+    closeIcon.className = 'ph ph-x';
+    closeIcon.setAttribute('aria-hidden', 'true');
+    closeBtn.appendChild(closeIcon);
+    toast.append(icon, body, closeBtn);
+    document.body.appendChild(toast);
+    if (typeof root.requestAnimationFrame === 'function') {
+      root.requestAnimationFrame(() => toast.setAttribute('data-open', 'true'));
+    } else {
+      toast.setAttribute('data-open', 'true');
+    }
+    const dismiss = () => {
+      toast.setAttribute('data-open', 'false');
+      root.setTimeout(() => toast.remove(), 190);
+    };
+    closeBtn.addEventListener('click', dismiss);
+    root.setTimeout(dismiss, 6000);
+  }
+
+  function handleOfflineEvent() {
+    updateNetworkStatusPill();
+    showOfflineToastOnce();
+  }
+
+  function handleOnlineEvent() {
+    offlineToastShown = false;
+    updateNetworkStatusPill();
+  }
+
   function updateNetworkStatusPill() {
     const pill = document.getElementById('networkStatusPill');
     if (!pill) return;
@@ -412,7 +473,7 @@
   async function recordOfflineFailure(item, err) {
     const nextRetry = (Number(item.retryCount) || 0) + 1;
     const isFailed = nextRetry >= MAX_OFFLINE_RETRIES;
-    const errMsg = String((err && err.message) || err || 'Ditolak server').slice(0, 180);
+    const errMsg = (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(err) : String((err && err.message) || err || 'Ditolak server')).slice(0, 180);
     await saveOfflineQueueItem(Object.assign({}, item, {
       retryCount: nextRetry,
       failed: isFailed,
@@ -433,7 +494,7 @@
       showCancelButton: true,
       showDenyButton: true,
       confirmButtonText: 'Coba Ulang',
-      denyButtonText: 'Buang Gagal',
+      denyButtonText: 'Hapus yang Gagal',
       cancelButtonText: 'Tutup',
       customClass: { popup: getSwalClass() }
     });
@@ -855,15 +916,20 @@
     return migrated;
   }
 
-  root.addEventListener('online', updateNetworkStatusPill);
-  root.addEventListener('offline', updateNetworkStatusPill);
-  document.addEventListener('DOMContentLoaded', updateNetworkStatusPill);
+  root.addEventListener('online', handleOnlineEvent);
+  root.addEventListener('offline', handleOfflineEvent);
+  document.addEventListener('DOMContentLoaded', () => {
+    updateNetworkStatusPill();
+    // Buka aplikasi dalam keadaan sudah offline: beri tahu sekali.
+    if (!navigator.onLine) showOfflineToastOnce();
+  });
 
   root.flushOfflineQueue = flushOfflineQueue;
   root.retryFailedOfflineItems = retryFailedOfflineItems;
   root.discardFailedOfflineItems = discardFailedOfflineItems;
   root.updateNetworkStatusPill = updateNetworkStatusPill;
   root.__mkFeat = root.__mkFeat || {};
+  root.__mkFeat.showOfflineToastOnce = showOfflineToastOnce;
   root.__mkFeat.readLocalQueue = readLocalQueue;
   root.__mkFeat.openOfflineDb = openOfflineDb;
   root.__mkFeat.IDB_SNAPSHOT_STORE = IDB_SNAPSHOT_STORE;

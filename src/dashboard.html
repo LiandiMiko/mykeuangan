@@ -28,7 +28,7 @@
           </button>
         </p>
         <div class="flex items-center gap-2 min-w-0">
-          <p class="text-[28px] sm:text-5xl font-black tracking-tight leading-tight drop-shadow-sm tabular-nums truncate mk-privacy-target" id="dash-total-aset">Rp 0</p>
+          <p class="text-2xl min-[400px]:text-[28px] sm:text-5xl font-black tracking-tight leading-tight drop-shadow-sm tabular-nums whitespace-nowrap overflow-hidden min-w-0 mk-privacy-target" id="dash-total-aset">Rp 0</p>
           <button id="heroHideNominalBtn" type="button" data-action="toggleHideNominal" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
                   class="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white inline-flex items-center justify-center transition-colors shrink-0">
             <i id="heroEyeIcon" class="ph ph-eye text-lg" aria-hidden="true"></i>
@@ -79,7 +79,7 @@
         <span class="hidden sm:inline" data-i18n="quick.submit">Catat Kilat</span>
       </button>
     </form>
-    <p id="quickAddPreview" class="hide mt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400" aria-live="polite"></p>
+    <p id="quickAddPreview" class="hide mt-2 text-[11px] font-semibold text-slate-600 dark:text-slate-400" aria-live="polite"></p>
     <div class="mt-2.5 flex items-center gap-2">
       <div id="quickTemplateChips" class="flex flex-nowrap items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar pb-0.5"></div>
       <button type="button" data-action="openQuickTemplatesModal" title="Kelola Template" aria-label="Kelola Template"
@@ -108,7 +108,7 @@
               </span>
               <div class="min-w-0">
                 <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-tight truncate" data-i18n="dash.kalender">Kalender</h3>
-                <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate" id="kalenderMonthLabel">—</p>
+                <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 truncate" id="kalenderMonthLabel">—</p>
               </div>
             </div>
             <div class="flex sm:hidden items-center gap-1 shrink-0">
@@ -128,12 +128,12 @@
           </div>
           <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
             <div class="grid grid-cols-3 w-full sm:w-auto sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-full text-[11px] font-bold" role="group" aria-label="Filter kalender">
-              <button type="button" id="calFilterAll" data-action="setCalendarFilter" data-args='["all"]' aria-pressed="true" class="min-h-9 px-3 py-1 rounded-full bg-white dark:bg-slate-900 shadow-xs text-brand dark:text-brand-ink transition-colors flex items-center justify-center" data-i18n="cal.filter_all">Semua</button>
-              <button type="button" id="calFilterOut" data-action="setCalendarFilter" data-args='["out"]' aria-pressed="false" class="min-h-9 px-3 py-1 rounded-full text-slate-600 dark:text-slate-300 hover:text-rose-600 transition-colors inline-flex items-center justify-center gap-1.5">
+              <button type="button" id="calFilterAll" data-action="setCalendarFilter" data-args='["all"]' aria-pressed="true" class="min-h-11 px-3 py-1 rounded-full bg-white dark:bg-slate-900 shadow-xs text-brand dark:text-brand-ink transition-colors flex items-center justify-center" data-i18n="cal.filter_all">Semua</button>
+              <button type="button" id="calFilterOut" data-action="setCalendarFilter" data-args='["out"]' aria-pressed="false" class="min-h-11 px-3 py-1 rounded-full text-slate-600 dark:text-slate-300 hover:text-rose-600 transition-colors inline-flex items-center justify-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0" aria-hidden="true"></span>
                 <span data-i18n="cal.filter_out">Keluar</span>
               </button>
-              <button type="button" id="calFilterIn" data-action="setCalendarFilter" data-args='["in"]' aria-pressed="false" class="min-h-9 px-3 py-1 rounded-full text-slate-600 dark:text-slate-300 hover:text-emerald-600 transition-colors inline-flex items-center justify-center gap-1.5">
+              <button type="button" id="calFilterIn" data-action="setCalendarFilter" data-args='["in"]' aria-pressed="false" class="min-h-11 px-3 py-1 rounded-full text-slate-600 dark:text-slate-300 hover:text-emerald-600 transition-colors inline-flex items-center justify-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" aria-hidden="true"></span>
                 <span data-i18n="cal.filter_in">Masuk</span>
               </button>
@@ -157,30 +157,30 @@
 
         <div class="px-3.5 py-2.5 sm:px-5 sm:py-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2">
           <div class="min-w-0">
-            <p class="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5 truncate" data-i18n="dash.total_masuk">Total Masuk</p>
+            <p class="text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5 truncate" data-i18n="dash.total_masuk">Total Masuk</p>
             <p class="text-xs sm:text-base font-black text-emerald-700 dark:text-emerald-400 truncate tabular-nums mk-privacy-target" id="kalenderTotalIn">Rp 0</p>
           </div>
           <div class="min-w-0">
-            <p class="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5 truncate" data-i18n="dash.total_keluar">Total Keluar</p>
+            <p class="text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5 truncate" data-i18n="dash.total_keluar">Total Keluar</p>
             <p class="text-xs sm:text-base font-black text-rose-600 dark:text-rose-400 truncate tabular-nums mk-privacy-target" id="kalenderTotalOut">Rp 0</p>
           </div>
           <div class="min-w-0">
-            <p class="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5 truncate" data-i18n="dash.net">Net</p>
+            <p class="text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5 truncate" data-i18n="dash.net">Net</p>
             <p class="text-xs sm:text-base font-black text-slate-700 dark:text-white truncate tabular-nums mk-privacy-target" id="kalenderTotalNet">Rp 0</p>
           </div>
         </div>
 
         <div class="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.sen">Sen</div>
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.sel">Sel</div>
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.rab">Rab</div>
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.kam">Kam</div>
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.jum">Jum</div>
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.sab">Sab</div>
-          <div class="py-2 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.min">Min</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.sen">Sen</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.sel">Sel</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.rab">Rab</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.kam">Kam</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.jum">Jum</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.sab">Sab</div>
+          <div class="py-2 text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider" data-i18n="cal.min">Min</div>
         </div>
 
-        <div id="kalenderGrid" class="grid grid-cols-7 min-h-[80px]" aria-live="polite"></div>
+        <div id="kalenderGrid" class="grid grid-cols-7 min-h-[80px]" role="grid" aria-label="Kalender transaksi bulanan" aria-live="polite"></div>
       </div>
     </div>
 
@@ -191,17 +191,25 @@
         <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2.5 min-w-0">
             <span class="w-8 h-8 rounded-xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0">
-              <i class="ph ph-credit-card text-lg" aria-hidden="true"></i>
+              <i class="ph ph-wallet text-lg" aria-hidden="true"></i>
             </span>
             <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white truncate" data-i18n="dash.wallets">Dompet</h3>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
-            <button type="button" data-action="addWallet" class="min-h-10 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors">
+            <button type="button" data-action="addWallet" class="min-h-10 px-3 py-1.5 bg-brand hover:bg-brand-hover active:bg-brand-hover text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors">
               <i class="ph-bold ph-plus" aria-hidden="true"></i> <span data-i18n="dash.add_wallet">Tambah Dompet</span>
             </button>
-            <button type="button" data-action="openTransferModal" data-args='["transfer"]' title="Tarik Tunai / Transfer" aria-label="Tarik Tunai / Transfer"
+            <!-- Gelombang 6 (U32): dulu satu tombol berlabel ganda
+              "Tarik Tunai / Transfer" — kini dua tombol eksplisit, masing-masing
+              memanggil modal dengan jenis yang benar (transfer / tarik_tunai).
+              Label singkat di mobile, label lengkap di layar ≥sm. -->
+            <button type="button" data-action="openTransferModal" data-args='["transfer"]' title="Transfer Antar Dompet" aria-label="Transfer Antar Dompet"
                     class="min-h-10 px-3 py-1.5 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-xl text-xs font-bold flex items-center gap-1 transition-colors">
-              <i class="ph ph-arrows-left-right text-sm" aria-hidden="true"></i> <span class="hidden sm:inline" data-i18n="dash.transfer_wallet">Tarik Tunai / Transfer</span>
+              <i class="ph ph-arrows-left-right text-sm" aria-hidden="true"></i> <span class="sm:hidden" data-i18n="dash.transfer">Transfer</span><span class="hidden sm:inline" data-i18n="dash.transfer_full">Transfer Antar Dompet</span>
+            </button>
+            <button type="button" data-action="openTransferModal" data-args='["tarik_tunai"]' title="Tarik Tunai" aria-label="Tarik Tunai"
+                    class="min-h-10 px-3 py-1.5 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-xl text-xs font-bold flex items-center gap-1 transition-colors">
+              <i class="ph ph-money text-sm" aria-hidden="true"></i> <span data-i18n="dash.withdraw">Tarik Tunai</span>
             </button>
           </div>
         </div>
@@ -232,7 +240,7 @@
           <button type="button" data-action="switchView" data-args='["utang"]' class="w-full text-left p-3.5 sm:p-4 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors min-w-0">
             <p class="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold truncate">
               <i class="ph ph-arrow-down-left text-xs shrink-0" aria-hidden="true"></i>
-              <span class="truncate" data-i18n="dash.piutang_saya">Total Mengutangi (Piutang)</span>
+              <span class="truncate" data-i18n="dash.piutang_saya">Total Piutang (Mengutangi)</span>
             </p>
             <p class="text-sm sm:text-xl font-black text-emerald-700 dark:text-emerald-400 truncate tabular-nums mt-1 mk-privacy-target" id="dash-piutang">Rp 0</p>
           </button>

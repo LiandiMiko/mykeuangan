@@ -50,7 +50,7 @@
       <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-bold uppercase tracking-wider" data-i18n="aset.days_30">30 Hari</span>
     </div>
     <div class="p-4 sm:p-5" style="height: 260px; position: relative;">
-      <canvas id="portfolioChart"></canvas>
+      <canvas id="portfolioChart" role="img" aria-label="Grafik tren nilai portfolio 30 hari terakhir. Memuat data."></canvas>
       <div id="portfolioChartPlaceholder" style="display:none; position:absolute; inset:0;" class="flex items-center justify-center">
         <div class="text-center px-4">
           <i class="ph ph-chart-line text-4xl text-slate-300 dark:text-slate-600 mb-2" aria-hidden="true"></i>
@@ -74,7 +74,7 @@
       <span class="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold uppercase tracking-wider shrink-0" data-i18n="aset.cycles_6">6 Siklus</span>
     </div>
     <div class="p-4 sm:p-5" style="height: 250px; position: relative;">
-      <canvas id="netWorthChart"></canvas>
+      <canvas id="netWorthChart" role="img" aria-label="Grafik tren kekayaan bersih 6 siklus. Memuat data."></canvas>
     </div>
   </div>
 
@@ -88,9 +88,16 @@
         </p>
         <p class="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5" data-i18n="wallet.recent_transfers_sub">Catatan mutasi antar dompet, tarik tunai, dan top-up investasi.</p>
       </div>
-      <button type="button" data-action="openTransferModal" data-args='["transfer"]' class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shrink-0">
-        <i class="ph ph-arrows-left-right" aria-hidden="true"></i> <span data-i18n="dash.transfer_wallet">Tarik Tunai / Transfer</span>
-      </button>
+      <!-- Gelombang 6 (U32): dua tombol eksplisit — Transfer Antar Dompet
+        dan Tarik Tunai — menggantikan satu tombol berlabel ganda. -->
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+        <button type="button" data-action="openTransferModal" data-args='["transfer"]' class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
+          <i class="ph ph-arrows-left-right" aria-hidden="true"></i> <span class="sm:hidden" data-i18n="dash.transfer">Transfer</span><span class="hidden sm:inline" data-i18n="dash.transfer_full">Transfer Antar Dompet</span>
+        </button>
+        <button type="button" data-action="openTransferModal" data-args='["tarik_tunai"]' class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
+          <i class="ph ph-money" aria-hidden="true"></i> <span data-i18n="dash.withdraw">Tarik Tunai</span>
+        </button>
+      </div>
     </div>
     <div id="wallet-transfers" class="divide-y divide-slate-100 dark:divide-slate-800"></div>
   </div>

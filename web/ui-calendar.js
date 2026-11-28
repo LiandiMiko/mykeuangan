@@ -1,5 +1,5 @@
 // @depends-on: ui-state.js
-/* global DB, FinanceAnalysis, Swal, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, getPeriodRange, getMonthName, getMonthShort, openForm, walletName, t, mkActionAttrs */
+/* global DB, FinanceAnalysis, Swal, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, getPeriodRange, getMonthName, getMonthShort, openForm, walletName, t, mkActionAttrs, currentLang */
 /* ============================================================
    CALENDAR VIEW
    ============================================================ */
@@ -153,25 +153,32 @@
     const summaryLabel = mode === 'out'
       ? ('Keluar: ' + formatRupiah(data.outAmt))
       : (mode === 'in' ? ('Masuk: ' + formatRupiah(data.inAmt)) : ('Net: ' + formatRupiah(net)));
-    cell.title = hasData ? (visibleCount + ' transaksi · ' + summaryLabel) : ('Lihat atau tambah transaksi ' + dateStr);
-    cell.setAttribute('aria-label', dateStr + (hasData ? (', ' + visibleCount + ' transaksi') : ''));
+    // Gelombang 6 (U33): aria-label tanggal lokal yang bisa dibaca
+    // ("Jumat, 28 November 2026, 3 transaksi"), bukan ISO mentah.
+    // new Date(y, m-1, d) memakai komponen lokal — jangan toISOString (UTC).
+    const dateParts = dateStr.split('-');
+    const dayDate = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+    const dayLocale = (typeof currentLang !== 'undefined' && currentLang === 'en') ? 'en-US' : 'id-ID';
+    const dayLabel = new Intl.DateTimeFormat(dayLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(dayDate);
+    cell.title = hasData ? (dayLabel + ' · ' + visibleCount + ' transaksi · ' + summaryLabel) : ('Lihat atau tambah transaksi ' + dayLabel);
+    cell.setAttribute('aria-label', dayLabel + (hasData ? (', ' + visibleCount + ' transaksi') : ''));
     cell.addEventListener('click', () => openCalendarDayModal(dateStr));
 
     let html = '<div class="flex items-center justify-between mb-1">' +
-      '<span class="text-[11px] sm:text-xs font-bold ' +
+      '<span class="text-xs font-bold ' +
       (isToday ? 'w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-brand text-white inline-flex items-center justify-center' : 'text-slate-700 dark:text-slate-200') + '">' + d + '</span>';
-    if (hasData) html += '<span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 tabular-nums">' + visibleCount + 'x</span>';
+    if (hasData) html += '<span class="text-xs font-bold text-slate-500 dark:text-slate-400 tabular-nums">' + visibleCount + 'x</span>';
     html += '</div>';
 
     if (hasData) {
       if (showIn && data.inAmt > 0) {
-        html += '<p class="text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400 leading-tight truncate tabular-nums">+' + formatShortIDR(data.inAmt) + '</p>';
+        html += '<p class="text-xs font-bold text-emerald-700 dark:text-emerald-400 leading-tight truncate tabular-nums">+' + formatShortIDR(data.inAmt) + '</p>';
       }
       if (showOut && data.outAmt > 0) {
-        html += '<p class="text-[10px] sm:text-[11px] font-bold text-rose-600 dark:text-rose-400 leading-tight truncate tabular-nums">−' + formatShortIDR(data.outAmt) + '</p>';
+        html += '<p class="text-xs font-bold text-rose-600 dark:text-rose-400 leading-tight truncate tabular-nums">−' + formatShortIDR(data.outAmt) + '</p>';
       }
       if (mode === 'all' && data.inAmt > 0 && data.outAmt > 0) {
-        html += '<p class="hidden sm:block text-[11px] font-black mt-0.5 tabular-nums ' +
+        html += '<p class="hidden sm:block text-xs font-black mt-0.5 tabular-nums ' +
           (net >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + '">= ' +
           (net >= 0 ? '+' : '−') + formatShortIDR(Math.abs(net)) + '</p>';
       }
@@ -190,7 +197,7 @@
     if (elNet) {
       elNet.textContent = formatRupiah(net);
       elNet.className = 'text-sm sm:text-base font-black truncate tabular-nums ' +
-        (net > 0 ? 'text-emerald-600 dark:text-emerald-500'
+        (net > 0 ? 'text-emerald-700 dark:text-emerald-500'
           : net < 0 ? 'text-rose-600 dark:text-rose-500' : 'text-slate-700 dark:text-white');
     }
   }
@@ -263,19 +270,19 @@
     const rowsHtml = dayTxs.length
       ? dayTxs.map((tx) => {
         const isIn = tx.tipe === 'Pemasukan';
-        const color = isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+        const color = isIn ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
         const sign = isIn ? '+' : '-';
         const idAttr = escapeAttrJS(tx.id);
         return `
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs">
             <div class="min-w-0 text-left">
-              <p class="font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(tx.kategori)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}</p>
+              <p class="font-bold text-slate-800 dark:text-white truncate" title="${escapeHtmlJS(tx.kategori)}">${escapeHtmlJS(tx.kategori)}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}">${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}</p>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <span class="font-black tabular-nums ${color}">${sign}${formatRupiah(tx.nominal).replace(',00', '')}</span>
-              <button type="button" ${mkActionAttrs('swalClose|editTransaction', [tx.id])} aria-label="Edit transaksi" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
-              <button type="button" ${mkActionAttrs('swalClose|deleteTransaction', [tx.id])} aria-label="Hapus transaksi" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('swalClose|editTransaction', [tx.id])} aria-label="Edit transaksi" class="w-11 h-11 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+              <button type="button" ${mkActionAttrs('swalClose|deleteTransaction', [tx.id])} aria-label="Hapus transaksi" class="w-11 h-11 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
             </div>
           </div>`;
       }).join('')
@@ -288,7 +295,7 @@
       showDenyButton: true,
       confirmButtonText: '+ Pengeluaran',
       denyButtonText: '+ Pemasukan',
-      denyButtonColor: '#059669',
+      denyButtonColor: '#047857',
       cancelButtonText: t('btn.tutup'),
       customClass: { popup: getSwalClass() }
     }).then((res) => {

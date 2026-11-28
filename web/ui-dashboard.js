@@ -56,8 +56,8 @@
             <i class="ph ph-receipt text-lg" aria-hidden="true"></i>
           </div>
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-bold text-slate-800 dark:text-white truncate">${safeCatHtml}</p>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+            <p class="text-sm font-bold text-slate-800 dark:text-white truncate" title="${safeCatHtml}">${safeCatHtml}</p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
           </div>
         </div>
         <div class="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2 shrink-0">
@@ -89,9 +89,9 @@
     return `
       <div class="py-8 px-4 text-center">
         <i class="ph ph-${isIn ? 'tray-arrow-down' : 'tray-arrow-up'} text-3xl text-slate-300 dark:text-slate-600 mb-2 block" aria-hidden="true"></i>
-        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Belum ada ${isIn ? 'pemasukan' : 'pengeluaran'} pada siklus ini.</p>
+        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(isIn ? t('dash.empty_in') : t('dash.empty_out'))}</p>
         <button type="button" ${mkActionAttrs('openForm', [tipe])} class="mt-3 min-h-10 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold hover:bg-brand/20 transition-colors">
-          + Catat ${isIn ? 'Pemasukan' : 'Pengeluaran'}
+          ${escapeHtmlJS(isIn ? t('dash.record_in') : t('dash.record_out'))}
         </button>
       </div>`;
   }
@@ -115,7 +115,7 @@
 
     const setText = (id, val) => {
       const el = document.getElementById(id);
-      if (el) el.innerText = val;
+      if (el) { el.innerText = val; el.title = val; }
     };
 
     setText('dash-total-aset', formatRupiah(totals.netWorth));
@@ -153,7 +153,7 @@
     if (!container) return;
     const goals = DB.goals || [];
     if (!goals.length) {
-      renderHtml(container, `<p class="md:col-span-2 p-6 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-sm text-slate-500">${escapeHtmlJS(t('goal.empty'))}</p>`);
+      renderHtml(container, `<p class="md:col-span-2 p-6 text-center rounded-2xl sm:rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 text-sm text-slate-500">${escapeHtmlJS(t('goal.empty'))}</p>`);
     } else {
       renderHtml(container, goals.map((goal) => {
         const progress = FinanceAnalysis.goalProgress(goal.currentAmount, goal.targetAmount);

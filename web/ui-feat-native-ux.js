@@ -700,7 +700,17 @@
     icon.className = 'ph ph-fingerprint text-base';
     icon.setAttribute('aria-hidden', 'true');
     const lbl = document.createElement('span');
-    lbl.textContent = msg('Buka dengan Sidik Jari', 'Unlock with Biometrics');
+    // Gelombang 6 (U13): bila DEK belum ada di memori, sidik jari saja
+    // tidak cukup — PIN tetap diminta sekali untuk membuka kunci enkripsi.
+    // Label menyebut itu secara eksplisit supaya tombol tidak menjanjikan
+    // buka-kunci penuh. Bila DEK sudah ada (mis. verifikasi PIN di tengah
+    // sesi), sidik jari saja memang cukup, jadi label tetap singkat.
+    const dekInMemory = root.__mkFeat && typeof root.__mkFeat.hasPinDataKey === 'function'
+      ? root.__mkFeat.hasPinDataKey()
+      : false;
+    lbl.textContent = dekInMemory
+      ? msg('Buka dengan Sidik Jari', 'Unlock with Biometrics')
+      : msg('Buka dengan Sidik Jari + PIN sekali', 'Unlock with Biometrics + PIN once');
     btn.append(icon, lbl);
     wrap.appendChild(btn);
     if (getBiometricCooldownSeconds() > 0) setBiometricButtonLocked(btn, getBiometricCooldownSeconds());
@@ -793,6 +803,17 @@
 
     row.append(bioBtn, guideBtn);
     container.appendChild(row);
+    // Gelombang 6 (U13): jelaskan di layar pengaturan biometrik bahwa
+    // sidik jari tidak menggantikan PIN sepenuhnya — PIN tetap diminta
+    // sekali setiap kali aplikasi dibuka dari nol (DEK harus dibuka PIN).
+    const note = document.createElement('p');
+    note.id = 'acc-bio-note';
+    note.className = 'mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400';
+    note.textContent = msg(
+      'Sidik jari mempercepat buka kunci, tetapi PIN tetap diminta sekali setiap kali aplikasi dibuka dari nol.',
+      'Biometrics speed up unlocking, but the PIN is still asked once every time the app is opened from scratch.'
+    );
+    container.appendChild(note);
   }
 
   function ensurePullRefreshPill() {

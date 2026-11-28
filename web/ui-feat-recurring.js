@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js, ui-state.js
-/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, localToday, walletOptions, t */
+/* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, localToday, walletOptions, t, toUserErrorMessage */
 /* ============================================================
    FEATURES — DUE RECURRING BILLS BANNER & BATCH RECORD
    ============================================================ */
@@ -163,7 +163,7 @@
     const itemsHtml = due.dueBills.map((b) => {
       const isInc = b.tipe === 'Pemasukan';
       return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs">
-        <span class="font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(b.kategori)}${b.keterangan ? ' · ' + escapeHtmlJS(b.keterangan) : ''}</span>
+        <span class="font-bold text-slate-800 dark:text-white truncate" title="${escapeHtmlJS(b.kategori)}${b.keterangan ? ' · ' + escapeHtmlJS(b.keterangan) : ''}">${escapeHtmlJS(b.kategori)}${b.keterangan ? ' · ' + escapeHtmlJS(b.keterangan) : ''}</span>
         <span class="font-black tabular-nums ${isInc ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} shrink-0">${isInc ? '+' : '-'}${formatRupiah(b.nominal).replace(',00', '')}</span>
       </div>`;
     }).join('');
@@ -177,7 +177,7 @@
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Ya, Catat Semua',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       confirmButtonColor: '#d97706',
       customClass: { popup: getSwalClass() },
       preConfirm: () => ({ walletId: (document.getElementById('batch-rec-wallet') || {}).value || (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '' })
@@ -191,7 +191,7 @@
       Swal.fire({ icon: 'success', title: 'Berhasil Dicatat!', text: `${due.count} tagihan rutin berhasil dicatat ke siklus ini.`, timer: 1500, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
-      else Swal.fire({ icon: 'error', title: 'Gagal', text: String(err.message || err), customClass: { popup: getSwalClass() } });
+      else Swal.fire({ icon: 'error', title: 'Gagal', text: (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(err) : 'Terjadi kesalahan. Coba lagi.'), customClass: { popup: getSwalClass() } });
     }
   }
 

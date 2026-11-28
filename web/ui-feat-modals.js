@@ -23,7 +23,7 @@
           <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             <div class="min-w-0 text-left">
               <p class="font-bold text-slate-700 dark:text-slate-200 tabular-nums">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.tipe)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || '-')}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(tx.keterangan || '-')}</p>
             </div>
             <span class="font-black shrink-0 tabular-nums ${tx.tipe === 'Pemasukan' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${formatRupiah(tx.nominal).replace(',00', '')}</span>
           </div>`).join('')
@@ -170,8 +170,8 @@
         </div>`,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => { bindAddAssetFieldToggles(); bindNominalInputs(['asset-buyprice', 'asset-value']); },
       preConfirm: validateAddAssetInput
@@ -183,7 +183,7 @@
           try { await refreshFromServer(await callServer('api_refreshPrices')); } catch (_) { /* ignore */ }
         }
       } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+        showActionError(e);
       }
     });
   }
@@ -224,8 +224,8 @@
       ? recent.map((tx) => `
           <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             <div class="min-w-0 text-left">
-              <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(tx.kategori)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+              <p class="font-bold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(tx.kategori)}">${escapeHtmlJS(tx.kategori)}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums" title="${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
             </div>
             <span class="font-black shrink-0 tabular-nums ${tx.tipe === 'Pemasukan' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${tx.tipe === 'Pemasukan' ? '+' : '-'}${formatRupiah(tx.nominal).replace(',00', '')}</span>
           </div>`).join('')
@@ -273,11 +273,11 @@
       <label class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs">
         <span class="flex items-center gap-2 min-w-0">
           <input type="checkbox" class="mk-autobudget-chk" data-idx="${idx}" checked>
-          <span class="font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtmlJS(r.category)}</span>
+          <span class="font-bold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(r.category)}">${escapeHtmlJS(r.category)}</span>
         </span>
         <span class="text-right shrink-0">
           <span class="font-black text-brand dark:text-brand-ink">${formatRupiah(r.recommendedAmount).replace(',00', '')}</span>
-          <span class="block text-[10px] text-slate-400">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
+          <span class="block text-[10px] text-slate-500">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
         </span>
       </label>`).join('');
 

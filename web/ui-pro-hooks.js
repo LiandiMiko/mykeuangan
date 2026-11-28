@@ -87,7 +87,7 @@
       } else if (n.actionType === 'sync_offline') {
         actionBtn = '<button type="button" data-action="swalClose|flushOfflineQueue" data-args="[false]" class="mt-2 px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Sinkronisasi</button>';
       } else if (n.actionType === 'offline_failed') {
-        actionBtn = '<div class="mt-2 flex flex-wrap gap-2"><button type="button" data-action="swalClose|retryFailedOfflineItems" class="px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Coba Ulang</button><button type="button" data-action="swalClose|discardFailedOfflineItems" class="px-3 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-bold">Buang Gagal</button></div>';
+        actionBtn = '<div class="mt-2 flex flex-wrap gap-2"><button type="button" data-action="swalClose|retryFailedOfflineItems" class="px-3 py-1 rounded-lg bg-brand text-white text-[11px] font-bold">Coba Ulang</button><button type="button" data-action="swalClose|discardFailedOfflineItems" class="px-3 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-bold">Hapus yang Gagal</button></div>';
       }
       return `
         <div class="p-3 rounded-xl border text-left ${sevStyle[n.severity] || sevStyle.info}">
@@ -95,7 +95,7 @@
           <p class="text-[11px] opacity-90 mt-0.5">${escapeHtmlJS(n.message)}</p>
           ${actionBtn}
         </div>`;
-    }).join('') : `<p class="text-xs text-slate-400 py-4 text-center">${escapeHtmlJS(t('notif.empty'))}</p>`;
+    }).join('') : `<p class="text-xs text-slate-500 py-4 text-center">${escapeHtmlJS(t('notif.empty'))}</p>`;
 
     await Swal.fire(pro.swalOpt({
       title: t('notif.title'),

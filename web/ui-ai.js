@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js, ui-state.js
-/* global DB, FinanceAnalysis, Swal, escapeHtmlJS, renderHtml, getSwalClass, currentLang, localToday, saveAiAnalysisCache, t */
+/* global DB, FinanceAnalysis, Swal, escapeHtmlJS, renderHtml, getSwalClass, currentLang, localToday, saveAiAnalysisCache, t, toUserErrorMessage */
 /* ============================================================
    ON-DEMAND GEMINI 4 AI CASHFLOW ANALYZER (INTERACTIONS API)
    ============================================================ */
@@ -441,7 +441,7 @@
       try {
         await saveGeminiApiKey(res.value.key);
       } catch (saveErr) {
-        Swal.fire({ icon: 'error', title: 'API Key tidak tersimpan', text: String((saveErr && saveErr.message) || saveErr), customClass: { popup: getSwalClass() } });
+        Swal.fire({ icon: 'error', title: 'API Key tidak tersimpan', text: toUserErrorMessage(saveErr), customClass: { popup: getSwalClass() } });
         return '';
       }
       localStorage.setItem(GEMINI_MODEL_STORAGE, res.value.model);
@@ -520,7 +520,7 @@
             ${renderBullets(parsed.rekomendasi, '-')}
           </div>
         </div>
-        <p class="text-[11px] text-slate-400 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
       </div>`);
   }
 
@@ -579,7 +579,7 @@
       console.error('runAiCashflowAnalysis error:', err);
       renderHtml(box, `
         <div class="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
-          <span>Gagal menjalankan analisis AI: ${escapeSafe(String((err && err.message) || err))}</span>
+          <span>Gagal menjalankan analisis AI: ${escapeSafe(toUserErrorMessage(err))}</span>
           <button type="button" data-action="hideAiAnalysisResult" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 font-bold shrink-0">Tutup</button>
         </div>`);
     } finally {

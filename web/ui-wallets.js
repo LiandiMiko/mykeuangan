@@ -57,9 +57,19 @@
     return w ? w.name : '-';
   };
   const walletKindLabel = (kind) => kind === 'cash' ? 'Tunai' : kind === 'ewallet' ? 'E-wallet' : 'Bank';
-  const walletOptions = (selectedId) => (DB.wallets || [])
-    .map((w) => `<option value="${escapeHtmlJS(w.id)}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)} (${walletKindLabel(w.kind)})</option>`)
-    .join('');
+  // Gelombang 6 (U11): opsi transfer boleh menampilkan saldo berjalan
+  // (dari walletBalances() — data yang sudah dimuat, tanpa fetch baru).
+  // Default mati: pemakaian lain (bayar utang, top-up aset, dsb.) tetap
+  // memakai label nama + jenis seperti sebelumnya.
+  const walletOptions = (selectedId, showBalance) => {
+    const balances = showBalance ? walletBalances() : null;
+    return (DB.wallets || [])
+      .map((w) => {
+        const balText = balances ? ` — ${formatRupiah(balances[w.id] || 0)}` : '';
+        return `<option value="${escapeHtmlJS(w.id)}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)} (${walletKindLabel(w.kind)})${balText}</option>`;
+      })
+      .join('');
+  };
 
   function fillWalletSelect(id, selectedId) {
     const el = document.getElementById(id);
@@ -96,7 +106,7 @@
               <i class="ph ph-${isCash ? 'money' : isEwallet ? 'device-mobile' : 'bank'} text-xl" aria-hidden="true"></i>
             </span>
             <span class="min-w-0">
-              <span class="block text-slate-800 dark:text-white text-sm font-bold truncate">${safeName}</span>
+              <span class="block text-slate-800 dark:text-white text-sm font-bold truncate" title="${safeName}">${safeName}</span>
               <span class="mt-0.5 flex items-center gap-1.5 min-w-0">
                 <span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${walletKindLabel(w.kind)}</span>
                 ${isPrimary ? '<span class="shrink-0 px-1.5 py-px rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-black uppercase tracking-wide">Dompet Utama</span>' : ''}
@@ -126,8 +136,8 @@
       renderWallets();
       if (typeof root.renderCashflowRunwayStrip === 'function') root.renderCashflowRunwayStrip();
       Swal.fire({
-        icon: 'success', title: 'Dompet utama diatur',
-        text: w.name + ' kini menjadi acuan Cashflow Runway.',
+        icon: 'success', title: t('wallet.primary_set'),
+        text: w.name + ' ' + t('wallet.primary_set_text'),
         timer: 1800, showConfirmButton: false, customClass: { popup: getSwalClass() }
       });
     } catch (e) {
@@ -149,7 +159,7 @@
     return `
       <div class="px-5 py-3.5 flex items-center justify-between gap-3 text-xs hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
         <div class="min-w-0">
-          <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
+          <p class="font-bold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(label[x.kind] || 'Transfer')} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
           <p class="text-slate-500 dark:text-slate-400 mt-0.5">${escapeHtmlJS(String(x.tanggal).slice(0, 10))}${x.fee ? ' · biaya ' + formatRupiah(x.fee) : ''}${x.keterangan ? ' · ' + escapeHtmlJS(x.keterangan) : ''}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -165,7 +175,20 @@
     const panel = document.getElementById('wallet-panel');
     if (!panel) return;
     const wb = walletBalances();
-    renderHtml(panel, (DB.wallets || []).map((w) => buildWalletRowHtml(w, wb[w.id] || 0)).join(''));
+    const wallets = DB.wallets || [];
+    if (wallets.length === 0) {
+      // U40: cabang kosong — kartu Dompet tidak boleh tampil dengan area
+      // kosong tanpa penjelasan bila suatu saat nol dompet.
+      renderHtml(panel, `<div class="p-8 text-center">
+        <i class="ph ph-wallet text-3xl text-slate-300 dark:text-slate-600 mb-2 block" aria-hidden="true"></i>
+        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('wallet.empty'))}</p>
+        <button type="button" data-action="addWallet" class="mt-3 min-h-10 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold hover:bg-brand/20 transition-colors">
+          + ${escapeHtmlJS(t('dash.add_wallet'))}
+        </button>
+      </div>`);
+    } else {
+      renderHtml(panel, wallets.map((w) => buildWalletRowHtml(w, wb[w.id] || 0)).join(''));
+    }
 
     const box = document.getElementById('wallet-transfers');
     if (!box) return;
@@ -181,7 +204,7 @@
 
   async function addWallet() {
     const res = await Swal.fire({
-      title: 'Tambah Dompet',
+      title: t('dash.add_wallet'),
       html: `
         <div class="text-left space-y-3">
           <div>
@@ -204,8 +227,8 @@
           </div>
         </div>`,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => bindNominalInputs(['wl-new-balance']),
       preConfirm: () => {
@@ -223,9 +246,9 @@
     if (!res.isConfirmed || !res.value) return;
     try {
       await refreshFromServer(await callServer('api_addWallet', res.value));
-      Swal.fire({ icon: 'success', title: 'Dompet ditambahkan', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'success', title: t('wallet.added'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
@@ -282,8 +305,8 @@
       showDenyButton: (DB.wallets || []).length > 1,
       denyButtonText: 'Hapus Dompet',
       denyButtonColor: '#e11d48',
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => bindNominalInputs(['wl-bal']),
       preConfirm: () => {
@@ -309,7 +332,7 @@
         });
       }
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
@@ -325,17 +348,17 @@
       : ws.find((w) => w.id !== fromWallet.id);
 
     const res = await Swal.fire({
-      title: kind === 'tarik_tunai' ? 'Tarik Tunai / Transfer Antar Dompet' : 'Transfer Antar Dompet',
+      title: kind === 'tarik_tunai' ? 'Tarik Tunai' : 'Transfer Antar Dompet',
       html: `
         <div class="text-left space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label for="tf-from" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Dari dompet</label>
-              <select id="tf-from" class="swal2-input" style="margin-top:0.35rem">${walletOptions(fromWallet.id)}</select>
+              <select id="tf-from" class="swal2-input" style="margin-top:0.35rem">${walletOptions(fromWallet.id, true)}</select>
             </div>
             <div>
               <label for="tf-to" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Ke dompet</label>
-              <select id="tf-to" class="swal2-input" style="margin-top:0.35rem">${walletOptions(toWallet.id)}</select>
+              <select id="tf-to" class="swal2-input" style="margin-top:0.35rem">${walletOptions(toWallet.id, true)}</select>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -348,6 +371,7 @@
               <input id="tf-fee" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="0">
             </div>
           </div>
+          <p id="tf-bal-warn" role="alert" class="hide text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
           <div>
             <label for="tf-date" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal Transfer</label>
             <input id="tf-date" type="date" class="swal2-input" style="margin-top:0.35rem" value="${localToday()}">
@@ -358,10 +382,36 @@
           </div>
         </div>`,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
-      didOpen: () => bindNominalInputs(['tf-nom', 'tf-fee']),
+      didOpen: () => {
+        bindNominalInputs(['tf-nom', 'tf-fee']);
+        // Gelombang 6 (U11): peringatan inline bila nominal + biaya
+        // melebihi saldo dompet asal — diperbarui tiap ketikan/perubahan
+        // dompet, sebelum tombol Simpan ditekan.
+        const updateBalWarn = () => {
+          const warnEl = document.getElementById('tf-bal-warn');
+          const fromEl = document.getElementById('tf-from');
+          const nomEl = document.getElementById('tf-nom');
+          const feeEl = document.getElementById('tf-fee');
+          if (!warnEl || !fromEl || !nomEl || !feeEl) return;
+          const nominal = parseFormattedNominal(nomEl.value);
+          const fee = parseFormattedNominal(feeEl.value);
+          const bal = (walletBalances()[fromEl.value] || 0);
+          const total = (Number.isFinite(nominal) ? nominal : 0) + (Number.isFinite(fee) && fee > 0 ? fee : 0);
+          if (total > 0 && total > bal) {
+            warnEl.textContent = `Melebihi saldo ${walletName(fromEl.value)} (${formatRupiah(bal)})`;
+            warnEl.classList.remove('hide');
+          } else {
+            warnEl.textContent = '';
+            warnEl.classList.add('hide');
+          }
+        };
+        ['tf-nom', 'tf-fee'].forEach((id) => document.getElementById(id)?.addEventListener('input', updateBalWarn));
+        document.getElementById('tf-from')?.addEventListener('change', updateBalWarn);
+        updateBalWarn();
+      },
       preConfirm: () => {
         const from = document.getElementById('tf-from').value;
         const to = document.getElementById('tf-to').value;
@@ -370,6 +420,11 @@
         const rawFee = parseFormattedNominal(document.getElementById('tf-fee').value);
         if (from === to) { Swal.showValidationMessage('Dompet asal dan tujuan harus berbeda'); return false; }
         if (!Number.isFinite(nominal) || nominal <= 0) { Swal.showValidationMessage('Isi nominal transfer di atas 0'); return false; }
+        // Gelombang 6 (U11): tolak sebelum submit bila nominal + biaya
+        // melebihi saldo dompet asal (server tetap memeriksa ulang).
+        const feeAmt = Number.isFinite(rawFee) && rawFee > 0 ? rawFee : 0;
+        const fromBal = (walletBalances()[from] || 0);
+        if (nominal + feeAmt > fromBal) { Swal.showValidationMessage(`Nominal melebihi saldo ${walletName(from)} (${formatRupiah(fromBal)})`); return false; }
         return {
           fromWallet: from, toWallet: to, nominal, tanggal,
           fee: Number.isFinite(rawFee) && rawFee > 0 ? rawFee : 0,
@@ -385,20 +440,20 @@
       await refreshFromServer(await callServer('api_addTransfer', { ...res.value, kind: k, tanggal: res.value.tanggal || localToday() }));
       Swal.fire({ icon: 'success', title: 'Tercatat', timer: 1000, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
   function deleteTransfer(id) {
     Swal.fire({
       title: 'Hapus transfer ini?', text: 'Saldo dompet akan kembali seperti sebelum transfer.', icon: 'warning',
-      showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus', cancelButtonText: 'Batal', customClass: { popup: getSwalClass() }
+      showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: t('btn.ya_hapus'), cancelButtonText: t('btn.batal'), customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
         await refreshFromServer(await callServer('api_deleteTransfer', id));
       } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+        showActionError(e);
       }
     });
   }

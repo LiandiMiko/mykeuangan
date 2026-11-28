@@ -1,5 +1,5 @@
 // @depends-on: ui-state.js
-/* global DB, Chart, flatpickr, monthSelectPlugin, escapeHtmlJS, renderHtml, callServer, updateEyeIcon, updateAiKeyStatusUI, bindReportControls, saveCurrentPeriod, updateDashboardTitle, renderDashboard, renderWallets, renderRecurring, renderLaporan, renderDebtLists, renderKalender, renderBudgeting, renderPortfolioChart, loadAdminData, markLatestReleaseSeen */
+/* global DB, Chart, flatpickr, monthSelectPlugin, escapeHtmlJS, renderHtml, callServer, updateEyeIcon, updateAiKeyStatusUI, bindReportControls, saveCurrentPeriod, updateDashboardTitle, renderDashboard, renderWallets, renderRecurring, renderLaporan, renderDebtLists, renderKalender, renderBudgeting, renderPortfolioChart, loadAdminData, markLatestReleaseSeen, toUserErrorMessage, t */
 /* ============================================================
    INIT, THEME, NAVIGATION & RENDER ORCHESTRATION
    ============================================================ */
@@ -163,7 +163,10 @@
       btn.removeAttribute('aria-current');
     });
 
-    const nav = document.getElementById('nav-' + (id.includes('utang') ? 'dashboard' : id));
+    // Gelombang 6 (U1): setiap layar punya entri nav sendiri — termasuk
+    // Utang & Piutang (nav-utang) — jadi id view dipakai apa adanya.
+    // Dulu 'utang' dipetakan ke 'dashboard' karena belum ada nav utang.
+    const nav = document.getElementById('nav-' + id);
     if (nav) {
       nav.classList.remove('text-slate-500', 'dark:text-slate-400');
       nav.classList.add('active-nav');
@@ -219,7 +222,7 @@
     DB.debtDueDates = data.debtDueDates || DB.debtDueDates || {};
     const uEl = document.getElementById('ui-username');
     const rEl = document.getElementById('ui-role');
-    if (uEl) uEl.innerText = root.sessionUser;
+    if (uEl) { uEl.innerText = root.sessionUser; uEl.title = root.sessionUser; }
     if (rEl) rEl.innerText = String(root.sessionRole || 'USER').toUpperCase();
     updateDashboardTitle();
   }
@@ -231,11 +234,11 @@
     renderHtml(banner, `
       <div role="alert" class="rounded-3xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p class="text-sm font-extrabold text-rose-700 dark:text-rose-300">Gagal memuat data keuangan dari Supabase</p>
-          <p class="text-xs text-rose-600/90 dark:text-rose-400 mt-1">${escapeHtmlJS(String((err && err.message) || err))}</p>
+          <p class="text-sm font-extrabold text-rose-700 dark:text-rose-300">${escapeHtmlJS(typeof t === 'function' ? t('alert.load_failed') : 'Gagal memuat data')}</p>
+          <p class="text-xs text-rose-600/90 dark:text-rose-400 mt-1">${escapeHtmlJS(typeof toUserErrorMessage === 'function' ? toUserErrorMessage(err) : 'Terjadi kesalahan. Coba lagi.')}</p>
         </div>
         <button type="button" data-action="retryInitialAppLoad" class="min-h-11 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0">
-          Muat Ulang Data
+          ${escapeHtmlJS(typeof t === 'function' ? t('app.reload_data') : 'Muat Ulang Data')}
         </button>
       </div>
     `);
@@ -344,7 +347,7 @@
 
     const uEl = document.getElementById('ui-username');
     const rEl = document.getElementById('ui-role');
-    if (uEl) uEl.innerText = root.sessionUser;
+    if (uEl) { uEl.innerText = root.sessionUser; uEl.title = root.sessionUser; }
     if (rEl) rEl.innerText = String(root.sessionRole || 'USER').toUpperCase();
     updateDashboardTitle();
 

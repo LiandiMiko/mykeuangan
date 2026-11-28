@@ -52,7 +52,7 @@
         customClass: { popup: getSwalClass() }
       });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: t('alert.failed'), text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
@@ -70,7 +70,7 @@
       <article class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex items-center justify-between gap-3">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-            <h4 class="font-bold text-slate-800 dark:text-white text-sm truncate">${catHtml}</h4>
+            <h4 class="font-bold text-slate-800 dark:text-white text-sm truncate" title="${catHtml}">${catHtml}</h4>
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">${escapeHtmlJS(isActive ? t('rec.active') : t('rec.paused'))}</span>
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${escapeHtmlJS(t('rec.day_prefix'))} ${escapeHtmlJS(r.dayOfMonth)}${r.keterangan ? ' · ' + escapeHtmlJS(r.keterangan) : ''}</p>
