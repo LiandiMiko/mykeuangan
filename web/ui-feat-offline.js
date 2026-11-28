@@ -134,8 +134,13 @@
      Desain envelope (ikuti persis, jangan diubah sepihak):
      - DEK: kunci AES-GCM 256-bit acak, dibuat saat PIN pertama diset.
      - KEK: PBKDF2(PIN ber-domain `mk-data-key:`, salt acak 16 byte,
-       100.000 iterasi, SHA-256) -> AES-GCM 256. Domain berbeda dari
+       600.000 iterasi, SHA-256) -> AES-GCM 256. Domain berbeda dari
        hash verifikasi PIN (`derivePinHash`), jadi KEK != hash PIN.
+       Gelombang 7b: 600.000 iterasi mengikuti rekomendasi OWASP
+       (PBKDF2-HMAC-SHA256); wrap lama 100.000 iterasi tetap bisa
+       dibuka (`unwrapPinDataKey` memakai `wrap.iterations`) dan
+       dibungkus ulang ke 600.000 saat unlock berikutnya
+       (lihat `migratePinDataKeyWrapIterations` di ui-feat-account.js).
      - DEK dibungkus (wrap) dengan KEK via AES-GCM (IV acak 12 byte);
        hasil wrap + salt + IV disimpan di localStorage
        `mk_pin_data_key_wrap` (lihat ui-feat-account.js). DEK hasil
@@ -168,11 +173,18 @@
     return bytes;
   }
 
-  async function derivePinKek(pin, saltBytes) {
+  // Gelombang 7b: KEK PBKDF2 600.000 iterasi (OWASP, PBKDF2-HMAC-SHA256).
+  // Wrap lama menyimpan `iterations: 100000`; unwrap menghormati angka
+  // itu agar data lama tetap bisa dibuka, wrap baru selalu 600.000.
+  const PIN_KEK_PBKDF2_ITERATIONS = 600000;
+  const PIN_KEK_PBKDF2_LEGACY_ITERATIONS = 100000;
+
+  async function derivePinKek(pin, saltBytes, iterations) {
     const subtle = pinCryptoSubtle();
+    const iters = Number(iterations) > 0 ? Math.floor(Number(iterations)) : PIN_KEK_PBKDF2_ITERATIONS;
     const keyMat = await subtle.importKey('raw', new TextEncoder().encode('mk-data-key:' + String(pin || '')), 'PBKDF2', false, ['deriveKey']);
     return subtle.deriveKey(
-      { name: 'PBKDF2', salt: saltBytes, iterations: 100000, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: saltBytes, iterations: iters, hash: 'SHA-256' },
       keyMat,
       { name: 'AES-GCM', length: 256 },
       false,
@@ -189,7 +201,7 @@
     return {
       format: 'mk-pin-dek-wrap-v1',
       kdf: 'PBKDF2-SHA256',
-      iterations: 100000,
+      iterations: PIN_KEK_PBKDF2_ITERATIONS,
       salt: pinCryptoBytesToB64(salt),
       iv: pinCryptoBytesToB64(iv),
       wrappedKey: pinCryptoBytesToB64(new Uint8Array(wrapped))
@@ -202,7 +214,12 @@
     const salt = pinCryptoB64ToBytes(w.salt);
     const iv = pinCryptoB64ToBytes(w.iv);
     const wrapped = pinCryptoB64ToBytes(w.wrappedKey);
-    const kek = await derivePinKek(pin, salt);
+    // Gelombang 7b: hormati iterasi yang tersimpan di wrap. Wrap lama
+    // (100.000, atau tanpa field `iterations` sama sekali) dibuka dengan
+    // 100.000 — migrasi ke 600.000 dilakukan pemanggil setelah unwrap
+    // berhasil, bukan di sini.
+    const iterations = Number(w.iterations) > 0 ? Math.floor(Number(w.iterations)) : PIN_KEK_PBKDF2_LEGACY_ITERATIONS;
+    const kek = await derivePinKek(pin, salt, iterations);
     const rawDek = await pinCryptoSubtle().decrypt({ name: 'AES-GCM', iv }, kek, wrapped);
     return pinCryptoSubtle().importKey('raw', rawDek, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   }
@@ -230,7 +247,11 @@
     wrapPinDataKey,
     unwrapPinDataKey,
     encryptWithDek: encryptWithPinDek,
-    decryptWithDek: decryptWithPinDek
+    decryptWithDek: decryptWithPinDek,
+    // Gelombang 7b: target iterasi KEK (dipakai migrasi wrap di
+    // ui-feat-account.js); wrap baru selalu memakai angka ini.
+    KEK_ITERATIONS: PIN_KEK_PBKDF2_ITERATIONS,
+    KEK_LEGACY_ITERATIONS: PIN_KEK_PBKDF2_LEGACY_ITERATIONS
   };
 
   // DEK tinggal di memori di ui-feat-account.js; file ini hanya mengaksesnya

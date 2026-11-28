@@ -1,6 +1,6 @@
 <!-- ================= RIWAYAT PEMBARUAN ================= -->
-<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-28-v3.20.14"
-  data-latest-version="v3.20.14">
+<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-28-v3.20.15"
+  data-latest-version="v3.20.15">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div class="flex items-start gap-3">
       <div
@@ -19,7 +19,7 @@
       <span
         class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
-        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.14</strong></span>
+        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.15</strong></span>
       </span>
       <button type="button" id="btnCheckAppUpdate" data-action="checkRemoteAppUpdate" data-args='[{"manual": true}]'
         class="min-h-11 px-3.5 py-2 rounded-2xl bg-brand text-white hover:opacity-95 text-xs font-bold transition-opacity flex items-center gap-1.5 shadow-xs">
@@ -67,7 +67,7 @@
           class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
       </div>
       <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums"
-        aria-live="polite">Menampilkan 35 rilis</p>
+        aria-live="polite">Menampilkan 36 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
       <button type="button" data-updates-topic="all" data-action="setUpdatesTopic" data-args='["all"]'
@@ -91,7 +91,7 @@
   <!-- RELEASE LIST -->
   <section id="updatesList" class="space-y-4" aria-labelledby="updates-page-title">
     <!-- LATEST RELEASE (OPEN CARD) -->
-    <article data-release-card data-release-id="2026-11-28-v3.20.14" data-topics="security"
+    <article data-release-card data-release-id="2026-11-28-v3.20.15" data-topics="security"
       class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-brand/30 dark:border-brand/40 mk-card-surface p-4 sm:p-6">
       <div class="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-6">
         <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
@@ -100,7 +100,7 @@
               class="px-2 py-0.5 rounded-full bg-brand text-white text-xs font-extrabold uppercase tracking-wider"
               data-i18n="updates.badge_latest">Terbaru</span>
             <span
-              class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-extrabold">v3.20.14</span>
+              class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-extrabold">v3.20.15</span>
           </div>
           <time datetime="2026-11-28" class="block text-brand dark:text-brand-ink">
             <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink tabular-nums">28</span>
@@ -108,8 +108,63 @@
           </time>
         </div>
         <div class="min-w-0">
-          <h3 class="text-base font-bold text-slate-800 dark:text-white">Update v3.20.14: Keamanan Lebih Ketat — Kode Aplikasi Kini Dimuat dari File Terpisah</h3>
+          <h3 class="text-base font-bold text-slate-800 dark:text-white">Update v3.20.15: PIN Lebih Kuat — 600.000 Putaran Pengaman, Pindah Otomatis</h3>
           <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">PIN Kini Jauh Lebih Sulit Dibobol</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Pengaman PIN dan kunci enkripsi data lokal kini memakai
+                600.000 putaran perhitungan (PBKDF2, standar keamanan OWASP), naik dari 100.000 putaran. Komputer
+                yang mencoba menebak PIN Anda kini butuh waktu 6x lebih lama untuk setiap tebakan — PIN yang sama
+                menjadi jauh lebih kuat tanpa Anda perlu menghafal PIN baru.</dd>
+            </div>
+            <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Pindah Otomatis, Tanpa Perlu Apa-apa</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Anda tidak perlu mengganti PIN atau melakukan apa pun:
+                saat PIN benar dimasukkan, aplikasi diam-diam meningkatkan pengaman lama ke 600.000 putaran di
+                belakang layar — sekali saja, lalu selesai. Data lokal Anda tetap bisa dibuka seperti biasa; hanya
+                bungkus kuncinya yang diperbarui, bukan datanya.</dd>
+            </div>
+            <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">PIN Salah Tetap Tidak Mengubah Apa-apa</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Percobaan PIN yang salah tetap ditolak seperti biasa
+                dan tidak memicu perubahan apa pun pada pengaman Anda. Aturan kunci sementara (60 detik, lalu 5,
+                15, hingga 60 menit) dan syarat verifikasi password akun setelah 3 kali terkunci juga tidak berubah.</dd>
+            </div>
+            <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Buka Kunci Bisa Terasa Sedikit Lebih Lama</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Jujur saja: pengaman yang 6x lebih kuat butuh waktu
+                hitung yang lebih lama. Di komputer pengujian, satu hitungan 600.000 putaran memakan waktu sekitar
+                0,7 detik (dibanding 0,1 detik sebelumnya), dan saat buka kunci ada dua hitungan — verifikasi PIN
+                dan buka kunci data. Di HP kelas bawah, buka kunci bisa terasa sekitar 1–3 detik. Ini harga
+                keamanan yang lebih kuat, dan hanya terjadi saat Anda membuka kunci.</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <details data-release-card data-release-details data-topics="security"
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+          <div class="flex items-center gap-2 shrink-0">
+            <time datetime="2026-11-28" class="text-xs font-bold text-slate-500 dark:text-slate-400">28 Nov 2026</time>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold">v3.20.14</span>
+          </div>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Update v3.20.14: Keamanan Lebih Ketat — Kode Aplikasi Kini Dimuat dari File Terpisah</h3>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold">4
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
+        </div>
+      </summary>
+      <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
+          <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
               <dt class="font-semibold text-slate-700 dark:text-slate-200">Kode Aplikasi Kini dari File Terpisah</dt>
               <dd class="text-slate-600 dark:text-slate-300">Semua kode aplikasi — 54 modul, kamus bahasa,
@@ -141,9 +196,8 @@
                 tidak tersedia di GitHub Pages.</dd>
             </div>
           </dl>
-        </div>
       </div>
-    </article>
+    </details>
 
     <details data-release-card data-release-details data-topics="ui-ux security"
       class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">

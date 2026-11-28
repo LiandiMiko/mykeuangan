@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.14** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.15** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.14-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.15-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.14-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.15-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.14-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.14-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.14-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.15-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.15-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.15-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -472,6 +472,13 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 28 November 2026: Update v3.20.15 (Gelombang 7b: PIN Lebih Kuat — PBKDF2 600.000 Iterasi, Migrasi Transparan)
+- **PBKDF2 100.000 → 600.000 iterasi (`web/ui-feat-account.js`, `web/ui-feat-offline.js`, `tests/pin-encryption-gating.test.js`, `tests/wave3-auth-profile.test.js`)**: Hash verifikasi PIN (`derivePinHash`) dan KEK pembungkus DEK (`pinCrypto.derivePinKek`) kini memakai 600.000 iterasi PBKDF2-HMAC-SHA256, mengikuti rekomendasi OWASP (sebelumnya 100.000; backup JSON sudah 600.000 sejak lama). Format hash baru membawa jumlah iterasi: `pbkdf2$600000$<hex>`; format lama `pbkdf2$<hex>` dibaca sebagai 100.000. `wrapPinDataKey` baru selalu menulis `iterations: 600000`; `unwrapPinDataKey` menghormati `wrap.iterations` yang tersimpan (fallback 100.000 bila field tidak ada), sehingga wrap lama tetap bisa dibuka.
+- **Migrasi transparan tanpa aksi pengguna**: PIN benar yang diverifikasi terhadap hash lama memigrasi hash ke 600.000 (salt baru via `hashPin`, pola yang sama dengan migrasi legacy S6); PIN salah tidak memigrasi apa pun. Setelah unwrap DEK berhasil, `ensurePinDataKeyAfterUnlock` memanggil `migratePinDataKeyWrapIterations` yang membungkus ulang DEK YANG SAMA ke 600.000 (salt + IV baru) — wrap lama tidak pernah dihapus sebelum penggantinya aman tersimpan, dan bila re-wrap gagal aplikasi tetap jalan dengan wrap lama lalu mencoba lagi saat unlock berikutnya (fail-soft, tidak pernah mengunci pengguna keluar). Ganti PIN menghasilkan hash + wrap 600.000 sekaligus (rewrap DEK yang sama + `hashPin` baru); PIN lama ditolak sesudahnya.
+- **Perilaku yang dipertahankan**: lockout/backoff PIN (60 detik → 5 → 15 → 60 menit, reset password akun setelah 3 lockout) tidak disentuh — migrasi hanya jalan setelah PIN terverifikasi benar dan lockout di-clear, dan tes membuktikan state lockout tidak berubah oleh migrasi. Wrap rusak tetap ditangani seperti semula (DEK baru, tanpa crash, data lama tak terbaca). Pengguna tanpa PIN / tanpa wrap tidak terpengaruh. Biometrik tetap fallback ke PIN sekali per buka aplikasi (migrasi terjadi di entri PIN itu).
+- **Performa yang diukur (jujur, bukan klaim)**: di VM pengujian (Node v24.22.1, 4 CPU), satu PBKDF2-600k memakan median ~680 ms (`deriveBits` 664–750 ms, `deriveKey` 656–817 ms, 5 run) dibanding ~122 ms pada 100k. Jalur unlock menghitung PBKDF2 dua kali berurutan (verifikasi hash + unwrap KEK) ≈ 1,4 detik di VM ini; di WebView Android kelas bawah diperkirakan ~1–3 detik. Angka perangkat fisik sungguhan belum diukur (masuk "Belum Diverifikasi").
+- **Tes**: 7 tes baru di `tests/pin-encryption-gating.test.js` ((a) pengguna baru langsung 600rb incl. `saveInitialAppPin` end-to-end; (b) pengguna lama: fixture hash `pbkdf2$<hex>` 100rb + wrap 100rb → unlock PIN benar migrasi hash + wrap ke 600rb; (c) DEK byte-identik sebelum/sesudah migrasi + data lama tetap terdekripsi; (d) PIN salah tidak memigrasi apa pun; (e) lockout/backoff tidak berubah; (f) wrap rusak → DEK baru tanpa crash; plus wrap tanpa field `iterations` dibuka dengan 100rb, dan ganti PIN → hash + wrap 600rb, DEK sama, PIN lama ditolak) dan 1 tes diperbarui di `tests/wave3-auth-profile.test.js` (format `derivePinHash` baru + `parsePinHashIterations`). Tes K2 lama diperbarui ke 600.000 iterasi.
+- **Catatan versi**: update ke v3.20.15 menimpa v3.20.14 tanpa uninstall (`versionCode 3020015` > `3020014` — monoton).
 ### 28 November 2026: Update v3.20.14 (CSP Diperketat — Eksternalisasi JS Inline)
 - **Eksternalisasi Modul JS (`build.mjs`, `src/Index.html`, `src/i18n.html`, `web/sw-register.js` baru, `web/sw.js`, `tests/wave7b-csp-tightening.test.js` baru)**: Semua modul `web/*.js` (54 file) kini ditulis build ke `dist/app/*.js` (diminifikasi esbuild, kecuali `web/config.js` yang tetap verbatim) dan dimuat lewat `<script src="./app/...">` sinkron — tanpa `defer`/`async` — dengan urutan yang SAMA PERSIS seperti saat masih di-inline (paritas perilaku: `error-messages.js` pertama, `config.js` di antara UI_CORE dan SUPABASE, `password-policy.js` sebelum consumer-nya, `sw-register.js` paling akhir). Kamus I18N (`src/i18n.html`, sumber tetap di sana agar tes i18n tidak berubah) diekstrak build ke `dist/app/i18n-dict.js` dan dimuat di `<head>` sebelum semua modul. Blok registrasi Service Worker yang dulu inline di akhir `src/Index.html` pindah ke `web/sw-register.js` baru. `dist/index.html` kini NOL blok `<script>` inline (dulu >40 blok, 990 KB → 300 KB; total dist tetap sebanding karena kode pindah ke `dist/app/`).
 - **CSP Diperketat (`src/Index.html`)**: `script-src` kini hanya `'self'` — `'unsafe-inline'` dan `'unsafe-eval'` DIHAPUS (verifikasi: tidak ada `eval()`/`new Function()` di kode aplikasi; satu-satunya `new Function` ada di vendor SweetAlert2 untuk template deklaratif `<swal-function-param>` yang tidak pernah dipakai aplikasi — dicek `grep` di `src/` + `web/`). `img-src` kehilangan `https:` mentah (tidak ada gambar remote; semua gambar lokal/data:/blob:). Tambahan: `form-action 'self'` + `upgrade-insecure-requests`. `style-src` SENGAJA tetap `'unsafe-inline'` (atribut `style="..."` di 6 tempat `src/*.html` + banyak template `web/*.js`; menyapunya churn besar dengan nilai keamanan rendah — injeksi CSS tanpa eksekusi script). `frame-ancestors` TIDAK ditambahkan (diabaikan di meta CSP; butuh header HTTP yang tidak bisa diset di GitHub Pages).
