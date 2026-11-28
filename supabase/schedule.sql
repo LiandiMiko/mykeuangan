@@ -35,6 +35,7 @@
 -- Semua jam dalam UTC. WIB = UTC+7:
 --   daily     21:00 WIB = 14:00 UTC     weekly   Minggu 20:00 WIB = 13:00 UTC
 --   recurring 01:00 WIB = 18:00 UTC     snapshot 23:00 WIB = 16:00 UTC
+--   cleanup   02:00 WIB = 19:00 UTC
 -- Jadwal (ekspresi cron) TIDAK berubah dari sebelumnya.
 -- ============================================================
 
@@ -45,6 +46,7 @@ select cron.unschedule('mk-daily-reminder');
 select cron.unschedule('mk-weekly-report');
 select cron.unschedule('mk-recurring');
 select cron.unschedule('mk-snapshot');
+select cron.unschedule('mk-account-cleanup');
 
 select cron.schedule('mk-daily-reminder', '0 14 * * *', $$
   select net.http_post(
@@ -79,6 +81,20 @@ select cron.schedule('mk-snapshot', '0 16 * * *', $$
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
     body := jsonb_build_object('job', 'snapshot'),
     timeout_milliseconds := 30000
+  );
+$$);
+
+-- Hapus otomatis akun dormant (fitur admin "last change"): harian
+-- 02:00 WIB = 19:00 UTC. Memanggil edge function account-cleanup
+-- (verify_jwt=false, autentikasi lewat x-cron-secret dari Vault —
+-- pola yang sama dengan 4 job di atas). Timeout 60 detik karena satu
+-- run bisa mengirim banyak email Resend dan menghapus banyak akun.
+select cron.schedule('mk-account-cleanup', '0 19 * * *', $$
+  select net.http_post(
+    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/account-cleanup',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
+    body := jsonb_build_object('job', 'account-cleanup'),
+    timeout_milliseconds := 60000
   );
 $$);
 

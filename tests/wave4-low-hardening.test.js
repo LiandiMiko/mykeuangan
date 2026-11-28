@@ -165,7 +165,7 @@ test('4.1 .gitignore: kunci privat, konfigurasi layanan & paket build', () => {
 test('4.1 CRON_SECRET: tidak ada nilai secret di teks definisi job (sudah Vault sejak Gelombang 2)', () => {
   // Setiap pemakaian x-cron-secret harus berupa SELECT Vault, bukan literal.
   const uses = [...scheduleSql.matchAll(/'x-cron-secret',\s*(\(select decrypted_secret from vault\.decrypted_secrets where name = 'cron_secret'\))/g)];
-  assert.equal(uses.length, 4, `harapkan 4 job memakai Vault select, dapat ${uses.length}`);
+  assert.equal(uses.length, 5, `harapkan 5 job memakai Vault select, dapat ${uses.length}`);
   assert.doesNotMatch(scheduleSql, /x-cron-secret',\s*'[a-zA-Z0-9]/, 'ada nilai literal di header x-cron-secret');
   assert.match(scheduleSql, /nilai CRON_SECRET TIDAK LAGI tertulis/);
 });
