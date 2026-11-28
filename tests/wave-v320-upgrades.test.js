@@ -132,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.10');
+  assert.equal(pkg.version, '3.20.11');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
