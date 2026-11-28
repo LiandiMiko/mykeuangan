@@ -280,3 +280,98 @@ test('7. batas hari di WIB: 00:30 WIB bukan hari baru untuk hitung dorman', () =
     { d: 6, due: 1 }
   );
 });
+
+/* ============================================================
+   8. Migrasi 20261128110000 — notifikasi in-app khusus admin
+      (pengganti email Resend; lihat header migrasi).
+   ============================================================ */
+
+const MIG_NOTIF = 'supabase/migrations/20261128110000_admin_notifications.sql';
+const migNotif = fs.readFileSync(MIG_NOTIF, 'utf8');
+
+test('8. migrasi admin-notifications: satu transaksi, idempotent', () => {
+  assert.match(migNotif, /^\s*begin;/m, 'migrasi harus dibuka begin;');
+  assert.match(migNotif, /commit;\s*$/m, 'migrasi harus ditutup commit;');
+  assert.match(migNotif, /create table if not exists public\.admin_notifications \(/);
+  assert.match(migNotif, /create index if not exists idx_admin_notifications_created_at/);
+  assert.match(migNotif, /create or replace function public\.get_admin_notifications\(\)/);
+  assert.match(migNotif, /create or replace function public\.mark_admin_notification_read\(p_notification_id uuid\)/);
+});
+
+test('8. §1: tabel admin_notifications — kolom + CHECK type + tanpa FK', () => {
+  assert.match(migNotif, /id\s+uuid primary key default gen_random_uuid\(\),/);
+  assert.match(migNotif, /type\s+text not null check \(type in \('deletion_warning', 'deletion_done'\)\),/);
+  // target_user_id TANPA foreign key — SENGAJA: baris
+  // 'deletion_done' harus bertahan setelah akunnya dihapus; FK
+  // ke profiles/auth.users akan ikut ter-cascade.
+  assert.match(migNotif, /target_user_id\s+uuid,/);
+  assert.doesNotMatch(migNotif, /target_user_id\s+uuid\s+references/);
+  assert.doesNotMatch(migNotif, /references auth\.users/);
+  assert.doesNotMatch(migNotif, /references public\.profiles/);
+  assert.match(migNotif, /target_email\s+text,/);
+  assert.match(migNotif, /title\s+text not null,/);
+  assert.match(migNotif, /body\s+text not null,/);
+  assert.match(migNotif, /created_at\s+timestamptz not null default now\(\),/);
+  // read_at nullable (NULL = belum dibaca).
+  assert.match(migNotif, /read_at\s+timestamptz\s*$/m);
+  assert.doesNotMatch(migNotif, /read_at\s+timestamptz not null/i);
+  assert.match(migNotif, /create index if not exists idx_admin_notifications_created_at\s+on public\.admin_notifications \(created_at desc\)/);
+});
+
+test('8. §1: RLS ON + REVOKE ALL dari authenticated dan anon', () => {
+  assert.match(migNotif, /alter table public\.admin_notifications enable row level security;/);
+  assert.match(migNotif, /revoke all on table public\.admin_notifications from authenticated, anon;/);
+  // Policy baca hanya untuk admin (service_role bypass RLS
+  // sehingga edge function tetap bisa insert).
+  assert.match(migNotif, /create policy "admins_read_notifications" on public\.admin_notifications\s+for select to authenticated\s+using \(public\.is_admin\(\)\);/);
+});
+
+test('8. §2: get_admin_notifications SECURITY DEFINER, tolak non-admin, kontrak kolom PERSIS', () => {
+  const fn = migNotif.slice(migNotif.indexOf('create or replace function public.get_admin_notifications()'));
+  assert.match(fn, /security definer/);
+  assert.match(fn, /stable/);
+  assert.match(fn, /set search_path = public/);
+  assert.doesNotMatch(fn, /security invoker/);
+  assert.match(fn, /if not public\.is_admin\(\) then\s+raise exception 'Forbidden';/);
+  // Kontrak kolom dengan worker UI — nama + urutan PERSIS.
+  const returnsBlock = migNotif.slice(
+    migNotif.indexOf('returns table (', migNotif.indexOf('get_admin_notifications')),
+    migNotif.indexOf(')', migNotif.indexOf('returns table (', migNotif.indexOf('get_admin_notifications')))
+  );
+  const cols = [...returnsBlock.matchAll(/^\s*([a-z_]+)\s+(uuid|text|timestamptz),?$/gm)]
+    .map((m) => `${m[1]}:${m[2]}`);
+  assert.deepEqual(cols, [
+    'id:uuid',
+    'type:text',
+    'target_user_id:uuid',
+    'target_email:text',
+    'title:text',
+    'body:text',
+    'created_at:timestamptz',
+    'read_at:timestamptz',
+  ]);
+  // 50 terbaru dulu, yang terbaru di atas.
+  assert.match(fn, /order by n\.created_at desc\s+limit 50;/);
+  assert.match(migNotif, /revoke all on function public\.get_admin_notifications\(\) from public, anon;/);
+  assert.match(migNotif, /grant execute on function public\.get_admin_notifications\(\) to authenticated;/);
+});
+
+test('8. §3: mark_admin_notification_read SECURITY DEFINER, tolak non-admin, hanya bila belum dibaca', () => {
+  const fn = migNotif.slice(migNotif.indexOf('create or replace function public.mark_admin_notification_read('));
+  assert.match(fn, /security definer/);
+  assert.match(fn, /set search_path = public/);
+  assert.doesNotMatch(fn, /security invoker/);
+  assert.match(fn, /if not public\.is_admin\(\) then\s+raise exception 'Forbidden';/);
+  assert.match(fn, /update public\.admin_notifications\s+set read_at = now\(\)\s+where id = p_notification_id\s+and read_at is null;/);
+  assert.match(migNotif, /revoke all on function public\.mark_admin_notification_read\(uuid\) from public, anon;/);
+  assert.match(migNotif, /grant execute on function public\.mark_admin_notification_read\(uuid\) to authenticated;/);
+});
+
+test('8. guard: tidak ada hmac/digest tanpa kualifikasi extensions, tidak ada to_regproc berargumen', () => {
+  const code = migNotif.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(code, /(?<!extensions\.)\bhmac\s*\(/);
+  assert.doesNotMatch(code, /(?<!extensions\.)\bdigest\s*\(/);
+  for (const m of code.matchAll(/to_regproc\('([^']*)'\)/g)) {
+    assert.ok(!m[1].includes(','), `to_regproc berargumen (${m[1]}) — selalu NULL; pakai to_regprocedure`);
+  }
+});
