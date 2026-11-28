@@ -148,11 +148,13 @@
       setAdminText('adm-suspended-users', s.suspendedUsers || 0);
       setAdminText('adm-total-chats', s.totalTelegramChats || 0);
       renderAdminAuditLogs(data.auditLogs || []);
+      renderAdminNotifications(data.notifications || [], data.notificationsError);
       filterAdminUsersTable();
       return true;
     } catch (err) {
       console.error('loadAdminData error:', err);
       const errMsg = escapeHtmlJS(toUserErrorMessage(err));
+      renderAdminNotifications([], true);
       if (tbody) {
         renderHtml(tbody, `
           <tr>
@@ -428,6 +430,97 @@
     renderHtml(box, html);
   }
 
+  // --- Notifikasi admin (auto-hapus akun dormant) ----------------------
+  // Kontrak RPC get_admin_notifications: id, type
+  // ('deletion_warning'|'deletion_done'), target_user_id, target_email,
+  // title, body, created_at, read_at. Belum dibaca = read_at null.
+  function countUnreadAdminNotifications(list) {
+    return (list || []).filter((n) => n && !n.read_at).length;
+  }
+
+  // Tanggal hapus terjadwal untuk peringatan: peringatan dibuat hari
+  // ke-6 tidak aktif, penghapusan jatuh hari ke-7 — jadi created_at +
+  // 1 hari kalender LOKAL. '' bila created_at tidak bisa diparse
+  // (jangan mengarang tanggal: pemanggil hanya menampilkan baris ini
+  // bila tanggalnya ada; info dormant lain sudah ada di title/body).
+  function adminNotificationDeletionDate(n) {
+    if (!n || !n.created_at) return '';
+    const d = new Date(n.created_at);
+    if (Number.isNaN(d.getTime())) return '';
+    const due = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    return formatLastChangeDate(due);
+  }
+
+  // Fungsi murni (tanpa DOM) supaya bisa diuji: title + body + email
+  // target + waktu dibuat + info dormant. Semua nilai server lewat
+  // escapeHtmlJS; semua label lewat admT().
+  function buildAdminNotificationHtml(n) {
+    const unread = !n.read_at;
+    const isWarning = n.type === 'deletion_warning';
+    const typeLabel = isWarning ? admT('adm.notif_warning') : admT('adm.notif_deleted');
+    const typeBadgeCls = isWarning
+      ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
+      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+    const deleteOn = isWarning ? adminNotificationDeletionDate(n) : '';
+    let html = '<div class="py-3.5' + (unread ? ' -mx-3 sm:-mx-4 px-3 sm:px-4 rounded-xl bg-rose-50/60 dark:bg-rose-500/5 border-l-4 border-rose-500' : '') + '">'
+      + '<div class="flex items-start justify-between gap-2">'
+      + '<p class="font-bold text-sm text-slate-800 dark:text-white min-w-0">' + escapeHtmlJS(n.title || '-') + '</p>'
+      + '<div class="flex items-center gap-1.5 shrink-0">'
+      + (unread ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-600 text-white">' + escapeHtmlJS(admT('adm.notif_new')) + '</span>' : '')
+      + '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ' + typeBadgeCls + '">' + escapeHtmlJS(typeLabel) + '</span>'
+      + '</div></div>'
+      + '<p class="text-xs text-slate-600 dark:text-slate-300 mt-1">' + escapeHtmlJS(n.body || '') + '</p>'
+      + '<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 tabular-nums">' + escapeHtmlJS(n.target_email || '-') + ' &middot; ' + escapeHtmlJS(formatLastChangeDate(n.created_at) || '-') + '</p>';
+    if (deleteOn) {
+      html += '<p class="mt-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400">' + escapeHtmlJS(admT('adm.notif_delete_on')) + ' ' + escapeHtmlJS(deleteOn) + '</p>';
+    }
+    if (unread) {
+      html += '<button type="button" data-admin-notif-read data-notif-id="' + escapeHtmlJS(String(n.id || '')) + '" class="mt-2 min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer">' + escapeHtmlJS(admT('adm.notif_mark_read')) + '</button>';
+    }
+    return html + '</div>';
+  }
+
+  function renderAdminNotifications(notifications, failed) {
+    const list = document.getElementById('adm-notif-list');
+    const badge = document.getElementById('adm-notif-unread-count');
+    const unread = countUnreadAdminNotifications(notifications);
+    if (badge) {
+      badge.textContent = String(unread);
+      badge.classList.toggle('hidden', unread === 0);
+    }
+    if (!list) return;
+    if (failed) {
+      renderHtml(list, '<p class="text-xs text-rose-600 dark:text-rose-400 py-3">' + escapeHtmlJS(admT('adm.notif_load_failed')) + '</p>');
+      return;
+    }
+    if (!Array.isArray(notifications) || !notifications.length) {
+      renderHtml(list, '<p class="text-xs text-slate-500 dark:text-slate-400 py-3">' + escapeHtmlJS(admT('adm.notif_empty')) + '</p>');
+      return;
+    }
+    renderHtml(list, notifications.map(buildAdminNotificationHtml).join(''));
+    bindAdminNotificationButtons(list);
+  }
+
+  function bindAdminNotificationButtons(container) {
+    if (!container) return;
+    container.querySelectorAll('[data-admin-notif-read]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.dataset.notifId;
+        if (!id) return;
+        button.disabled = true;
+        try {
+          await callServer('api_markAdminNotificationRead', id);
+          // Muat ulang seluruh panel (sederhana & andal): lencana
+          // belum dibaca + daftar ikut terbarui.
+          await loadAdminData();
+        } catch (err) {
+          button.disabled = false;
+          Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
+        }
+      });
+    });
+  }
+
   async function adminUnlinkUserTelegram(uid, email) {
     const conf = await Swal.fire({
       icon: 'warning',
@@ -688,6 +781,10 @@
     deletionCountdownText,
     filterAdminUsers,
     buildAdminUserRowHtml,
-    buildAdminUserMobileCardHtml
+    buildAdminUserMobileCardHtml,
+    countUnreadAdminNotifications,
+    adminNotificationDeletionDate,
+    buildAdminNotificationHtml,
+    renderAdminNotifications
   };
 })(typeof window !== 'undefined' ? window : globalThis);

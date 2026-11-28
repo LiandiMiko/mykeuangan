@@ -84,9 +84,52 @@
     }));
   }
 
+  // Admin — notifikasi in-app auto-hapus akun dormant (pengganti
+  // email Resend). Sumber TUNGGAL: RPC get_admin_notifications
+  // (migrasi 20261128110000) — JANGAN ubah nama/kolom kontrak RPC.
+  // Gagal RPC di sini DITELAN oleh api_getAdminData (fail-soft):
+  // panel pengguna tetap jalan, hanya bagian notifikasi yang
+  // menampilkan pesan gagal kecil.
+  async function api_getAdminNotifications() {
+    if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+    const { data, error } = await sb.rpc('get_admin_notifications');
+    if (error) {
+      throw new Error('Gagal memuat notifikasi admin (get_admin_notifications): ' + (error.message || String(error)));
+    }
+    const rows = Array.isArray(data) ? data : (data ? [data] : []);
+    // Baris RPC dipertahankan apa adanya (jangan ubah nama field).
+    return rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      target_user_id: r.target_user_id,
+      target_email: r.target_email,
+      title: r.title,
+      body: r.body,
+      created_at: r.created_at,
+      read_at: r.read_at
+    }));
+  }
+
+  async function api_markAdminNotificationRead(notificationId) {
+    if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+    const { error } = await sb.rpc('mark_admin_notification_read', { p_notification_id: notificationId });
+    if (error) {
+      throw new Error('Gagal menandai notifikasi dibaca (mark_admin_notification_read): ' + (error.message || String(error)));
+    }
+    return true;
+  }
+
   Object.assign(core.handlers, {
     async api_getAdminActivity() {
       return api_getAdminActivity();
+    },
+
+    async api_getAdminNotifications() {
+      return api_getAdminNotifications();
+    },
+
+    async api_markAdminNotificationRead(notificationId) {
+      return api_markAdminNotificationRead(notificationId);
     },
 
     async api_getAdminData() {
@@ -94,10 +137,15 @@
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (!authData.user) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
-      const [profiles, statsRes, auditRes] = await Promise.all([
+      const [profiles, statsRes, auditRes, notificationsRes] = await Promise.all([
         api_getAdminActivity(),
         sb.rpc('get_admin_platform_stats'),
-        sb.from('admin_audit_logs').select('id,actor_email,action,target_email,details,created_at').order('created_at', { ascending: false }).limit(25)
+        sb.from('admin_audit_logs').select('id,actor_email,action,target_email,details,created_at').order('created_at', { ascending: false }).limit(25),
+        // Notifikasi fail-soft: RPC gagal JANGAN gagalkan seluruh panel —
+        // kembalikan [] + penanda gagal, UI menampilkan pesan kecil saja.
+        api_getAdminNotifications()
+          .then((rows) => ({ ok: true, rows }))
+          .catch((err) => { console.error('api_getAdminNotifications gagal:', err); return { ok: false, rows: [] }; })
       ]);
 
       let stats;
@@ -126,7 +174,8 @@
       }
 
       const auditLogs = !auditRes.error && Array.isArray(auditRes.data) ? auditRes.data : [];
-      return { users: profiles, currentUserId: authData.user.id, stats, auditLogs };
+      const notifications = Array.isArray(notificationsRes.rows) ? notificationsRes.rows : [];
+      return { users: profiles, currentUserId: authData.user.id, stats, auditLogs, notifications, notificationsError: !notificationsRes.ok };
     },
 
     async api_setUserStatus(userId, status) {

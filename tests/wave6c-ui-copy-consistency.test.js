@@ -145,7 +145,7 @@ test('6C/U8+U23+U24+U39 paritas kamus 363=363 dan nilai kunci baru/ubah', () => 
   const i18n = loadI18nDictionary();
   const idKeys = Object.keys(i18n.id).sort();
   const enKeys = Object.keys(i18n.en).sort();
-  assert.equal(idKeys.length, 363, 'kamus ID harus 363 kunci (351 Gelombang 6 + 12 kunci adm.* fitur admin PR #9)');
+  assert.equal(idKeys.length, 372, 'kamus ID harus 372 kunci (363 fitur admin PR #9 + 9 kunci adm.notif_* notifikasi admin)');
   assert.deepEqual(idKeys, enKeys, 'I18N.id dan I18N.en harus identik');
   // Kunci baru Gelombang 6C ada di kedua bahasa.
   for (const key of [
