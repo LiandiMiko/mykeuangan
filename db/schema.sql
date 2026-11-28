@@ -202,5 +202,5 @@ grant select on public.v_transactions to authenticated;
 -- dengan semua fungsi migrasi (revoke-all-from-public, anon).
 -- Sebelum ini cycle_for_date() adalah satu-satunya fungsi yang
 -- masih bisa dieksekusi PUBLIC/anon.
-revoke all on function public.cycle_for_date(date, int) from public;
+revoke all on function public.cycle_for_date(date, int) from public, anon;
 grant execute on function public.cycle_for_date(date, int) to authenticated;

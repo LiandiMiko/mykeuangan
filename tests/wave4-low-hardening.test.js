@@ -11,6 +11,8 @@ const fs = require('node:fs');
 
 const MIG4 = 'supabase/migrations/20261128080000_wave4_low_hardening.sql';
 const mig4 = fs.readFileSync(MIG4, 'utf8');
+const MIG9 = 'supabase/migrations/20261128090000_wave4_cycle_for_date_revoke_fix.sql';
+const mig9 = fs.readFileSync(MIG9, 'utf8');
 const schemaSql = fs.readFileSync('db/schema.sql', 'utf8');
 const gitignore = fs.readFileSync('.gitignore', 'utf8');
 const deployYml = fs.readFileSync('.github/workflows/deploy.yml', 'utf8');
@@ -53,11 +55,54 @@ test('4.1 migrasi Wave 4: CHECK nominal negatif + payrollDay (NOT VALID)', () =>
 });
 
 test('4.1 migrasi Wave 4: cycle_for_date dicabut dari PUBLIC + search_path dipin', () => {
-  assert.match(mig4, /revoke all on function public\.cycle_for_date\(date, int\) from public;/);
-  assert.match(mig4, /grant execute on function public\.cycle_for_date\(date, int\) to authenticated;/);
-  assert.match(mig4, /alter function public\.cycle_for_date\(date, int\) set search_path = public;/);
+  // §1 di 080000 CACAT dan tidak pernah berjalan di produksi:
+  // penjaganya memakai to_regproc('...cycle_for_date(date, int)')
+  // yang SELALU NULL (to_regproc tidak menerima daftar argumen),
+  // sehingga blok DO selalu mengambil cabang ELSE. Perbaikan yang
+  // benar ada di migrasi 090000 (di bawah) — test ini menegaskan
+  // isi 090000, bukan 080000.
+  assert.match(mig9, /revoke all on function public\.cycle_for_date\(date, int\) from public, anon;/);
+  assert.match(mig9, /grant execute on function public\.cycle_for_date\(date, int\) to authenticated;/);
+  assert.match(mig9, /alter function public\.cycle_for_date\(date, int\) set search_path = public;/);
+  // Penjaga harus to_regprocedure (menerima daftar argumen).
+  assert.match(mig9, /to_regprocedure\('public\.cycle_for_date\(date, int\)'\) is not null/);
   // Bertahan bila fungsi belum ada (database dari migrasi saja).
-  assert.match(mig4, /to_regproc\('public\.cycle_for_date\(date, int\)'\) is not null/);
+  assert.match(mig9, /cycle_for_date\(\) belum ada di database ini/);
+});
+
+test('4.1 guard repo: to_regproc tidak boleh dipakai dengan daftar argumen', () => {
+  // to_regproc('nama(tipe, ...)') SELALU mengembalikan NULL —
+  // itu yang membuat §1 migrasi 080000 diam-diam tidak berjalan.
+  // Yang benar untuk signature lengkap: to_regprocedure(...).
+  // to_regproc polos ('public.is_admin()') tetap sah dan dipakai
+  // penjaga schema.sql — guard ini hanya menolak yang berargumen.
+  const sqlFiles = ['db/schema.sql'];
+  const fs2 = require('node:fs');
+  const path = require('node:path');
+  const walk = (dir) => {
+    for (const e of fs2.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (p.endsWith('.sql')) sqlFiles.push(p);
+    }
+  };
+  walk('supabase/migrations');
+  // Pengecualian yang didokumentasikan: 080000 masih mengandung
+  // to_regproc berargumen yang cacat — itu cacat yang diperbaiki
+  // 090000, dan migrasi lama tidak diedit. File lain tidak boleh
+  // mengulanginya.
+  const knownBad = new Set(['supabase/migrations/20261128080000_wave4_low_hardening.sql']);
+  for (const f of sqlFiles) {
+    if (knownBad.has(f.replace(/\\/g, '/'))) continue;
+    const sql = fs2.readFileSync(f, 'utf8');
+    // Komentar menjelaskan cacatnya (mis. di header 090000) — yang
+    // dilarang hanya pemakaian sebagai KODE, jadi komentar dihapus
+    // dulu sebelum pemindaian.
+    const code = sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of code.matchAll(/to_regproc\('([^']*)'\)/g)) {
+      assert.ok(!m[1].includes(','), `${f}: to_regproc dipakai dengan daftar argumen (${m[1]}) — selalu NULL; pakai to_regprocedure`);
+    }
+  }
 });
 
 test('4.1 migrasi WebAuthn 070000 tetap DRAF dan tidak diubah Gelombang 4', () => {
@@ -86,7 +131,7 @@ test('4.1 schema.sql: idempotent — IF NOT EXISTS + DROP POLICY IF EXISTS', () 
 
 test('4.1 schema.sql: cycle_for_date dipin search_path + revoke PUBLIC', () => {
   assert.match(schemaSql, /create or replace function public\.cycle_for_date\(d date, payroll_day int\)\s*returns text\s*language sql\s*stable\s*set search_path = public/);
-  assert.match(schemaSql, /revoke all on function public\.cycle_for_date\(date, int\) from public;/);
+  assert.match(schemaSql, /revoke all on function public\.cycle_for_date\(date, int\) from public, anon;/);
   assert.match(schemaSql, /grant execute on function public\.cycle_for_date\(date, int\) to authenticated;/);
 });
 
