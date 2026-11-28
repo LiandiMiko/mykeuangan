@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.15** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.16** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.15-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.16-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.15-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.16-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.15-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.15-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.15-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.16-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.16-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.16-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -472,6 +472,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 28 November 2026: Update v3.20.16 (Gelombang 7c: Login Passkey / WebAuthn — Verifikasi Server)
+- **Login Passkey / WebAuthn Server (`supabase/migrations/20261128070000_wave3_webauthn.sql`, `supabase/functions/webauthn/index.ts`, `web/ui-feat-native-ux.js`, `tests/webauthn.test.js` baru)**: Draf server WebAuthn dari Gelombang 3 kini diverifikasi dan diaktifkan. Server menyimpan kredensial per pengguna di `webauthn_credentials` (kunci publik EC P-256 dalam JWK — kunci privat tidak pernah keluar dari perangkat) dan tantangan sekali pakai di `webauthn_challenges` (kedaluwarsa 5 menit, sekali pakai). Verifikasi tanda tangan di server, penghitung (counter) menolak assertion dengan counter ≤ tersimpan (anti-kloning). Klien kini memakai jalur server (`WEBAUTHN_SERVER_ENABLED = true`): enrollment + assertion lewat Edge Function `webauthn`, memakai `rpId` server bila ada. Dua bug nyata dari draf diperbaiki: (1) supabase-js v2 MELEMPAR `FunctionsHttpError` (bukan `{error}`) — pesan Indonesia dari server kini dibaca dari body `{error}` dengan fallback ramah; (2) penolakan server kini dihitung sebagai kegagalan biometrik, sedangkan server yang tidak terjangkau tetap fallback ke PIN. `deno check` lolos (Deno 2.9.8; pengetatan tipe `Uint8Array<ArrayBuffer>` — nol perubahan runtime; perintah yang benar di repo ini `DENO_NO_PACKAGE_JSON=1 deno check`).
+- **Perbaikan migrasi sebelum diterapkan**: `purge_expired_webauthn_challenges()` SECURITY DEFINER tadinya memberi EXECUTE ke PUBLIC — dicabut dari `public, anon, authenticated`, hanya `service_role` (+ `postgres`). Jebakan lain diperiksa dan tidak kena (tidak ada `hmac`/`digest` tak berkualifikasi, tidak ada `to_regproc` berargumen). Migrasi diterapkan di produksi sebelum merge: 2 tabel ada, RLS aktif keduanya, policy tepat 3 (`webauthn_challenges_none` ALL `false`; `select_own` + `delete_own` `auth.uid() = user_id`), index 6/6, kedua tabel 0 baris. Function `webauthn` di-deploy v1 (verify_jwt true, ACTIVE); probe tanpa JWT → 401, JWT palsu → 401 (bukan 500 mentah).
+- **Catatan jujur / belum diverifikasi**: end-to-end live dengan JWT pengguna asli (enroll + unlock melawan function + tabel live) belum dilakukan — hanya sampai probe gateway 401; pengguna biometrik interim lama harus daftar ulang sekali (kunci lokal `mk_webauthn_pubkey_v1` tidak terbawa ke server); jalur Android/Capacitor (`https://localhost`, rpId `localhost`) hanya dianalisis dari kode, belum dicoba di APK sungguhan; fungsi purge belum dipanggil siapa pun (belum ada cron) — tabel challenge akan tumbuh sampai ada pemanggil.
+- **Tes**: 17 tes baru (15 di `tests/webauthn.test.js` + 2 S1); 3 tes lama yang mengunci status DRAF/jalur interim diperbarui ekspektasinya ke status terverifikasi (guard tidak dihapus). Total suite 533 (516 baseline + 17).
+- **Catatan versi**: update ke v3.20.16 menimpa v3.20.15 tanpa uninstall (`versionCode 3020016` > `3020015` — monoton).
 ### 28 November 2026: Update v3.20.15 (Gelombang 7b: PIN Lebih Kuat — PBKDF2 600.000 Iterasi, Migrasi Transparan)
 - **PBKDF2 100.000 → 600.000 iterasi (`web/ui-feat-account.js`, `web/ui-feat-offline.js`, `tests/pin-encryption-gating.test.js`, `tests/wave3-auth-profile.test.js`)**: Hash verifikasi PIN (`derivePinHash`) dan KEK pembungkus DEK (`pinCrypto.derivePinKek`) kini memakai 600.000 iterasi PBKDF2-HMAC-SHA256, mengikuti rekomendasi OWASP (sebelumnya 100.000; backup JSON sudah 600.000 sejak lama). Format hash baru membawa jumlah iterasi: `pbkdf2$600000$<hex>`; format lama `pbkdf2$<hex>` dibaca sebagai 100.000. `wrapPinDataKey` baru selalu menulis `iterations: 600000`; `unwrapPinDataKey` menghormati `wrap.iterations` yang tersimpan (fallback 100.000 bila field tidak ada), sehingga wrap lama tetap bisa dibuka.
 - **Migrasi transparan tanpa aksi pengguna**: PIN benar yang diverifikasi terhadap hash lama memigrasi hash ke 600.000 (salt baru via `hashPin`, pola yang sama dengan migrasi legacy S6); PIN salah tidak memigrasi apa pun. Setelah unwrap DEK berhasil, `ensurePinDataKeyAfterUnlock` memanggil `migratePinDataKeyWrapIterations` yang membungkus ulang DEK YANG SAMA ke 600.000 (salt + IV baru) — wrap lama tidak pernah dihapus sebelum penggantinya aman tersimpan, dan bila re-wrap gagal aplikasi tetap jalan dengan wrap lama lalu mencoba lagi saat unlock berikutnya (fail-soft, tidak pernah mengunci pengguna keluar). Ganti PIN menghasilkan hash + wrap 600.000 sekaligus (rewrap DEK yang sama + `hashPin` baru); PIN lama ditolak sesudahnya.
