@@ -1,0 +1,344 @@
+/* Subset Phosphor (regular) — dibuat oleh scripts/subset-phosphor.mjs
+   dari @phosphor-icons/web 2.1.1. HANYA 102 ikon yang dipakai
+   aplikasi (lihat DYNAMIC_ICONS + pemindaian src/ + web/ di skrip itu).
+   JANGAN edit manual — jalankan ulang: node scripts/subset-phosphor.mjs.
+   font-display: swap (dulu block — ikon sempat hilang sampai font tiba). */
+@font-face {
+  font-family: "Phosphor";
+  src: url("./Phosphor.woff2") format("woff2");
+font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.ph {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: "Phosphor" !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Enable Ligatures ================ */
+  letter-spacing: 0;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings: "liga=1";
+  -moz-font-feature-settings: "liga";
+  -ms-font-feature-settings: "liga" 1;
+  font-feature-settings: "liga";
+  -webkit-font-variant-ligatures: discretionary-ligatures;
+  font-variant-ligatures: discretionary-ligatures;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph.ph-arrow-down-left:before {
+  content: "\e040";
+}
+.ph.ph-arrow-left:before {
+  content: "\e058";
+}
+.ph.ph-arrow-right:before {
+  content: "\e06c";
+}
+.ph.ph-arrow-up-right:before {
+  content: "\e092";
+}
+.ph.ph-arrows-clockwise:before {
+  content: "\e094";
+}
+.ph.ph-arrows-left-right:before {
+  content: "\e0a0";
+}
+.ph.ph-arrows-out-line-vertical:before {
+  content: "\e536";
+}
+.ph.ph-bank:before {
+  content: "\e0b4";
+}
+.ph.ph-bell:before {
+  content: "\e0ce";
+}
+.ph.ph-bell-ringing:before {
+  content: "\e5e8";
+}
+.ph.ph-calculator:before {
+  content: "\e538";
+}
+.ph.ph-calendar:before {
+  content: "\e108";
+}
+.ph.ph-calendar-blank:before {
+  content: "\e10a";
+}
+.ph.ph-calendar-check:before {
+  content: "\e712";
+}
+.ph.ph-camera:before {
+  content: "\e10e";
+}
+.ph.ph-caret-down:before {
+  content: "\e136";
+}
+.ph.ph-caret-left:before {
+  content: "\e138";
+}
+.ph.ph-caret-right:before {
+  content: "\e13a";
+}
+.ph.ph-caret-up:before {
+  content: "\e13c";
+}
+.ph.ph-chart-bar:before {
+  content: "\e150";
+}
+.ph.ph-chart-donut:before {
+  content: "\eaa6";
+}
+.ph.ph-chart-line:before {
+  content: "\e154";
+}
+.ph.ph-chart-line-up:before {
+  content: "\e156";
+}
+.ph.ph-chart-pie-slice:before {
+  content: "\e15a";
+}
+.ph.ph-chats-circle:before {
+  content: "\e17e";
+}
+.ph.ph-check-circle:before {
+  content: "\e184";
+}
+.ph.ph-clock-counter-clockwise:before {
+  content: "\e1a0";
+}
+.ph.ph-coins:before {
+  content: "\e78e";
+}
+.ph.ph-copy:before {
+  content: "\e1ca";
+}
+.ph.ph-currency-btc:before {
+  content: "\e618";
+}
+.ph.ph-currency-dollar:before {
+  content: "\e550";
+}
+.ph.ph-database:before {
+  content: "\e1de";
+}
+.ph.ph-device-mobile:before {
+  content: "\e1e0";
+}
+.ph.ph-download-simple:before {
+  content: "\e20c";
+}
+.ph.ph-export:before {
+  content: "\eaf0";
+}
+.ph.ph-eye:before {
+  content: "\e220";
+}
+.ph.ph-eye-slash:before {
+  content: "\e224";
+}
+.ph.ph-file-arrow-up:before {
+  content: "\e61e";
+}
+.ph.ph-file-csv:before {
+  content: "\eb1c";
+}
+.ph.ph-file-pdf:before {
+  content: "\e702";
+}
+.ph.ph-file-text:before {
+  content: "\e23a";
+}
+.ph.ph-file-xls:before {
+  content: "\eb22";
+}
+.ph.ph-fingerprint:before {
+  content: "\e23e";
+}
+.ph.ph-flag-checkered:before {
+  content: "\ea38";
+}
+.ph.ph-gauge:before {
+  content: "\e628";
+}
+.ph.ph-gear:before {
+  content: "\e270";
+}
+.ph.ph-hand-coins:before {
+  content: "\ea8c";
+}
+.ph.ph-info:before {
+  content: "\e2ce";
+}
+.ph.ph-key:before {
+  content: "\e2d6";
+}
+.ph.ph-lightbulb:before {
+  content: "\e2dc";
+}
+.ph.ph-list:before {
+  content: "\e2f0";
+}
+.ph.ph-list-bullets:before {
+  content: "\e2f2";
+}
+.ph.ph-lock-key:before {
+  content: "\e2fe";
+}
+.ph.ph-lock-open:before {
+  content: "\e306";
+}
+.ph.ph-magic-wand:before {
+  content: "\e6b6";
+}
+.ph.ph-magnifying-glass:before {
+  content: "\e30c";
+}
+.ph.ph-megaphone-simple:before {
+  content: "\e642";
+}
+.ph.ph-minus-circle:before {
+  content: "\e32c";
+}
+.ph.ph-money:before {
+  content: "\e588";
+}
+.ph.ph-moon:before {
+  content: "\e330";
+}
+.ph.ph-paper-plane-right:before {
+  content: "\e396";
+}
+.ph.ph-paper-plane-tilt:before {
+  content: "\e398";
+}
+.ph.ph-pause:before {
+  content: "\e39e";
+}
+.ph.ph-pencil:before {
+  content: "\e3ae";
+}
+.ph.ph-pencil-simple:before {
+  content: "\e3b4";
+}
+.ph.ph-piggy-bank:before {
+  content: "\ea04";
+}
+.ph.ph-play:before {
+  content: "\e3d0";
+}
+.ph.ph-plugs-connected:before {
+  content: "\eb5a";
+}
+.ph.ph-plus-circle:before {
+  content: "\e3d6";
+}
+.ph.ph-receipt:before {
+  content: "\e3ec";
+}
+.ph.ph-scales:before {
+  content: "\e750";
+}
+.ph.ph-shield-check:before {
+  content: "\e40c";
+}
+.ph.ph-sign-out:before {
+  content: "\e42a";
+}
+.ph.ph-sliders-horizontal:before {
+  content: "\e434";
+}
+.ph.ph-sparkle:before {
+  content: "\e6a2";
+}
+.ph.ph-spinner:before {
+  content: "\e66a";
+}
+.ph.ph-squares-four:before {
+  content: "\e464";
+}
+.ph.ph-star:before {
+  content: "\e46a";
+}
+.ph.ph-sun:before {
+  content: "\e472";
+}
+.ph.ph-tag:before {
+  content: "\e478";
+}
+.ph.ph-target:before {
+  content: "\e47c";
+}
+.ph.ph-telegram-logo:before {
+  content: "\e5bc";
+}
+.ph.ph-translate:before {
+  content: "\e4a2";
+}
+.ph.ph-trash:before {
+  content: "\e4a6";
+}
+.ph.ph-tray:before {
+  content: "\e4aa";
+}
+.ph.ph-tray-arrow-down:before {
+  content: "\e010";
+}
+.ph.ph-tray-arrow-up:before {
+  content: "\ee52";
+}
+.ph.ph-trend-up:before {
+  content: "\e4ae";
+}
+.ph.ph-upload-simple:before {
+  content: "\e4c0";
+}
+.ph.ph-user:before {
+  content: "\e4c2";
+}
+.ph.ph-user-check:before {
+  content: "\eafa";
+}
+.ph.ph-user-circle:before {
+  content: "\e4c4";
+}
+.ph.ph-user-gear:before {
+  content: "\e4cc";
+}
+.ph.ph-user-minus:before {
+  content: "\e4ce";
+}
+.ph.ph-users:before {
+  content: "\e4d6";
+}
+.ph.ph-vault:before {
+  content: "\e76e";
+}
+.ph.ph-wallet:before {
+  content: "\e68a";
+}
+.ph.ph-warning:before {
+  content: "\e4e0";
+}
+.ph.ph-warning-circle:before {
+  content: "\e4e2";
+}
+.ph.ph-wifi-slash:before {
+  content: "\e4f2";
+}
+.ph.ph-x:before {
+  content: "\e4f6";
+}
+.ph.ph-x-circle:before {
+  content: "\e4f8";
+}

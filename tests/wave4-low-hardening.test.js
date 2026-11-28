@@ -274,7 +274,12 @@ test('4.2 situs auth & laporan tidak lagi menempelkan error.message mentah', () 
   assert.match(reportsJs, /toUserErrorMessage\(error\)/);
   // Modul dimuat pertama di build agar tersedia untuk semua konsumen.
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
-  assert.match(buildMjs, /const WEB_MODULES = \[\s*\/\/ Gelombang 4[\s\S]{0,200}?'error-messages\.js',\s*'native-bridge\.js',/);
+  const webModules = buildMjs.match(/const WEB_MODULES = \[([\s\S]*?)\];/)[1];
+  const firstEntries = [...webModules.matchAll(/'([a-z0-9-]+\.js)',/g)].map((m) => m[1]);
+  assert.equal(firstEntries[0], 'error-messages.js', 'error-messages.js harus modul pertama di WEB_MODULES');
+  // Gelombang 7d: lazy-vendors.js kedua — semua consumer lazy-load
+  // (ui-shell, ui-assets, ui-export, ui-feat-charts) memanggilnya.
+  assert.equal(firstEntries[1], 'lazy-vendors.js', 'lazy-vendors.js harus modul kedua di WEB_MODULES');
 });
 
 // ============================================================

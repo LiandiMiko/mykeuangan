@@ -97,7 +97,11 @@
     doc.text(`${isSurplus ? '+' : ''}${_origFormatRupiah(selisih).replace(',00', '')}`, 138, 62);
   }
 
-  function exportPDF() {
+  // Gelombang 7d (P2): jsPDF + autotable dimuat malas — baru diunduh
+  // saat pengguna benar-benar mengekspor PDF (lihat web/lazy-vendors.js).
+  // Fungsi ini async; dispatcher data-action memanggilnya tanpa await,
+  // jadi semua kegagalan ditangkap di sini (bukan rejection mengambang).
+  async function exportPDF() {
     const en = localStorage.getItem('lang') === 'en';
     const { txs, period } = getFilteredReportTransactions();
     if (txs.length === 0) {
@@ -105,64 +109,83 @@
       return;
     }
     if (!root.jspdf || !root.jspdf.jsPDF) {
-      Swal.fire({ icon: 'info', title: en ? 'PDF module not ready' : 'Modul PDF belum siap', text: en ? 'Please wait a moment or reload the page.' : 'Tunggu beberapa detik atau muat ulang halaman.', customClass: { popup: getSwalClass() } });
+      if (typeof root.ensureJsPdf !== 'function') {
+        Swal.fire({ icon: 'info', title: en ? 'PDF module not ready' : 'Modul PDF belum siap', text: en ? 'Please wait a moment or reload the page.' : 'Tunggu beberapa detik atau muat ulang halaman.', customClass: { popup: getSwalClass() } });
+        return;
+      }
+      Swal.fire({ title: en ? 'Loading PDF module…' : 'Memuat modul PDF…', text: en ? 'Please wait a moment.' : 'Mohon tunggu sebentar.', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading(), customClass: { popup: getSwalClass() } });
+      try {
+        await root.ensureJsPdf();
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: en ? 'Failed to load PDF module' : 'Gagal memuat modul PDF', text: en ? 'Check your connection and try again.' : 'Periksa koneksi lalu coba lagi.', customClass: { popup: getSwalClass() } });
+        return;
+      }
+      Swal.close();
+    }
+    if (!root.jspdf || !root.jspdf.jsPDF) {
+      Swal.fire({ icon: 'error', title: en ? 'Failed to load PDF module' : 'Gagal memuat modul PDF', text: en ? 'Please reload the page and try again.' : 'Muat ulang halaman lalu coba lagi.', customClass: { popup: getSwalClass() } });
       return;
     }
 
-    const { jsPDF } = root.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = doc.internal.pageSize.getWidth();
+    try {
+      const { jsPDF } = root.jspdf;
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
 
-    let totalMasuk = 0;
-    let totalKeluar = 0;
-    txs.forEach((r) => {
-      const cat = String(r.kategori || '');
-      if (cat.startsWith('Utang') || cat.startsWith('Piutang')) return;
-      if (r.tipe === 'Pemasukan') totalMasuk += r.nominal;
-      else totalKeluar += r.nominal;
-    });
+      let totalMasuk = 0;
+      let totalKeluar = 0;
+      txs.forEach((r) => {
+        const cat = String(r.kategori || '');
+        if (cat.startsWith('Utang') || cat.startsWith('Piutang')) return;
+        if (r.tipe === 'Pemasukan') totalMasuk += r.nominal;
+        else totalKeluar += r.nominal;
+      });
 
-    drawPdfHeader(doc, pageWidth, period);
-    drawPdfSummaryCards(doc, totalMasuk, totalKeluar, totalMasuk - totalKeluar);
+      drawPdfHeader(doc, pageWidth, period);
+      drawPdfSummaryCards(doc, totalMasuk, totalKeluar, totalMasuk - totalKeluar);
 
-    doc.autoTable({
-      startY: 76,
-      head: [['Tanggal', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Nominal']],
-      body: txs.map((r) => [
-        r.tanggal, r.tipe, r.kategori, walletName(r.walletId), r.keterangan || '-',
-        _origFormatRupiah(r.nominal).replace(',00', '')
-      ]),
-      theme: 'grid',
-      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', halign: 'center' },
-      styles: { fontSize: 8.5, cellPadding: 4.5, font: 'helvetica' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 23 },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 28 },
-        3: { cellWidth: 24 },
-        5: { halign: 'right', fontStyle: 'bold', cellWidth: 32 }
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 5) {
-          const tipe = txs[data.row.index].tipe;
-          data.cell.styles.textColor = tipe === 'Pemasukan' ? [5, 150, 105] : [225, 29, 72];
+      doc.autoTable({
+        startY: 76,
+        head: [['Tanggal', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Nominal']],
+        body: txs.map((r) => [
+          r.tanggal, r.tipe, r.kategori, walletName(r.walletId), r.keterangan || '-',
+          _origFormatRupiah(r.nominal).replace(',00', '')
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        styles: { fontSize: 8.5, cellPadding: 4.5, font: 'helvetica' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 23 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 24 },
+          5: { halign: 'right', fontStyle: 'bold', cellWidth: 32 }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 5) {
+            const tipe = txs[data.row.index].tipe;
+            data.cell.styles.textColor = tipe === 'Pemasukan' ? [5, 150, 105] : [225, 29, 72];
+          }
         }
-      }
-    });
+      });
 
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`Halaman ${i} dari ${pageCount} | Dicetak oleh MyKeuGuech`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    }
-    const pdfFilename = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.pdf`;
-    if (typeof root.isNativeApp === 'function' && root.isNativeApp() && typeof root.saveOrShareFile === 'function') {
-      root.saveOrShareFile(doc.output('blob'), pdfFilename, 'application/pdf');
-    } else {
-      doc.save(pdfFilename);
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Halaman ${i} dari ${pageCount} | Dicetak oleh MyKeuGuech`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+      }
+      const pdfFilename = `Laporan_Keuangan_${sessionUser}_${period || 'All'}.pdf`;
+      if (typeof root.isNativeApp === 'function' && root.isNativeApp() && typeof root.saveOrShareFile === 'function') {
+        root.saveOrShareFile(doc.output('blob'), pdfFilename, 'application/pdf');
+      } else {
+        doc.save(pdfFilename);
+      }
+    } catch (err) {
+      console.error('[export] gagal membuat PDF:', err);
+      Swal.fire({ icon: 'error', title: en ? 'Failed to create PDF' : 'Gagal membuat PDF', text: en ? 'Please try again.' : 'Silakan coba lagi.', customClass: { popup: getSwalClass() } });
     }
   }
 

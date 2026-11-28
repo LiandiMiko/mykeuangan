@@ -9,6 +9,14 @@
 <link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
   crossorigin="anonymous">
+<!-- Gelombang 7d (P4): preload aset kritis jalur pertama — supabase.js
+  (otentikasi; tag-nya defer di akhir body, preload memberi tahu
+  browser lebih awal), tailwind.min.css (render), dan font Inter
+  (first paint). Preload TIDAK mengubah urutan eksekusi; hanya
+  mempercepat penemuan aset oleh browser. -->
+<link rel="preload" href="./vendor/supabase.js" as="script">
+<link rel="preload" href="./vendor/tailwind.min.css" as="style">
+<link rel="preload" href="./vendor/inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 <!-- Tailwind Play CDN: diganti build menjadi <style> berisi
   web/vendor/tailwind.min.css yang sudah dikompilasi. SRI di sini hanya
   pengaman jangkar source (sha384 dari skrip Play CDN, yang me-redirect
@@ -51,31 +59,13 @@
   integrity="sha384-cPFV+/abYd3INVFHPmSKpBmcnH+Q+bTZW7dv/EiuShUNPkHyFmRF8PsL7Ibfvunk"
   crossorigin="anonymous"></script>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css"
-  integrity="sha384-RkASv+6KfBMW9eknReJIJ6b3UnjKOKC5bOUaNgIY778NFbQ8MtWq9Lr/khUgqtTt"
-  crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/style.css"
-  integrity="sha384-iENKmnGeeAGTWfH/ajxq1dMSwLjASdk1v+taA112fikKow0tdV9cbUJcAiBEfHhG"
-  crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"
-  integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6"
-  crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"
-  integrity="sha384-6p33UqcS/7ZxiJzlAi3gfOsrVSlBlFNr/6gfN12AC0ETbTmPgMGSfHuN+H0QcWoO"
-  crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/id.js"
-  integrity="sha384-KMhDAY3QD073iimt/X068iLaMgNPBD+J57j7adrjgvlWbfAv2ONSvLFyOtU9TzDN"
-  crossorigin="anonymous"></script>
-
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"
-  integrity="sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3"
-  crossorigin="anonymous"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.9/jspdf.plugin.autotable.min.js"
-  integrity="sha384-A77YsHWitrPuAj8E0AuB033EXzymUxIajnWKPzrrzqFoYYSCEpFennDUjMG2R1L3"
-  crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
-  integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
-  crossorigin="anonymous"></script>
+<!-- Gelombang 7d (P2): jsPDF + autotable, Chart.js, dan flatpickr
+  (+ monthSelect + locale id) TIDAK lagi dimuat di sini — ketiganya
+  dimuat malas (lazy-load) oleh web/lazy-vendors.js hanya saat fitur
+  yang memakainya dibuka (ekspor PDF, grafik, pemilih tanggal). File
+  vendor-nya tetap ada di web/vendor/ dan tetap ter-precache SW, jadi
+  tersedia offline. Jangan tambahkan lagi tag statis untuk ketiganya
+  di sini tanpa menghapus lazy-load-nya. -->
 
 <style>
   :root {

@@ -1,0 +1,92 @@
+/* Subset Phosphor (bold) — dibuat oleh scripts/subset-phosphor.mjs
+   dari @phosphor-icons/web 2.1.1. HANYA 18 ikon yang dipakai
+   aplikasi (lihat DYNAMIC_ICONS + pemindaian src/ + web/ di skrip itu).
+   JANGAN edit manual — jalankan ulang: node scripts/subset-phosphor.mjs.
+   font-display: swap (dulu block — ikon sempat hilang sampai font tiba). */
+@font-face {
+  font-family: "Phosphor-Bold";
+  src: url("./Phosphor-Bold.woff2") format("woff2");
+font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.ph-bold {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: "Phosphor-Bold" !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Enable Ligatures ================ */
+  letter-spacing: 0;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings: "liga=1";
+  -moz-font-feature-settings: "liga";
+  -ms-font-feature-settings: "liga" 1;
+  font-feature-settings: "liga";
+  -webkit-font-variant-ligatures: discretionary-ligatures;
+  font-variant-ligatures: discretionary-ligatures;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph-bold.ph-arrows-left-right:before {
+  content: "\e0a0";
+}
+.ph-bold.ph-bell-ringing:before {
+  content: "\e5e8";
+}
+.ph-bold.ph-calendar-check:before {
+  content: "\e712";
+}
+.ph-bold.ph-camera:before {
+  content: "\e10e";
+}
+.ph-bold.ph-check:before {
+  content: "\e182";
+}
+.ph-bold.ph-check-circle:before {
+  content: "\e184";
+}
+.ph-bold.ph-eye-slash:before {
+  content: "\e224";
+}
+.ph-bold.ph-fingerprint:before {
+  content: "\e23e";
+}
+.ph-bold.ph-lightning:before {
+  content: "\e2de";
+}
+.ph-bold.ph-minus-circle:before {
+  content: "\e32c";
+}
+.ph-bold.ph-plus:before {
+  content: "\e3d4";
+}
+.ph-bold.ph-plus-circle:before {
+  content: "\e3d6";
+}
+.ph-bold.ph-rocket-launch:before {
+  content: "\e3fe";
+}
+.ph-bold.ph-scales:before {
+  content: "\e750";
+}
+.ph-bold.ph-translate:before {
+  content: "\e4a2";
+}
+.ph-bold.ph-trophy:before {
+  content: "\e67e";
+}
+.ph-bold.ph-warning-circle:before {
+  content: "\e4e2";
+}
+.ph-bold.ph-wifi-slash:before {
+  content: "\e4f2";
+}

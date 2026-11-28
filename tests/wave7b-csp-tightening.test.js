@@ -126,7 +126,7 @@ test('7b-b dist/index.html: nol <script> inline; semua <script src> ada filenya;
 test('7b-c urutan load tetap: i18n di head, error-messages pertama, config di tengah, sw-register terakhir', (t) => {
   const { html } = buildTempRepo(t);
   const noComments = html.replace(/<!--[\s\S]*?-->/g, '');
-  const appTags = [...noComments.matchAll(/<script src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const appTags = [...noComments.matchAll(/<script defer src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   const idx = (f) => appTags.indexOf(f);
   assert.ok(idx('i18n-dict.js') !== -1, 'i18n-dict.js harus dimuat');
   assert.ok(idx('i18n-dict.js') < idx('error-messages.js'), 'i18n-dict.js (di <head>) harus sebelum semua modul body');
@@ -135,10 +135,13 @@ test('7b-c urutan load tetap: i18n di head, error-messages pertama, config di te
   assert.ok(idx('config.js') < idx('password-policy.js'), 'config.js harus sebelum SUPABASE_MODULES');
   assert.ok(idx('password-policy.js') < idx('supabase-auth.js'), 'password-policy.js harus sebelum consumer supabase-auth.js');
   assert.equal(idx('sw-register.js'), appTags.length - 1, 'sw-register.js harus PALING AKHIR (memakai showPwaUpdateToast)');
-  // Tidak ada defer/async pada tag app — eksekusi sinkron berurutan
-  // seperti saat masih inline.
+  // Gelombang 7d (P4): SEMUA tag app HARUS defer (bukan sinkron) —
+  // eksekusi tetap berurutan (defer menjaga urutan dokumen) sementara
+  // parser tidak lagi tertahan 56 file. `async` tetap dilarang karena
+  // urutannya tidak terjaga.
   for (const m of noComments.matchAll(/<script([^>]*)src="\.\/app\/[^"]*"[^>]*>/g)) {
-    assert.doesNotMatch(m[1], /\b(defer|async)\b/, `tag app tidak boleh defer/async: ${m[0]}`);
+    assert.match(m[1], /\bdefer\b/, `tag app harus defer: ${m[0]}`);
+    assert.doesNotMatch(m[1], /\basync\b/, `tag app tidak boleh async: ${m[0]}`);
   }
 });
 
