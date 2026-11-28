@@ -80,7 +80,7 @@
         <div class="min-w-0 flex-1">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="font-bold text-sm text-slate-800 dark:text-white truncate">${escapeHtmlJS(r.kategori)}</p>
+              <p class="font-bold text-sm text-slate-800 dark:text-white truncate" title="${escapeHtmlJS(r.kategori)}">${escapeHtmlJS(r.kategori)}</p>
               <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">${escapeHtmlJS(r.tanggal)}${wLabel ? ' · ' + escapeHtmlJS(wLabel) : ''}</p>
             </div>
             <div class="text-right shrink-0">
@@ -89,7 +89,7 @@
             </div>
           </div>
           <div class="flex items-center justify-between gap-2 mt-2">
-            <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(r.keterangan || '-')}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(r.keterangan || '-')}">${escapeHtmlJS(r.keterangan || '-')}</p>
             <div class="flex items-center gap-1 shrink-0">
               <button type="button" ${mkActionAttrs('editTransaction', [r.id])} aria-label="${escapeHtmlJS(t('lap.edit'))}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil text-base" aria-hidden="true"></i></button>
               <button type="button" ${mkActionAttrs('deleteTransaction', [r.id])} aria-label="${escapeHtmlJS(t('lap.delete'))}" class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash text-base" aria-hidden="true"></i></button>
@@ -256,7 +256,13 @@
   }
 
   function downloadTransactionTemplate() {
-    const content = 'tanggal,tipe,kategori,nominal,keterangan,dompet\r\n';
+    // U31: template berisi 2 baris contoh yang lolos validasi parser untuk
+    // akun baru (kategori + dompet bawaan onboarding: Gaji, Makanan &
+    // Minuman, BCA (m-banking), Cash). Tanggal YYYY-MM-DD, nominal angka
+    // tanpa titik ribuan.
+    const content = 'tanggal,tipe,kategori,nominal,keterangan,dompet\r\n'
+      + '2026-11-28,Pemasukan,Gaji,5000000,Gaji November,BCA (m-banking)\r\n'
+      + '2026-11-27,Pengeluaran,Makanan & Minuman,75000,Makan siang,Cash\r\n';
     const filename = 'template-transaksi-mykeuguech.csv';
     if (typeof root.saveOrShareFile === 'function') {
       root.saveOrShareFile(content, filename, 'text/csv;charset=utf-8');
@@ -297,6 +303,7 @@
         .map((item) => `<li class="py-1"><strong>${t('lap.csv_line')} ${item.line}:</strong> ${escapeHtmlJS(item.errors.join(' '))}</li>`).join('');
       const html = `
         <div class="text-left text-sm space-y-2">
+          <p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.import_format'))}</p>
           <p>${escapeHtmlJS(t('lap.import_valid'))}: <strong>${result.valid.length}</strong></p>
           <p>${escapeHtmlJS(t('lap.import_duplicates'))}: <strong>${result.duplicateCount}</strong></p>
           <p>${escapeHtmlJS(t('lap.import_invalid'))}: <strong>${result.invalidCount}</strong></p>

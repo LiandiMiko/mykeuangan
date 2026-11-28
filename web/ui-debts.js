@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js, ui-state.js
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, walletOptions, localToday */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, walletOptions, localToday, t */
 /* ============================================================
    DEBT & RECEIVABLES (UTANG / PIUTANG)
    ============================================================ */
@@ -87,9 +87,19 @@
     groups.forEach((g) => {
       const el = document.getElementById(g.id);
       if (!el) return;
+      // U41: empty state berikon + teks kamus + tombol tambah (selaras pola
+      // budget/dashboard). Catatan: baris ini juga disentuh Worker A untuk
+      // warna teks (U3) — struktur baru ini memakai text-slate-500 yang
+      // sudah lolos kontras, jadi perbaikan warna itu terserap di sini.
       renderHtml(el, Object.keys(debtBal[g.group])
         .map((n) => buildDebtCard(g.group, n, debtBal[g.group][n], g.iconCol, g.addTxt, g.payTxt))
-        .join('') || '<p class="text-center text-xs text-slate-500 p-4">Klik + untuk menambah</p>');
+        .join('') || `<div class="py-6 px-4 text-center">
+          <i class="ph ph-hand-coins text-3xl text-slate-300 dark:text-slate-600 mb-2 block" aria-hidden="true"></i>
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('utang.kosong'))}</p>
+          <button type="button" data-action="manageDebtEntity" data-args='["add", "${g.group}"]' class="mt-3 min-h-10 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold hover:bg-brand/20 transition-colors">
+            + ${escapeHtmlJS(t('utang.add'))}
+          </button>
+        </div>`);
       bindDebtCardActions(el);
     });
   }
@@ -119,8 +129,8 @@
       input: 'text',
       inputValue: action === 'edit' ? oldName : '',
       inputPlaceholder: group === 'UtangApp' ? 'Contoh: Kredivo, SPayLater' : 'Contoh: Budi',
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       showCancelButton: true,
       customClass: { popup: getSwalClass() }
     });
@@ -168,8 +178,8 @@
         </div>`,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => bindNominalInputs(['swal-nom']),
       preConfirm: () => {

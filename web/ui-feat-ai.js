@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js
-/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKeyAsync, configureGeminiApiKey, callGeminiApi, extractGeminiText, syncFormCategorySelect, localToday, currentLang, t */
+/* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKeyAsync, configureGeminiApiKey, callGeminiApi, extractGeminiText, syncFormCategorySelect, localToday, currentLang, t, toUserErrorMessage */
 /* ============================================================
    FEATURES — RECEIPT OCR SCANNER & AI CHAT BASE
    ============================================================ */
@@ -47,7 +47,7 @@
       });
     } catch (err) {
       if (typeof root.triggerHaptic === 'function') root.triggerHaptic('error');
-      Swal.fire({ icon: 'error', title: 'Gagal membaca struk', text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal membaca struk', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -152,7 +152,7 @@
       const { mimeType, base64 } = await compressImageToBase64(file);
       await runReceiptOcrWithImage(mimeType, base64);
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal membaca struk', text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal membaca struk', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     }
   }
 

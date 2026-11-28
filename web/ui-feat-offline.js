@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js
-/* global DB, Swal, refreshFromServer, getSwalClass, refreshNotificationBell */
+/* global DB, Swal, refreshFromServer, getSwalClass, refreshNotificationBell, toUserErrorMessage */
 /* ============================================================
    FEATURES — OFFLINE QUEUE & CALLSERVER WRAPPER
    ============================================================ */
@@ -473,7 +473,7 @@
   async function recordOfflineFailure(item, err) {
     const nextRetry = (Number(item.retryCount) || 0) + 1;
     const isFailed = nextRetry >= MAX_OFFLINE_RETRIES;
-    const errMsg = String((err && err.message) || err || 'Ditolak server').slice(0, 180);
+    const errMsg = (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(err) : String((err && err.message) || err || 'Ditolak server')).slice(0, 180);
     await saveOfflineQueueItem(Object.assign({}, item, {
       retryCount: nextRetry,
       failed: isFailed,
@@ -494,7 +494,7 @@
       showCancelButton: true,
       showDenyButton: true,
       confirmButtonText: 'Coba Ulang',
-      denyButtonText: 'Buang Gagal',
+      denyButtonText: 'Hapus yang Gagal',
       cancelButtonText: 'Tutup',
       customClass: { popup: getSwalClass() }
     });

@@ -216,7 +216,7 @@
     const customHtml = custom.length
       ? custom.map((r, i) => `
           <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
-            <span class="truncate"><code>${escapeHtmlJS(r.keyword)}</code> → <strong>${escapeHtmlJS(r.category)}</strong> (${escapeHtmlJS(r.tipe)})</span>
+            <span class="truncate" title="${escapeHtmlJS(r.keyword)} → ${escapeHtmlJS(r.category)} (${escapeHtmlJS(r.tipe)})"><code>${escapeHtmlJS(r.keyword)}</code> → <strong>${escapeHtmlJS(r.category)}</strong> (${escapeHtmlJS(r.tipe)})</span>
             <button type="button" data-del-rule="${i}" class="min-h-9 min-w-11 px-3 py-1 rounded-lg bg-rose-500/10 text-rose-600 font-bold shrink-0">Hapus</button>
           </div>`).join('')
       : '<p class="text-xs text-slate-500">Belum ada aturan kustom (aturan bawaan tetap aktif).</p>';

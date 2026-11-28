@@ -1,5 +1,5 @@
 // @depends-on: ui-state.js
-/* global DB, Chart, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, showActionError, mkActionAttrs */
+/* global DB, Chart, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, showActionError, mkActionAttrs, toUserErrorMessage, t */
 /* ============================================================
    ASSETS & 30-DAY PORTFOLIO CHART
    ============================================================ */
@@ -260,7 +260,7 @@
         customClass: { popup: getSwalClass() }
       });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal refresh', text: String((e && e.message) || e), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal refresh', text: toUserErrorMessage(e), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -272,7 +272,7 @@
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
       confirmButtonText: 'Ya, Hapus',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;

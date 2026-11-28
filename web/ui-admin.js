@@ -1,5 +1,5 @@
 // @depends-on: ui-state.js
-/* global Swal, callServer, escapeHtmlJS, renderHtml, getSwalClass */
+/* global Swal, callServer, escapeHtmlJS, renderHtml, getSwalClass, toUserErrorMessage, t */
 /* ============================================================
    ADMIN PANEL & TELEGRAM PAIRING
    ============================================================ */
@@ -152,7 +152,7 @@
       return true;
     } catch (err) {
       console.error('loadAdminData error:', err);
-      const errMsg = escapeHtmlJS(String(err.message || err));
+      const errMsg = escapeHtmlJS(toUserErrorMessage(err));
       if (tbody) {
         renderHtml(tbody, `
           <tr>
@@ -218,8 +218,8 @@
       <div class="p-4 space-y-2.5">
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
-            <p class="font-bold text-sm text-slate-800 dark:text-white truncate">${escapeHtmlJS(u.display_name || 'User')}</p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(u.email)}</p>
+            <p class="font-bold text-sm text-slate-800 dark:text-white truncate" title="${escapeHtmlJS(u.display_name || 'User')}">${escapeHtmlJS(u.display_name || 'User')}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(u.email)}">${escapeHtmlJS(u.email)}</p>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">${m.roleBadge}${m.statusBadge}</div>
         </div>
@@ -278,7 +278,7 @@
       icon: opts.icon,
       showCancelButton: true,
       confirmButtonText: opts.confirmText,
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     });
     if (!confirm.isConfirmed) return;
@@ -295,7 +295,7 @@
       }
       Swal.fire({ icon: 'success', title: 'Berhasil', text: opts.successText, timer: 1500, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(e), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -371,7 +371,7 @@
         </div>`,
       showCancelButton: true,
       confirmButtonText: 'Simpan Password',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       focusConfirm: false,
       customClass: { popup: getSwalClass() },
       preConfirm: () => {
@@ -404,7 +404,7 @@
       await callServer('api_updateOwnPassword', result.oldPassword, result.newPassword);
       await Swal.fire({ icon: 'success', title: 'Password berhasil diperbarui. Sesi di perangkat lain telah dicabut.', customClass: { popup: getSwalClass() } });
     } catch (err) {
-      await Swal.fire({ icon: 'error', title: 'Gagal mengganti password', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+      await Swal.fire({ icon: 'error', title: 'Gagal mengganti password', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -419,8 +419,8 @@
       const ts = escapeHtmlJS(String(item.created_at || '').slice(0, 16).replace('T', ' '));
       return `<div class="py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 last:border-b-0 text-xs">
         <div class="min-w-0">
-          <p class="font-bold text-slate-800 dark:text-slate-100 truncate">${escapeHtmlJS(item.action || '-')} &rarr; ${escapeHtmlJS(item.target_email || item.target_user_id || '-')}</p>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}</p>
+          <p class="font-bold text-slate-800 dark:text-slate-100 truncate" title="${escapeHtmlJS(item.action || '-')} → ${escapeHtmlJS(item.target_email || item.target_user_id || '-')}">${escapeHtmlJS(item.action || '-')} &rarr; ${escapeHtmlJS(item.target_email || item.target_user_id || '-')}</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}">Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}</p>
         </div>
         <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums shrink-0">${ts}</span>
       </div>`;
@@ -435,7 +435,7 @@
       text: `Putuskan koneksi bot Telegram untuk ${email || uid}?`,
       showCancelButton: true,
       confirmButtonText: 'Ya, Putuskan',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     });
     if (!conf.isConfirmed) return;
@@ -444,7 +444,7 @@
       await loadAdminData();
       Swal.fire({ icon: 'success', title: 'Tautan Telegram Diputus', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: e.message || String(e), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(e), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -458,7 +458,7 @@
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
       confirmButtonText: 'Hapus Permanen',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       preConfirm: (val) => {
         const token = String(val || '').trim().toUpperCase();
@@ -475,7 +475,7 @@
       await loadAdminData();
       Swal.fire({ icon: 'success', title: 'Akun Pengguna Dihapus', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal Menghapus', text: e.message || String(e), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal Menghapus', text: toUserErrorMessage(e), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -486,7 +486,7 @@
       await callServer('api_adminSetPassword', uid, password);
       await Swal.fire({ icon: 'success', title: 'Password pengguna berhasil diatur ulang.', customClass: { popup: getSwalClass() } });
     } catch (err) {
-      await Swal.fire({ icon: 'error', title: 'Gagal mengatur password', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+      await Swal.fire({ icon: 'error', title: 'Gagal mengatur password', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -506,7 +506,7 @@
       if (!status || !status.connected) return openTelegramBotSetupModal();
       return openTelegramBotPairingModal(status);
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     }
   }
 
@@ -515,11 +515,11 @@
       title: 'Bot Telegram Saya',
       html: `
         <div class="text-left space-y-3 text-sm">
-          <p class="text-slate-600 dark:text-slate-300">Mulai sekarang, tiap pengguna memakai <strong>bot Telegram-nya sendiri</strong>. Buat bot Anda sekali lewat @BotFather, lalu hubungkan di sini.</p>
+          <p class="text-slate-600 dark:text-slate-300">Mulai sekarang, tiap pengguna memakai <strong>bot Telegram-nya sendiri</strong>. Buat bot Anda sekali lewat <a href="https://t.me/BotFather" target="_blank" rel="noopener" class="font-bold text-blue-700 dark:text-blue-300 underline">@BotFather</a>, lalu hubungkan di sini.</p>
           <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
             <p class="font-bold">Cara Membuat Bot (sekali saja):</p>
-            <p>1. Buka Telegram, cari <strong>@BotFather</strong>.</p>
-            <p>2. Kirim <code>/newbot</code>, beri nama bot, lalu beri username (harus diakhiri <em>bot</em>).</p>
+            <p>1. Buka Telegram, ketuk <a href="https://t.me/BotFather" target="_blank" rel="noopener" class="font-bold underline">@BotFather</a>.</p>
+            <p>2. Kirim <code>/newbot</code>, beri nama bot, lalu beri username (harus diakhiri <em>bot</em>). ${escapeHtmlJS(t('tg.botfather_username_note'))}</p>
             <p>3. Salin <strong>token</strong> yang diberikan BotFather (format: angka, titik dua, kode rahasia).</p>
             <p>4. Tempel token di bawah, lalu tekan <strong>Hubungkan Bot Saya</strong>.</p>
           </div>
@@ -563,7 +563,7 @@
               });
               return openTelegramPairingModal();
             } catch (err) {
-              Swal.fire({ icon: 'error', title: 'Gagal Menghubungkan', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+              Swal.fire({ icon: 'error', title: 'Gagal Menghubungkan', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
             }
           });
         }
@@ -609,6 +609,7 @@
               <button type="button" id="btnRotateTgWebhook" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-xs text-slate-600 dark:text-slate-300">Perbarui Webhook</button>
               <button type="button" id="btnDisconnectTgBot" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-800 font-bold text-xs text-rose-600 dark:text-rose-400">Putus Bot</button>
             </div>
+            <p class="text-[11px] text-slate-400 -mt-1">${escapeHtmlJS(t('tg.webhook_hint'))}</p>
           </div>`,
         confirmButtonText: 'Selesai',
         showCloseButton: true,
@@ -628,9 +629,9 @@
             rotateBtn.addEventListener('click', async () => {
               try {
                 await callServer('api_rotateTelegramBotWebhook');
-                Swal.fire({ icon: 'success', title: 'Webhook Diperbarui', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+                Swal.fire({ icon: 'success', title: t('tg.webhook_updated'), timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
               } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+                Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
               }
             });
           }
@@ -643,7 +644,7 @@
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, Putuskan',
-                cancelButtonText: 'Batal',
+                cancelButtonText: t('btn.batal'),
                 confirmButtonColor: '#e11d48',
                 customClass: { popup: getSwalClass() }
               });
@@ -653,14 +654,14 @@
                 await Swal.fire({ icon: 'success', title: 'Bot Diputus', timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
                 return openTelegramBotSetupModal();
               } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+                Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
               }
             });
           }
         }
       });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || String(err), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     }
   }
 

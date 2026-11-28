@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js, ui-state.js
-/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKeyAsync, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
+/* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKeyAsync, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t, toUserErrorMessage */
 /* ============================================================
    PRO FEATURES — CALCULATORS, MULTI-TURN AI CHAT & REBALANCING
    ============================================================ */
@@ -313,7 +313,7 @@
       history.pop();
       pro.safeWriteJson(pro.KEYS.AI_CHAT_HISTORY, history);
       renderAiChatThread(history);
-      Swal.fire(pro.swalOpt({ icon: 'error', title: 'Gagal meminta jawaban AI', text: String((err && err.message) || err) }));
+      Swal.fire(pro.swalOpt({ icon: 'error', title: 'Gagal meminta jawaban AI', text: toUserErrorMessage(err) }));
     } finally {
       if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
     }

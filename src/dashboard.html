@@ -28,7 +28,7 @@
           </button>
         </p>
         <div class="flex items-center gap-2 min-w-0">
-          <p class="text-[28px] sm:text-5xl font-black tracking-tight leading-tight drop-shadow-sm tabular-nums truncate mk-privacy-target" id="dash-total-aset">Rp 0</p>
+          <p class="text-2xl min-[400px]:text-[28px] sm:text-5xl font-black tracking-tight leading-tight drop-shadow-sm tabular-nums whitespace-nowrap overflow-hidden min-w-0 mk-privacy-target" id="dash-total-aset">Rp 0</p>
           <button id="heroHideNominalBtn" type="button" data-action="toggleHideNominal" aria-label="Sembunyikan nominal" aria-pressed="false" title="Sembunyikan Nominal"
                   class="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white inline-flex items-center justify-center transition-colors shrink-0">
             <i id="heroEyeIcon" class="ph ph-eye text-lg" aria-hidden="true"></i>
@@ -191,12 +191,12 @@
         <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2.5 min-w-0">
             <span class="w-8 h-8 rounded-xl bg-brand/10 text-brand dark:text-brand-ink flex items-center justify-center shrink-0">
-              <i class="ph ph-credit-card text-lg" aria-hidden="true"></i>
+              <i class="ph ph-wallet text-lg" aria-hidden="true"></i>
             </span>
             <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white truncate" data-i18n="dash.wallets">Dompet</h3>
           </div>
-          <div class="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
-            <button type="button" data-action="addWallet" class="min-h-10 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors">
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" data-action="addWallet" class="min-h-10 px-3 py-1.5 bg-brand hover:bg-brand-hover active:bg-brand-hover text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors">
               <i class="ph-bold ph-plus" aria-hidden="true"></i> <span data-i18n="dash.add_wallet">Tambah Dompet</span>
             </button>
             <!-- Gelombang 6 (U32): dulu satu tombol berlabel ganda
@@ -240,7 +240,7 @@
           <button type="button" data-action="switchView" data-args='["utang"]' class="w-full text-left p-3.5 sm:p-4 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors min-w-0">
             <p class="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold truncate">
               <i class="ph ph-arrow-down-left text-xs shrink-0" aria-hidden="true"></i>
-              <span class="truncate" data-i18n="dash.piutang_saya">Total Mengutangi (Piutang)</span>
+              <span class="truncate" data-i18n="dash.piutang_saya">Total Piutang (Mengutangi)</span>
             </p>
             <p class="text-sm sm:text-xl font-black text-emerald-700 dark:text-emerald-400 truncate tabular-nums mt-1 mk-privacy-target" id="dash-piutang">Rp 0</p>
           </button>

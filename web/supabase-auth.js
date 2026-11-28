@@ -186,11 +186,11 @@
           applySessionIdentity(cached.displayName || fallbackName, 'user');
         } else {
           console.error('finishLogin', e);
-          await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (e.message || String(e)));
+          await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(e) : 'Terjadi kesalahan. Coba lagi.'));
         }
       } else {
         console.error('finishLogin', e);
-        await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (e.message || String(e)));
+        await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(e) : 'Terjadi kesalahan. Coba lagi.'));
       }
     }
     // Setelah login/session restore berhasil: catat aktivitas
@@ -393,7 +393,7 @@
         <div style="background:${theme.cardBg};padding:26px 24px;border-radius:28px;width:min(92vw,400px);box-shadow:0 25px 60px -15px rgba(15,23,42,${theme.isDark ? '0.65' : '0.18'});border:1px solid ${theme.inputBorder}">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid ${theme.inputBorder}">
             <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--color-brand,#4f46e5) 0%,var(--color-brand-accent,#6366f1) 100%);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 10px 24px -10px rgb(var(--color-brand-rgb,79 70 229)/0.6)">
-              <i class="ph-fill ph-wallet" aria-hidden="true" style="font-size:22px"></i>
+              <i class="ph ph-wallet" aria-hidden="true" style="font-size:22px"></i>
             </div>
             <div>
               <h1 style="margin:0;font-size:19px;line-height:1.1;color:${theme.textMain};font-weight:800;letter-spacing:-0.02em">MyKeu<span style="color:var(--color-brand-ink,#4f46e5)">Guech</span></h1>

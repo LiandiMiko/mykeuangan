@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js, ui-state.js
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, escapeHtmlJS, getSwalClass, showActionError, walletOptions, localToday */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, escapeHtmlJS, getSwalClass, showActionError, walletOptions, localToday, t */
 /* ============================================================
    ASSET TOP-UP & LIQUIDATION MODALS
    ============================================================ */
@@ -75,7 +75,7 @@
         </div>`,
       showCancelButton: true,
       confirmButtonText: 'Tambahkan',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => {
         bindNominalInputs(m.isUnitAsset ? ['tu-amount', 'tu-price'] : ['tu-amount']);
@@ -105,7 +105,7 @@
       await refreshFromServer(await callServer('api_topUpAsset', id, res.value));
       Swal.fire({ icon: 'success', title: 'Aset ditambah', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
@@ -146,7 +146,7 @@
       html: buildWithdrawAssetHtml(m),
       showCancelButton: true,
       confirmButtonText: 'Cairkan',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => {
         bindNominalInputs(['wd-amount']);

@@ -229,7 +229,7 @@
     const listHtml = pinned.length
       ? pinned.map((p, i) => `
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
-            <span class="truncate font-semibold tabular-nums">${escapeHtmlJS(p.label)} · ${escapeHtmlJS(formatRupiah(p.nominal).replace(',00', ''))}</span>
+            <span class="truncate font-semibold tabular-nums" title="${escapeHtmlJS(p.label)} · ${escapeHtmlJS(formatRupiah(p.nominal).replace(',00', ''))}">${escapeHtmlJS(p.label)} · ${escapeHtmlJS(formatRupiah(p.nominal).replace(',00', ''))}</span>
             <button type="button" data-del-tpl="${i}" class="min-h-8 px-2.5 py-1 rounded bg-rose-500/10 text-rose-600 font-bold">Hapus</button>
           </div>`).join('')
       : '<p class="text-xs text-slate-500">Belum ada template yang disematkan.</p>';

@@ -496,6 +496,9 @@
     } else {
       dEl.textContent = typeof t === 'function' ? t('dash.title') : 'Ringkasan Finansial';
     }
+    // U21/U37: judul memakai truncate di layar sempit — simpan teks lengkap
+    // di title agar nama pengguna yang panjang tetap bisa dibaca utuh.
+    dEl.title = dEl.textContent;
   }
 
   function getPeriodRange(periodStr, payrollDay) {

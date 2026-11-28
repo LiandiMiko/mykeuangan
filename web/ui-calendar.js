@@ -276,8 +276,8 @@
         return `
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs">
             <div class="min-w-0 text-left">
-              <p class="font-bold text-slate-800 dark:text-white truncate">${escapeHtmlJS(tx.kategori)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}</p>
+              <p class="font-bold text-slate-800 dark:text-white truncate" title="${escapeHtmlJS(tx.kategori)}">${escapeHtmlJS(tx.kategori)}</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}">${escapeHtmlJS(tx.keterangan || walletName(tx.walletId) || '-')}</p>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <span class="font-black tabular-nums ${color}">${sign}${formatRupiah(tx.nominal).replace(',00', '')}</span>

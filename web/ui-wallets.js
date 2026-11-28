@@ -106,7 +106,7 @@
               <i class="ph ph-${isCash ? 'money' : isEwallet ? 'device-mobile' : 'bank'} text-xl" aria-hidden="true"></i>
             </span>
             <span class="min-w-0">
-              <span class="block text-slate-800 dark:text-white text-sm font-bold truncate">${safeName}</span>
+              <span class="block text-slate-800 dark:text-white text-sm font-bold truncate" title="${safeName}">${safeName}</span>
               <span class="mt-0.5 flex items-center gap-1.5 min-w-0">
                 <span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${walletKindLabel(w.kind)}</span>
                 ${isPrimary ? '<span class="shrink-0 px-1.5 py-px rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-black uppercase tracking-wide">Dompet Utama</span>' : ''}
@@ -136,8 +136,8 @@
       renderWallets();
       if (typeof root.renderCashflowRunwayStrip === 'function') root.renderCashflowRunwayStrip();
       Swal.fire({
-        icon: 'success', title: 'Dompet utama diatur',
-        text: w.name + ' kini menjadi acuan Cashflow Runway.',
+        icon: 'success', title: t('wallet.primary_set'),
+        text: w.name + ' ' + t('wallet.primary_set_text'),
         timer: 1800, showConfirmButton: false, customClass: { popup: getSwalClass() }
       });
     } catch (e) {
@@ -159,7 +159,7 @@
     return `
       <div class="px-5 py-3.5 flex items-center justify-between gap-3 text-xs hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
         <div class="min-w-0">
-          <p class="font-bold text-slate-700 dark:text-slate-200 truncate">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
+          <p class="font-bold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(label[x.kind] || 'Transfer')} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}">${label[x.kind] || 'Transfer'} · ${escapeHtmlJS(walletName(x.fromWallet))}${x.toWallet ? ' → ' + escapeHtmlJS(walletName(x.toWallet)) : ' → Aset'}</p>
           <p class="text-slate-500 dark:text-slate-400 mt-0.5">${escapeHtmlJS(String(x.tanggal).slice(0, 10))}${x.fee ? ' · biaya ' + formatRupiah(x.fee) : ''}${x.keterangan ? ' · ' + escapeHtmlJS(x.keterangan) : ''}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -175,7 +175,20 @@
     const panel = document.getElementById('wallet-panel');
     if (!panel) return;
     const wb = walletBalances();
-    renderHtml(panel, (DB.wallets || []).map((w) => buildWalletRowHtml(w, wb[w.id] || 0)).join(''));
+    const wallets = DB.wallets || [];
+    if (wallets.length === 0) {
+      // U40: cabang kosong — kartu Dompet tidak boleh tampil dengan area
+      // kosong tanpa penjelasan bila suatu saat nol dompet.
+      renderHtml(panel, `<div class="p-8 text-center">
+        <i class="ph ph-wallet text-3xl text-slate-300 dark:text-slate-600 mb-2 block" aria-hidden="true"></i>
+        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('wallet.empty'))}</p>
+        <button type="button" data-action="addWallet" class="mt-3 min-h-10 px-3.5 py-2 rounded-xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold hover:bg-brand/20 transition-colors">
+          + ${escapeHtmlJS(t('dash.add_wallet'))}
+        </button>
+      </div>`);
+    } else {
+      renderHtml(panel, wallets.map((w) => buildWalletRowHtml(w, wb[w.id] || 0)).join(''));
+    }
 
     const box = document.getElementById('wallet-transfers');
     if (!box) return;
@@ -191,7 +204,7 @@
 
   async function addWallet() {
     const res = await Swal.fire({
-      title: 'Tambah Dompet',
+      title: t('dash.add_wallet'),
       html: `
         <div class="text-left space-y-3">
           <div>
@@ -214,8 +227,8 @@
           </div>
         </div>`,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => bindNominalInputs(['wl-new-balance']),
       preConfirm: () => {
@@ -233,9 +246,9 @@
     if (!res.isConfirmed || !res.value) return;
     try {
       await refreshFromServer(await callServer('api_addWallet', res.value));
-      Swal.fire({ icon: 'success', title: 'Dompet ditambahkan', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'success', title: t('wallet.added'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
@@ -292,8 +305,8 @@
       showDenyButton: (DB.wallets || []).length > 1,
       denyButtonText: 'Hapus Dompet',
       denyButtonColor: '#e11d48',
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => bindNominalInputs(['wl-bal']),
       preConfirm: () => {
@@ -319,7 +332,7 @@
         });
       }
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
@@ -369,8 +382,8 @@
           </div>
         </div>`,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() },
       didOpen: () => {
         bindNominalInputs(['tf-nom', 'tf-fee']);
@@ -427,20 +440,20 @@
       await refreshFromServer(await callServer('api_addTransfer', { ...res.value, kind: k, tanggal: res.value.tanggal || localToday() }));
       Swal.fire({ icon: 'success', title: 'Tercatat', timer: 1000, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+      showActionError(e);
     }
   }
 
   function deleteTransfer(id) {
     Swal.fire({
       title: 'Hapus transfer ini?', text: 'Saldo dompet akan kembali seperti sebelum transfer.', icon: 'warning',
-      showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Ya, Hapus', cancelButtonText: 'Batal', customClass: { popup: getSwalClass() }
+      showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: t('btn.ya_hapus'), cancelButtonText: t('btn.batal'), customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
         await refreshFromServer(await callServer('api_deleteTransfer', id));
       } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Gagal', text: String(e.message || e), customClass: { popup: getSwalClass() } });
+        showActionError(e);
       }
     });
   }

@@ -222,7 +222,7 @@
       <div class="max-h-56 overflow-y-auto space-y-1.5 text-xs">
         ${cmp.categories.map((r) => `
           <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60">
-            <span class="font-semibold truncate">${escapeHtmlJS(r.category)}</span>
+            <span class="font-semibold truncate" title="${escapeHtmlJS(r.category)}">${escapeHtmlJS(r.category)}</span>
             <span class="shrink-0 tabular-nums">${escapeHtmlJS(formatShortIDR(r.amountA))} → <strong>${escapeHtmlJS(formatShortIDR(r.amountB))}</strong> <span class="${r.delta > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}">(${r.delta >= 0 ? '+' : ''}${escapeHtmlJS(formatShortIDR(r.delta))})</span></span>
           </div>`).join('') || '<p class="text-slate-500">Tidak ada transaksi untuk dibandingkan.</p>'}
       </div>

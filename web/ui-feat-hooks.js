@@ -159,7 +159,7 @@
       const calc = FinanceAnalysis.calculateGoalMonthlySaving(goal.currentAmount, goal.targetAmount, goal.targetDate, todayStr);
       const proj = FinanceAnalysis.projectGoalMilestone(goal.currentAmount, goal.targetAmount, goal.targetDate, calc.monthlySaving, avgSavingRate, todayStr);
       let label = 'Kurang ' + formatRupiah(calc.remaining).replace(',00', '');
-      let iconClass = 'ph-bold ph-wallet';
+      let iconClass = 'ph ph-wallet';
       let tone = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
       if (calc.status === 'completed' || proj.status === 'completed') {
         label = 'Target tercapai!';

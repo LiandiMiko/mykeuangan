@@ -815,7 +815,7 @@
   async function openQuickAddMenu() {
     const cards = [
       buildQuickMenuCard('fab-out', 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40', 'bg-rose-100 dark:bg-rose-500/20', 'minus-circle', txMsg('Pengeluaran', 'Expense'), txMsg('Catat biaya harian', 'Record daily spending')),
-      buildQuickMenuCard('fab-in', 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40', 'bg-emerald-100 dark:bg-emerald-500/20', 'plus-circle', txMsg('Pemasukan', 'Income'), txMsg('Gaji atau pendapatan', 'Salary or earnings')),
+      buildQuickMenuCard('fab-in', 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40', 'bg-emerald-100 dark:bg-emerald-500/20', 'plus-circle', txMsg('Pemasukan', 'Income'), txMsg('Gaji atau pemasukan lain', 'Salary or other income')),
       buildQuickMenuCard('fab-ocr', 'bg-brand/10 text-brand dark:text-brand-ink border-brand/25', 'bg-brand/15', 'camera', txMsg('Scan Struk AI', 'AI Receipt Scan'), txMsg('Foto nota belanja', 'Snap shopping receipt')),
       buildQuickMenuCard('fab-tf', 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700', 'bg-slate-200/80 dark:bg-slate-700', 'arrows-left-right', txMsg('Transfer Dompet', 'Wallet Transfer'), txMsg('Pindah antar saldo', 'Move funds between wallets'))
     ].join('');

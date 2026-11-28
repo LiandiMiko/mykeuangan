@@ -1,5 +1,5 @@
 // @depends-on: error-messages.js, ui-state.js
-/* global DB, FinanceAnalysis, sessionUser, Swal, callServer, refreshFromServer, formatRupiah, _origFormatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, getFilteredReportTransactions, walletName, localToday, t */
+/* global DB, FinanceAnalysis, sessionUser, Swal, callServer, refreshFromServer, formatRupiah, _origFormatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, getFilteredReportTransactions, walletName, localToday, t, toUserErrorMessage */
 /* ============================================================
    FEATURES — EXCEL EXPORT, JSON BACKUP/RESTORE & PRINT STATEMENT
    ============================================================ */
@@ -447,7 +447,7 @@
       });
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
-      else Swal.fire({ icon: 'error', title: 'Gagal Restore', text: String(err.message || err), customClass: { popup: getSwalClass() } });
+      else Swal.fire({ icon: 'error', title: 'Gagal Restore', text: (typeof toUserErrorMessage === 'function' ? toUserErrorMessage(err) : 'Terjadi kesalahan. Coba lagi.'), customClass: { popup: getSwalClass() } });
     }
   }
 

@@ -567,9 +567,11 @@ test('v3.20.3: Popup polish fixes dark-mode icon masks, colored deny contrast, l
   assert.match(paletteJs, /id="mkCmdCloseBtn"/);
   assert.match(quickJs, /left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm/);
   assert.doesNotMatch(budgetJs, /color:#64748b/);
-  assert.match(debtsJs, /confirmButtonText:\s*'Simpan'/);
+  // Gelombang 6C U8: label tombol modal sudah lewat i18n (dulu hardcode
+  // 'Simpan'/'Batal' di sini); kunci t('btn.simpan')/t('btn.batal').
+  assert.match(debtsJs, /confirmButtonText:\s*t\('btn\.simpan'\)/);
   assert.match(assetsJs, /confirmButtonText:\s*'Ya, Hapus'/);
-  assert.match(walletsJs, /cancelButtonText:\s*'Batal'/);
+  assert.match(walletsJs, /cancelButtonText:\s*t\('btn\.batal'\)/);
   assert.match(onboardingJs, /renderStepIndicator/);
   assert.match(stylesHtml, /#swal-payroll\.swal2-input/);
   assert.match(stylesHtml, /\.swal2-close\s*\{[^}]*position:\s*absolute\s*!important;/);

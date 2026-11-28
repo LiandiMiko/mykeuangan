@@ -1,5 +1,5 @@
 // @depends-on: ui-state.js
-/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t, mkActionAttrs */
+/* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t, mkActionAttrs, toUserErrorMessage */
 /* ============================================================
    TRANSACTION FORM & CATEGORY MANAGEMENT
    ============================================================ */
@@ -89,7 +89,7 @@
 
     fillWalletSelect('tr_wallet');
     const wl = document.getElementById('tr_wallet_label');
-    if (wl) wl.innerText = tipe === 'Pemasukan' ? 'Masuk ke dompet' : 'Dibayar dari dompet';
+    if (wl) wl.innerText = tipe === 'Pemasukan' ? t('form.wallet_in') : t('form.wallet_out');
 
     if (root.fpTanggal) root.fpTanggal.setDate('today');
   }
@@ -100,8 +100,8 @@
       title: 'Kategori Baru',
       input: 'text',
       inputPlaceholder: 'Contoh: Kopi, Parkir, Bonus',
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
+      confirmButtonText: t('btn.simpan'),
+      cancelButtonText: t('btn.batal'),
       showCancelButton: true,
       customClass: { popup: getSwalClass() }
     });
@@ -139,7 +139,7 @@
         const attr = escapeAttrJS(name);
         return `
           <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs">
-            <span class="font-bold text-slate-800 dark:text-white truncate">${safe}</span>
+            <span class="font-bold text-slate-800 dark:text-white truncate" title="${safe}">${safe}</span>
             <div class="flex items-center gap-1 shrink-0">
               <button type="button" ${mkActionAttrs('renameCategoryUI', [tipe, name])} aria-label="Ubah nama ${safe}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center"><i class="ph ph-pencil" aria-hidden="true"></i></button>
               <button type="button" ${mkActionAttrs('deleteCategoryUI', [tipe, name])} aria-label="Hapus kategori ${safe}" class="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center"><i class="ph ph-trash" aria-hidden="true"></i></button>
@@ -228,7 +228,7 @@
 
     let firstInvalid = null;
     if (!p.tanggal || !/^\d{4}-\d{2}-\d{2}/.test(p.tanggal)) {
-      setFormFieldError('tr_tanggal', 'tr_tanggal_error', 'Isi tanggal dengan format YYYY-MM-DD.');
+      setFormFieldError('tr_tanggal', 'tr_tanggal_error', 'Pilih tanggal dari kalender atau ketik tanggal yang benar, mis. 28 November 2026.');
       firstInvalid = document.getElementById('tr_tanggal');
     }
     if (!p.nominal || p.nominal <= 0) {
@@ -272,7 +272,7 @@
       switchView('dashboard');
     } catch (err) {
       console.error('[submitTransaction] error:', err);
-      Swal.fire({ icon: 'error', title: 'Gagal menyimpan', text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      Swal.fire({ icon: 'error', title: 'Gagal menyimpan', text: toUserErrorMessage(err), customClass: { popup: getSwalClass() } });
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -332,7 +332,7 @@
     toast.className = 'mk-toast fixed left-4 right-4 sm:left-auto sm:right-4 z-50 sm:max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-700 dark:border-slate-200';
     renderHtml(toast, `
       <div class="p-3.5 flex items-center justify-between gap-3">
-        <span class="text-xs font-semibold truncate tabular-nums">Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})</span>
+        <span class="text-xs font-semibold truncate tabular-nums" title="Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})">Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})</span>
         <div class="flex items-center gap-1.5 shrink-0">
           <button type="button" id="btnUndoDeleteTx" class="px-3 min-h-9 rounded-xl bg-brand hover:bg-brand-hover text-white text-[11px] font-bold transition-colors">Batalkan</button>
           <button type="button" id="btnDismissUndoTx" aria-label="Tutup" class="w-8 h-8 rounded-lg flex items-center justify-center opacity-80 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
@@ -404,7 +404,7 @@
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
       confirmButtonText: 'Hapus Transaksi',
-      cancelButtonText: 'Batal',
+      cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     }).then(async (r) => {
       if (!r.isConfirmed) return;

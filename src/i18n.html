@@ -72,11 +72,15 @@ const I18N = {
     'dash.utang_piutang': 'Utang & Piutang',
     'dash.btn_detail': 'Kelola Detail',
     'dash.utang_saya': 'Total Utang Saya (Netto)',
-    'dash.piutang_saya': 'Total Mengutangi (Piutang)',
+    'dash.piutang_saya': 'Total Piutang (Mengutangi)',
     'dash.histori': 'Histori Transaksi',
     'dash.pemasukan': 'Pemasukan',
     'dash.pengeluaran': 'Pengeluaran',
     'dash.kosong': 'Kosong',
+    'dash.empty_in': 'Belum ada pemasukan pada siklus ini.',
+    'dash.empty_out': 'Belum ada pengeluaran pada siklus ini.',
+    'dash.record_in': '+ Catat Pemasukan',
+    'dash.record_out': '+ Catat Pengeluaran',
     'dash.wallets': 'Dompet',
     'dash.add_wallet': 'Tambah Dompet',
     'dash.transfer': 'Transfer',
@@ -85,6 +89,10 @@ const I18N = {
     'wallet.recent_transfers': 'Riwayat Transfer Terakhir',
     'wallet.recent_transfers_sub': 'Catatan mutasi antar dompet, tarik tunai, dan top-up investasi.',
     'wallet.empty_transfers': 'Belum ada riwayat transfer antar dompet.',
+    'wallet.added': 'Dompet ditambahkan',
+    'wallet.primary_set': 'Dompet utama diatur',
+    'wallet.primary_set_text': 'kini menjadi acuan Cashflow Runway.',
+    'wallet.empty': 'Belum ada dompet.',
     'ai.title': 'Analisis Arus Keuangan AI (Gemini 4)',
     'ai.subtitle': 'AI hanya berjalan ketika Anda menekan tombol analisis untuk menjaga privasi dan kuota API Anda.',
     'ai.key_missing': 'API Key belum diatur',
@@ -170,6 +178,12 @@ const I18N = {
     'form.pengeluaran': 'Pengeluaran',
     'form.scan_receipt': 'Scan Struk (AI)',
     'form.back': 'Kembali ke Dashboard',
+    'form.title': 'Catat Transaksi',
+    'form.wallet': 'Dompet',
+    'form.wallet_in': 'Masuk ke dompet',
+    'form.wallet_out': 'Dibayar dari dompet',
+    'form.reset_nominal': 'Atur Ulang',
+    'form.split_bill': 'Split Bill / Patungan (catatkan porsi teman otomatis ke Piutang)',
 
     // ============ LAPORAN ============
     'lap.title': 'Semua Data',
@@ -216,6 +230,7 @@ const I18N = {
     'lap.import_invalid': 'Baris tidak valid',
     'lap.import_confirm': 'Impor transaksi',
     'lap.import_done': 'Transaksi berhasil diimpor',
+    'lap.import_format': 'Format: tanggal YYYY-MM-DD (atau DD/MM/YYYY), nominal angka tanpa titik ribuan, tipe Pemasukan/Pengeluaran.',
     'lap.csv_line': 'Baris CSV',
     'lap.edit': 'Edit transaksi',
     'lap.delete': 'Hapus transaksi',
@@ -232,6 +247,7 @@ const I18N = {
     'utang.btn_beri': 'Beri',
     'utang.btn_terima': 'Terima',
     'utang.kosong': 'Klik + untuk menambah',
+    'utang.add': 'Tambah',
 
     // ============ BUDGETING ============
     'budget.title': 'Budgeting',
@@ -253,7 +269,8 @@ const I18N = {
     'budget.chart_cashflow': 'Grafik Arus Kas 6 Bulan',
     'budget.month': 'Bulan',
     'budget.expense': 'Pengeluaran',
-    'budget.no_activity': 'Belum ada budget atau pengeluaran pada periode ini.',
+    'budget.no_activity_category': 'Belum ada transaksi pengeluaran di periode ini.',
+    'budget.no_activity_cashflow': 'Belum ada data arus kas.',
     'budget.previous_month': 'Bulan sebelumnya',
     'budget.next_month': 'Bulan berikutnya',
     'budget.plan': 'Rencana',
@@ -285,7 +302,7 @@ const I18N = {
     'btn.ya': 'Ya',
     'btn.tidak': 'Tidak',
     'btn.ya_hapus': 'Ya, Hapus',
-    'filter.reset': 'Reset Filter',
+    'filter.reset': 'Atur Ulang Filter',
 
     // ============ ALERTS ============
     'alert.saved': 'Tersimpan!',
@@ -293,6 +310,7 @@ const I18N = {
     'alert.failed': 'Gagal',
     'alert.success': 'Berhasil!',
     'alert.load_failed': 'Gagal memuat data',
+    'app.reload_data': 'Muat Ulang Data',
     'alert.confirm_delete': 'Hapus Data?',
     'alert.confirm_delete_text': 'Data tidak bisa dikembalikan!',
     'alert.invalid_data': 'Data tidak valid',
@@ -374,8 +392,11 @@ const I18N = {
     'bulk.change_wallet': 'Ubah Dompet',
     'bulk.delete': 'Hapus Terpilih',
     'ai.local_calc': 'Kalkulator Lokal',
-    'ai.reset_chat': 'Reset Chat',
-    'a11y.skip_main': 'Loncat ke konten utama'
+    'ai.reset_chat': 'Atur Ulang Obrolan',
+    'a11y.skip_main': 'Loncat ke konten utama',
+    'tg.webhook_hint': 'Tekan bila bot berhenti menerima pesan',
+    'tg.webhook_updated': 'Webhook diperbarui, bot siap menerima pesan lagi',
+    'tg.botfather_username_note': 'Bila username sudah dipakai, coba nama lain.'
   },
   en: {
     // ============ SIDEBAR ============
@@ -451,6 +472,10 @@ const I18N = {
     'dash.pemasukan': 'Income',
     'dash.pengeluaran': 'Expense',
     'dash.kosong': 'Empty',
+    'dash.empty_in': 'No income in this cycle yet.',
+    'dash.empty_out': 'No expenses in this cycle yet.',
+    'dash.record_in': '+ Record Income',
+    'dash.record_out': '+ Record Expense',
     'dash.wallets': 'Wallets',
     'dash.add_wallet': 'Add Wallet',
     'dash.transfer': 'Transfer',
@@ -459,6 +484,10 @@ const I18N = {
     'wallet.recent_transfers': 'Recent Transfers',
     'wallet.recent_transfers_sub': 'Wallet transfers, cash withdrawals, and investment top-up records.',
     'wallet.empty_transfers': 'No wallet transfer history yet.',
+    'wallet.added': 'Wallet added',
+    'wallet.primary_set': 'Primary wallet set',
+    'wallet.primary_set_text': 'is now the Cashflow Runway reference.',
+    'wallet.empty': 'No wallets yet.',
     'ai.title': 'AI Cashflow Analysis (Gemini 4)',
     'ai.subtitle': 'AI only runs when you click the analyze button to protect your privacy and API quota.',
     'ai.key_missing': 'API Key not set',
@@ -544,6 +573,12 @@ const I18N = {
     'form.pengeluaran': 'Expense',
     'form.scan_receipt': 'Scan Receipt (AI)',
     'form.back': 'Back to Dashboard',
+    'form.title': 'Record Transaction',
+    'form.wallet': 'Wallet',
+    'form.wallet_in': 'Into wallet',
+    'form.wallet_out': 'Paid from wallet',
+    'form.reset_nominal': 'Reset',
+    'form.split_bill': 'Split Bill (automatically record your friend\'s share as a receivable)',
 
     // ============ LAPORAN ============
     'lap.title': 'All Data',
@@ -590,6 +625,7 @@ const I18N = {
     'lap.import_invalid': 'Invalid rows',
     'lap.import_confirm': 'Import transactions',
     'lap.import_done': 'Transactions imported',
+    'lap.import_format': 'Format: date YYYY-MM-DD (or DD/MM/YYYY), amount as digits without thousand separators, type Pemasukan/Pengeluaran.',
     'lap.csv_line': 'CSV row',
     'lap.edit': 'Edit transaction',
     'lap.delete': 'Delete transaction',
@@ -606,6 +642,7 @@ const I18N = {
     'utang.btn_beri': 'Lend',
     'utang.btn_terima': 'Receive',
     'utang.kosong': 'Click + to add',
+    'utang.add': 'Add',
 
     // ============ BUDGETING ============
     'budget.title': 'Budgeting',
@@ -627,7 +664,8 @@ const I18N = {
     'budget.chart_cashflow': '6-Month Cashflow Chart',
     'budget.month': 'Month',
     'budget.expense': 'Spending',
-    'budget.no_activity': 'No budget or spending recorded for this period.',
+    'budget.no_activity_category': 'No spending transactions in this period.',
+    'budget.no_activity_cashflow': 'No cash flow data yet.',
     'budget.previous_month': 'Previous month',
     'budget.next_month': 'Next month',
     'budget.plan': 'Plan',
@@ -636,7 +674,7 @@ const I18N = {
     'budget.status': 'Status',
     'budget.total': 'TOTAL',
     'budget.aman': 'Safe',
-    'budget.warning': 'Warning',
+    'budget.warning': 'Approaching',
     'budget.over': 'Over',
     'budget.kategori': 'Category',
     'budget.jumlah': 'Budget Amount (Rp)',
@@ -648,7 +686,7 @@ const I18N = {
     'budget.empty': 'No budget yet. Add one above.',
     'budget.progress': 'Progress',
     'budget.sisa': 'Remaining',
-    'budget.lebih': 'Over',
+    'budget.lebih': 'Over by',
 
     // ============ UMUM ============
     'btn.simpan': 'Save',
@@ -667,6 +705,7 @@ const I18N = {
     'alert.failed': 'Failed',
     'alert.success': 'Success!',
     'alert.load_failed': 'Failed to load data',
+    'app.reload_data': 'Reload Data',
     'alert.confirm_delete': 'Delete Data?',
     'alert.confirm_delete_text': 'This action cannot be undone!',
     'alert.invalid_data': 'Invalid data',
@@ -749,7 +788,10 @@ const I18N = {
     'bulk.delete': 'Delete Selected',
     'ai.local_calc': 'Local Calculators',
     'ai.reset_chat': 'Reset Chat',
-    'a11y.skip_main': 'Skip to main content'
+    'a11y.skip_main': 'Skip to main content',
+    'tg.webhook_hint': 'Tap this if the bot stops receiving messages',
+    'tg.webhook_updated': 'Webhook updated, the bot can receive messages again',
+    'tg.botfather_username_note': 'If the username is already taken, try another name.'
   }
 };
 
