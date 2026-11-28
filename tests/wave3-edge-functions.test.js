@@ -768,3 +768,27 @@ test('3.5 web AI: kuota harian 50 habis -> diblokir dengan pesan kuota', async (
   assert.equal(sandbox.AI_DAILY_LIMIT, 50);
   assert.equal(sandbox.AI_COOLDOWN_MS, 10000);
 });
+
+// ============================================================
+// Gelombang 4.5 — bot endpoint tidak membalas 'ok' untuk GET.
+// Webhook Telegram hanya memakai POST; jawaban 200 'ok' membuat
+// endpoint tampak sehat bagi pemindai dan menyembunyikan bahwa
+// secret check hanya berjalan di cabang POST.
+// ============================================================
+test('4.5 telegram-bot: GET (dan metode non-POST lain) dijawab 405, bukan 200 ok', async () => {
+  const db = createFakeDb({});
+  const fetchStub = createFetchStub(() => okJson({}));
+  // index.ts mengimpor semua modul bot — muat dulu ke registry bersama
+  // (loadEdgeFunction saja tidak cukup: __mods-nya kosong).
+  const { registry } = loadBotModules(db, fetchStub);
+  const { sandbox } = createBotEnv(db, fetchStub, { ...BOT_ENV }, registry);
+  loadTsModule(sandbox, 'supabase/functions/telegram-bot/index.ts');
+  const handler = sandbox.__handler;
+  assert.equal(typeof handler, 'function', 'handler Deno.serve harus tertangkap');
+  for (const method of ['GET', 'PUT', 'DELETE', 'HEAD']) {
+    const res = await handler(new Request('https://example.supabase.co/functions/v1/telegram-bot', { method }));
+    assert.equal(res.status, 405, `${method} harus 405`);
+    assert.equal(await res.text(), 'Method Not Allowed');
+  }
+  assert.equal(fetchStub.calls.length, 0, 'tidak ada panggilan keluar untuk metode non-POST');
+});

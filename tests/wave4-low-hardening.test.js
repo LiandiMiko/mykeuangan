@@ -420,3 +420,19 @@ test('4.4 delete-account.html: kata sandi selalu dikirim untuk verifikasi ulang;
   assert.ok(pwIdx > 0 && pwIdx < invIdx, 'kata sandi dibaca sebelum pemanggilan fungsi');
   assert.match(page, /belum bisa menghapus akun dari halaman ini/, 'catatan akun Google-only jujur soal batasan kata sandi');
 });
+
+// ============================================================
+// 4.5 — Bot endpoint tidak membalas 'ok' untuk GET.
+// Perilaku hidup diuji di tests/wave3-edge-functions.test.js
+// (harness loadEdgeFunction); di sini asersi sumbernya.
+// ============================================================
+test('4.5 telegram-bot: endpoint tidak membalas ok untuk GET', () => {
+  const bot = fs.readFileSync('supabase/functions/telegram-bot/index.ts', 'utf8');
+  assert.match(bot, /if \(req\.method !== 'POST'\) return new Response\('Method Not Allowed', \{ status: 405 \}\);/);
+  assert.doesNotMatch(bot, /if \(req\.method !== 'POST'\) return new Response\('ok'\)/, 'cabang non-POST tidak lagi menjawab ok');
+  // Catatan: 'ok' masih benar untuk POST (Telegram mengharapkan 200 ok
+  // setelah update diproses) — yang dihapus hanya jawaban ok untuk
+  // metode non-POST.
+  const setup = fs.readFileSync('supabase/functions/telegram-setup/index.ts', 'utf8');
+  assert.match(setup, /if \(req\.method !== 'POST'\) return jsonResponse\(req, 405/, 'telegram-setup sudah 405 — tidak berubah');
+});

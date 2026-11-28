@@ -189,7 +189,7 @@ async function handlePairingCommand(chat: number, firstName: string, otp: string
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: buildCorsHeaders(req) });
-  if (req.method !== 'POST') return new Response('ok');
+  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
   let update: Any;
   try { update = await req.json(); } catch { return new Response('bad request', { status: 400 }); }
   if (typeof update?.job === 'string') return handleJob(req, update.job);
