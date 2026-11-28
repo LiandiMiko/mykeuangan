@@ -362,7 +362,7 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<PROJECT_REF>.supabas
 1. Push kode ke branch `main`.
 2. GitHub → *Settings → Pages → Source*: pilih **GitHub Actions**.
 3. Workflow `.github/workflows/deploy.yml` otomatis menjalankan `npm run check`, kompilasi static Tailwind CSS, unduh vendor self-hosted, build `dist/`, dan deploy ke GitHub Pages.
-4. *(Opsional jika `web/config.js` belum ada di repo atau memakai Fork)* Isi **GitHub Repository Variables** `SUPABASE_URL` & `SUPABASE_ANON_KEY` (*Settings → Secrets and variables → Actions → Variables*) agar `.github/workflows/deploy.yml` dan `.github/workflows/android-build.yml` dapat menyusun `web/config.js` saat CI berjalan.
+4. *(Opsional jika `web/config.js` belum ada di repo atau memakai Fork)* Isi **GitHub Repository Secrets** `SUPABASE_URL` & `SUPABASE_ANON_KEY` (*Settings → Secrets and variables → Actions → Secrets*) agar `.github/workflows/deploy.yml` dan `.github/workflows/android-build.yml` dapat menyusun `web/config.js` saat CI berjalan.
 
 ---
 

@@ -73,7 +73,7 @@ Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (
      - `ANDROID_KEY_PASSWORD`
    - Jalankan workflow dengan `build_type: release-apk`, `release-aab`, atau `all` (atau push tag `v3.18.0`) lalu unduh artifact **`mykeuguech-android-release-apk`** (`MyKeuGuech-v3.18.0-release.apk`) / **`mykeuguech-android-release-aab`** (`MyKeuGuech-v3.18.0-release.aab`).
 
-> Pastikan GitHub Repository Variables (`SUPABASE_URL` & `SUPABASE_ANON_KEY` di *Settings → Secrets and variables → Actions → Variables*) sudah terisi jika `web/config.js` belum tersedia; workflow akan langsung memberi pesan jelas bila kedua variable tersebut kosong.
+> Pastikan GitHub Repository Secrets (`SUPABASE_URL` & `SUPABASE_ANON_KEY` di *Settings → Secrets and variables → Actions → Secrets*) sudah terisi jika `web/config.js` belum tersedia; workflow akan langsung memberi pesan jelas bila kedua secret tersebut kosong.
 
 ### 3B. Opsi Lokal Windows: Build 1-Perintah `.apk` / `.aab`
 
