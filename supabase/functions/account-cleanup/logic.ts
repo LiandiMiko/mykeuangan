@@ -19,7 +19,15 @@
 //   menghapus akun suspended secara manual).
 // - Peringatan H-1: tidak aktif >= 6 hari DAN < 7 hari DAN belum
 //   pernah diperingatkan (deletion_warning_sent_at IS NULL).
-// - Hapus: tidak aktif >= 7 hari.
+// - Hapus: tidak aktif >= 7 hari DAN sudah pernah diperingatkan
+//   (deletion_warning_sent_at terisi). Pengguna hari ke-7+ yang
+//   BELUM sempat diperingatkan — mis. Resend sempat mati di hari
+//   ke-6 — mendapat peringatan TERLAMBAT dulu dan baru dihapus
+//   pada run berikutnya (paling cepat sehari sesudah peringatan),
+//   supaya tidak ada akun yang dihapus tanpa pernah diperingatkan.
+//   Konsekuensinya: bila Resend belum dikonfigurasi sama sekali,
+//   peringatan selalu gagal terkirim, flag tidak pernah diset, dan
+//   tidak ada akun yang dihapus — fail-closed, bukan hapus diam-diam.
 // - "Hari" dihitung sebagai hari KALENDER di WIB (Asia/Jakarta),
 //   bukan 24 jam mentah: akun yang terakhir aktif kemarin pukul
 //   23:30 WIB sudah dihitung 1 hari tidak aktif keesokan paginya.
@@ -107,6 +115,16 @@ export function deletionDate(lastChange: Date): Date {
   return new Date(lastChange.getTime() + DELETE_DAY * 86_400_000);
 }
 
+/**
+ * Tanggal run harian berikutnya (+24 jam) — dipakai sebagai tanggal
+ * penghapusan pada peringatan TERLAMBAT (pengguna sudah >= 7 hari
+ * tapi belum pernah diperingatkan): penghapusannya terjadi pada run
+ * besok, jadi tanggal yang dijanjikan di email adalah besok.
+ */
+export function nextDayDate(d: Date): Date {
+  return new Date(d.getTime() + 86_400_000);
+}
+
 /** '28 November 2026' — format tanggal Indonesia di WIB. */
 export function formatTanggalId(d: Date): string {
   return new Intl.DateTimeFormat('id-ID', {
@@ -129,9 +147,11 @@ function escapeHtml(s: string): string {
 /**
  * Klasifikasi satu pengguna pada saat `now`.
  * Urutan pengecekan penting: status/role dulu (pengecualian mutlak),
- * lalu hitung hari, lalu ambang hapus (>= 7) mendahului ambang
- * peringatan (>= 6) — pengguna hari ke-7 yang belum sempat
- * diperingatkan langsung masuk 'delete', bukan 'warn'.
+ * lalu hitung hari. Ambang hapus (>= 7) mensyaratkan peringatan
+ * sudah terkirim (deletion_warning_sent_at terisi) — pengguna hari
+ * ke-7+ yang belum sempat diperingatkan masuk 'warn' (peringatan
+ * terlambat), bukan 'delete', supaya tidak ada yang dihapus tanpa
+ * pernah diperingatkan.
  */
 export function classifyUser(user: CleanupUser, now: Date): Classification {
   if (user.status !== 'active') {
@@ -146,6 +166,9 @@ export function classifyUser(user: CleanupUser, now: Date): Classification {
   }
   const days = daysInactive(lastChange, now);
   if (days >= DELETE_DAY) {
+    if (!user.deletion_warning_sent_at) {
+      return { action: 'warn', daysInactive: days, lastChange, reason: 'tidak-aktif-7-hari-belum-diperingatkan' };
+    }
     return { action: 'delete', daysInactive: days, lastChange, reason: 'tidak-aktif-7-hari' };
   }
   if (days >= WARNING_DAY) {
@@ -172,24 +195,26 @@ export function selectCandidates(users: CleanupUser[], now: Date): CleanupSelect
 }
 
 /**
- * Email peringatan H-1 (dikirim saat tidak aktif 6 hari).
- * Berisi: tanggal terakhir aktif, tanggal penghapusan (perubahan
- * terakhir + 7 hari), dan cara mempertahankan akun — cukup buka
- * aplikasi / lakukan perubahan apa pun sebelum tanggal itu.
+ * Email peringatan H-1 (dikirim saat tidak aktif 6 hari, atau
+ * terlambat bila pengguna sudah >= 7 hari tapi belum pernah
+ * diperingatkan). `daysInactive` dan `delDate` diparameterisasi
+ * supaya isi email jujur pada kasus terlambat: jumlah hari yang
+ * disebut adalah hari sebenarnya, dan tanggal penghapusan adalah
+ * tanggal run berikutnya (besok), bukan tanggal yang sudah lewat.
  */
-export function warningEmail(user: CleanupUser, lastChange: Date): CleanupEmail {
+export function warningEmail(user: CleanupUser, lastChange: Date, daysInactive: number, delDate: Date): CleanupEmail {
   const subject = 'Akun MyKeuGuech Anda akan dihapus dalam 1 hari';
   const lastActive = formatTanggalId(lastChange);
-  const delDate = formatTanggalId(deletionDate(lastChange));
+  const delDateStr = formatTanggalId(delDate);
   const text = [
     'Halo,',
     '',
-    `Kami melihat akun MyKeuGuech Anda (${user.email}) sudah tidak ada perubahan selama 6 hari. Terakhir Anda aktif pada ${lastActive}.`,
+    `Kami melihat akun MyKeuGuech Anda (${user.email}) sudah tidak ada perubahan selama ${daysInactive} hari. Terakhir Anda aktif pada ${lastActive}.`,
     '',
-    `Bila tidak ada aktivitas, akun Anda akan dihapus otomatis pada ${delDate}, dan seluruh data Anda (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.`,
+    `Bila tidak ada aktivitas, akun Anda akan dihapus otomatis pada ${delDateStr}, dan seluruh data Anda (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.`,
     '',
     'Cara mempertahankan akun Anda:',
-    `Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum ${delDate} — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.`,
+    `Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum ${delDateStr} — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.`,
     '',
     'Bila Anda memang sudah tidak memakai MyKeuGuech, Anda tidak perlu melakukan apa-apa; akun akan terhapus sendiri sesuai jadwal di atas.',
     '',
@@ -198,10 +223,10 @@ export function warningEmail(user: CleanupUser, lastChange: Date): CleanupEmail 
   ].join('\n');
   const html = [
     '<p>Halo,</p>',
-    `<p>Kami melihat akun MyKeuGuech Anda (${escapeHtml(user.email)}) sudah tidak ada perubahan selama 6 hari. Terakhir Anda aktif pada <strong>${escapeHtml(lastActive)}</strong>.</p>`,
-    `<p>Bila tidak ada aktivitas, akun Anda akan <strong>dihapus otomatis pada ${escapeHtml(delDate)}</strong>, dan seluruh data Anda (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.</p>`,
+    `<p>Kami melihat akun MyKeuGuech Anda (${escapeHtml(user.email)}) sudah tidak ada perubahan selama <strong>${daysInactive} hari</strong>. Terakhir Anda aktif pada <strong>${escapeHtml(lastActive)}</strong>.</p>`,
+    `<p>Bila tidak ada aktivitas, akun Anda akan <strong>dihapus otomatis pada ${escapeHtml(delDateStr)}</strong>, dan seluruh data Anda (transaksi, dompet, dan pengaturan) akan ikut terhapus secara permanen dan tidak bisa dikembalikan.</p>`,
     '<p><strong>Cara mempertahankan akun Anda:</strong></p>',
-    `<p>Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum <strong>${escapeHtml(delDate)}</strong> — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.</p>`,
+    `<p>Cukup buka aplikasi MyKeuGuech dan lakukan perubahan apa pun sebelum <strong>${escapeHtml(delDateStr)}</strong> — misalnya mencatat transaksi atau mengubah pengaturan. Login saja sudah cukup untuk membatalkan penghapusan ini.</p>`,
     '<p>Bila Anda memang sudah tidak memakai MyKeuGuech, Anda tidak perlu melakukan apa-apa; akun akan terhapus sendiri sesuai jadwal di atas.</p>',
     '<p>Salam,<br>Tim MyKeuGuech</p>',
   ].join('\n');

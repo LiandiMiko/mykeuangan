@@ -20,22 +20,28 @@
 //      peringatan via Resend; HANYA bila terkirim, set
 //      deletion_warning_sent_at = now() (gagal -> run besok
 //      mencoba lagi, jangan set flag).
-//   5. Tidak aktif >= 7 hari -> cabut webhook bot personal dulu
-//      (best-effort, pola delete-account), lalu
-//      admin.deleteUser (ON DELETE CASCADE menghapus semua data),
-//      lalu kirim email konfirmasi ke alamat yang dicatat SEBELUM
-//      penghapusan. User yang sudah tidak ada dilewati (idempotent).
+//   5. Tidak aktif >= 7 hari DAN sudah pernah diperingatkan ->
+//      cabut webhook bot personal dulu (best-effort, pola
+//      delete-account), lalu admin.deleteUser (ON DELETE CASCADE
+//      menghapus semua data), lalu kirim email konfirmasi ke alamat
+//      yang dicatat SEBELUM penghapusan. User yang sudah tidak ada
+//      dilewati (idempotent). Pengguna >= 7 hari yang BELUM pernah
+//      diperingatkan TIDAK dihapus — mereka mendapat peringatan
+//      TERLAMBAT dulu (tanggal hapus = run besok) dan baru dihapus
+//      pada run berikutnya.
 //   6. Catat run ke cron_job_runs (pola telegram-bot/jobs.ts):
 //      created_count = akun dihapus, notified_count = email
 //      terkirim, skipped_count = pengguna dilewati.
 //
 // Email HANYA via Resend — SMTP Supabase TIDAK terkonfigurasi.
 // RESEND_API_KEY dan RESEND_FROM_EMAIL dibaca dari edge secret;
-// bila kosong, email tidak dikirim (dicatat sebagai error) dan
-// penghapusan akun TETAP jalan (email konfirmasi hanya
-// pemberitahuan; inti job adalah penghapusan). Alamat FROM tidak
-// pernah di-hardcode: harus domain yang terverifikasi di akun
-// Resend Liandi, kalau tidak Resend menolak pengiriman.
+// bila kosong, email tidak dikirim (dicatat sebagai error).
+// Karena penghapusan mensyaratkan peringatan SUDAH terkirim
+// (lihat logic.ts: classifyUser), Resend yang belum
+// dikonfigurasi berarti TIDAK ADA akun yang dihapus —
+// fail-closed, bukan hapus diam-diam tanpa peringatan. Alamat
+// FROM tidak pernah di-hardcode: harus domain yang terverifikasi
+// di akun Resend Liandi, kalau tidak Resend menolak pengiriman.
 // Jangan pernah log isi email penuh atau nilai secret apa pun.
 // ============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -43,8 +49,11 @@ import {
   APP_TIMEZONE,
   RESEND_API_URL,
   RESEND_TIMEOUT_MS,
+  classifyUser,
+  deletionDate,
   deletionEmail,
   lastChangeAt,
+  nextDayDate,
   selectCandidates,
   warningEmail,
   buildResendPayload,
@@ -303,10 +312,17 @@ Deno.serve(async (req) => {
     skipped = skippedCount;
 
     // 1) Peringatan H-1 — flag HANYA diset bila email benar-benar terkirim.
+    //    Peringatan terlambat (sudah >= 7 hari tapi belum pernah
+    //    diperingatkan) memakai tanggal hapus = run besok, bukan
+    //    tanggal yang sudah lewat.
     for (const user of warn) {
       const lastChange = lastChangeAt(user);
       if (!lastChange) { skipped++; continue; } // tidak mungkin (sudah diklasifikasi), jaga-jaga
-      const sent = await sendResendEmail(user.email, warningEmail(user, lastChange));
+      const c = classifyUser(user, now);
+      const delDate = c.reason === 'tidak-aktif-7-hari-belum-diperingatkan'
+        ? nextDayDate(now)
+        : deletionDate(lastChange);
+      const sent = await sendResendEmail(user.email, warningEmail(user, lastChange, c.daysInactive, delDate));
       if (!sent.ok) {
         errors.push(`peringatan ${user.id}: ${sent.error ?? 'gagal-kirim'}`);
         continue; // jangan set flag — run besok mencoba lagi
@@ -322,7 +338,10 @@ Deno.serve(async (req) => {
       warned++;
     }
 
-    // 2) Hapus akun dormant >= 7 hari.
+    // 2) Hapus akun dormant >= 7 hari YANG SUDAH diperingatkan.
+    //    (selectCandidates hanya memasukkan yang flag peringatannya
+    //    terisi — lihat logic.ts. Tanpa peringatan terkirim, tidak
+    //    ada penghapusan.)
     for (const user of toDelete) {
       const lastChange = lastChangeAt(user);
       if (!lastChange) { skipped++; continue; } // tidak mungkin, jaga-jaga

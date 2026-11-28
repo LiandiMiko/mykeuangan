@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const logic = require('../supabase/functions/account-cleanup/logic.ts');
 const {
   APP_TIMEZONE, WARNING_DAY, DELETE_DAY,
-  lastChangeAt, daysInactive, deletionDate, formatTanggalId,
+  lastChangeAt, daysInactive, deletionDate, nextDayDate, formatTanggalId,
   classifyUser, selectCandidates, warningEmail, deletionEmail,
   buildResendPayload,
 } = logic;
@@ -48,7 +48,7 @@ const NOW_WIB_0030 = new Date('2026-11-28T00:30:00+07:00');
 
 // --- Ambang & seleksi kandidat ---------------------------------------------
 
-test('cleanup: ambang peringatan hari ke-6 dan hapus hari ke-7', () => {
+test('cleanup: ambang peringatan hari ke-6; hapus hari ke-7 hanya bila sudah diperingatkan', () => {
   assert.equal(APP_TIMEZONE, 'Asia/Jakarta');
   assert.equal(WARNING_DAY, 6);
   assert.equal(DELETE_DAY, 7);
@@ -60,10 +60,13 @@ test('cleanup: ambang peringatan hari ke-6 dan hapus hari ke-7', () => {
   assert.equal(cWarn.daysInactive, 6);
 
   // Terakhir aktif 21 Nov 2026 10:00 WIB -> 7 hari kalender WIB.
+  // BELUM pernah diperingatkan -> peringatan TERLAMBAT ('warn'),
+  // BUKAN 'delete': tidak ada yang dihapus tanpa pernah diperingatkan.
   const del = user({ last_activity_at: '2026-11-21T10:00:00+07:00' });
   const cDel = classifyUser(del, NOW_WIB_0030);
-  assert.equal(cDel.action, 'delete');
+  assert.equal(cDel.action, 'warn');
   assert.equal(cDel.daysInactive, 7);
+  assert.equal(cDel.reason, 'tidak-aktif-7-hari-belum-diperingatkan');
 
   // Terakhir aktif 23 Nov 2026 -> 5 hari: masih aktif, dilewati.
   const active = user({ last_activity_at: '2026-11-23T10:00:00+07:00' });
@@ -87,8 +90,9 @@ test('cleanup: perubahan terakhir = yang paling baru dari login / perubahan data
   assert.equal(lastChangeAt(u2).toISOString(), '2026-11-25T03:00:00.000Z');
 
   // Tanpa login maupun perubahan data: fallback ke created_at.
+  // Hari ke-7 tanpa peringatan -> peringatan terlambat, bukan hapus.
   const u3 = user({ created_at: '2026-11-21T10:00:00+07:00' });
-  assert.equal(classifyUser(u3, NOW_WIB_0030).action, 'delete');
+  assert.equal(classifyUser(u3, NOW_WIB_0030).action, 'warn');
 
   // Tanpa satu pun tanggal: jangan ditebak — skip, jangan hapus.
   const u4 = user({ created_at: null });
@@ -138,17 +142,45 @@ test('cleanup: tidak ada peringatan ganda — yang sudah diperingatkan dilewati 
   assert.equal(classifyUser(warnedDay7, NOW_WIB_0030).action, 'delete');
 });
 
+test('cleanup: tidak ada yang dihapus tanpa pernah diperingatkan (fail-closed)', () => {
+  // Hari ke-7 dan ke-27 TANPA peringatan -> peringatan terlambat, bukan hapus.
+  const d7 = user({ last_activity_at: '2026-11-21T10:00:00+07:00' });
+  assert.equal(classifyUser(d7, NOW_WIB_0030).action, 'warn');
+  const d27 = user({ last_activity_at: '2026-11-01T10:00:00+07:00' });
+  assert.equal(classifyUser(d27, NOW_WIB_0030).action, 'warn');
+  assert.equal(classifyUser(d27, NOW_WIB_0030).reason, 'tidak-aktif-7-hari-belum-diperingatkan');
+
+  // Hari ke-7 DENGAN peringatan terkirim -> hapus (satu-satunya jalan ke 'delete').
+  const d7warned = user({
+    last_activity_at: '2026-11-21T10:00:00+07:00',
+    deletion_warning_sent_at: '2026-11-27T10:00:00+07:00',
+  });
+  assert.equal(classifyUser(d7warned, NOW_WIB_0030).action, 'delete');
+
+  // Konsekuensi fail-closed: bila Resend mati total (tidak ada flag
+  // peringatan yang pernah diset), selectCandidates tidak menghapus siapa pun.
+  const sel = selectCandidates([d7, d27], NOW_WIB_0030);
+  assert.deepEqual(sel.delete, []);
+  assert.equal(sel.warn.length, 2);
+});
+
 test('cleanup: selectCandidates memisahkan warn / delete / skipped', () => {
   const users = [
     user({ id: 'w1', last_activity_at: '2026-11-22T10:00:00+07:00' }),
     user({ id: 'd1', last_activity_at: '2026-11-21T10:00:00+07:00' }),
     user({ id: 'd2', last_activity_at: '2026-11-01T10:00:00+07:00' }),
+    user({
+      id: 'd3', last_activity_at: '2026-11-21T10:00:00+07:00',
+      deletion_warning_sent_at: '2026-11-27T10:00:00+07:00',
+    }),
     user({ id: 'a1', last_activity_at: '2026-11-27T10:00:00+07:00' }),
     user({ id: 'admin', role: 'admin', last_activity_at: '2026-11-01T10:00:00+07:00' }),
   ];
   const sel = selectCandidates(users, NOW_WIB_0030);
-  assert.deepEqual(sel.warn.map((u) => u.id), ['w1']);
-  assert.deepEqual(sel.delete.map((u) => u.id), ['d1', 'd2']);
+  // d1/d2 hari ke-7+ TANPA peringatan -> peringatan terlambat ('warn').
+  assert.deepEqual(sel.warn.map((u) => u.id), ['w1', 'd1', 'd2']);
+  // Hanya d3 (sudah diperingatkan) yang masuk 'delete'.
+  assert.deepEqual(sel.delete.map((u) => u.id), ['d3']);
   assert.equal(sel.skipped, 2);
 });
 
@@ -157,10 +189,12 @@ test('cleanup: selectCandidates memisahkan warn / delete / skipped', () => {
 test('cleanup: batas hari berganti tepat tengah malam WIB', () => {
   // Sekarang 28 Nov 00:30 WIB. Terakhir aktif 21 Nov 23:30 WIB:
   // selisih mentah baru ~6 hari 1 jam, tapi hari KALENDER WIB sudah 7
-  // (21 -> 28) -> HAPUS. Hitungan 24-jam mentah akan salah memberi 'warn'.
+  // (21 -> 28). Tanpa peringatan -> 'warn' terlambat (bukan hapus).
+  // Hitungan 24-jam mentah akan salah memberi 'warn' hari ke-6.
   const u = user({ last_activity_at: '2026-11-21T23:30:00+07:00' });
   assert.equal(daysInactive(lastChangeAt(u), NOW_WIB_0030), 7);
-  assert.equal(classifyUser(u, NOW_WIB_0030).action, 'delete');
+  assert.equal(classifyUser(u, NOW_WIB_0030).action, 'warn');
+  assert.equal(classifyUser(u, NOW_WIB_0030).reason, 'tidak-aktif-7-hari-belum-diperingatkan');
 
   // Terakhir aktif 22 Nov 00:30 WIB -> 6 hari kalender WIB -> 'warn',
   // walau selisih mentahnya hampir 6 hari penuh.
@@ -169,11 +203,11 @@ test('cleanup: batas hari berganti tepat tengah malam WIB', () => {
   assert.equal(classifyUser(u2, NOW_WIB_0030).action, 'warn');
 
   // Jebakan UTC: 21 Nov 16:00 UTC = 21 Nov 23:00 WIB. Hitungan
-  // kalender UTC akan memberi 21 -> 27 = 6 hari (warn), padahal di
-  // WIB sudah 21 -> 28 = 7 hari (delete).
+  // kalender UTC akan memberi 21 -> 27 = 6 hari (warn hari ke-6),
+  // padahal di WIB sudah 21 -> 28 = 7 hari (warn terlambat).
   const u3 = user({ last_activity_at: '2026-11-21T16:00:00Z' });
   assert.equal(daysInactive(lastChangeAt(u3), NOW_WIB_0030), 7);
-  assert.equal(classifyUser(u3, NOW_WIB_0030).action, 'delete');
+  assert.equal(classifyUser(u3, NOW_WIB_0030).action, 'warn');
 
   // Satu menit sebelum tengah malam WIB masih hari sebelumnya:
   // 27 Nov 23:59 WIB, terakhir aktif 21 Nov 10:00 WIB -> 6 hari.
@@ -194,7 +228,7 @@ test('cleanup: tanggal penghapusan = perubahan terakhir + 7 hari, format Indones
 test('cleanup: email peringatan H-1 — subjek, tanggal hapus, cara mempertahankan akun', () => {
   const u = user({ last_activity_at: '2026-11-22T10:00:00+07:00' });
   const last = lastChangeAt(u);
-  const mail = warningEmail(u, last);
+  const mail = warningEmail(u, last, 6, deletionDate(last));
 
   assert.equal(mail.subject, 'Akun MyKeuGuech Anda akan dihapus dalam 1 hari');
 
@@ -231,9 +265,25 @@ test('cleanup: email konfirmasi sesudah hapus — subjek, alasan 7 hari, hubungi
   assert.ok(mail.text.includes('pengguna@contoh.id'));
 });
 
+test('cleanup: email peringatan TERLAMBAT — jumlah hari dan tanggal hapus jujur (bukan tanggal lewat)', () => {
+  // Pengguna sudah 8 hari tidak aktif dan belum pernah diperingatkan:
+  // email harus menyebut "8 hari" dan tanggal hapus = run besok
+  // (29 Nov), BUKAN last+7 (= 28 Nov, sudah lewat hari ini).
+  const u = user({ last_activity_at: '2026-11-20T10:00:00+07:00' });
+  const last = lastChangeAt(u);
+  const mail = warningEmail(u, last, 8, nextDayDate(NOW_WIB_0030));
+  assert.equal(mail.subject, 'Akun MyKeuGuech Anda akan dihapus dalam 1 hari');
+  for (const body of [mail.text, mail.html]) {
+    assert.match(body, /8 hari/);
+    assert.match(body, /29 November 2026/);
+    assert.doesNotMatch(body, /28 November 2026/);
+    assert.match(body, /20 November 2026/);
+  }
+});
+
 test('cleanup: alamat email di-escape di HTML (tidak bisa menyuntik tag)', () => {
   const u = user({ email: 'a<b>@contoh.id' });
-  const mail = warningEmail(u, new Date('2026-11-22T10:00:00+07:00'));
+  const mail = warningEmail(u, new Date('2026-11-22T10:00:00+07:00'), 6, new Date('2026-11-29T10:00:00+07:00'));
   assert.ok(!mail.html.includes('a<b>@contoh.id'));
   assert.ok(mail.html.includes('a&lt;b&gt;@contoh.id'));
   // Versi text polos tetap apa adanya (bukan HTML).
@@ -241,7 +291,7 @@ test('cleanup: alamat email di-escape di HTML (tidak bisa menyuntik tag)', () =>
 });
 
 test('cleanup: payload Resend dibentuk dari from/to/subjek/html/text', () => {
-  const mail = warningEmail(user(), new Date('2026-11-22T10:00:00+07:00'));
+  const mail = warningEmail(user(), new Date('2026-11-22T10:00:00+07:00'), 6, new Date('2026-11-29T10:00:00+07:00'));
   const payload = buildResendPayload('noreply@contoh.id', 'pengguna@contoh.id', mail);
   assert.deepEqual(Object.keys(payload).sort(), ['from', 'html', 'subject', 'text', 'to']);
   assert.equal(payload.from, 'noreply@contoh.id');
@@ -315,10 +365,13 @@ test('cleanup: index.ts mengirim email HANYA via Resend, FROM dari secret, tanpa
   // Tidak ada console.log (hanya console.error untuk pesan singkat).
   assert.doesNotMatch(indexTs, /console\.log\(/);
   // Flag peringatan HANYA diset bila email terkirim.
-  const sendIdx = indexTs.indexOf('sendResendEmail(user.email, warningEmail(user, lastChange))');
+  const sendIdx = indexTs.indexOf('sendResendEmail(user.email, warningEmail(user, lastChange, c.daysInactive, delDate))');
   const flagIdx = indexTs.indexOf('deletion_warning_sent_at: now.toISOString()');
   assert.ok(sendIdx > 0 && flagIdx > 0 && sendIdx < flagIdx, 'kirim email dulu, baru set flag');
   assert.match(indexTs, /if \(!sent\.ok\) \{[\s\S]*?continue; \/\/ jangan set flag/);
+  // Invariant fail-closed: penghapusan mensyaratkan peringatan terkirim.
+  assert.match(indexTs, /tidak-aktif-7-hari-belum-diperingatkan/);
+  assert.match(indexTs, /nextDayDate\(now\)/);
 });
 
 test('cleanup: index.ts mencatat run ke cron_job_runs seperti telegram-bot', () => {
