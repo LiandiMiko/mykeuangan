@@ -172,9 +172,10 @@ function read(name) {
 // Gelombang 7b / T12 — eksternalisasi modul app. Isi file dikumpulkan
 // di appFiles (path relatif di dist/ -> konten) dan ditulis ke dist/
 // SETELAH dist/ dibersihkan (lihat alur utama di bawah); tag yang
-// dikembalikan adalah <script src="./app/..."> SINKRON — tanpa defer/
-// async — supaya urutan eksekusi sama persis seperti saat modul masih
-// di-inline (paritas perilaku). Urutan pemanggilan = urutan load.
+// dikembalikan adalah <script defer src="./app/..."> (Gelombang 7d:
+// defer, bukan sinkron lagi) — urutan eksekusi tetap SAMA PERSIS
+// seperti saat modul masih di-inline (paritas perilaku), karena defer
+// menjaga urutan dokumen. Urutan pemanggilan = urutan load.
 const appFiles = new Map();
 function emitAppScript(file, code) {
   appFiles.set(`app/${file}`, code);
