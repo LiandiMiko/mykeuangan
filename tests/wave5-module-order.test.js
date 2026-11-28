@@ -16,11 +16,14 @@
 //     grup SUPABASE_MODULES (didokumentasikan di komentar build.mjs).
 //   - finance-analysis-core.js — dipakai keluarga finance-analysis-*
 //     (dan finance-analysis.js yang menggabungkannya).
-// Modul yang TIDAK dideklarasikan di sini: config.js / sw.js (tidak
-// di-inline build.mjs), serta dependensi lunak dengan fallback
-// (mis. pembaca password-policy di UI_CORE yang dimuat sebelum
-// grup Supabase — mendeklarasikannya akan membuat tes ini gagal
-// dengan benar, karena memang bukan jaminan urutan).
+// Modul yang TIDAK dideklarasikan di sini: i18n-dict.js (sumbernya
+// src/i18n.html, diekstrak build ke dist/app/i18n-dict.js — urutannya
+// dikunci lewat include('i18n') di <head>, bukan lewat grup modul)
+// serta dependensi lunak dengan fallback (mis. pembaca password-policy
+// di UI_CORE yang dimuat sebelum grup Supabase — mendeklarasikannya
+// akan membuat tes ini gagal dengan benar, karena memang bukan jaminan
+// urutan). Gelombang 7b: config.js dan sw-register.js kini ADA di urutan
+// (dulu tidak di-inline, kini modul eksternal dist/app/*.js).
 //
 // Q10 — Helper bersama di web/error-messages.js (dimuat pertama).
 // Tes ini juga mengeksekusi helper itu di vm dan membuktikan:
@@ -56,43 +59,61 @@ const GROUPS = {
   UI_CORE_MODULES: parseModuleArray(buildMjs, 'UI_CORE_MODULES'),
   SUPABASE_MODULES: parseModuleArray(buildMjs, 'SUPABASE_MODULES'),
   UI_FEATURES_MODULES: parseModuleArray(buildMjs, 'UI_FEATURES_MODULES'),
-  UI_PRO_MODULES: parseModuleArray(buildMjs, 'UI_PRO_MODULES')
+  UI_PRO_MODULES: parseModuleArray(buildMjs, 'UI_PRO_MODULES'),
+  APP_TAIL_MODULES: parseModuleArray(buildMjs, 'APP_TAIL_MODULES')
 };
 
 // Urutan include() di src/Index.html menentukan urutan grup di halaman:
-// include('scripts') -> WEB + UI_CORE + config + SUPABASE (sesuai
-// urutan readInlineScripts() di cabang 'scripts' build.mjs),
-// lalu include('features-v21') dan include('features-v35').
+// include('i18n') di <head> -> kamus I18N (dist/app/i18n-dict.js),
+// lalu include('scripts') -> WEB + UI_CORE + config + SUPABASE (sesuai
+// urutan emitAppScripts() di cabang 'scripts' build.mjs),
+// lalu include('features-v21'), include('features-v35'), dan
+// include('sw-register') paling akhir. Gelombang 7b / T12: modul TIDAK
+// lagi di-inline — build menulis tiap modul ke dist/app/*.js dan memuatnya
+// lewat <script src> sinkron dengan urutan yang SAMA (paritas perilaku).
+// config.js dan sw-register.js kini ADA di urutan (dulu tidak di-inline);
+// i18n-dict.js TIDAK ada di sini karena sumbernya src/i18n.html, bukan
+// web/*.js — urutannya (head, sebelum semua modul) dikunci terpisah di
+// bawah lewat urutan include().
 function pageLoadOrder() {
   const includes = [...indexHtml.matchAll(/include\('([^']+)'\)/g)].map((m) => m[1]);
+  const i18nIdx = includes.indexOf('i18n');
   const scriptsIdx = includes.indexOf('scripts');
   const feat21Idx = includes.indexOf('features-v21');
   const feat35Idx = includes.indexOf('features-v35');
-  assert.ok(scriptsIdx !== -1 && feat21Idx !== -1 && feat35Idx !== -1,
-    'Index.html harus include scripts, features-v21, dan features-v35');
-  assert.ok(scriptsIdx < feat21Idx && feat21Idx < feat35Idx,
-    'urutan include() harus: scripts, features-v21, features-v35');
+  const swRegIdx = includes.indexOf('sw-register');
+  assert.ok(i18nIdx !== -1 && scriptsIdx !== -1 && feat21Idx !== -1 && feat35Idx !== -1 && swRegIdx !== -1,
+    'Index.html harus include i18n, scripts, features-v21, features-v35, dan sw-register');
+  assert.ok(i18nIdx < scriptsIdx && scriptsIdx < feat21Idx && feat21Idx < feat35Idx && feat35Idx < swRegIdx,
+    'urutan include() harus: i18n, scripts, features-v21, features-v35, sw-register');
 
   const scriptsBlock = /if \(name === 'scripts'\) \{([\s\S]*?)\n    \}/.exec(buildMjs);
   assert.ok(scriptsBlock, "build.mjs harus punya cabang include('scripts')");
-  const scriptsGroups = [...scriptsBlock[1].matchAll(/readInlineScripts\(([A-Z_]+)\)/g)]
+  const scriptsGroups = [...scriptsBlock[1].matchAll(/emitAppScripts\(([A-Z_]+)\)/g)]
     .map((m) => m[1]);
   assert.deepEqual(scriptsGroups, ['WEB_MODULES', 'UI_CORE_MODULES', 'SUPABASE_MODULES'],
-    "cabang 'scripts' harus meng-inline WEB, lalu UI_CORE, lalu SUPABASE");
+    "cabang 'scripts' harus memuat WEB, lalu UI_CORE, lalu SUPABASE (eksternal, urutan sama seperti dulu inline)");
+  assert.match(scriptsBlock[1], /emitAppScript\('config\.js', config\)/,
+    "cabang 'scripts' harus memuat config.js VERBATIM di antara UI_CORE dan SUPABASE");
 
-  const feat21Group = /if \(name === 'features-v21'\) return readInlineScripts\(([A-Z_]+)\)/
+  const feat21Group = /if \(name === 'features-v21'\) return emitAppScripts\(([A-Z_]+)\)/
     .exec(buildMjs)[1];
-  const feat35Group = /if \(name === 'features-v35'\) return readInlineScripts\(([A-Z_]+)\)/
+  const feat35Group = /if \(name === 'features-v35'\) return emitAppScripts\(([A-Z_]+)\)/
+    .exec(buildMjs)[1];
+  const swRegGroup = /if \(name === 'sw-register'\) return emitAppScripts\(([A-Z_]+)\)/
     .exec(buildMjs)[1];
   assert.equal(feat21Group, 'UI_FEATURES_MODULES');
   assert.equal(feat35Group, 'UI_PRO_MODULES');
+  assert.equal(swRegGroup, 'APP_TAIL_MODULES');
 
   return [
     ...GROUPS.WEB_MODULES,
     ...GROUPS.UI_CORE_MODULES,
+    'config.js',
     ...GROUPS.SUPABASE_MODULES,
     ...GROUPS.UI_FEATURES_MODULES,
-    ...GROUPS.UI_PRO_MODULES
+    ...GROUPS.UI_PRO_MODULES,
+    ...GROUPS.APP_TAIL_MODULES
   ];
 }
 

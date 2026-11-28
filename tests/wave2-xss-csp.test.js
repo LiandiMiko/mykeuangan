@@ -558,33 +558,52 @@ test('2.4 guard: setiap data-action di src/*.html menunjuk fungsi global atau ak
   assert.deepEqual(missing, [], `data-action tanpa fungsi global: ${missing.join(', ')}`);
 });
 
-/* ---------------- CSP: TIDAK diperketat (blocker terdokumentasi) ----------------
-   Sengaja TIDAK ada guard test yang menuntut CSP tanpa 'unsafe-inline'
-   / 'unsafe-eval': pengetatan itu belum terbukti aman. Tes di bawah
-   mengunci ALASANNYA, supaya penghapusan unsafe-inline di masa depan
-   tidak dilakukan diam-diam tanpa mengubah arsitektur build dulu:
-   - build.mjs meng-inline SEMUA modul web/*.js sebagai <script>
-     (readInlineScripts), jadi 'unsafe-inline' wajib ada selama
-     arsitektur ini dipakai.
-   - src/i18n.html (kamus I18N) dan blok registrasi service worker
-     di src/Index.html masih berupa <script> inline.
-   - Wave 3.4: host CDN SUDAH dihapus dari CSP script-src/style-src/
-     font-src dan build SUDAH mewajibkan vendor lokal terverifikasi
-     (lihat tests/wave3-frontend-cdn-build.test.js) — jadi alasan
-     "web/vendor tidak ada di checkout" di bawah ini sudah kedaluwarsa
-     dan tidak lagi dipakai sebagai blocker. */
+/* ---------------- CSP: DIPERKETAT (Gelombang 7b / T12) ----------------
+   Dulu TIDAK ada guard test yang menuntut CSP tanpa 'unsafe-inline' /
+   'unsafe-eval' karena arsitektur build meng-inline semua modul. Sejak
+   Gelombang 7b, build.mjs meng-eksternalisasi SEMUA modul web/*.js ke
+   dist/app/*.js (emitAppScripts, tag <script src> sinkron, urutan sama),
+   kamus I18N ke dist/app/i18n-dict.js, dan registrasi SW ke
+   dist/app/sw-register.js — jadi script-src TANPA 'unsafe-inline' dan
+   TANPA 'unsafe-eval' kini DIKUNCI tes di bawah. Yang masih dilonggarkan
+   dengan sengaja (dan dikunci juga alasannya):
+   - style-src TETAP 'unsafe-inline': atribut style="..." dipakai di 6
+     tempat src/*.html dan banyak template web/*.js; menyapunya churn
+     besar dengan nilai keamanan rendah (lihat komentar CSP di
+     src/Index.html).
+   - TIDAK ada frame-ancestors di meta: directive itu diabaikan di meta
+     CSP dan butuh header HTTP yang tidak bisa diset di GitHub Pages. */
 
-test('2.4 CSP: blocker terdokumentasi — build meng-inline semua modul JS sehingga unsafe-inline masih wajib', () => {
+test('2.4 CSP: script-src tanpa unsafe-inline/unsafe-eval — eksternalisasi Gelombang 7b', () => {
   const build = fs.readFileSync('build.mjs', 'utf8');
-  assert.match(build, /readInlineScripts\(WEB_MODULES\)/);
-  assert.match(build, /readInlineScripts\(UI_CORE_MODULES\)/);
-  assert.match(build, /readInlineScripts\(SUPABASE_MODULES\)/);
-  assert.match(build, /readInlineScripts\(UI_FEATURES_MODULES\)/);
-  assert.match(build, /readInlineScripts\(UI_PRO_MODULES\)/);
+  assert.doesNotMatch(build, /readInlineScripts/, 'build tidak boleh lagi meng-inline modul (readInlineScripts harus hilang)');
+  assert.match(build, /emitAppScripts\(WEB_MODULES\)/);
+  assert.match(build, /emitAppScripts\(UI_CORE_MODULES\)/);
+  assert.match(build, /emitAppScripts\(SUPABASE_MODULES\)/);
+  assert.match(build, /emitAppScripts\(UI_FEATURES_MODULES\)/);
+  assert.match(build, /emitAppScripts\(UI_PRO_MODULES\)/);
+  assert.match(build, /emitAppScripts\(APP_TAIL_MODULES\)/);
+  assert.match(build, /emitI18nDict/);
+  assert.match(build, /i18n-dict\.js/);
+  assert.match(build, /appFiles\.set\(`app\/\$\{file\}`/, 'build harus menulis tiap modul ke dist/app/<nama>.js');
+  // Sumber kamus tetap src/i18n.html (tes i18n membaca blok <script>-nya
+  // dari sana); build yang mengekstraknya ke dist/app/i18n-dict.js.
   assert.match(fs.readFileSync('src/i18n.html', 'utf8'), /^<script>/);
-  assert.match(fs.readFileSync('src/Index.html', 'utf8'), /navigator\.serviceWorker\.register\('\.\/sw\.js'\)/);
+  assert.ok(fs.existsSync('web/sw-register.js'), 'web/sw-register.js harus ada (dulu blok inline di src/Index.html)');
+  assert.doesNotMatch(fs.readFileSync('src/Index.html', 'utf8'), /navigator\.serviceWorker\.register\('\.\/sw\.js'\)/, 'registrasi SW tidak boleh lagi inline di src/Index.html');
   const csp = fs.readFileSync('src/Index.html', 'utf8').match(/Content-Security-Policy" content="([^"]+)"/)[1];
-  assert.match(csp, /'unsafe-inline'/, 'CSP masih memuat unsafe-inline (sengaja, lihat blocker di atas)');
+  const scriptSrc = csp.split(';').find((s) => s.trim().startsWith('script-src'));
+  assert.ok(scriptSrc, 'CSP harus memuat script-src');
+  assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, 'script-src tidak boleh memuat unsafe-inline (Gelombang 7b)');
+  assert.doesNotMatch(scriptSrc, /'unsafe-eval'/, 'script-src tidak boleh memuat unsafe-eval (Gelombang 7b)');
+  assert.match(scriptSrc, /'self'/, 'script-src harus memuat self');
+  const styleSrc = csp.split(';').find((s) => s.trim().startsWith('style-src'));
+  assert.match(styleSrc, /'unsafe-inline'/, 'style-src SENGAJA tetap memuat unsafe-inline (atribut style= di template — lihat komentar CSP di src/Index.html)');
+  const imgSrc = csp.split(';').find((s) => s.trim().startsWith('img-src'));
+  assert.doesNotMatch(imgSrc, /https:/, 'img-src tidak boleh memuat https: mentah (tidak ada gambar remote)');
+  assert.match(csp, /form-action 'self'/, 'CSP harus memuat form-action self');
+  assert.match(csp, /upgrade-insecure-requests/, 'CSP harus memuat upgrade-insecure-requests');
+  assert.doesNotMatch(csp, /frame-ancestors/, 'frame-ancestors tidak boleh ada di meta CSP (diabaikan di meta — butuh header HTTP)');
   // Wave 3.4: host CDN tidak lagi diizinkan untuk script/style/font.
   for (const directive of ['script-src', 'style-src', 'font-src']) {
     const part = csp.split(';').find((s) => s.trim().startsWith(directive));

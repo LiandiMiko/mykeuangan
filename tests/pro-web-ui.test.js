@@ -26,7 +26,10 @@ test('index includes features-v35, mobile bottom nav, command palette trigger, a
   assert.match(indexHtml, /id="mobileBottomNav"/);
   assert.match(indexHtml, /include\('features-v35'\)/);
   assert.match(indexHtml, /data-action="openCommandPalette"/);
-  assert.match(indexHtml, /showPwaUpdateToast/);
+  // Gelombang 7b: pemanggilan showPwaUpdateToast pindah dari blok inline
+  // di Index.html ke web/sw-register.js (modul eksternal, dimuat terakhir).
+  assert.match(indexHtml, /include\('sw-register'\)/);
+  assert.match(fs.readFileSync('web/sw-register.js', 'utf8'), /showPwaUpdateToast/);
   assert.match(buildMjs, /finance-pro\.js/);
 });
 
@@ -161,7 +164,7 @@ test('wave v3.14 hardens frontend exports, SW precache, backup restore, bot time
   assert.match(uiFeatBackupJs, /version:\s*'3\.14'/);
   assert.match(uiFeatBackupJs, /api_saveDebtDueDates/);
   assert.doesNotMatch(uiFeatBackupJs, /🖨️/);
-  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3.20.13</);
+  assert.match(indexHtml, /id="navUpdatesVersion"[^>]*>v3.20.14</);
   assert.match(updatesHtml, /datetime="2026-11-23"/);
 
   assert.match(botCoreTs, /AbortSignal\.timeout/);
@@ -223,7 +226,7 @@ test('wave v3.15 hardens offline read cache, PIN lockout/auto-lock, delete accou
   assert.match(uiReportsJs, /template-transaksi-mykeuguech\.csv/);
   assert.doesNotMatch(uiReportsJs, /template-transaksi-mykeuangan\.csv/);
   assert.match(swJs, /targetCacheKey/);
-  assert.match(updatesHtml, /data-latest-release="2026-11-28-v3.20.13"/);
+  assert.match(updatesHtml, /data-latest-release="2026-11-28-v3.20.14"/);
   // Jumlah rilis dihitung dari kartu yang ada (bukan hardcode) — tiap rilis
   // baru menambah kartu, dan label statis harus cocok dengan hitungan runtime.
   const releaseCardCount = (updatesHtml.match(/data-release-card/g) || []).length;
@@ -333,7 +336,10 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.match(fetchVendorsMjs, /sha256/, 'manifest vendor harus membawa hash sha256 (verifikasi)');
   assert.match(fetchVendorsMjs, /sha384/, 'manifest vendor harus membawa hash sha384 (SRI)');
   assert.match(fs.readFileSync('web/sw.js', 'utf8'), /__VENDOR_ASSETS__/);
-  assert.match(indexHtml, /isCapNative/);
+  // Gelombang 7b: isCapNative pindah dari blok inline di Index.html ke
+  // web/sw-register.js (modul eksternal).
+  assert.match(fs.readFileSync('web/sw-register.js', 'utf8'), /isCapNative/);
+  assert.match(indexHtml, /include\('sw-register'\)/);
   assert.match(stylesHtml, /--safe-area-inset-top/);
   assert.match(stylesHtml, /--safe-area-inset-bottom/);
   assert.match(stylesHtml, /\.mk-native-app #pwaInstallWrap/);
@@ -345,7 +351,7 @@ test('wave v3.16 bundles self-hosted offline vendors, native Capacitor 8 Android
   assert.match(fs.readFileSync('web/ui-feat-account.js', 'utf8'), /localStorage\.getItem\('lang'\) === 'en'/);
 
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  assert.equal(pkg.version, '3.20.13');
+  assert.equal(pkg.version, '3.20.14');
   assert.ok(pkg.dependencies && pkg.dependencies['@capacitor/core']);
   assert.ok(pkg.scripts && pkg.scripts['cap:sync'] && pkg.scripts['vendors:fetch']);
 });

@@ -76,7 +76,14 @@ test('security headers, modular UI build wiring, package.json, and static Tailwi
   assert.match(buildMjs, /UI_CORE_MODULES/);
   assert.match(buildMjs, /UI_FEATURES_MODULES/);
   assert.match(buildMjs, /UI_PRO_MODULES/);
-  assert.match(buildMjs, /unsafe-eval/);
+  // Gelombang 7b / T12: modul tidak lagi di-inline — build menulis
+  // dist/app/*.js dan memuatnya lewat <script src> sinkron. (Kata
+  // 'unsafe-eval' masih boleh muncul di KOMENTAR build.mjs sebagai
+  // penjelasan perubahan; yang dikunci tanpa-unsafe-eval adalah meta CSP
+  // di src/Index.html — lihat tests/wave2-xss-csp.test.js 2.4 dan
+  // tests/wave7b-csp-tightening.test.js 7b-a.)
+  assert.doesNotMatch(buildMjs, /readInlineScripts/, 'build.mjs tidak boleh lagi meng-inline modul');
+  assert.match(buildMjs, /emitAppScripts/);
 
   const modArrays = [...buildMjs.matchAll(/const (?:WEB|UI_CORE|UI_FEATURES|UI_PRO|SUPABASE)_MODULES = \[([\s\S]*?)\];/g)];
   assert.equal(modArrays.length, 5, 'build.mjs must define all 5 module arrays');
