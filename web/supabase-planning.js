@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js
 /* supabase-planning.js — goals, budgets & recurring schedules */
 (function () {
   'use strict';
@@ -19,8 +20,9 @@
       throw new Error('Progres target tidak valid.');
     }
     if (targetDate) {
-      const parsed = new Date(targetDate + 'T00:00:00Z');
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== targetDate) {
+      // Gelombang 5.3 (Q10): validasi via isValidIsoDate() bersama
+      // (komponen lokal) — BUKAN round-trip toISOString() (UTC).
+      if (!isValidIsoDate(targetDate)) {
         throw new Error('Tanggal target tidak valid.');
       }
     }

@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js
 /* global DB, FinanceAnalysis, Swal, getSwalClass, formatNominalInputValue, getGeminiApiKeyAsync, configureGeminiApiKey, callGeminiApi, extractGeminiText, syncFormCategorySelect, localToday, currentLang, t */
 /* ============================================================
    FEATURES — RECEIPT OCR SCANNER & AI CHAT BASE
@@ -18,7 +19,7 @@
       customClass: { popup: getSwalClass() }
     });
     try {
-      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const todayStr = localToday();
       const prompt = FinanceAnalysis.buildReceiptOcrPrompt(DB.categories, todayStr, currentLang);
       const systemInstruction = typeof FinanceAnalysis.buildGeminiSystemInstruction === 'function'
         ? FinanceAnalysis.buildGeminiSystemInstruction('receipt', currentLang) : '';

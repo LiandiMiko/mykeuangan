@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, parseFormattedNominal, getSwalClass, showActionError, cycleOfDate, switchView, openForm, toggleHideNominal, openWalletDetailModal, openDebtDetailModal, renderBudgetCharts, renderBudgetAnomalyBanner, renderFinancialRatios, renderAssetAllocation, renderNetWorthChart, checkAndRenderDueRecurringBanner, filterHistoriView, refreshNotificationBell */
 /* ============================================================
    FEATURES — HOOK ORCHESTRATION, SPLIT BILL & GLOBAL SHORTCUTS
@@ -8,8 +9,8 @@
   function readSplitBillForm() {
     let tanggal = (document.getElementById('tr_tanggal') || {}).value;
     if (!tanggal && root.fpTanggal && root.fpTanggal.selectedDates && root.fpTanggal.selectedDates.length) {
-      const d = root.fpTanggal.selectedDates[0];
-      tanggal = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      // Gelombang 5.3 (Q10): pakai localDateKey() bersama.
+      tanggal = localDateKey(root.fpTanggal.selectedDates[0]);
     }
     return {
       tanggal,
@@ -147,7 +148,7 @@
     const container = document.getElementById('financialGoals');
     if (!container || !DB.goals || !DB.goals.length) return;
     const articles = container.querySelectorAll('article');
-    const todayStr = typeof root.localToday === 'function' ? root.localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const ratios = typeof FinanceAnalysis !== 'undefined' && typeof FinanceAnalysis.computeFinancialHealthRatios === 'function'
       ? FinanceAnalysis.computeFinancialHealthRatios(DB, DB.currentPeriod, DB.payrollDay) : null;
     const avgSavingRate = ratios ? Math.max(0, ratios.avgMonthlyExpense ? Math.round(ratios.avgMonthlyExpense * 0.2) : 500000) : 500000;
@@ -203,7 +204,7 @@
         const feat = root.__mkFeat || {};
         const debtKey = feat.debtKey || ((g, n) => g + '::' + n);
         const dueMap = (DB && DB.debtDueDates) || {};
-        const todayStr = typeof root.localToday === 'function' ? root.localToday() : new Date().toISOString().slice(0, 10);
+        const todayStr = localToday();
         document.querySelectorAll('#view-utang [data-debt-action="edit"]').forEach((editBtn) => {
           const { debtGroup: group, debtName: name } = editBtn.dataset;
           const card = editBtn.closest('div.rounded-2xl');

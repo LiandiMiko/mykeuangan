@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, getSwalClass, showActionError, localToday, t, escapeHtmlJS, openExternalUrl */
 /* ============================================================
    FEATURES — RELEASE UPDATES & NOTIFICATION BELL CENTER
@@ -119,7 +120,7 @@
     const queue = typeof feat.readLocalQueue === 'function' ? feat.readLocalQueue() : [];
     const pendingItems = queue.filter((x) => !x.failed);
     const failedItems = queue.filter((x) => x.failed);
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const list = FinanceAnalysis.buildAppNotifications({
       budgets: DB.budgets,
       transactions: DB.transactions,
@@ -175,7 +176,7 @@
     if (!item) return;
     Swal.close();
     try {
-      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const todayStr = localToday();
       const data = await callServer('api_addTransaction', {
         tanggal: todayStr,
         tipe: item.tipe,
@@ -195,11 +196,12 @@
     }
   }
 
+  // Gelombang 5.3 (Q10): delegasi ke escapeHtmlJS — yang sendiri
+  // mendelegasikan ke escapeHtml() kanonis (error-messages.js).
+  // Rantai replace lama dihapus; jangan salin lagi ke sini.
   function escUpdateHtml(value) {
     if (typeof escapeHtmlJS === 'function') return escapeHtmlJS(value);
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return escapeHtml(value);
   }
 
   function safeHttpsUrl(url, fallback) {

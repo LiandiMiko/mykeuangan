@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, walletOptions, localToday */
 /* ============================================================
    DEBT & RECEIVABLES (UTANG / PIUTANG)

@@ -1,3 +1,6 @@
+// @depends-on: error-messages.js (lunak: escapeHtmlJS mendelegasikan ke
+// escapeHtml() bila ada, dan memakai fallback lokal bila modul ini dimuat
+// sendiri tanpa error-messages.js — lihat komentar di escapeHtmlJS)
 /* global FinanceAnalysis, Swal, t, getMonthShort, renderAll, updateDashboardTitle */
 /* ============================================================
    STATE & CORE HELPERS
@@ -16,7 +19,11 @@
     transfers: [],
     goals: [],
     recurring: [],
-    currentPeriod: new Date().toISOString().slice(0, 7),
+    // Gelombang 5.3 (Q10): periode berjalan dari komponen LOKAL
+    // (bukan toISOString/UTC — di WIB awal bulan bisa mundur
+    // sebulan). IIFE lokal agar tetap jalan bila modul dimuat
+    // sendiri tanpa helper bersama (tes vm lama).
+    currentPeriod: (function () { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })(),
     payrollDay: 28,
     primaryBankWalletId: ''
   };
@@ -40,8 +47,14 @@
   root.laporanState = laporanState;
 
   /* Helper sanitasi HTML & JS string di dalam atribut HTML (dipakai
-     template yang dulu menulis handler inline dengan nilai dinamis). */
+     template yang dulu menulis handler inline dengan nilai dinamis).
+     Gelombang 5.3 (Q10): implementasi kanonis tinggal di
+     escapeHtml() (web/error-messages.js, dimuat pertama) — fungsi
+     ini mendelegasikannya. Fallback lokal di bawah HANYA untuk
+     pemuatan mandiri (tes vm lama yang memuat ui-state.js tanpa
+     error-messages.js); jangan jadikan pola untuk modul lain. */
   function escapeHtmlJS(s) {
+    if (typeof root.escapeHtml === 'function') return root.escapeHtml(s);
     if (s == null) return '';
     return String(s).replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'

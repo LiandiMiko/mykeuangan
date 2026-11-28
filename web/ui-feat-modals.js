@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, localToday, walletOptions, walletKindLabel, switchView, retryReportLoad, renderDebtLists, t */
 /* ============================================================
    FEATURES — DEBT DETAIL, ASSET FORM, WALLET DETAIL & AUTO BUDGET

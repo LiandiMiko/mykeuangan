@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinancePro, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, renderSelectOptions, walletOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, cycleOfDate, localToday, t, mkActionAttrs */
 /* ============================================================
    PRO FEATURES — QUICK-ADD, TEMPLATES & PWA UPDATE TOAST
@@ -54,7 +55,7 @@
       preview.textContent = '';
       return;
     }
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const parsed = FinancePro.parseQuickTxInput(text, DB.categories, DB.wallets, getAutoCategoryRules(), todayStr);
     preview.classList.remove('hide');
     if (!parsed.valid) {
@@ -93,7 +94,7 @@
     const input = document.getElementById('quickAddInput');
     const btn = document.getElementById('btnQuickAddSubmit');
     if (!input || typeof FinancePro === 'undefined' || (btn && btn.disabled)) return;
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const parsed = FinancePro.parseQuickTxInput(input.value, DB.categories, DB.wallets, getAutoCategoryRules(), todayStr);
     if (!parsed.valid) {
       Swal.fire(swalOpt({ icon: 'warning', title: 'Format belum lengkap', text: 'Sertakan nominal dan keterangan singkat, contoh: kopi 25rb bca' }));
@@ -176,7 +177,7 @@
   async function applyQuickTemplate(idx) {
     const tpl = cachedQuickTemplates[idx];
     if (!tpl) return;
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const defaultWalletId = (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
     try {
       await saveQuickTransactionObject({

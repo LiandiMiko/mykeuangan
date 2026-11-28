@@ -1,5 +1,13 @@
+// @depends-on: error-messages.js
 (function (root) {
   'use strict';
+
+  // Gelombang 5.3 (Q10): di Node, muat helper bersama agar
+  // isValidIsoDate() tersedia (di browser error-messages.js sudah
+  // dimuat pertama lewat build.mjs).
+  if (typeof module !== 'undefined' && module.exports) {
+    try { require('./error-messages.js'); } catch (_) { /* abaikan: fallback lokal di bawah */ }
+  }
 
   // Wave 3.5 §9: batas ditegakkan DI PARSER (bukan hanya di UI/server).
   const MAX_DATA_ROWS = 500;
@@ -101,8 +109,12 @@
       [, dd, mm, yyyy] = match;
     }
     const iso = yyyy + '-' + mm.padStart(2, '0') + '-' + dd.padStart(2, '0');
-    const date = new Date(iso + 'T00:00:00Z');
-    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : '';
+    // Gelombang 5.3 (Q10): validasi via isValidIsoDate() bersama
+    // (komponen lokal) — BUKAN round-trip toISOString() (UTC).
+    // Fallback lokal hanya bila modul dimuat sendiri tanpa helper.
+    if (typeof isValidIsoDate === 'function') return isValidIsoDate(iso) ? iso : '';
+    const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    return date.getFullYear() === Number(yyyy) && date.getMonth() === Number(mm) - 1 && date.getDate() === Number(dd) ? iso : '';
   }
 
   function parseNumericToken(raw) {

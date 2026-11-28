@@ -132,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.8');
+  assert.equal(pkg.version, '3.20.9');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
@@ -739,11 +739,11 @@ test('v3.20.5: Android APK signing uses explicit debug-keystore.properties, apks
 
       const vInfo1 = mod.patchAndroidProject(tmpDir, '3.20.5');
       const vInfo2 = mod.patchAndroidProject(tmpDir, '3.20.5');
-      assert.equal(vInfo1.versionCode, 32005, tpl.name);
+      assert.equal(vInfo1.versionCode, 3020005, tpl.name);
       assert.equal(vInfo2.versionName, '3.20.5', tpl.name);
 
       const patchedGradle = fs.readFileSync(gradlePath, 'utf8');
-      assert.match(patchedGradle, /versionCode 32005/, tpl.name);
+      assert.match(patchedGradle, /versionCode 3020005/, tpl.name);
       assert.match(patchedGradle, /versionName "3\.20\.5"/, tpl.name);
       assert.match(patchedGradle, /debug-keystore\.properties/, tpl.name);
       assert.match(patchedGradle, /signingConfigs\s*\{[\s\S]*debug\s*\{[\s\S]*release\s*\{/, tpl.name);

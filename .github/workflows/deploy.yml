@@ -22,6 +22,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install dependencies (npm ci)
+        # Gelombang 5.2: package-lock.json kini ada + build.mjs memakai
+        # esbuild (devDependency) untuk minifikasi. Tanpa install,
+        # build.mjs fallback tanpa minifikasi — dist yang diuji/di-deploy
+        # CI akan berbeda dari build lokal. `npm ci` memakai lockfile
+        # (gagal bila lockfile tidak sinkron dengan package.json).
+        run: npm ci --no-audit --no-fund
       - name: Fetch self-hosted vendor assets
         # Wave 3.4 / S25: fetch vendor BERJALAN JUGA di PR (dulu hanya di
         # deploy) — DAN SEBELUM `npm run check`. Test 3.4 menyalin repo ke
@@ -47,13 +54,62 @@ jobs:
           node -e "const fs=require('fs'); if(!fs.existsSync('web/config.js') && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY){ fs.writeFileSync('web/config.js', 'window.APP_CONFIG = ' + JSON.stringify({ SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY }) + ';\n'); }"
       - name: Build dist (PR check)
         if: github.event_name == 'pull_request'
-        run: node -e "const fs=require('fs'), cp=require('child_process'); if(fs.existsSync('web/config.js')) cp.execSync('node build.mjs', {stdio:'inherit'});"
+        # Gelombang 5.1: TANPA syarat config.js. Dulu langkah ini hanya
+        # jalan bila web/config.js ada — bila file itu hilang, PR lolos
+        # CI tanpa pernah membangun dist, sementara job deploy gagal
+        # lantang. config.js ter-track di repo; bila ia hilang, build
+        # harus GAGAL di PR juga (build.mjs melempar error yang jelas),
+        # bukan diam-diam dilewati.
+        run: |
+          node build.mjs
+          test -f dist/index.html
       - name: Build dist (Deploy)
         if: github.event_name != 'pull_request'
         run: |
           node build.mjs
           test -f dist/index.html
           ls -la dist
+      - name: Smoke test dist (artefak yang di-deploy)
+        # Gelombang 5.1: yang diuji CI harus sama dengan yang di-deploy.
+        # `npm run check` menguji sumber dan build.mjs punya gerbangnya
+        # sendiri — langkah ini menegaskan bentuk AKHIR dist/: versi
+        # cocok dengan package.json, tanpa CDN, vendor lokal lengkap,
+        # sw.js + delete-account.html ikut tersalin. Jalan di PR maupun
+        # push, sebelum artefak di-upload ke Pages.
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const fail = (m) => { console.error('SMOKE FAIL: ' + m); process.exit(1); };
+          if (!fs.existsSync('dist/index.html')) fail('dist/index.html tidak ada');
+          const html = fs.readFileSync('dist/index.html', 'utf8');
+          if (html.length < 100000) fail(`dist/index.html hanya ${html.length} byte (bundle tidak lengkap?)`);
+          if (!html.includes(`<meta name="app-version" content="${pkg.version}">`)) fail(`meta app-version bukan ${pkg.version}`);
+          for (const cdn of ['cdn.jsdelivr.net', 'unpkg.com', 'cdnjs.cloudflare.com', 'cdn.tailwindcss.com', 'fonts.googleapis.com', 'fonts.gstatic.com']) {
+            // Hanya tag resource (src/href) yang dilarang — pola yang sama
+            // dipakai gerbang build.mjs. Nama host boleh muncul di teks
+            // lain (mis. CSP connect-src mengizinkan cdn.jsdelivr.net).
+            const m = html.match(new RegExp(`(?:src|href)\\s*=\\s*"https://${cdn.replace(/\./g, '\\.')}[^"]*"`, 'i'));
+            if (m) fail(`tag resource CDN tersisa di dist/index.html: ${m[0]}`);
+          }
+          if (!html.includes('./vendor/')) fail('dist/index.html tidak merujuk vendor lokal (./vendor/)');
+          if (!fs.existsSync('dist/version.json')) fail('dist/version.json tidak ada');
+          const ver = JSON.parse(fs.readFileSync('dist/version.json', 'utf8'));
+          if (ver.version !== pkg.version) fail(`dist/version.json ${ver.version} != package.json ${pkg.version}`);
+          if (!Number.isInteger(ver.versionCode) || ver.versionCode <= 0) fail('dist/version.json versionCode tidak valid');
+          if (!fs.existsSync('dist/sw.js')) fail('dist/sw.js tidak ada');
+          if (fs.readFileSync('dist/sw.js', 'utf8').includes('__BUILD_ID__')) fail('dist/sw.js masih berisi placeholder __BUILD_ID__');
+          if (!fs.existsSync('dist/delete-account.html')) fail('dist/delete-account.html tidak ada');
+          if (!fs.existsSync('dist/manifest.webmanifest')) fail('dist/manifest.webmanifest tidak ada');
+          for (const v of ['supabase.js']) {
+            if (!fs.existsSync(`dist/vendor/${v}`) || fs.statSync(`dist/vendor/${v}`).size === 0) fail(`dist/vendor/${v} hilang/kosong`);
+          }
+          // tailwind.min.css SENGAJA tidak ada di dist/vendor/ — build
+          // meng-inline-nya sebagai <style> ke index.html (lihat
+          // build.mjs). Yang dicek: CSS hasil kompilasi memang ter-inline.
+          if (!html.includes('/*! tailwindcss v')) fail('CSS Tailwind hasil kompilasi tidak ter-inline di dist/index.html');
+          console.log(`✅ Smoke dist OK: index.html ${(html.length / 1024).toFixed(0)} KB, v${ver.version} (${ver.versionCode}), tanpa CDN, vendor lokal lengkap.`);
+          NODE
       - id: artifact_meta
         if: github.event_name != 'pull_request'
         run: echo "name=github-pages-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"

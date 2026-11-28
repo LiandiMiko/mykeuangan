@@ -1,6 +1,6 @@
 {
   "name": "mykeuangan",
-  "version": "3.20.8",
+  "version": "3.20.9",
   "private": true,
   "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
   "appUpdate": {
@@ -29,19 +29,20 @@
     "cap:open": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/app": "^8.0.0",
-    "@capacitor/browser": "^8.0.0",
-    "@capacitor/camera": "^8.0.0",
-    "@capacitor/core": "^8.0.0",
-    "@capacitor/filesystem": "^8.0.0",
-    "@capacitor/haptics": "^8.0.0",
-    "@capacitor/local-notifications": "^8.0.0",
-    "@capacitor/share": "^8.0.0",
-    "@capacitor/splash-screen": "^8.0.0"
+    "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "8.0.5",
+    "@capacitor/camera": "8.2.7",
+    "@capacitor/core": "8.6.3",
+    "@capacitor/filesystem": "8.1.6",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/local-notifications": "8.3.1",
+    "@capacitor/share": "8.0.3",
+    "@capacitor/splash-screen": "8.0.2"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.0.0",
-    "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.0.0"
+    "@capacitor/android": "8.6.3",
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.6.3",
+    "esbuild": "0.28.2"
   }
 }

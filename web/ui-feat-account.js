@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js, password-policy.js
 /* global Swal, callServer, getSwalClass, escapeHtmlJS, showActionError, updateDashboardTitle, openForm, openTransferModal, triggerReceiptOcr, switchView, t */
 /* ============================================================
    FEATURES — ACCOUNT SETTINGS, PIN LOCK, QUICK MENU & PWA INSTALL

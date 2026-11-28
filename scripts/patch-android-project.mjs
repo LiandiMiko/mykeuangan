@@ -127,10 +127,16 @@ public class NativeBiometricPlugin extends Plugin {
 }
 `;
 
+// Gelombang 5.2 / Q12 — skema versionCode BARU: major*1000000 +
+// minor*1000 + patch (tahan hingga minor/patch 999; skema lama
+// major*10000+minor*100+patch bertabrakan bila minor/patch mencapai 100).
+// Nilai HARUS naik monoton dari 32008 (3.20.8 skema lama): 3.20.9 baru =
+// 3020009 > 32008. Skema ini diduplikasi di build.mjs (parseVersionCode)
+// — ubah keduanya bersamaan.
 export function computeAndroidVersion(pkgVersion) {
   const parts = String(pkgVersion || '1.0.0').split('.').map((n) => parseInt(n, 10) || 0);
   const [major = 1, minor = 0, patch = 0] = parts;
-  return { versionName: `${major}.${minor}.${patch}`, versionCode: major * 10000 + minor * 100 + patch };
+  return { versionName: `${major}.${minor}.${patch}`, versionCode: major * 1000000 + minor * 1000 + patch };
 }
 
 export function patchVariablesGradle(filePath) {

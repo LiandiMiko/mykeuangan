@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js, password-policy.js
 /* supabase-auth-ui.js — auth theme, Google OAuth UI, password recovery modal & legal links */
 (function () {
   'use strict';
@@ -10,10 +11,14 @@
     targetEl.replaceChildren(...Array.from(doc.body.childNodes));
   }
 
+  // Gelombang 5.3 (Q10): delegasi ke escapeHtmlJS (ui-state.js) —
+  // yang sendiri mendelegasikan ke escapeHtml() kanonis
+  // (error-messages.js, dimuat pertama). Rantai replace lama
+  // dihapus; jangan salin lagi ke sini. Kedua global dijamin ada
+  // oleh urutan modul di build.mjs (lihat tests/wave5-module-order).
   function escapeAuthAttr(val) {
-    return String(val == null ? '' : val).replace(/[&<>"']/g, (c) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
+    if (typeof window.escapeHtmlJS === 'function') return window.escapeHtmlJS(val);
+    return window.escapeHtml(val);
   }
 
   function createAuthTheme() {

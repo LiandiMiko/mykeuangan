@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, switchView, fillWalletSelect, cycleOfDate, t, mkActionAttrs */
 /* ============================================================
    TRANSACTION FORM & CATEGORY MANAGEMENT

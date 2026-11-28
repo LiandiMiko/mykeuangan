@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, FinanceAnalysis, Swal, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, getPeriodRange, getMonthName, getMonthShort, openForm, walletName, t, mkActionAttrs */
 /* ============================================================
    CALENDAR VIEW

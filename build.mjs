@@ -3,12 +3,47 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import {
   DERIVED_VENDOR_FILES,
   VENDOR_MANIFEST,
   verifyAllVendors,
   verifyVendorFile
 } from './scripts/fetch-vendors.mjs';
+
+// Gelombang 5.2 / Q4 — minifikasi modul web/*.js yang di-inline.
+// esbuild ter-pin sebagai devDependency (package.json + package-lock.json;
+// JANGAN npx tanpa pin). Diimpor lewat require agar build tetap jalan
+// bila node_modules belum ter-install (mis. repo temp pada tes Wave 3.4
+// yang disalin tanpa node_modules): dalam kasus itu build lanjut TANPA
+// minifikasi dengan peringatan ke stderr — build nyata (npm install sudah
+// jalan, termasuk CI) selalu meminifikasi. Tes Wave 5.2 menyalin esbuild
+// ke repo temp dan mengassert minifikasi benar-benar terjadi.
+const require = createRequire(import.meta.url);
+let esbuildTransformSync = null;
+try {
+  ({ transformSync: esbuildTransformSync } = require('esbuild'));
+} catch {
+  process.stderr.write('⚠️  Peringatan: esbuild tidak ditemukan — build lanjut TANPA minifikasi. Jalankan npm install untuk build produksi.\n');
+}
+
+// Minifikasi SATU modul web/*.js yang akan di-inline. HANYA modul itu
+// yang diminifikasi: file vendor TIDAK disentuh (sudah minified + hash
+// ter-pin di VENDOR_MANIFEST) dan web/config.js TIDAK disentuh (di-inline
+// apa adanya). esbuild minify mempertahankan nama top-level (modul-modul
+// ini berkomunikasi lewat global), jadi pemendekan hanya menyentuh
+// variabel lokal, spasi, dan komentar. Gagal minifikasi = build gagal.
+function minifyModule(source, file) {
+  if (!esbuildTransformSync) return source;
+  try {
+    // target es2020: source sudah memakai ?. dan ??, jadi tidak ada
+    // penurunan level bahasa yang bisa memecah WebView lama melebihi
+    // yang sudah dipakai source itu sendiri.
+    return esbuildTransformSync(source, { loader: 'js', minify: true, target: 'es2020' }).code;
+  } catch (err) {
+    throw new Error(`Minifikasi gagal untuk web/${file}: ${err.message}`);
+  }
+}
 
 const SRC = 'src';
 const WEB = 'web';
@@ -100,8 +135,8 @@ const CDN_TO_LOCAL_VENDOR = [
   ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js', 'flatpickr.min.js'],
   ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js', 'monthSelect-index.js'],
   ['https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/id.js', 'flatpickr-id.js'],
-  ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf.umd.min.js'],
-  ['https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js', 'jspdf.plugin.autotable.min.js'],
+  ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js', 'jspdf.umd.min.js'],
+  ['https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.9/jspdf.plugin.autotable.min.js', 'jspdf.plugin.autotable.min.js'],
   ['https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js', 'chart.umd.min.js']
 ];
 
@@ -115,7 +150,7 @@ function read(name) {
 
 function readInlineScripts(files) {
   return files
-    .map((f) => `<script>\n${fs.readFileSync(path.join(WEB, f), 'utf8')}\n</script>`)
+    .map((f) => `<script>\n${minifyModule(fs.readFileSync(path.join(WEB, f), 'utf8'), f)}\n</script>`)
     .join('\n');
 }
 
@@ -230,10 +265,34 @@ function stripHtmlEntities(str) {
     .trim();
 }
 
+// Gelombang 5.2 / Q12 — skema versionCode BARU: major*1000000 +
+// minor*1000 + patch (tahan hingga minor/patch 999). Skema lama
+// (major*10000+minor*100+patch) bertabrakan bila minor/patch mencapai
+// 100 (mis. 3.100.0 = 3.0.100 = 40000). Nilai HARUS naik monoton dari
+// 32008 (3.20.8 skema lama): 3.20.9 baru = 3020009 > 32008. Skema ini
+// diduplikasi di scripts/patch-android-project.mjs (computeAndroidVersion)
+// — ubah keduanya bersamaan.
 function parseVersionCode(ver) {
   const m = String(ver || '').trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?/i);
   if (!m) return 0;
-  return Number(m[1] || 0) * 10000 + Number(m[2] || 0) * 100 + Number(m[3] || 0);
+  return Number(m[1] || 0) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0);
+}
+
+// Gelombang 5.2 / Q13 — reproduksibilitas: builtAt deterministik bila
+// SOURCE_DATE_EPOCH diset (standar reproducible-builds.org: detik sejak
+// epoch UTC). Tanpa env itu, pakai waktu sekarang seperti dulu. Dengan
+// SOURCE_DATE_EPOCH yang sama, dua build menghasilkan version.json yang
+// identik (diuji di tests/wave5-build-reproducibility.test.js).
+function buildTimestamp() {
+  const sde = process.env.SOURCE_DATE_EPOCH;
+  if (sde !== undefined && sde !== '') {
+    const epochMs = Number(sde) * 1000;
+    if (!Number.isFinite(epochMs) || epochMs < 0) {
+      throw new Error(`SOURCE_DATE_EPOCH tidak valid: ${JSON.stringify(sde)} (harus detik sejak epoch, >= 0).`);
+    }
+    return new Date(epochMs).toISOString();
+  }
+  return new Date().toISOString();
 }
 
 function extractLatestReleaseMeta(updatesHtml) {
@@ -271,7 +330,7 @@ function buildVersionManifest(pkg, updatesHtml) {
     notes: meta.notes,
     androidUrl: String(appUpdate.androidUrl || 'https://github.com/LiandiMiko/mykeuangan/releases/latest').trim(),
     webUrl: String(appUpdate.webUrl || 'https://liandimiko.github.io/mykeuangan/').trim(),
-    builtAt: new Date().toISOString()
+    builtAt: buildTimestamp()
   };
 }
 
@@ -327,12 +386,19 @@ const versionManifest = buildVersionManifest(pkg, updatesHtml);
 verifyRequiredVendorFiles();
 
 const html = buildHtmlBundle(config, pkg.version);
+
+// Gelombang 5.2 / Q13 — dist/ dibersihkan PENUH sebelum ditulis. Dulu
+// hanya dist/vendor yang dihapus, jadi file basi (mis. halaman yang
+// sudah tidak dihasilkan lagi) bisa tertinggal di dist/ dan ikut
+// ter-deploy. Pembersihan dilakukan DI SINI — setelah gerbang vendor dan
+// build HTML berhasil — supaya build yang gagal tidak menghapus dist
+// hasil build sebelumnya yang masih baik.
+fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), `${JSON.stringify(versionManifest, null, 2)}\n`);
 const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
 
-fs.rmSync(path.join(OUT, 'vendor'), { recursive: true, force: true });
 const vendorAssets = copyVendorDir(VENDOR_ROOT, path.join(OUT, 'vendor'), './vendor');
 
 if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {

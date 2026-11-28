@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, laporanState, TransactionImport, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, getPeriodRange, walletName, getAutoCategoryRules, updateReportBulkBar, t, mkActionAttrs */
 /* ============================================================
    REPORTS, PAGINATION, FILTERS & CSV IMPORT

@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinancePro, FinanceAnalysis, Swal, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, getGeminiApiKeyAsync, getGeminiModel, getGeminiThinkingLevel, configureGeminiApiKey, callGeminiApi, extractGeminiText, formatAiMarkdownSafe, renderAiCashflowResult, updateAiKeyStatusUI, localToday, walletBalances, currentLang, t */
 /* ============================================================
    PRO FEATURES — CALCULATORS, MULTI-TURN AI CHAT & REBALANCING
@@ -287,7 +288,7 @@
     }
 
     try {
-      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const todayStr = localToday();
       const payload = typeof FinanceAnalysis.buildEnrichedAiSnapshot === 'function'
         ? FinanceAnalysis.buildEnrichedAiSnapshot(DB, DB.currentPeriod, DB.payrollDay, todayStr)
         : FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);

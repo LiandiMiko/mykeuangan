@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, isInPeriod, getPeriodLabel, walletBalances, walletOptions, localToday, openForm, renderAssets, t, mkActionAttrs */
 /* ============================================================
    DASHBOARD & FINANCIAL GOALS

@@ -124,9 +124,80 @@
     return err;
   }
 
+  /* ============================================================
+     HELPER BERSAMA — Gelombang 5.3 (Q10)
+     ------------------------------------------------------------
+     Modul ini dimuat PERTAMA (WEB_MODULES[0] di build.mjs), jadi
+     helper di sini tersedia untuk semua modul lain tanpa
+     dependensi pemuatan tambahan. Sebelumnya helper yang sama
+     hidup di banyak tempat dengan implementasi berbeda:
+       - escape HTML: escapeHtmlJS (ui-state.js), escapeSafe
+         (ui-ai.js), escUpdateHtml (ui-feat-updates.js),
+         escapeAuthAttr (supabase-auth-ui.js) — empat rantai
+         replace yang sama; kini semuanya mendelegasikan ke
+         escapeHtml() di sini.
+       - tanggal "hari ini": localToday() dulu didefinisikan di
+         ui-wallets.js (UI_CORE, urutan ke-9) sementara modul
+         lain memakai guard typeof-check dengan fallback UTC
+         (toISOString) — fallback itu SALAH di WIB: sebelum
+         07:00 WIB tanggal UTC masih kemarin (kelas bug yang
+         sama dengan bug validasi tanggal Gelombang 3). Kini
+         localToday() tinggal di sini dan semua call site
+         memanggilnya langsung, tanpa fallback UTC.
+       - validasi YYYY-MM-DD: pola `new Date(v).toISOString()
+         .slice(0, 10) === v` (round-trip UTC) diganti
+         isValidIsoDate() yang memakai komponen lokal.
+     ============================================================ */
+
+  // Escape HTML (lima karakter). Satu-satunya implementasi
+  // kanonis — JANGAN salin rantai replace ini ke modul lain;
+  // panggil escapeHtml() / escapeHtmlJS() sebagai gantinya.
+  function escapeHtml(value) {
+    if (value == null) return '';
+    return String(value).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  // Format Date menjadi 'YYYY-MM-DD' memakai komponen LOKAL
+  // (getFullYear/getMonth/getDate). JANGAN pakai toISOString()
+  // di sini: itu UTC dan menggeser hari di zona WIB.
+  // Mengembalikan '' untuk tanggal tak valid.
+  function localDateKey(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    if (!Number.isFinite(d.getTime())) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // 'Hari ini' lokal ('YYYY-MM-DD'). Satu-satunya definisi —
+  // definisi lama di web/ui-wallets.js dipindah ke sini agar
+  // tersedia sejak modul pertama dimuat.
+  function localToday() {
+    return localDateKey(new Date());
+  }
+
+  // Validasi ketat 'YYYY-MM-DD' + tanggal kalender nyata
+  // (tolak 2026-02-30). Memakai konstruktor lokal
+  // new Date(y, m-1, d) + perbandingan komponen, BUKAN
+  // round-trip toISOString() (UTC) — bandingkan komentar lama
+  // di supabase-admin.js § debtDueDates (Gelombang 3): parse
+  // lokal tengah malam lalu round-trip UTC menolak tanggal
+  // valid di zona waktu positif.
+  function isValidIsoDate(value) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+    if (!m) return false;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return d.getFullYear() === Number(m[1]) && d.getMonth() === Number(m[2]) - 1 && d.getDate() === Number(m[3]);
+  }
+
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.toUserErrorMessage = toUserErrorMessage;
   root.__mkFeat.userError = userError;
   root.toUserErrorMessage = toUserErrorMessage;
   root.userError = userError;
+  // Helper bersama Gelombang 5.3 (Q10) — lihat blok di atas.
+  root.escapeHtml = escapeHtml;
+  root.localDateKey = localDateKey;
+  root.localToday = localToday;
+  root.isValidIsoDate = isValidIsoDate;
 })(typeof window !== 'undefined' ? window : globalThis);

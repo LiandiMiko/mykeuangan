@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global Swal, escapeHtmlJS, escapeAttrJS, localToday, getCurrentNotifications, openCommandPalette, closeCommandPalette, renderQuickTemplates, renderTagBars, restoreAiAnalysisCache, t, mkActionAttrs */
 /* ============================================================
    PRO FEATURES — NOTIFICATIONS MODAL, BROWSER ALERTS & HOOKS
@@ -113,7 +114,7 @@
     const pro = root.__mkPro || {};
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (localStorage.getItem(pro.KEYS.BROWSER_NOTIF) !== '1' || typeof getCurrentNotifications !== 'function') return;
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     if (localStorage.getItem(pro.KEYS.BROWSER_NOTIF_DATE) === todayStr) return;
     const important = getCurrentNotifications().filter((n) => n.severity === 'danger' || n.severity === 'warning');
     if (!important.length) return;
