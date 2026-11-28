@@ -163,7 +163,13 @@
       insecure_context: msg('Kunci sidik jari di web memerlukan koneksi HTTPS yang aman.', 'Web biometric unlock requires a secure HTTPS connection.'),
       no_webauthn: msg('Browser atau WebView ini belum mendukung kunci biometrik.', 'This browser or WebView does not support biometric unlock.'),
       no_platform_authenticator: msg('Perangkat atau browser belum mengaktifkan autentikator sidik jari/layar kunci.', 'Platform biometric authenticator is unavailable on this device.'),
-      SecurityError: msg('Origin saat ini tidak diizinkan untuk kunci biometrik WebAuthn.', 'Current origin is not permitted for WebAuthn biometrics.')
+      SecurityError: msg('Origin saat ini tidak diizinkan untuk kunci biometrik WebAuthn.', 'Current origin is not permitted for WebAuthn biometrics.'),
+      // Gelombang 7c: error teknis supabase-js bila lolos dari
+      // callWebAuthnFunction tanpa sempat diterjemahkan (mis. jalur
+      // lain yang memanggil sb.functions.invoke langsung).
+      FunctionsHttpError: msg('Verifikasi server gagal. Coba lagi atau gunakan PIN.', 'Server verification failed. Try again or use your PIN.'),
+      FunctionsFetchError: msg('Tidak dapat terhubung ke server. Periksa koneksi internet, lalu coba lagi atau gunakan PIN.', 'Cannot reach the server. Check your internet connection, then try again or use your PIN.'),
+      FunctionsRelayError: msg('Server sedang bermasalah. Coba lagi sebentar lagi atau gunakan PIN.', 'The server is having trouble. Try again shortly or use your PIN.')
     };
     if (map[code]) return map[code];
     if (code === 'NotAllowedError' || code === '10' || code === '13' || /cancel|abort|timeout/i.test(rawMsg)) {
@@ -180,44 +186,32 @@
   }
 
   // ============================================================
-  // Wave 3.1 / S1 — WebAuthn (web path)
+  // Wave 3.1 / S1 — WebAuthn (web path), SERVER FLOW AKTIF
+  // sejak Gelombang 7c (2026-11-28).
   //
-  // HONEST STATUS: this is the INTERIM client-side verification, not
-  // real WebAuthn. The old code generated a challenge, discarded it,
-  // and accepted ANY navigator.credentials.get() result (even `{}`) —
-  // no stored public key, no signature check, no replay protection.
-  // The interim below fixes what can be fixed in the browser:
-  //   * the challenge is stored (sessionStorage, single-use) BEFORE
-  //     create()/get() and must match clientDataJSON.challenge;
-  //   * type must be 'webauthn.create' / 'webauthn.get' and origin
-  //     must equal location.origin;
-  //   * at enrollment the attestationObject is parsed (minimal CBOR)
-  //     and the COSE public key is stored; at assertion the signature
-  //     is verified with WebCrypto (ECDSA P-256) over
-  //     authenticatorData || SHA-256(clientDataJSON), with a counter
-  //     check and a last-signature replay check.
-  // What it CANNOT do (and why it is not real WebAuthn): the key, the
-  // challenge store and this verification all live in the same JS
-  // context as a page-level attacker, so a JS-level attacker can
-  // bypass it. Real verification must happen on the server.
+  // Alur server (Terverifikasi — lihat anti-slop/audit-044):
+  // challenge diterbitkan Edge Function `webauthn` (tabel
+  // webauthn_challenges, sekali pakai, kedaluwarsa 5 menit), lalu
+  // attestation/assertion diverifikasi di server (tanda tangan ECDSA
+  // P-256, rpIdHash, flag UP+UV, counter anti-kloning) dan public key
+  // disimpan di webauthn_credentials. Kunci privat tidak pernah
+  // keluar dari authenticator; server hanya menyimpan JWK publik.
   //
-  // SERVER FLOW (NOT DONE — see report): the server pieces exist as
-  // an UNVERIFIED DRAFT — supabase/migrations/
-  // 20261128070000_wave3_webauthn.sql (webauthn_credentials +
-  // webauthn_challenges tables) and supabase/functions/webauthn/
-  // (challenge issuance + signature/counter verification). They have
-  // NOT been executed against any Supabase project, NOT deployed, and
-  // NOT verified end-to-end in this session (no Deno runtime here, and
-  // production deploys are out of scope for this agent). Do NOT deploy
-  // them until they are verified under Deno. The client below only
-  // calls the edge function when WEBAUTHN_SERVER_ENABLED is true; it
-  // is false until that verification happens.
+  // Alur interim sisi-klien di bawah (challenge di sessionStorage,
+  // verifikasi WebCrypto di browser) TETAP ADA sebagai kode, tetapi
+  // TIDAK TERPAKAI selama WEBAUTHN_SERVER_ENABLED = true — ia hanya
+  // jalan bila flag dimatikan lagi. Ia tidak bisa menggantikan server:
+  // kunci, challenge store, dan verifikasi hidup di konteks JS yang
+  // sama dengan penyerang level halaman. Jangan mengandalkannya.
+  //
+  // Bila server tidak bisa dihubungi saat unlock, alur mengembalikan
+  // null (bukan gagal) — pengguna tetap bisa memakai PIN.
   // ============================================================
   const WEBAUTHN_CHALLENGE_KEY = 'mk_webauthn_challenge_v1';
   const WEBAUTHN_PUBKEY_KEY = 'mk_webauthn_pubkey_v1';
   const WEBAUTHN_COUNTER_KEY = 'mk_webauthn_counter_v1';
   const WEBAUTHN_LAST_SIG_KEY = 'mk_webauthn_last_sig_v1';
-  const WEBAUTHN_SERVER_ENABLED = false;
+  const WEBAUTHN_SERVER_ENABLED = true;
 
   function webauthnStoreGet(key) {
     try { return sessionStorage.getItem(key); } catch (_) { return null; }
@@ -435,15 +429,77 @@
     }
   }
 
-  // --- Server flow (DRAFT, gated off — see the S1 note above) ---
+  // --- Server flow (aktif sejak Gelombang 7c — lihat catatan S1) ---
+  // supabase-js v2 MELEMPAR (bukan mengembalikan { error }) saat Edge
+  // Function mengembalikan non-2xx: FunctionsHttpError dengan
+  // `.context` = Response mentah (lihat bundle web/vendor/supabase.js
+  // — `if (!_.ok) throw new s(_)`). Pesan ramah berbahasa Indonesia
+  // dari server hidup di body JSON `{ error }` respons itu, jadi
+  // dibaca dulu di sini; bila body tidak terbaca, dipakai pesan
+  // fallback yang tetap ramah untuk awam (bukan teks teknis Inggris
+  // seperti "Edge Function returned a non-2xx status code").
+  async function extractWebAuthnServerError(error) {
+    const ctx = error && error.context;
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const parsed = await ctx.json();
+        if (parsed && typeof parsed.error === 'string' && parsed.error) return parsed.error;
+      } catch (_) { /* body tidak terbaca — pakai fallback */ }
+    }
+    if (ctx && typeof ctx === 'object' && typeof ctx.error === 'string' && ctx.error) return ctx.error;
+    return '';
+  }
+  function webAuthnServerFailureMessage(error) {
+    const name = String((error && (error.name || error.code)) || '');
+    if (name === 'FunctionsFetchError') {
+      return msg('Tidak dapat terhubung ke server. Periksa koneksi internet, lalu coba lagi atau gunakan PIN.', 'Cannot reach the server. Check your internet connection, then try again or use your PIN.');
+    }
+    if (name === 'FunctionsRelayError') {
+      return msg('Server sedang bermasalah. Coba lagi sebentar lagi atau gunakan PIN.', 'The server is having trouble. Try again shortly or use your PIN.');
+    }
+    return msg('Verifikasi server gagal. Coba lagi atau gunakan PIN.', 'Server verification failed. Try again or use your PIN.');
+  }
+  // Pesan penolakan server (HTTP 400 dari finish-assertion) — artinya
+  // authenticator sudah dipanggil dan server menolak hasilnya (tanda
+  // tangan/counter/challenge tidak valid). Itu percobaan GAGAL yang
+  // dihitung pembatas percobaan, berbeda dengan server yang tidak
+  // terjangkau (null — pengguna tetap bisa memakai PIN).
+  const WEBAUTHN_SERVER_REJECTIONS = [
+    'Challenge tidak valid atau sudah dipakai.',
+    'Tanda tangan tidak valid.',
+    'Kredensial tidak dikenal.',
+    'Counter tidak naik',
+    'clientData tidak valid.',
+    'RP ID tidak cocok.',
+    'Verifikasi pengguna (UV) wajib.',
+    'Data assertion tidak lengkap.',
+    'Assertion tidak dapat dibaca',
+    'credentialId tidak cocok',
+    'Kredensial gagal disimpan.'
+  ];
+  function isWebAuthnServerRejection(error) {
+    const message = String((error && error.message) || '');
+    return WEBAUTHN_SERVER_REJECTIONS.some((fragment) => message.includes(fragment));
+  }
   async function callWebAuthnFunction(action, body) {
     const sb = (root.__mkSb && root.__mkSb.sb) || null;
     if (!sb || !sb.functions || typeof sb.functions.invoke !== 'function') {
       throw new Error('Klien Supabase belum siap untuk WebAuthn server.');
     }
-    const { data, error } = await sb.functions.invoke('webauthn', { body: Object.assign({ action }, body || {}) });
-    if (error) throw error;
-    return data || {};
+    let res;
+    try {
+      res = await sb.functions.invoke('webauthn', { body: Object.assign({ action }, body || {}) });
+    } catch (err) {
+      const serverMessage = await extractWebAuthnServerError(err);
+      throw new Error(serverMessage || webAuthnServerFailureMessage(err));
+    }
+    const data = (res && res.data) || {};
+    const error = res && res.error;
+    if (error) {
+      const serverMessage = await extractWebAuthnServerError(error);
+      throw new Error(serverMessage || webAuthnServerFailureMessage(error));
+    }
+    return data;
   }
   async function beginWebAuthnServerChallenge(purpose) {
     return callWebAuthnFunction('begin', { purpose });
@@ -463,12 +519,15 @@
   async function enrollWebAuthnCredential() {
     if (!navigator.credentials || typeof navigator.credentials.create !== 'function') return '';
     const rpId = resolveWebAuthnRpId();
-    // Server flow (draft, gated): challenge comes from the edge function.
+    // Server flow (aktif Gelombang 7c): challenge datang dari Edge
+    // Function; rpId server dipakai bila ada (server-lah yang
+    // memverifikasi rpIdHash, jadi nilainya harus sama).
     if (WEBAUTHN_SERVER_ENABLED) {
       const begun = await beginWebAuthnServerChallenge('enrollment');
       if (!begun || !begun.challenge) throw new Error('Challenge server tidak tersedia.');
       const userBytes = new TextEncoder().encode(String(root.sessionUser || 'mykeuguech-user').slice(0, 48));
-      const rp = rpId ? { name: 'MyKeuGuech', id: rpId } : { name: 'MyKeuGuech' };
+      const serverRpId = (begun.rpId && String(begun.rpId)) || rpId;
+      const rp = serverRpId ? { name: 'MyKeuGuech', id: serverRpId } : { name: 'MyKeuGuech' };
       const cred = await navigator.credentials.create({
         publicKey: {
           challenge: base64UrlToBytes(begun.challenge),
@@ -555,8 +614,9 @@
     const credId = localStorage.getItem(BIOMETRIC_CRED_KEY) || '';
     if (!credId || !navigator.credentials || typeof navigator.credentials.get !== 'function') return null;
     const rpId = resolveWebAuthnRpId();
-    // Server flow (draft, gated): the edge function issues the
-    // challenge and verifies the assertion server-side.
+    // Server flow (aktif Gelombang 7c): Edge Function menerbitkan
+    // challenge dan memverifikasi assertion di server. Gagal menghubungi
+    // server -> null (bukan gagal): pengguna tetap bisa memakai PIN.
     if (WEBAUTHN_SERVER_ENABLED) {
       let begun = null;
       try { begun = await beginWebAuthnServerChallenge('assertion'); } catch (_) { begun = null; }
@@ -567,7 +627,8 @@
         userVerification: 'required',
         timeout: 45000
       };
-      if (rpId) publicKey.rpId = rpId;
+      const serverRpId = (begun.rpId && String(begun.rpId)) || rpId;
+      if (serverRpId) publicKey.rpId = serverRpId;
       let assertion = null;
       try { assertion = await navigator.credentials.get({ publicKey }); } catch (_) { return false; }
       if (!assertion || !assertion.response) return false;
@@ -580,7 +641,12 @@
           signature: responseToBase64Url(assertion.response.signature),
           userHandle: responseToBase64Url(assertion.response.userHandle)
         });
-      } catch (_) { return null; }
+      } catch (err) {
+        // Penolakan server (tanda tangan/counter/challenge tidak valid)
+        // = percobaan gagal yang dihitung; server tidak terjangkau =
+        // null (pengguna tetap bisa memakai PIN).
+        return isWebAuthnServerRejection(err) ? false : null;
+      }
       return Boolean(done && done.verified);
     }
     // Interim (client-side): challenge is stored BEFORE get(), and the
@@ -927,8 +993,9 @@
   root.__mkFeat.bindPinModalBiometricRetry = bindPinModalBiometricRetry;
   root.__mkFeat.decoratePinModalBiometricButton = decoratePinModalBiometricButton;
   root.__mkFeat.decorateAccountBiometricRow = decorateAccountBiometricRow;
-  // Wave 3.1 / S1 — test/diagnostic surface for the interim WebAuthn
-  // verification (client-side only; see the S1 note above).
+  // Wave 3.1 / S1 — test/diagnostic surface for the WebAuthn
+  // verification (server flow aktif sejak Gelombang 7c; helper interim
+  // sisi-klien tetap diekspos untuk tes — lihat catatan S1 di atas).
   root.__mkFeat.webauthn = {
     enrollWebAuthnCredential,
     verifyWebAuthnAssertion,
@@ -937,6 +1004,9 @@
     cborDecode,
     storeWebAuthnChallenge,
     consumeWebAuthnChallenge,
+    extractWebAuthnServerError,
+    webAuthnServerFailureMessage,
+    isWebAuthnServerRejection,
     WEBAUTHN_SERVER_ENABLED,
     WEBAUTHN_PUBKEY_KEY,
     WEBAUTHN_COUNTER_KEY

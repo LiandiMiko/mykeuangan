@@ -105,9 +105,14 @@ test('4.1 guard repo: to_regproc tidak boleh dipakai dengan daftar argumen', () 
   }
 });
 
-test('4.1 migrasi WebAuthn 070000 tetap DRAF dan tidak diubah Gelombang 4', () => {
-  assert.match(webauthnDraft, /DRAFT — BELUM DIVERIFIKASI, JANGAN DEPLOY DULU/);
-  assert.match(webauthnDraft, /BELUM pernah dijalankan/);
+test('4.1 migrasi WebAuthn 070000 TERVERIFIKASI Gelombang 7c (bukan lagi DRAF)', () => {
+  // Gelombang 7c memverifikasi + menerapkan migrasi ini (deno check,
+  // unit test handler, review baris demi baris) — guard DRAF dicabut
+  // dan diganti kunci status terverifikasi + isi tabel tetap ada.
+  assert.doesNotMatch(webauthnDraft, /DRAFT — BELUM DIVERIFIKASI, JANGAN DEPLOY DULU/);
+  assert.match(webauthnDraft, /DIVERIFIKASI Gelombang 7c/);
+  assert.match(webauthnDraft, /create table if not exists public\.webauthn_credentials/);
+  assert.match(webauthnDraft, /create table if not exists public\.webauthn_challenges/);
 });
 
 /* ============================================================
