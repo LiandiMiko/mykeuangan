@@ -35,7 +35,7 @@
 -- Semua jam dalam UTC. WIB = UTC+7:
 --   daily     21:00 WIB = 14:00 UTC     weekly   Minggu 20:00 WIB = 13:00 UTC
 --   recurring 01:00 WIB = 18:00 UTC     snapshot 23:00 WIB = 16:00 UTC
---   cleanup   02:00 WIB = 19:00 UTC
+--   cleanup   02:00 WIB = 19:00 UTC     webauthn-purge 03:00 WIB = 20:00 UTC
 -- Jadwal (ekspresi cron) TIDAK berubah dari sebelumnya.
 -- ============================================================
 
@@ -49,6 +49,7 @@ select cron.unschedule('mk-weekly-report') where exists (select 1 from cron.job 
 select cron.unschedule('mk-recurring') where exists (select 1 from cron.job where jobname = 'mk-recurring');
 select cron.unschedule('mk-snapshot') where exists (select 1 from cron.job where jobname = 'mk-snapshot');
 select cron.unschedule('mk-account-cleanup') where exists (select 1 from cron.job where jobname = 'mk-account-cleanup');
+select cron.unschedule('mk-webauthn-purge') where exists (select 1 from cron.job where jobname = 'mk-webauthn-purge');
 
 select cron.schedule('mk-daily-reminder', '0 14 * * *', $$
   select net.http_post(
@@ -98,6 +99,26 @@ select cron.schedule('mk-account-cleanup', '0 19 * * *', $$
     body := jsonb_build_object('job', 'account-cleanup'),
     timeout_milliseconds := 60000
   );
+$$);
+
+-- Bersihkan tantangan WebAuthn kedaluwarsa (Gelombang 7c Item 3, penutup
+-- keputusan purge yang tertunda sejak PR #16): harian 03:00 WIB = 20:00 UTC.
+-- PANGGILAN LANGSUNG SQL — bukan HTTP ke edge function. Alasannya:
+-- `purge_expired_webauthn_challenges()` sudah SECURITY DEFINER dan EXECUTE-nya
+-- hanya untuk service_role (+ postgres); job pg_cron berjalan sebagai role
+-- yang menjadwalkan (postgres, sama seperti schedule.sql ini), jadi tidak
+-- butuh CRON_SECRET, Vault, atau edge function baru. Tantangan kedaluwarsa
+-- 5 menit dan purge menghapus yang kedaluwarsa > 1 jam — harian lebih dari
+-- cukup. Bila job ini gagal, risikonya jinak: baris kedaluwarsa hanya
+-- menumpuk, karena alur WebAuthn tetap memvalidasi kedaluwarsa di setiap
+-- pemakaian; keamanan tidak bergantung pada purge ini. Alternatif yang
+-- ditolak: menumpang ke account-cleanup (mencampur alur hapus akun yang
+-- kritis dengan housekeeping + butuh redeploy edge), edge function baru
+-- (permukaan deploy paling berat untuk satu DELETE), menumpang ke job
+-- telegram-bot (kepemilikan salah; gagalnya job itu diam-diam melewatkan
+-- purge). Dijaga where exists seperti semua unschedule lain (PR #12).
+select cron.schedule('mk-webauthn-purge', '0 20 * * *', $$
+  select public.purge_expired_webauthn_challenges();
 $$);
 
 -- Cek jadwal:      select jobid, jobname, schedule from cron.job;
