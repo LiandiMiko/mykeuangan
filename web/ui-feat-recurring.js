@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, localToday, walletOptions, t */
 /* ============================================================
    FEATURES — DUE RECURRING BILLS BANNER & BATCH RECORD
@@ -14,7 +15,7 @@
       if (strip) { strip.classList.add('hide'); strip.textContent = ''; }
       return;
     }
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const rw = FinanceAnalysis.computeCashflowRunway(DB, DB.currentPeriod, DB.payrollDay, todayStr);
     const toneCls = rw.status === 'deficit'
       ? 'border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'
@@ -50,7 +51,7 @@
       return;
     }
 
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const due = FinanceAnalysis.getDueRecurringBills(DB.recurring || [], DB.transactions || [], todayStr, DB.currentPeriod, DB.payrollDay);
     if (!due || due.count === 0) {
       banner.classList.add('hide');
@@ -139,7 +140,7 @@
   async function maybeAutoPostDueRecurring() {
     if (!root.isDataReady || !navigator.onLine || localStorage.getItem(AUTO_POST_KEY) !== '1') return;
     if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.getDueRecurringBills !== 'function') return;
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     if (localStorage.getItem(AUTO_POST_DATE_KEY) === todayStr) return;
     const due = FinanceAnalysis.getDueRecurringBills(DB.recurring || [], DB.transactions || [], todayStr, DB.currentPeriod, DB.payrollDay);
     if (!due || !due.count) return;
@@ -152,7 +153,7 @@
 
   async function batchRecordRecurring() {
     if (!root.isDataReady || typeof FinanceAnalysis === 'undefined') return;
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const due = FinanceAnalysis.getDueRecurringBills(DB.recurring || [], DB.transactions || [], todayStr, DB.currentPeriod, DB.payrollDay);
     if (!due || due.count === 0) {
       Swal.fire({ icon: 'info', title: 'Semua Sudah Dicatat', text: 'Tidak ada tagihan rutin yang jatuh tempo untuk dicatat.', customClass: { popup: getSwalClass() } });

@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, Swal, callServer, refreshFromServer, formatRupiah, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, escapeHtmlJS, getSwalClass, showActionError, walletOptions, localToday */
 /* ============================================================
    ASSET TOP-UP & LIQUIDATION MODALS

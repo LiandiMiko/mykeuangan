@@ -1,3 +1,7 @@
+// @depends-on: ui-state.js (protokol data-action: modul ini menangani
+// atribut data-action/data-args yang dihasilkan mkActionAttrs di ui-state.js;
+// bukan pemanggilan fungsi langsung — lihat juga tes adjacency di
+// tests/wave5-module-order.test.js)
 /* ============================================================
    DELEGATED ACTIONS — Gelombang 2.4 (T11/T12)
    ------------------------------------------------------------

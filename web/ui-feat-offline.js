@@ -1,9 +1,23 @@
+// @depends-on: error-messages.js
 /* global DB, Swal, refreshFromServer, getSwalClass, refreshNotificationBell */
 /* ============================================================
    FEATURES — OFFLINE QUEUE & CALLSERVER WRAPPER
    ============================================================ */
 (function (root) {
   'use strict';
+
+  // Gelombang 5.3 (Q10): localToday() kanonis tinggal di
+  // web/error-messages.js (dimuat pertama). Bila modul ini dimuat
+  // sendiri tanpa itu (tes vm lama), sediakan implementasi lokal
+  // yang sama agar modul tetap jalan — komponen lokal, JANGAN
+  // toISOString() (UTC, geser hari di WIB). Di aplikasi ini
+  // no-op karena error-messages.js sudah dimuat pertama.
+  if (typeof root.localToday !== 'function') {
+    root.localToday = function () {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+  }
 
   const OFFLINE_QUEUE_KEY = 'mk_offline_tx_queue_v1';
   const IDB_NAME = 'mykeuangan_offline_db';
@@ -700,7 +714,9 @@
       const localId = stamp();
       await saveOfflineQueueItem(attachIdempotencyKey({ localId, op: 'api_addTransfer', payload: trPayload, createdAt: new Date().toISOString() }));
       const optimistic = {
-        id: localId, tanggal: trPayload.tanggal || new Date().toISOString().slice(0, 10),
+        // Gelombang 5.3 (Q10): tanggal antrean memakai localToday()
+        // bersama (lokal), bukan toISOString() (UTC, geser hari di WIB).
+        id: localId, tanggal: trPayload.tanggal || localToday(),
         kind: trPayload.kind || 'transfer', fromWallet: trPayload.fromWallet || '', toWallet: trPayload.toWallet || '',
         nominal: Number(trPayload.nominal) || 0, fee: Math.max(0, Number(trPayload.fee) || 0), keterangan: (trPayload.keterangan ? trPayload.keterangan + ' ' : '') + '[Offline Queue]'
       };

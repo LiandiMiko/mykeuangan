@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, localToday, getSwalClass, showActionError, isInPeriod, getPeriodLabel, editTransaction, t */
 /* ============================================================
    BUDGETING & ANALYSIS
@@ -116,7 +117,7 @@
   function renderBudgetForecastCard(period) {
     const el = document.getElementById('budgetForecastCard');
     if (!el || typeof FinanceAnalysis.computeCycleForecast !== 'function') return;
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const fc = FinanceAnalysis.computeCycleForecast(DB.transactions, DB.budgets, period, DB.payrollDay, todayStr);
     const BADGES = {
       over: { label: 'Berisiko Overbudget', cls: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300' },

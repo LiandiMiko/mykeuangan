@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global Swal, callServer, escapeHtmlJS, renderHtml, getSwalClass */
 /* ============================================================
    ADMIN PANEL & TELEGRAM PAIRING

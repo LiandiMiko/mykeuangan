@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, Swal, escapeHtmlJS, renderHtml, getSwalClass, currentLang, localToday, saveAiAnalysisCache, t */
 /* ============================================================
    ON-DEMAND GEMINI 4 AI CASHFLOW ANALYZER (INTERACTIONS API)
@@ -23,8 +24,9 @@
   const AI_USAGE_STORAGE = 'mk_gemini_ai_usage';
 
   function aiTodayKey() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    // Gelombang 5.3 (Q10): pakai localToday() bersama (komponen
+    // lokal) — implementasi duplikat dihapus.
+    return localToday();
   }
 
   function getAiDailyUsage() {
@@ -192,10 +194,12 @@
     return (raw === 'low' || raw === 'medium' || raw === 'high') ? raw : 'medium';
   }
 
+  // Gelombang 5.3 (Q10): delegasi ke escapeHtmlJS — yang sendiri
+  // mendelegasikan ke escapeHtml() kanonis (error-messages.js).
+  // Rantai replace lama dihapus; jangan salin lagi ke sini.
   function escapeSafe(str) {
     if (typeof escapeHtmlJS === 'function') return escapeHtmlJS(str);
-    return String(str == null ? '' : str)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return escapeHtml(str);
   }
 
   function formatInlineMarkdownSafe(escapedText) {
@@ -552,7 +556,7 @@
       </div>`);
 
     try {
-      const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+      const todayStr = localToday();
       const payload = typeof FinanceAnalysis.buildEnrichedAiSnapshot === 'function'
         ? FinanceAnalysis.buildEnrichedAiSnapshot(DB, DB.currentPeriod, DB.payrollDay, todayStr)
         : FinanceAnalysis.buildAiCashflowPayload(DB, DB.currentPeriod, DB.payrollDay);

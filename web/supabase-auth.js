@@ -1,7 +1,19 @@
+// @depends-on: error-messages.js, password-policy.js
 /* global Swal */
 /* supabase-auth.js — session check, Google OAuth, password recovery & offline profile cache */
 (function () {
   'use strict';
+  // Gelombang 5.3 (Q10): localToday() kanonis tinggal di
+  // web/error-messages.js (dimuat pertama). Bila modul ini dimuat
+  // sendiri tanpa itu (tes vm lama), sediakan implementasi lokal
+  // yang sama — komponen lokal, JANGAN toISOString() (UTC, geser
+  // hari di WIB). Di aplikasi ini no-op.
+  if (typeof window !== 'undefined' && typeof window.localToday !== 'function') {
+    window.localToday = function () {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+  }
   const core = window.__mkSb;
   if (!core) return;
   const { sb, fail, resolveReady, showCoreNotice } = core;
@@ -488,7 +500,9 @@
       items: Array.isArray(items) ? items : []
     };
     const json = JSON.stringify(payload, null, 2);
-    const today = new Date().toISOString().slice(0, 10);
+    // Gelombang 5.3 (Q10): nama file memakai tanggal lokal bersama,
+    // bukan toISOString() (UTC, geser hari di WIB sebelum 07:00).
+    const today = localToday();
     const filename = 'MyKeuGuech_OfflineQueue_Emergency_' + today + '.json';
     if (typeof window.saveOrShareFile === 'function') {
       window.saveOrShareFile(json, filename, 'application/json;charset=utf-8');
