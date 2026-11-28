@@ -1,7 +1,7 @@
 -- ============================================================
 -- Optimistic locking (Gelombang 7c Item 2) — dua perangkat
 -- mengedit data yang sama tidak boleh lagi saling menimpa diam-diam.
--- Migrasi: supabase/migrations/20261128110000_optimistic_locking.sql
+-- Migrasi: supabase/migrations/20261128130000_optimistic_locking.sql
 --
 -- Isi:
 --   §1  Kolom `version` (integer, NOT NULL, DEFAULT 1) di enam tabel

@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.16** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.17** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.16-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.17-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.16-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.17-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.16-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.16-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.16-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.17-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.17-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.17-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -472,6 +472,13 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 28 November 2026: Update v3.20.17 (Gelombang 7c Item 2: Optimistic Locking — Konflik Dua Perangkat Ditangani Ramah)
+- **Optimistic locking — kolom `version` + trigger (`supabase/migrations/20261128130000_optimistic_locking.sql`, `web/supabase-core.js`, `web/supabase-records.js`, `web/supabase-planning.js`, `web/supabase-portfolio.js`)**: Keenam tabel yang punya jalur edit (`transactions`, `financial_goals`, `budgets`, `recurring`, `wallets`, `assets`) kini punya kolom `version` (mulai dari 1) dan trigger `bump_version` yang menaikkan versi +1 di setiap UPDATE — otomatis, tidak peduli jalur tulisnya (PostgREST, RPC, refresh harga). Penegakan ada di sisi server: update/delete memakai `WHERE version = <versi-yang-dilihat-saat-mulai-edit>` (PostgREST), anggaran lewat RPC baru `save_budget_checked` (kunci baris `FOR UPDATE` supaya dua RPC bersamaan diserialisasi), hapus dompet lewat RPC baru `delete_wallet_checked` (mendelegasikan ke `delete_wallet()` lama yang tidak diubah). Kedua RPC hanya bisa dipanggil `authenticated` (revoke dari `public, anon` — pola Gelombang 4). Klien tidak pernah menulis kolom `version` sendiri. Migrasi wajib diterapkan SEBELUM klien ini ter-deploy (klien baru memuat kolom `version` di semua select; PostgREST menolak kolom yang belum ada — PGRST204).
+- **Dialog konflik Bahasa Indonesia (`web/sync-conflict.js` baru, `web/ui-feat-offline.js`, `web/ui-form.js`, `web/ui-budget.js`, `web/ui-dashboard.js`, `web/ui-recurring.js`, `web/ui-wallets.js`, `web/ui-pro-reports.js`, 45 kunci `sync.*` baru — kamus 372 → 417)**: Bila tulisan ditolak server karena versi basi, aplikasi menampilkan dialog yang menjelaskan apa yang berubah dengan tiga pilihan — pakai versi saya (force-save, hanya setelah persetujuan), pakai versi terbaru, atau gabungkan bila tidak ada field yang diubah kedua belah pihak. Edit offline yang basi saat sinkronisasi diparkir (bukan di-retry membabi buta / ditimpa) dan ditanyakan lewat dialog yang sama. Jaring pengaman: error `MK_CONFLICT` yang lolos ke mana pun diubah menjadi kalimat ramah (`web/error-messages.js`).
+- **Hapus kini idempotent (perubahan perilaku yang disengaja)**: Menghapus catatan yang sudah dihapus di perangkat lain kini mengembalikan `{alreadyDeleted: true}` dan dianggap selesai — dulu melempar "tidak ditemukan". Hapus basi (versi tidak cocok) tetap konflik; hapus dengan versi benar lolos; update atas baris yang sudah dihapus memberi pilihan pulihkan/biarkan (`deletedByOther`).
+- **Bug yang ikut diperbaiki**: `fetchRecurringOnly` memetakan `active` ke string `'false'` — `Boolean('false') === true` — sehingga dialog bisa salah menandai field `active`. Kini lewat `recurringActiveValue()` di `web/supabase-planning.js`.
+- **Tes**: 33 tes baru di `tests/optimistic-locking.test.js` (migrasi 2, handler 13, helper/dialog 9, flush offline 5, i18n/jaring pengaman 3, impor CSV 1) — termasuk dua perangkat edit data sama → `MK_CONFLICT` dan server tidak tertimpa, edit berurutan tanpa false positive, pemanggil lama tanpa versi tetap terlindungi (fetch-first), hapus ganda idempotent, impor CSV tidak berubah (`addedCount` 1, `skippedCount` 1). Total suite: 566 tes (533 baseline v3.20.16 + 33 baru), lolos di WIB dan UTC.
+- **Catatan versi**: update ke v3.20.17 menimpa v3.20.16 tanpa uninstall (`versionCode 3020017` > `3020016` — monoton).
 ### 28 November 2026: Update v3.20.16 (Gelombang 7c: Login Passkey / WebAuthn — Verifikasi Server)
 - **Login Passkey / WebAuthn Server (`supabase/migrations/20261128070000_wave3_webauthn.sql`, `supabase/functions/webauthn/index.ts`, `web/ui-feat-native-ux.js`, `tests/webauthn.test.js` baru)**: Draf server WebAuthn dari Gelombang 3 kini diverifikasi dan diaktifkan. Server menyimpan kredensial per pengguna di `webauthn_credentials` (kunci publik EC P-256 dalam JWK — kunci privat tidak pernah keluar dari perangkat) dan tantangan sekali pakai di `webauthn_challenges` (kedaluwarsa 5 menit, sekali pakai). Verifikasi tanda tangan di server, penghitung (counter) menolak assertion dengan counter ≤ tersimpan (anti-kloning). Klien kini memakai jalur server (`WEBAUTHN_SERVER_ENABLED = true`): enrollment + assertion lewat Edge Function `webauthn`, memakai `rpId` server bila ada. Dua bug nyata dari draf diperbaiki: (1) supabase-js v2 MELEMPAR `FunctionsHttpError` (bukan `{error}`) — pesan Indonesia dari server kini dibaca dari body `{error}` dengan fallback ramah; (2) penolakan server kini dihitung sebagai kegagalan biometrik, sedangkan server yang tidak terjangkau tetap fallback ke PIN. `deno check` lolos (Deno 2.9.8; pengetatan tipe `Uint8Array<ArrayBuffer>` — nol perubahan runtime; perintah yang benar di repo ini `DENO_NO_PACKAGE_JSON=1 deno check`).
 - **Perbaikan migrasi sebelum diterapkan**: `purge_expired_webauthn_challenges()` SECURITY DEFINER tadinya memberi EXECUTE ke PUBLIC — dicabut dari `public, anon, authenticated`, hanya `service_role` (+ `postgres`). Jebakan lain diperiksa dan tidak kena (tidak ada `hmac`/`digest` tak berkualifikasi, tidak ada `to_regproc` berargumen). Migrasi diterapkan di produksi sebelum merge: 2 tabel ada, RLS aktif keduanya, policy tepat 3 (`webauthn_challenges_none` ALL `false`; `select_own` + `delete_own` `auth.uid() = user_id`), index 6/6, kedua tabel 0 baris. Function `webauthn` di-deploy v1 (verify_jwt true, ACTIVE); probe tanpa JWT → 401, JWT palsu → 401 (bukan 500 mentah).

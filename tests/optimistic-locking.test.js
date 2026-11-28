@@ -27,7 +27,7 @@ const planningJs = fs.readFileSync('web/supabase-planning.js', 'utf8');
 const portfolioJs = fs.readFileSync('web/supabase-portfolio.js', 'utf8');
 const syncConflictJs = fs.readFileSync('web/sync-conflict.js', 'utf8');
 const offlineJs = fs.readFileSync('web/ui-feat-offline.js', 'utf8');
-const migrationSql = fs.readFileSync('supabase/migrations/20261128110000_optimistic_locking.sql', 'utf8');
+const migrationSql = fs.readFileSync('supabase/migrations/20261128130000_optimistic_locking.sql', 'utf8');
 
 const plain = (v) => JSON.parse(JSON.stringify(v));
 

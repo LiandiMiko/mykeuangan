@@ -141,7 +141,7 @@ test('6C/U8 tidak ada confirmButtonText Simpan / cancelButtonText Batal hardcode
   assert.match(read('web/ui-debts.js'), /t\('utang\.kosong'\)/);
 });
 
-test('6C/U8+U23+U24+U39 paritas kamus 363=363 dan nilai kunci baru/ubah', () => {
+test('6C/U8+U23+U24+U39 paritas kamus 417=417 dan nilai kunci baru/ubah', () => {
   const i18n = loadI18nDictionary();
   const idKeys = Object.keys(i18n.id).sort();
   const enKeys = Object.keys(i18n.en).sort();
