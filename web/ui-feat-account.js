@@ -629,6 +629,11 @@
 
   async function applyAccountSettingsUpdate(val) {
     try {
+      // Hotfix P0 (2026-11-28): hasPin DULU hanya didefinisikan di
+      // openAccountSettingsModal(); fungsi ini memakainya di cabang PIN
+      // sehingga setiap set/ubah PIN melempar ReferenceError.
+      // Hitung di sini supaya selalu dalam scope.
+      const hasPin = Boolean(localStorage.getItem('mk_app_pin_hash'));
       if (val.displayName !== root.sessionUser) {
         const out = await callServer('api_updateOwnProfile', val.displayName);
         if (out && out.displayName) {
@@ -1028,6 +1033,8 @@
   Object.assign(root, { openAccountSettingsModal, deleteOwnAccountFlow, openQuickAddMenu, installPwaApp });
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.saveInitialAppPin = saveInitialAppPin;
+  // Hotfix P0: dipakai tests/hotfix-p0-ambiguous-id.test.js (regresi hasPin).
+  root.__mkFeat.applyAccountSettingsUpdate = applyAccountSettingsUpdate;
   // Gelombang 4: dipakai toggleBiometricUnlock() saat mematikan biometrik.
   root.__mkFeat.promptVerifyCurrentPin = promptVerifyCurrentPin;
   root.__mkFeat.verifyAppPinIfEnabled = verifyAppPinIfEnabled;
