@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, Swal, callServer, refreshFromServer, renderAll, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, getPeriodLabel, t, mkActionAttrs */
 /* ============================================================
    PAYROLL CYCLE & RECURRING TRANSACTIONS

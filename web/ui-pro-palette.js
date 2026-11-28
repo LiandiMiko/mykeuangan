@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, FinancePro, FinanceAnalysis, Swal, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, switchView, openForm, triggerReceiptOcr, toggleDarkMode, setLang, currentLang, filterHistoriView, t, mkActionAttrs */
 /* ============================================================
    PRO FEATURES — COMMAND PALETTE, #TAGS & AUTO-CATEGORY RULES

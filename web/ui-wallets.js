@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, formatNominalInputValue, parseFormattedNominal, bindNominalInputs, getSwalClass, showActionError, t, mkActionAttrs */
 /* ============================================================
    WALLETS, TRANSFERS & DATE HELPERS
@@ -8,10 +9,11 @@
   const isPiutangK = (k) => String(k).startsWith('Piutang');
   const isUtangK = (k) => !isPiutangK(k) && String(k).startsWith('Utang');
 
-  function localToday() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
+  // Gelombang 5.3 (Q10): localToday() dulu didefinisikan di sini;
+  // kini definisi kanonisnya tinggal di web/error-messages.js
+  // (dimuat pertama) dan diekspor ulang di bawah sebagai
+  // root.localToday agar semua pemakai lama tetap jalan.
+  const localToday = root.localToday;
 
   function cycleOfDate(tanggal) {
     const pd = Number(DB.payrollDay) || 1;

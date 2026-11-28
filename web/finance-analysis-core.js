@@ -1,5 +1,13 @@
+// @depends-on: error-messages.js
 (function (root) {
   'use strict';
+
+  // Gelombang 5.3 (Q10): di Node, muat helper bersama agar
+  // localDateKey() tersedia (di browser error-messages.js sudah
+  // dimuat pertama lewat build.mjs).
+  if (typeof module !== 'undefined' && module.exports) {
+    try { require('./error-messages.js'); } catch (_) { /* abaikan: fallback lokal di bawah */ }
+  }
 
   function parsePeriod(period) {
     const match = /^(\d{4})-(\d{2})$/.exec(String(period || ''));
@@ -10,7 +18,11 @@
     return { year, month };
   }
 
+  // Gelombang 5.3 (Q10): satu implementasi format tanggal lokal —
+  // delegasi ke localDateKey() bersama (error-messages.js). Fallback
+  // lokal hanya bila modul dimuat sendiri tanpa helper bersama.
   function formatDate(date) {
+    if (typeof localDateKey === 'function') return localDateKey(date);
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return date.getFullYear() + '-' + month + '-' + day;

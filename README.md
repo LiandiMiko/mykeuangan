@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.0-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.8-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.0-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.0-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.0-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.8-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.8-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.8-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).

@@ -1,3 +1,4 @@
+// @depends-on: error-messages.js, ui-state.js
 /* global DB, FinanceAnalysis, sessionUser, Swal, callServer, refreshFromServer, formatRupiah, _origFormatRupiah, escapeHtmlJS, renderHtml, getSwalClass, showActionError, getFilteredReportTransactions, walletName, localToday, t */
 /* ============================================================
    FEATURES — EXCEL EXPORT, JSON BACKUP/RESTORE & PRINT STATEMENT
@@ -126,7 +127,7 @@
   }
 
   async function exportBackupJson() {
-    const todayStr = typeof localToday === 'function' ? localToday() : new Date().toISOString().slice(0, 10);
+    const todayStr = localToday();
     const snapshot = {
       exportedAt: new Date().toISOString(),
       version: '3.14',

@@ -1,5 +1,13 @@
+// @depends-on: error-messages.js
 (function (root) {
   'use strict';
+
+  // Gelombang 5.3 (Q10): di Node, muat helper bersama agar
+  // localToday() tersedia (di browser error-messages.js sudah
+  // dimuat pertama lewat build.mjs).
+  if (typeof module !== 'undefined' && module.exports) {
+    try { require('./error-messages.js'); } catch (_) { /* abaikan */ }
+  }
 
   const DEFAULT_AUTO_CATEGORY_RULES = [
     { keyword: 'gofood|grabfood|shopeefood|kopi|coffee|starbucks|kfc|mcd|warteg|resto|cafe|bakso|mie|nasi|makan', category: 'Makanan', tipe: 'Pengeluaran' },
@@ -159,7 +167,9 @@
       walletName: walletMatch.walletName,
       keterangan: cleaned || kategori,
       tags,
-      tanggal: /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || '')) ? String(todayStr).slice(0, 10) : new Date().toISOString().slice(0, 10)
+      // Gelombang 5.3 (Q10): tanggal hari ini lokal bersama —
+      // JANGAN fallback ke toISOString() (UTC, geser hari di WIB).
+      tanggal: /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || '')) ? String(todayStr).slice(0, 10) : localToday()
     };
   }
 

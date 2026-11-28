@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, FinancePro, FinanceAnalysis, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, renderHtml, showActionError, t */
 /* ============================================================
    PRO FEATURES — BULK REPORT ACTIONS, ANNUAL RECAP & COMPARISON
@@ -230,7 +231,9 @@
 
   async function openAnnualRecapModal() {
     const pro = root.__mkPro || {};
-    const curPeriod = DB.currentPeriod || new Date().toISOString().slice(0, 7);
+    // Gelombang 5.3 (Q10): periode berjalan lokal bersama — bukan
+    // toISOString() (UTC: di WIB awal bulan bisa mundur sebulan).
+    const curPeriod = DB.currentPeriod || localToday().slice(0, 7);
     const curYear = curPeriod.slice(0, 4);
     const prevPeriod = typeof FinanceAnalysis !== 'undefined' ? FinanceAnalysis.shiftPeriod(curPeriod, -1) : curPeriod;
     const years = Array.from(new Set([curYear, ...(DB.transactions || []).map((tx) => String(tx.tanggal || '').slice(0, 4)).filter((y) => /^\d{4}$/.test(y))])).sort().reverse();

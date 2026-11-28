@@ -1,3 +1,4 @@
+// @depends-on: finance-analysis-core.js
 (function (root) {
   'use strict';
 

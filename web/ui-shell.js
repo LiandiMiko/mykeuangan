@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, Chart, flatpickr, monthSelectPlugin, escapeHtmlJS, renderHtml, callServer, updateEyeIcon, updateAiKeyStatusUI, bindReportControls, saveCurrentPeriod, updateDashboardTitle, renderDashboard, renderWallets, renderRecurring, renderLaporan, renderDebtLists, renderKalender, renderBudgeting, renderPortfolioChart, loadAdminData, markLatestReleaseSeen */
 /* ============================================================
    INIT, THEME, NAVIGATION & RENDER ORCHESTRATION

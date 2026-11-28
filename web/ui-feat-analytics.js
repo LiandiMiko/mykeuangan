@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, FinanceAnalysis, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, buildEmptyTxPlaceholder, isInPeriod, walletName, walletBalances, t, mkActionAttrs */
 /* ============================================================
    FEATURES — HISTORI FILTER, FINANCIAL RATIOS, ALLOCATION & ANOMALIES

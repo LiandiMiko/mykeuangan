@@ -1,3 +1,4 @@
+// @depends-on: ui-state.js
 /* global DB, Chart, Swal, callServer, refreshFromServer, formatRupiah, formatShortIDR, escapeHtmlJS, escapeAttrJS, renderHtml, getSwalClass, showActionError, mkActionAttrs */
 /* ============================================================
    ASSETS & 30-DAY PORTFOLIO CHART
