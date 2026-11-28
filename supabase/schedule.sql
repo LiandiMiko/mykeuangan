@@ -40,13 +40,15 @@
 -- ============================================================
 
 -- Hapus jadwal lama dulu (bila ada) supaya jadwal baru yang memakai
--- Vault menggantikannya dengan bersih. Menghapus jadwal yang belum
--- ada tidak error (mengembalikan false).
-select cron.unschedule('mk-daily-reminder');
-select cron.unschedule('mk-weekly-report');
-select cron.unschedule('mk-recurring');
-select cron.unschedule('mk-snapshot');
-select cron.unschedule('mk-account-cleanup');
+-- Vault menggantikannya dengan bersih. Perhatian: cron.unschedule
+-- atas job yang belum ada ERROR (XX000) pada pg_cron ini — terbukti
+-- 2026-11-28 saat mk-account-cleanup belum pernah dijadwalkan.
+-- Karena itu setiap unschedule dijaga where exists (cron.job).
+select cron.unschedule('mk-daily-reminder') where exists (select 1 from cron.job where jobname = 'mk-daily-reminder');
+select cron.unschedule('mk-weekly-report') where exists (select 1 from cron.job where jobname = 'mk-weekly-report');
+select cron.unschedule('mk-recurring') where exists (select 1 from cron.job where jobname = 'mk-recurring');
+select cron.unschedule('mk-snapshot') where exists (select 1 from cron.job where jobname = 'mk-snapshot');
+select cron.unschedule('mk-account-cleanup') where exists (select 1 from cron.job where jobname = 'mk-account-cleanup');
 
 select cron.schedule('mk-daily-reminder', '0 14 * * *', $$
   select net.http_post(
