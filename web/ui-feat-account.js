@@ -672,7 +672,270 @@
     }
   }
 
+  // Gelombang 7c Item 3 — hapus akun untuk akun Google-only.
+  // Akun Google-only tidak punya password, jadi T4 password tidak bisa
+  // mereka penuhi. Bukti penggantinya adalah autentikasi SEGAR lewat
+  // Google: access token sesi yang baru diterbitkan lewat login ulang
+  // Google (server memeriksa amr/iat ≤ 10 menit — lihat
+  // supabase/functions/delete-account/index.ts). Klien hanya memutuskan
+  // JALUR mana yang ditampilkan; server yang memutuskan boleh/tidak.
+  const DELETE_ACCOUNT_GOOGLE_PENDING_KEY = 'mk_delete_account_google_pending_v1';
+  const GOOGLE_REAUTH_FRESH_MS = 10 * 60 * 1000;
+
+  function getAuthClient() {
+    return (root.__mkSb && root.__mkSb.sb) || root.sb || null;
+  }
+
+  // Daftar provider dari app_metadata (ditulis server GoTrue — tidak
+  // bisa diubah pengguna, berbeda dengan user_metadata). Fallback ke
+  // `provider` tunggal bila array `providers` tidak ada.
+  function authProvidersOf(user) {
+    if (!user || typeof user !== 'object') return [];
+    const meta = user.app_metadata;
+    if (!meta || typeof meta !== 'object') return [];
+    if (Array.isArray(meta.providers)) return meta.providers.filter((p) => typeof p === 'string');
+    if (typeof meta.provider === 'string' && meta.provider) return [meta.provider];
+    return [];
+  }
+
+  function isGoogleOnlyAccount(user) {
+    const providers = authProvidersOf(user);
+    return providers.length === 1 && providers[0] === 'google';
+  }
+
+  // Dekode payload JWT (base64url) — hanya untuk cek kesegaran LOKAL
+  // (UX: perlu redirect Google atau tidak). Keputusan akhir di server.
+  function decodeJwtPayloadLocal(token) {
+    try {
+      const parts = String(token || '').split('.');
+      if (parts.length !== 3 || !parts[1]) return null;
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+      const bin = atob(padded);
+      const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (_) { return null; }
+  }
+
+  // true bila access token ini diterbitkan lewat login Google < 10 menit
+  // lalu (entri amr `oauth`). Refresh token TIDAK menggeser amr, jadi
+  // token hasil refresh sesi lama tetap basi di sini — sama seperti
+  // pemeriksaan server.
+  function isFreshGoogleSessionToken(accessToken, nowMs) {
+    const claims = decodeJwtPayloadLocal(accessToken);
+    if (!claims || typeof claims !== 'object') return false;
+    const nowSec = Math.floor((typeof nowMs === 'number' ? nowMs : Date.now()) / 1000);
+    const amr = Array.isArray(claims.amr) ? claims.amr : [];
+    const entry = amr.find((e) => e && typeof e === 'object' && e.method === 'oauth');
+    if (!entry || typeof entry.timestamp !== 'number') return false;
+    if (entry.timestamp > nowSec + 60 || nowSec - entry.timestamp > 600) return false;
+    if (typeof claims.iat !== 'number') return false;
+    return claims.iat <= nowSec + 60 && nowSec - claims.iat <= 600;
+  }
+
+  async function readGoogleDeletePending() {
+    try {
+      const raw = sessionStorage.getItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY);
+      if (!raw) return null;
+      const pending = JSON.parse(raw);
+      if (!pending || typeof pending !== 'object' || typeof pending.startedAt !== 'number') return null;
+      if (Date.now() - pending.startedAt > GOOGLE_REAUTH_FRESH_MS) {
+        try { sessionStorage.removeItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY); } catch (_) { /* ignore */ }
+        return null;
+      }
+      return pending;
+    } catch (_) { return null; }
+  }
+
+  // Dialog akhir jalur Google-only: ketik HAPUS (sesudah autentikasi
+  // segar) → kirim oauth_token. Dipakai baik saat sesi sudah segar
+  // maupun saat resume setelah kembali dari Google.
+  async function deleteOwnAccountGoogleConfirm(email, accessToken) {
+    const keyword = txMsg('HAPUS', 'DELETE');
+    const confirmRes = await Swal.fire({
+      icon: 'warning',
+      title: txMsg('Hapus Akun Permanen?', 'Delete Account Permanently?'),
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300">
+          <p>${txMsg('Seluruh transaksi, dompet, aset, anggaran, jadwal rutin, dan profil Anda akan <strong>dihapus permanen</strong> dan tidak bisa dipulihkan.', 'All your transactions, wallets, assets, budgets, recurring items, and profile will be <strong>permanently deleted</strong> and cannot be recovered.')}</p>
+          <p>${txMsg('Akun ini masuk lewat Google, jadi tidak ada password yang bisa diminta ulang. Identitas Anda baru saja dibuktikan dengan <strong>login ulang Google</strong> — bukti itu hanya berlaku 10 menit.', 'This account signs in with Google, so there is no password to ask again. Your identity was just proven with a <strong>fresh Google login</strong> — that proof is only valid for 10 minutes.')}</p>
+          ${email ? `<p>${txMsg('Akun Google:', 'Google account:')} <strong>${escapeHtmlJS(email)}</strong></p>` : ''}
+          <label for="del-acc-confirm" class="block font-bold pt-1">${txMsg('Ketik', 'Type')} <span class="text-rose-600">${keyword}</span> ${txMsg('untuk konfirmasi', 'to confirm')}</label>
+          <input id="del-acc-confirm" type="text" autocomplete="off" class="swal2-input" style="margin:0;width:100%" placeholder="${keyword}">
+        </div>`,
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      confirmButtonText: txMsg('Hapus Akun Permanen', 'Delete Permanently'),
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() },
+      preConfirm: () => {
+        const v = String((document.getElementById('del-acc-confirm') || {}).value || '').trim().toUpperCase();
+        if (v !== 'HAPUS' && v !== 'DELETE') {
+          Swal.showValidationMessage(txMsg('Ketik HAPUS terlebih dahulu.', 'Type DELETE first to confirm.'));
+          return false;
+        }
+        return { confirmation: v };
+      }
+    });
+    if (!confirmRes.isConfirmed || !confirmRes.value) return false;
+    Swal.fire({ title: txMsg('Menghapus akun...', 'Deleting account...'), text: txMsg('Mohon tunggu sebentar.', 'Please wait a moment.'), allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { popup: getSwalClass() } });
+    try {
+      await callServer('api_deleteOwnAccount', confirmRes.value.confirmation, null, accessToken);
+      await Swal.fire({ icon: 'success', title: txMsg('Akun Dihapus', 'Account Deleted'), text: txMsg('Seluruh data Anda telah dihapus permanen.', 'All of your data has been permanently deleted.'), timer: 1400, showConfirmButton: false, customClass: { popup: getSwalClass() } });
+      // Akun sudah terhapus di server: antrean offline tidak mungkin lagi
+      // tersinkronisasi, jadi lewati penjaga antrean logout (K3) di sini.
+      if (typeof root.logout === 'function') await root.logout({ force: true });
+      return true;
+    } catch (err) {
+      if (typeof showActionError === 'function') showActionError(err);
+      else Swal.fire({ icon: 'error', title: txMsg('Gagal Menghapus Akun', 'Failed to Delete Account'), text: toUserErrorMessage(err, isEn() ? 'en' : 'id'), customClass: { popup: getSwalClass() } });
+      return false;
+    }
+  }
+
+  // Dialog awal jalur Google-only saat sesi basi: ketik HAPUS + tombol
+  // "Lanjutkan dengan Google" → simpan penanda resume → login ulang
+  // Google (redirect; `prompt: 'select_account'` memaksa pemilih akun
+  // supaya re-autentikasi eksplisit dan terlihat — penting untuk aksi
+  // destruktif). Setelah kembali, resume otomatis menampilkan dialog
+  // akhir (deleteOwnAccountGoogleConfirm).
+  async function deleteOwnAccountGoogleReauth() {
+    const keyword = txMsg('HAPUS', 'DELETE');
+    const confirmRes = await Swal.fire({
+      icon: 'warning',
+      title: txMsg('Hapus Akun Permanen?', 'Delete Account Permanently?'),
+      html: `
+        <div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300">
+          <p>${txMsg('Seluruh transaksi, dompet, aset, anggaran, jadwal rutin, dan profil Anda akan <strong>dihapus permanen</strong> dan tidak bisa dipulihkan.', 'All your transactions, wallets, assets, budgets, recurring items, and profile will be <strong>permanently deleted</strong> and cannot be recovered.')}</p>
+          <p>${txMsg('Akun ini masuk lewat Google dan tidak punya password. Untuk memastikan yang menghapus akun benar-benar pemiliknya, Anda akan diminta <strong>login ulang dengan Google</strong> — setelah itu ketik HAPUS sekali lagi untuk menyelesaikan penghapusan.', 'This account signs in with Google and has no password. To make sure the account is deleted by its owner, you will be asked to <strong>sign in with Google again</strong> — afterwards, type DELETE once more to finish the deletion.')}</p>
+          <label for="del-acc-confirm" class="block font-bold pt-1">${txMsg('Ketik', 'Type')} <span class="text-rose-600">${keyword}</span> ${txMsg('untuk konfirmasi', 'to confirm')}</label>
+          <input id="del-acc-confirm" type="text" autocomplete="off" class="swal2-input" style="margin:0;width:100%" placeholder="${keyword}">
+        </div>`,
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      confirmButtonText: txMsg('Lanjutkan dengan Google', 'Continue with Google'),
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() },
+      preConfirm: () => {
+        const v = String((document.getElementById('del-acc-confirm') || {}).value || '').trim().toUpperCase();
+        if (v !== 'HAPUS' && v !== 'DELETE') {
+          Swal.showValidationMessage(txMsg('Ketik HAPUS terlebih dahulu.', 'Type DELETE first to confirm.'));
+          return false;
+        }
+        return { confirmation: v };
+      }
+    });
+    if (!confirmRes.isConfirmed || !confirmRes.value) return;
+    try {
+      try {
+        sessionStorage.setItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY, JSON.stringify({ confirmation: confirmRes.value.confirmation, startedAt: Date.now() }));
+      } catch (_) { /* tanpa penanda, resume tidak jalan — pengguna mengulang dari awal */ }
+      const sb = getAuthClient();
+      if (!sb || !sb.auth || typeof sb.auth.signInWithOAuth !== 'function') {
+        throw new Error(txMsg('Login Google tidak tersedia saat ini.', 'Google sign-in is not available right now.'));
+      }
+      // redirectTo = halaman ini (rumus yang sama dengan authRedirectUrl
+      // di supabase-auth.js) — supaya kembali ke aplikasi setelah Google.
+      const redirectTo = window.location.origin + window.location.pathname;
+      const useNativeOAuth = typeof root.isNativeApp === 'function' && root.isNativeApp() &&
+        typeof root.startNativeOAuth === 'function';
+      if (useNativeOAuth) {
+        const { error } = await root.startNativeOAuth(sb, 'google');
+        if (error) throw error;
+      } else {
+        const { error } = await sb.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo, queryParams: { prompt: 'select_account' } }
+        });
+        if (error) throw error;
+      }
+    } catch (err) {
+      try { sessionStorage.removeItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY); } catch (_) { /* ignore */ }
+      if (typeof showActionError === 'function') showActionError(err);
+      else Swal.fire({ icon: 'error', title: txMsg('Gagal Memulai Verifikasi Google', 'Failed to Start Google Verification'), text: toUserErrorMessage(err, isEn() ? 'en' : 'id'), customClass: { popup: getSwalClass() } });
+    }
+  }
+
+  let googleDeleteResumeScheduled = false;
+  let googleDeleteResumeRunning = false;
+
+  // Lanjutan alur hapus akun Google-only setelah kembali dari Google:
+  // penanda ada di sessionStorage → tunggu PIN terbuka dulu (bila PIN
+  // diset) supaya dialog tidak menimpa layar kunci PIN → dialog akhir
+  // (ketik HAPUS lagi, sesudah autentikasi segar) → kirim oauth_token.
+  // Best-effort: gagal di sini tidak boleh merusak pemuatan aplikasi;
+  // pengguna bisa mengulang dari Pengaturan Akun.
+  async function maybeResumeGoogleDeleteAccount() {
+    if (googleDeleteResumeRunning) return;
+    googleDeleteResumeRunning = true;
+    try {
+      const pending = await readGoogleDeletePending();
+      if (!pending) return;
+      const sb = getAuthClient();
+      if (!sb || !sb.auth || typeof sb.auth.getSession !== 'function') return;
+      while (typeof localStorage !== 'undefined' && localStorage.getItem('mk_app_pin_hash') &&
+          sessionStorage.getItem('mk_pin_unlocked') !== '1') {
+        if (Date.now() - pending.startedAt > GOOGLE_REAUTH_FRESH_MS) return;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      const { data } = await sb.auth.getSession();
+      const session = (data && data.session) || null;
+      if (!session || !session.user || !isGoogleOnlyAccount(session.user)) {
+        try { sessionStorage.removeItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY); } catch (_) { /* ignore */ }
+        return;
+      }
+      if (!isFreshGoogleSessionToken(session.access_token)) {
+        try { sessionStorage.removeItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY); } catch (_) { /* ignore */ }
+        await Swal.fire({
+          icon: 'info',
+          title: txMsg('Verifikasi Google Kedaluwarsa', 'Google Verification Expired'),
+          text: txMsg('Login ulang Google sudah lebih dari 10 menit lalu. Silakan ulangi hapus akun dari Pengaturan Akun.', 'The Google re-login was more than 10 minutes ago. Please restart account deletion from Account Settings.'),
+          customClass: { popup: getSwalClass() }
+        });
+        return;
+      }
+      // Penanda dibersihkan sekarang — dialog akhir yang tampil sudah
+      // cukup; reload di tengah dialog tidak boleh memutar ulang alur.
+      try { sessionStorage.removeItem(DELETE_ACCOUNT_GOOGLE_PENDING_KEY); } catch (_) { /* ignore */ }
+      await deleteOwnAccountGoogleConfirm(session.user.email || '', session.access_token);
+    } catch (_) {
+      // Best-effort (lihat komentar di atas).
+    } finally {
+      googleDeleteResumeRunning = false;
+    }
+  }
+
   async function deleteOwnAccountFlow() {
+    // Tentukan dulu jenis akun dari provider (app_metadata, ditulis
+    // server). Google-only → bukti OAuth segar; ber-password → dialog
+    // lama (password). Bila jenis akun tidak bisa ditentukan
+    // (sesi/metadata hilang) → fallback ke dialog password.
+    const sb = getAuthClient();
+    let user = null;
+    try {
+      if (sb && sb.auth && typeof sb.auth.getUser === 'function') {
+        const { data } = await sb.auth.getUser();
+        user = (data && data.user) || null;
+      }
+    } catch (_) { user = null; }
+    if (user && isGoogleOnlyAccount(user)) {
+      // Sesi sudah segar (baru login Google < 10 menit)? Langsung ke
+      // dialog akhir tanpa redirect. Kalau tidak, minta login ulang.
+      let freshToken = null;
+      try {
+        if (sb && sb.auth && typeof sb.auth.getSession === 'function') {
+          const { data } = await sb.auth.getSession();
+          const token = (data && data.session && data.session.access_token) || null;
+          if (token && isFreshGoogleSessionToken(token)) freshToken = token;
+        }
+      } catch (_) { freshToken = null; }
+      if (freshToken) {
+        await deleteOwnAccountGoogleConfirm(user.email || '', freshToken);
+      } else {
+        await deleteOwnAccountGoogleReauth();
+      }
+      return;
+    }
     const keyword = txMsg('HAPUS', 'DELETE');
     const confirmRes = await Swal.fire({
       icon: 'warning',
@@ -1086,4 +1349,32 @@
       setLastActivityAt: (ms) => { lastActivityAt = Number(ms) || 0; lastActivityRecordAt = 0; }
     }
   };
+  // Gelombang 7c Item 3 — test/diagnostic surface + resume hapus akun
+  // Google-only setelah kembali dari Google. `__mkSb` sudah ada saat
+  // modul ini dimuat (supabase-core.js dimuat sebelum features-v21 di
+  // build.mjs). Cek saat modul dimuat (sesi sudah dipulihkan supabase-js
+  // saat ini) + dengarkan SIGNED_IN (callback yang selesai belakangan,
+  // mis. deep link native). Sekali-jalan dijaga
+  // maybeResumeGoogleDeleteAccount (flag + penanda dibersihkan saat resume).
+  root.__mkFeat.googleDelete = {
+    isGoogleOnlyAccount,
+    isFreshGoogleSessionToken,
+    decodeJwtPayloadLocal,
+    authProvidersOf,
+    maybeResumeGoogleDeleteAccount,
+    pendingKey: DELETE_ACCOUNT_GOOGLE_PENDING_KEY,
+    freshWindowMs: GOOGLE_REAUTH_FRESH_MS
+  };
+  try {
+    const resumeSb = getAuthClient();
+    if (resumeSb && resumeSb.auth && typeof resumeSb.auth.onAuthStateChange === 'function') {
+      resumeSb.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN' && !googleDeleteResumeScheduled) {
+          googleDeleteResumeScheduled = true;
+          maybeResumeGoogleDeleteAccount();
+        }
+      });
+    }
+  } catch (_) { /* resume best-effort — pengguna bisa mengulang dari Pengaturan Akun */ }
+  maybeResumeGoogleDeleteAccount();
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -65,6 +65,52 @@ async function decryptBotToken(ivB64: string, cipherB64: string): Promise<string
   return new TextDecoder().decode(plain);
 }
 
+// --- Bukti OAuth segar (Gelombang 7c Item 3) ------------------------------
+// Akun Google-only tidak punya password, jadi T4 (password) tidak bisa
+// mereka penuhi. Jalur kedua: access token sesi yang BARU diterbitkan
+// lewat login ulang Google. Token itu dibuktikan segar lewat klaim JWT:
+//   * `amr` harus memuat { method: 'oauth', timestamp } ≤ 10 menit —
+//     GoTrue mencatat timestamp ini per sesi (auth.mfa_amr_claims) dan
+//     REFRESH TOKEN TIDAK MENGGESERNYA, hanya login baru yang bisa.
+//     `iat` saja TIDAK cukup: refresh mencetak token baru dengan iat
+//     baru, jadi sesi curian yang di-refresh akan tampak "segar".
+//   * `iat` juga harus ≤ 10 menit (lapis kedua; token yang baru
+//     diterbitkan lewat login selalu memenuhi keduanya).
+// Tanda tangan token SUDAH divalidasi GoTrue lewat getUser() — dekode
+// lokal hanya membaca klaim, bukan memverifikasi tanda tangan.
+const OAUTH_FRESH_WINDOW_SECONDS = 600;
+const OAUTH_CLOCK_SKEW_SECONDS = 60;
+
+function providersOf(user: unknown): string[] {
+  if (!isRecord(user)) return [];
+  const meta = user.app_metadata;
+  if (!isRecord(meta)) return [];
+  if (Array.isArray(meta.providers)) {
+    return meta.providers.filter((p): p is string => typeof p === 'string');
+  }
+  if (typeof meta.provider === 'string' && meta.provider) return [meta.provider];
+  return [];
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.');
+  if (parts.length !== 3 || !parts[1]) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(b64ToBytes(padded)));
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isFreshTimestamp(value: unknown, nowSeconds: number): boolean {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+  return value <= nowSeconds + OAUTH_CLOCK_SKEW_SECONDS &&
+    nowSeconds - value <= OAUTH_FRESH_WINDOW_SECONDS;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCorsHeaders(req) });
   if (req.method !== 'POST') return jsonResponse(req, { error: 'Method not allowed.' }, 405);
@@ -104,20 +150,59 @@ Deno.serve(async (req) => {
   if (authError || !authData.user) return jsonResponse(req, { error: 'Sesi login tidak valid.' }, 401);
   const userId = authData.user.id;
 
-  // T4: autentikasi ulang — penghapusan akun wajib membuktikan password
-  // saat ini. Pesan sengaja generik ("Kata sandi tidak valid.") agar tidak
-  // membocorkan apakah password yang dikirim kosong, salah, atau akun
-  // tidak punya password (mis. akun OAuth-only). signInWithPassword di
-  // sini memakai klien anon tanpa persistSession, jadi tidak ada sesi
-  // baru yang tersimpan di server fungsi ini.
-  if (!isRecord(body) || typeof body.password !== 'string' || !body.password) {
-    return jsonResponse(req, { error: 'Kata sandi tidak valid.' }, 401);
+  // T4: autentikasi ulang — penghapusan akun wajib membuktikan identitas
+  // SEGAR. Dua jalur:
+  //   (a) akun ber-password: password saat ini via signInWithPassword
+  //       (perilaku lama, tidak berubah).
+  //   (b) akun Google-only (providers tepat ['google']): access token
+  //       sesi yang baru diterbitkan lewat login ulang Google
+  //       (body.oauth_token), diverifikasi di bawah.
+  // Pesan sengaja generik ("Kata sandi tidak valid." / "Verifikasi ulang
+  // gagal.") agar tidak membocorkan cek mana yang gagal maupun apakah
+  // akun punya password. signInWithPassword di sini memakai klien anon
+  // tanpa persistSession, jadi tidak ada sesi baru yang tersimpan di
+  // server fungsi ini.
+  const oauthToken = isRecord(body) && typeof body.oauth_token === 'string' && body.oauth_token
+    ? body.oauth_token
+    : null;
+  if (oauthToken) {
+    // Jalur (b) — hanya untuk akun Google-only. Akun yang punya
+    // kredensial password (providers memuat 'email'/'phone') DITOLAK di
+    // sini: mereka wajib memakai jalur password, supaya OAuth tidak
+    // menjadi jalan pintas melewati password.
+    const requesterProviders = providersOf(authData.user);
+    const isGoogleOnly = requesterProviders.length === 1 && requesterProviders[0] === 'google';
+    if (!isGoogleOnly) {
+      return jsonResponse(req, { error: 'Verifikasi ulang gagal.' }, 401);
+    }
+    const { data: oauthData, error: oauthError } = await userClient.auth.getUser(oauthToken);
+    if (oauthError || !oauthData.user || oauthData.user.id !== userId) {
+      return jsonResponse(req, { error: 'Verifikasi ulang gagal.' }, 401);
+    }
+    if (!providersOf(oauthData.user).includes('google')) {
+      return jsonResponse(req, { error: 'Verifikasi ulang gagal.' }, 401);
+    }
+    const claims = decodeJwtPayload(oauthToken);
+    if (!claims || claims.sub !== userId) {
+      return jsonResponse(req, { error: 'Verifikasi ulang gagal.' }, 401);
+    }
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const amr = Array.isArray(claims.amr) ? claims.amr : [];
+    const oauthEntry = amr.find((e) => isRecord(e) && e.method === 'oauth');
+    const oauthAt = isRecord(oauthEntry) ? oauthEntry.timestamp : undefined;
+    if (!isFreshTimestamp(oauthAt, nowSeconds) || !isFreshTimestamp(claims.iat, nowSeconds)) {
+      return jsonResponse(req, { error: 'Verifikasi ulang gagal.' }, 401);
+    }
+  } else {
+    if (typeof body.password !== 'string' || !body.password) {
+      return jsonResponse(req, { error: 'Kata sandi tidak valid.' }, 401);
+    }
+    const { error: passwordError } = await userClient.auth.signInWithPassword({
+      email: authData.user.email,
+      password: body.password,
+    });
+    if (passwordError) return jsonResponse(req, { error: 'Kata sandi tidak valid.' }, 401);
   }
-  const { error: passwordError } = await userClient.auth.signInWithPassword({
-    email: authData.user.email,
-    password: body.password,
-  });
-  if (passwordError) return jsonResponse(req, { error: 'Kata sandi tidak valid.' }, 401);
 
   const { data: profile, error: profileError } = await adminClient
     .from('profiles')

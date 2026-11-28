@@ -415,6 +415,35 @@ test('cleanup: schedule.sql menambah mk-account-cleanup harian 02:00 WIB dari Va
   }
 });
 
+test('cleanup: schedule.sql menambah mk-webauthn-purge harian 03:00 WIB (panggil SQL langsung, tanpa HTTP/secret)', () => {
+  // Penutup keputusan purge yang tertunda sejak PR #16 (Gelombang 7c Item 3):
+  // tantangan WebAuthn kedaluwarsa dibersihkan pg_cron langsung — fungsinya
+  // sudah SECURITY DEFINER + EXECUTE hanya service_role, jadi tidak butuh
+  // edge function, CRON_SECRET, atau Vault.
+  assert.ok(scheduleSql.includes("cron.unschedule('mk-webauthn-purge')"), 'job lama di-unschedule dulu (terjaga)');
+  assert.match(
+    scheduleSql,
+    /cron\.schedule\('mk-webauthn-purge', '0 20 \* \* \*', \$\$\n\s*select public\.purge_expired_webauthn_challenges\(\);/,
+    'job harian 03:00 WIB memanggil fungsi purge langsung',
+  );
+  // Tidak ada HTTP hop untuk job ini: tidak ada net.http_post di antara
+  // schedule mk-webauthn-purge dan penutup $$); berikutnya.
+  const purgeBlock = scheduleSql.slice(scheduleSql.indexOf("cron.schedule('mk-webauthn-purge'"));
+  const purgeStmt = purgeBlock.slice(0, purgeBlock.indexOf('$$);'));
+  assert.doesNotMatch(purgeStmt, /net\.http_post/, 'purge tidak boleh lewat HTTP');
+  assert.doesNotMatch(purgeStmt, /cron_secret/, 'purge tidak boleh memakai CRON_SECRET');
+  // 5 job lama tidak berubah.
+  for (const [name, expr] of [
+    ['mk-daily-reminder', '0 14 * * *'],
+    ['mk-weekly-report', '0 13 * * 0'],
+    ['mk-recurring', '0 18 * * *'],
+    ['mk-snapshot', '0 16 * * *'],
+    ['mk-account-cleanup', '0 19 * * *'],
+  ]) {
+    assert.ok(scheduleSql.includes(`cron.schedule('${name}', '${expr}'`), `job lama ${name} harus tetap ada`);
+  }
+});
+
 test('cleanup: schedule.sql meng-guard unschedule — job yang belum ada tidak boleh error', () => {
   // Bukti 2026-11-28: cron.unschedule('mk-account-cleanup') tanpa guard
   // gagal XX000 "could not find valid entry for job" karena job itu
@@ -426,6 +455,7 @@ test('cleanup: schedule.sql meng-guard unschedule — job yang belum ada tidak b
     'mk-recurring',
     'mk-snapshot',
     'mk-account-cleanup',
+    'mk-webauthn-purge',
   ]) {
     assert.ok(
       scheduleSql.includes(

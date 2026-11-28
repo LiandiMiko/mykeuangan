@@ -130,7 +130,7 @@ test('wave v3.19.1 scopes SweetAlert2 bottom-sheet animations to show/hide state
   const nativeBridgeJs = fs.readFileSync('web/native-bridge.js', 'utf8');
   const indexHtml = fs.readFileSync('src/Index.html', 'utf8');
 
-  assert.match(indexHtml, /meta\s+name="app-version"\s+content="3.20.18"/);
+  assert.match(indexHtml, /meta\s+name="app-version"\s+content="3.20.19"/);
   const baseSheetRule = stylesHtml.match(/\.swal2-container\.swal2-center\s*>\s*\.swal2-popup:not\(\.swal2-toast\)\s*\{([^}]*)\}/);
   assert.ok(baseSheetRule, 'expected base bottom-sheet rule in src/styles.html');
   assert.doesNotMatch(baseSheetRule[1], /\banimation\s*:/, 'base bottom-sheet rule must not unconditionally lock animation');
