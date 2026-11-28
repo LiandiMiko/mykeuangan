@@ -32,7 +32,7 @@
           </span>
           <div class="min-w-0">
             <p class="text-xs font-extrabold truncate">Cashflow Runway · Sisa ${rw.daysLeftInCycle} hari siklus ini</p>
-            <p class="text-[11px] opacity-85 truncate tabular-nums">Proyeksi akhir siklus ${fmt(rw.projectedEndCash)}${rw.upcomingCount ? ` (termasuk ${rw.upcomingCount} jadwal rutin mendatang)` : ''}${rw.referenceWalletName ? ` · Acuan: ${escapeHtmlJS(rw.referenceWalletName)}` : ''}</p>
+            <p class="text-xs opacity-85 truncate tabular-nums">Proyeksi akhir siklus ${fmt(rw.projectedEndCash)}${rw.upcomingCount ? ` (termasuk ${rw.upcomingCount} jadwal rutin mendatang)` : ''}${rw.referenceWalletName ? ` · Acuan: ${escapeHtmlJS(rw.referenceWalletName)}` : ''}</p>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
@@ -79,7 +79,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <h3 class="text-sm font-extrabold text-slate-800 dark:text-white">${due.count} <span data-i18n="dash.recurring_due">${escapeHtmlJS(t('dash.recurring_due'))}</span></h3>
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-200 dark:bg-amber-500/30 text-amber-900 dark:text-amber-300">Siap Catat</span>
+                <span class="px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-200 dark:bg-amber-500/30 text-amber-900 dark:text-amber-300">Siap Catat</span>
               </div>
               <p class="text-xs text-slate-700 dark:text-slate-300 mt-1 tabular-nums">Total tagihan: <strong>${formatRupiah(due.totalDueAmount).replace(',00', '')}</strong> pada siklus ini dan belum tercatat.</p>
               <div class="flex flex-wrap items-center gap-1.5 mt-2.5">${previewChips}${moreText}</div>

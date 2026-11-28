@@ -52,7 +52,7 @@
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
         <td class="px-4 py-4"><input type="checkbox" class="lap-row-check w-4 h-4 rounded accent-brand" value="${idHtml}" data-action="syncReportRowCheck" data-args='["$value","$checked"]' data-action-on="change" data-fallback-action="updateReportBulkBar" aria-label="Pilih transaksi"></td>
         <td class="px-6 py-4 whitespace-nowrap tabular-nums">${escapeHtmlJS(r.tanggal)}</td>
-        <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-[11px] font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span></td>
+        <td class="px-6 py-4"><span class="px-2 py-1 rounded-md text-xs font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span></td>
         <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${escapeHtmlJS(r.kategori)}</td>
         <td class="px-6 py-4 text-xs font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">${escapeHtmlJS(walletName(r.walletId))}</td>
         <td class="px-6 py-4">${escapeHtmlJS(r.keterangan || '-')}</td>
@@ -81,11 +81,11 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="font-bold text-sm text-slate-800 dark:text-white truncate" title="${escapeHtmlJS(r.kategori)}">${escapeHtmlJS(r.kategori)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">${escapeHtmlJS(r.tanggal)}${wLabel ? ' · ' + escapeHtmlJS(wLabel) : ''}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">${escapeHtmlJS(r.tanggal)}${wLabel ? ' · ' + escapeHtmlJS(wLabel) : ''}</p>
             </div>
             <div class="text-right shrink-0">
               <p class="text-sm font-black tabular-nums ${textColor}">${isM ? '+' : '-'}${formatRupiah(r.nominal)}</p>
-              <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[11px] font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span>
+              <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-bold ${badgeColor}">${escapeHtmlJS(r.tipe)}</span>
             </div>
           </div>
           <div class="flex items-center justify-between gap-2 mt-2">

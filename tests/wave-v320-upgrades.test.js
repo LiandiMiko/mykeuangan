@@ -570,7 +570,13 @@ test('v3.20.3: Popup polish fixes dark-mode icon masks, colored deny contrast, l
   // Gelombang 6C U8: label tombol modal sudah lewat i18n (dulu hardcode
   // 'Simpan'/'Batal' di sini); kunci t('btn.simpan')/t('btn.batal').
   assert.match(debtsJs, /confirmButtonText:\s*t\('btn\.simpan'\)/);
-  assert.match(assetsJs, /confirmButtonText:\s*'Ya, Hapus'/);
+  // Gelombang 7a: tombol hapus aset memakai i18n (dulu hardcode 'Ya, Hapus');
+  // kunci btn.ya_hapus ada di ID ('Ya, Hapus') dan EN ('Yes, Delete').
+  assert.match(assetsJs, /confirmButtonText:\s*t\('btn\.ya_hapus'\)/);
+  assert.doesNotMatch(assetsJs, /'Ya, Hapus'/);
+  const i18nHtml = fs.readFileSync('src/i18n.html', 'utf8');
+  assert.match(i18nHtml, /'btn\.ya_hapus':\s*'Ya, Hapus'/);
+  assert.match(i18nHtml, /'btn\.ya_hapus':\s*'Yes, Delete'/);
   assert.match(walletsJs, /cancelButtonText:\s*t\('btn\.batal'\)/);
   assert.match(onboardingJs, /renderStepIndicator/);
   assert.match(stylesHtml, /#swal-payroll\.swal2-input/);

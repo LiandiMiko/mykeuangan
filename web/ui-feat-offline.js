@@ -395,7 +395,7 @@
     title.className = 'font-bold';
     title.textContent = 'Anda offline';
     const sub = document.createElement('p');
-    sub.className = 'opacity-80 text-[11px]';
+    sub.className = 'opacity-80 text-xs';
     sub.textContent = 'Transaksi tersimpan di perangkat dan akan terkirim otomatis saat online.';
     body.append(title, sub);
     const closeBtn = document.createElement('button');
@@ -463,7 +463,7 @@
       : (failedCount > 0
         ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300'
         : 'border-brand/40 bg-brand/10 text-brand dark:text-brand-ink');
-    pill.className = 'inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-xl border text-[11px] font-bold transition-colors shrink-0 ' + toneClass;
+    pill.className = 'inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-xl border text-xs font-bold transition-colors shrink-0 ' + toneClass;
     pill.title = offline
       ? 'Mode offline aktif — transaksi baru tersimpan lokal'
       : (failedCount > 0 ? 'Ada transaksi offline gagal sinkronisasi — klik untuk kelola' : 'Klik untuk menyinkronkan antrean offline');

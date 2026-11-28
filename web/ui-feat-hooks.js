@@ -179,7 +179,7 @@
         tone = 'bg-brand/10 text-brand dark:text-brand-ink';
       }
       const badge = document.createElement('p');
-      badge.className = 'mk-goal-calc mt-2.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 tabular-nums ' + tone;
+      badge.className = 'mk-goal-calc mt-2.5 px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 tabular-nums ' + tone;
       renderHtml(badge, `<i class="${iconClass} shrink-0" aria-hidden="true"></i><span>${escapeHtmlJS(label)}</span>`);
       card.appendChild(badge);
     });
@@ -212,7 +212,7 @@
           const due = dueMap[debtKey(group, name)] || '';
           const overdue = due && due < todayStr;
           const bar = document.createElement('div');
-          bar.className = 'mk-debt-due-row mt-3 pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between gap-2 text-[11px]';
+          bar.className = 'mk-debt-due-row mt-3 pt-2.5 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between gap-2 text-xs';
           const dueIcon = overdue ? 'ph-bold ph-warning-circle' : 'ph ph-calendar-blank';
           const dueHtml = due
             ? `<i class="${dueIcon} shrink-0" aria-hidden="true"></i><span class="truncate tabular-nums">${overdue ? 'Lewat tempo: ' : 'Tempo: '}${escapeHtmlJS(due)}</span>`

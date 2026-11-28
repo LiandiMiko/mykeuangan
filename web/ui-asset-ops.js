@@ -50,7 +50,7 @@
              <input id="tu-price" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="Opsional">
            </div>
          </div>
-         <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">${m.implied
+         <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">${m.implied
            ? `Kosongkan keduanya untuk memakai harga terakhir (${formatRupiah(m.implied)} per ${escapeHtmlJS(m.symbolLabel)}).`
            : `Harga terakhir belum ada: isi jumlah ${escapeHtmlJS(m.unitLabel)} atau harga per ${escapeHtmlJS(m.unitLabel)}.`}</p>`
       : '';

@@ -154,11 +154,11 @@
     const iconBG = (isCrypto || isEmas) ? 'bg-amber-50 dark:bg-amber-500/10'
       : (typeLower === 'cash' || isUsd ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand/10');
 
-    let meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(a.type)}</span>`;
-    if (isCrypto) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${qty} ${escapeHtmlJS(a.symbol)} · Crypto</span>`;
-    else if (isEmas) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${qty} gram · Emas</span>`;
-    else if (isUsd) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">$${qty.toLocaleString('id-ID')} USD · Valas</span>`;
-    else if (isSaham) meta = `<span class="text-[11px] text-slate-500 dark:text-slate-400">${a.symbol ? escapeHtmlJS(a.symbol) + ' · ' : ''}Saham / Reksa Dana</span>`;
+    let meta = `<span class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(a.type)}</span>`;
+    if (isCrypto) meta = `<span class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">${qty} ${escapeHtmlJS(a.symbol)} · Crypto</span>`;
+    else if (isEmas) meta = `<span class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">${qty} gram · Emas</span>`;
+    else if (isUsd) meta = `<span class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">$${qty.toLocaleString('id-ID')} USD · Valas</span>`;
+    else if (isSaham) meta = `<span class="text-xs text-slate-500 dark:text-slate-400">${a.symbol ? escapeHtmlJS(a.symbol) + ' · ' : ''}Saham / Reksa Dana</span>`;
 
     return { iconName, iconColor, iconBG, meta, hasUnitPnl: isCrypto || isEmas || isUsd };
   }
@@ -172,7 +172,7 @@
     const pnlPct = buyTotal > 0 ? (pnl / buyTotal * 100) : 0;
     const ui = resolveAssetPresentation(a, typeLower, qty);
     const pnlHtml = ui.hasUnitPnl && buyTotal > 0
-      ? `<div class="text-[11px] font-bold tabular-nums ${pnl >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00', '')} (${pnlPct.toFixed(1)}%)</div>`
+      ? `<div class="text-xs font-bold tabular-nums ${pnl >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${pnl >= 0 ? '+' : ''}${formatRupiah(pnl).replace(',00', '')} (${pnlPct.toFixed(1)}%)</div>`
       : '';
     const safeName = escapeHtmlJS(a.name);
     const idAttr = escapeAttrJS(a.id);
@@ -271,7 +271,7 @@
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
-      confirmButtonText: 'Ya, Hapus',
+      confirmButtonText: t('btn.ya_hapus'),
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
     }).then(async (r) => {

@@ -300,7 +300,7 @@
       <i class="ph ph-sparkle text-xl text-brand-ink dark:text-brand shrink-0" aria-hidden="true"></i>
       <div class="min-w-0 flex-1 text-xs">
         <p class="font-bold">Pembaruan tersedia</p>
-        <p class="opacity-80 text-[11px]">Muat ulang untuk memakai versi terbaru.</p>
+        <p class="opacity-80 text-xs">Muat ulang untuk memakai versi terbaru.</p>
       </div>
       <button type="button" id="pwaReloadBtn" class="min-h-9 px-3 py-1.5 rounded-xl bg-brand text-white text-xs font-bold shrink-0">Muat Ulang</button>
       <button type="button" id="pwaDismissBtn" aria-label="Tutup" class="w-8 h-8 rounded-lg opacity-75 hover:opacity-100 flex items-center justify-center"><i class="ph ph-x" aria-hidden="true"></i></button>
