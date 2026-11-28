@@ -57,7 +57,7 @@
           </div>
           <div class="min-w-0 flex-1">
             <p class="text-sm font-bold text-slate-800 dark:text-white truncate" title="${safeCatHtml}">${safeCatHtml}</p>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(String(tx.tanggal).substring(5))} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
           </div>
         </div>
         <div class="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2 shrink-0">

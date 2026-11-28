@@ -134,25 +134,25 @@
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
             <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Burn Rate &amp; Proyeksi Akhir Siklus</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Hari ke-${fc.elapsedDays} dari ${fc.totalDays} · ${fc.remainingDays} hari tersisa</p>
+            <p class="text-xs text-slate-500 mt-0.5">Hari ke-${fc.elapsedDays} dari ${fc.totalDays} · ${fc.remainingDays} hari tersisa</p>
           </div>
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${badge.cls}">${badge.label}</span>
+          <span class="px-2.5 py-1 rounded-full text-xs font-bold ${badge.cls}">${badge.label}</span>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-500">Burn Rate Harian</p>
+            <p class="text-xs font-bold uppercase text-slate-500">Burn Rate Harian</p>
             <p class="text-sm sm:text-base font-black text-slate-800 dark:text-white mt-0.5 tabular-nums">${fmt(fc.dailyBurnRate)}/hr</p>
           </div>
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-500">Proyeksi Keluar</p>
+            <p class="text-xs font-bold uppercase text-slate-500">Proyeksi Keluar</p>
             <p class="text-sm sm:text-base font-black ${fc.status === 'over' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'} mt-0.5 tabular-nums">${fmt(fc.projectedExpense)}</p>
           </div>
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-500">Batas Aman Harian</p>
+            <p class="text-xs font-bold uppercase text-slate-500">Batas Aman Harian</p>
             <p class="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">${fc.dailySafeAllowance !== null ? fmt(fc.dailySafeAllowance) + '/hr' : '—'}</p>
           </div>
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-500">Estimasi Sisa Budget</p>
+            <p class="text-xs font-bold uppercase text-slate-500">Estimasi Sisa Budget</p>
             <p class="text-sm sm:text-base font-black ${fc.projectedVariance !== null && fc.projectedVariance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'} mt-0.5 tabular-nums">${fc.projectedVariance !== null ? (fc.projectedVariance >= 0 ? '+' : '-') + fmt(Math.abs(fc.projectedVariance)) : '—'}</p>
           </div>
         </div>
@@ -202,15 +202,15 @@
       renderHtml(summary, `
         <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50">
           <div class="min-w-0">
-            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p>
+            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.plan'))}</p>
             <p class="text-sm sm:text-lg font-black tabular-nums text-slate-800 dark:text-white truncate" title="${formatRupiah(analysis.budgetTotal).replace(',00', '')}">${formatRupiah(analysis.budgetTotal).replace(',00', '')}</p>
           </div>
           <div class="min-w-0">
-            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p>
+            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.actual'))}</p>
             <p class="text-sm sm:text-lg font-black tabular-nums text-slate-800 dark:text-white truncate" title="${formatRupiah(analysis.actualTotal).replace(',00', '')}">${formatRupiah(analysis.actualTotal).replace(',00', '')}</p>
           </div>
           <div class="min-w-0">
-            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p>
+            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">${escapeHtmlJS(t('budget.selisih'))}</p>
             <p class="text-sm sm:text-lg font-black tabular-nums ${differenceClass(analysis.remaining)} truncate" title="${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00', '')}">${analysis.remaining >= 0 ? '+' : ''}${formatRupiah(analysis.remaining).replace(',00', '')}</p>
           </div>
         </div>`);
@@ -231,23 +231,23 @@
     if (catTxns.length === 0) {
       return `
         <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-center">
-          <p class="text-[11px] text-slate-500 italic">Belum ada transaksi kategori ini di siklus ini</p>
+          <p class="text-xs text-slate-500 italic">Belum ada transaksi kategori ini di siklus ini</p>
         </div>`;
     }
     return `
       <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
-        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">${catTxns.length} Transaksi</p>
+        <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">${catTxns.length} Transaksi</p>
         ${catTxns.map((tx) => `
           <div class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-2 min-w-0 flex-1">
               <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></div>
               <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}">${showCategoryBadge ? `<span class="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-[10px]">${escapeHtmlJS(tx.kategori || 'Lainnya')}</span>` : ''}${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}</p>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(String(tx.tanggal).substring(5))}</p>
+                <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}">${showCategoryBadge ? `<span class="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-xs">${escapeHtmlJS(tx.kategori || 'Lainnya')}</span>` : ''}${escapeHtmlJS(tx.keterangan || '(tanpa catatan)')}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">${escapeHtmlJS(String(tx.tanggal).substring(5))}</p>
               </div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
-              <p class="text-[11px] font-black tabular-nums text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00', '')}</p>
+              <p class="text-xs font-black tabular-nums text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00', '')}</p>
               <button type="button" data-budget-transaction="${escapeHtmlJS(tx.id)}" class="w-11 h-11 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100" aria-label="Edit transaksi" title="Edit">
                 <i class="ph ph-pencil text-xs" aria-hidden="true"></i>
               </button>
@@ -283,7 +283,7 @@
                   <span class="font-bold text-slate-800 dark:text-white text-sm truncate" title="${escapeHtmlJS(b.kategori)}">${escapeHtmlJS(b.kategori)}</span>
                   <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-500" aria-hidden="true"></i>
                 </span>
-                <span class="block text-[11px] ${status.textClass} font-bold uppercase tracking-wider tabular-nums">
+                <span class="block text-xs ${status.textClass} font-bold uppercase tracking-wider tabular-nums">
                   ${escapeHtmlJS(status.text)} · ${pct.toFixed(0)}% · ${catTxns.length} transaksi
                 </span>
               </span>
@@ -298,9 +298,9 @@
             </div>
           </div>
           <div class="grid grid-cols-3 gap-2 mb-3 text-xs">
-            <div class="min-w-0"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.plan'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white truncate" title="${formatRupiah(plan).replace(',00', '')}">${formatRupiah(plan).replace(',00', '')}</p></div>
-            <div class="min-w-0"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.actual'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white truncate" title="${formatRupiah(actual).replace(',00', '')}">${formatRupiah(actual).replace(',00', '')}</p></div>
-            <div class="min-w-0"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.selisih'))}</p><p class="font-black tabular-nums ${selisihColor} truncate" title="${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}</p></div>
+            <div class="min-w-0"><p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.plan'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white truncate" title="${formatRupiah(plan).replace(',00', '')}">${formatRupiah(plan).replace(',00', '')}</p></div>
+            <div class="min-w-0"><p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.actual'))}</p><p class="font-black tabular-nums text-slate-800 dark:text-white truncate" title="${formatRupiah(actual).replace(',00', '')}">${formatRupiah(actual).replace(',00', '')}</p></div>
+            <div class="min-w-0"><p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">${escapeHtmlJS(t('budget.selisih'))}</p><p class="font-black tabular-nums ${selisihColor} truncate" title="${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}">${selisih >= 0 ? '+' : ''}${formatRupiah(selisih).replace(',00', '')}</p></div>
           </div>
           <div class="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden" role="progressbar" aria-label="Progres budget ${escapeHtmlJS(b.kategori)}" aria-valuenow="${Math.min(pct, 100).toFixed(0)}" aria-valuemin="0" aria-valuemax="100">
             <div class="${status.progressClass} h-full rounded-full transition-[width] duration-200" style="width: ${Math.min(pct, 100).toFixed(1)}%"></div>
@@ -323,7 +323,7 @@
       .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
       .map((item) => {
         const suggested = Math.max(10000, Math.ceil(item.total / 10000) * 10000);
-        return `<button type="button" data-unbudgeted-create-cat="${escapeHtmlJS(item.label)}" data-unbudgeted-suggested="${suggested}" class="min-h-8 px-2.5 py-1 rounded-xl bg-brand/10 text-brand dark:text-brand-ink hover:bg-brand hover:text-white text-[11px] font-bold transition-colors">+ Budget ${escapeHtmlJS(item.label)}</button>`;
+        return `<button type="button" data-unbudgeted-create-cat="${escapeHtmlJS(item.label)}" data-unbudgeted-suggested="${suggested}" class="min-h-8 px-2.5 py-1 rounded-xl bg-brand/10 text-brand dark:text-brand-ink hover:bg-brand hover:text-white text-xs font-bold transition-colors">+ Budget ${escapeHtmlJS(item.label)}</button>`;
       }).join('');
   }
 
@@ -348,7 +348,7 @@
                   <span class="font-bold text-slate-800 dark:text-white text-sm truncate">Pengeluaran di Luar Budget</span>
                   <i class="ph ph-caret-${isExpanded ? 'up' : 'down'} text-xs text-slate-500" aria-hidden="true"></i>
                 </span>
-                <span class="block text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider tabular-nums">
+                <span class="block text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider tabular-nums">
                   ${unbudgetedTxs.length} transaksi · ${catsCount} kategori · Klik untuk periksa
                 </span>
               </span>

@@ -41,18 +41,18 @@
       const snow = FinancePro.simulateDebtPayoff(base, extra, 'snowball');
       const aval = FinancePro.simulateDebtPayoff(base, extra, 'avalanche');
       const capWarn = (snow.capped || aval.capped)
-        ? '<p class="sm:col-span-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400">Catatan: cicilan belum melunasi bunga penuh dalam 600 bulan (50 thn); tambah ekstra bayar bulanan.</p>'
+        ? '<p class="sm:col-span-2 text-xs font-semibold text-amber-600 dark:text-amber-400">Catatan: cicilan belum melunasi bunga penuh dalam 600 bulan (50 thn); tambah ekstra bayar bulanan.</p>'
         : '';
       renderHtml(document.getElementById('debtCalcOut'), `
         <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Snowball (Terkecil Dulu)</p>
+          <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Snowball (Terkecil Dulu)</p>
           <p class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">${snow.months}${snow.capped ? '+' : ''} bulan</p>
-          <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">Total bayar: <strong>${escapeHtmlJS(fmt(snow.totalPaid))}</strong></p>
+          <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5">Total bayar: <strong>${escapeHtmlJS(fmt(snow.totalPaid))}</strong></p>
         </div>
         <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Avalanche (Bunga Tertinggi)</p>
+          <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Avalanche (Bunga Tertinggi)</p>
           <p class="text-base font-extrabold text-brand dark:text-brand-ink mt-0.5">${aval.months}${aval.capped ? '+' : ''} bulan</p>
-          <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">Total bayar: <strong>${escapeHtmlJS(fmt(aval.totalPaid))}</strong></p>
+          <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5">Total bayar: <strong>${escapeHtmlJS(fmt(aval.totalPaid))}</strong></p>
         </div>
         ${capWarn}
       `);
@@ -92,11 +92,11 @@
       );
       renderHtml(document.getElementById('compCalcOut'), `
         <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Estimasi Nilai Akhir</p>
+          <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Estimasi Nilai Akhir</p>
           <p class="text-base font-extrabold text-brand dark:text-brand-ink mt-0.5">${escapeHtmlJS(fmt(res.finalValue))}</p>
         </div>
         <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Setoran &amp; Imbal Hasil</p>
+          <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Setoran &amp; Imbal Hasil</p>
           <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-1">${escapeHtmlJS(fmt(res.totalContributed))}</p>
           <p class="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">+${escapeHtmlJS(fmt(res.totalGain))} gain</p>
         </div>
@@ -137,14 +137,14 @@
       );
       renderHtml(document.getElementById('instCalcOut'), `
         <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-          <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Skema Cicilan</p>
+          <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Skema Cicilan</p>
           <p class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">${escapeHtmlJS(fmt(res.totalInstallment))}</p>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Harga tunai: ${escapeHtmlJS(fmt(res.cashPrice))}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Harga tunai: ${escapeHtmlJS(fmt(res.cashPrice))}</p>
         </div>
         <div class="p-3 rounded-2xl bg-rose-50/70 dark:bg-rose-500/10 border border-rose-200/70 dark:border-rose-500/30">
-          <p class="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide">Selisih Biaya Bunga/Admin</p>
+          <p class="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide">Selisih Biaya Bunga/Admin</p>
           <p class="text-base font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">+${escapeHtmlJS(fmt(res.extraCost))}</p>
-          <p class="text-[11px] text-rose-700/80 dark:text-rose-300 mt-0.5">Efektif +${res.effectiveMarkupPct}% lebih mahal</p>
+          <p class="text-xs text-rose-700/80 dark:text-rose-300 mt-0.5">Efektif +${res.effectiveMarkupPct}% lebih mahal</p>
         </div>
       `);
     };
@@ -206,11 +206,11 @@
         ? formatAiMarkdownSafe(msg.text)
         : escapeHtmlJS(msg.text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
       const modelPill = !isUser && msg.model
-        ? `<span class="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold normal-case text-slate-500 dark:text-slate-400">${escapeHtmlJS(msg.model)}</span>`
+        ? `<span class="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-semibold normal-case text-slate-500 dark:text-slate-400">${escapeHtmlJS(msg.model)}</span>`
         : '';
       return `
         <div class="${isUser ? 'bg-brand/10 border-brand/20 ml-3 sm:ml-8' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 mr-1 sm:mr-4'} p-3.5 rounded-2xl border text-xs sm:text-sm">
-          <p class="text-[11px] font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-500 dark:text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}${modelPill}</p>
+          <p class="text-xs font-bold uppercase tracking-wider mb-1 ${isUser ? 'text-brand dark:text-brand-ink' : 'text-slate-500 dark:text-slate-400'}">${isUser ? 'Anda' : 'Gemini AI'}${modelPill}</p>
           <div class="leading-relaxed">${formatted}</div>
         </div>
       `;
@@ -332,7 +332,7 @@
         <div class="text-left space-y-2.5 text-xs">
           <div class="flex items-center justify-between gap-2">
             <p class="text-slate-600 dark:text-slate-300">Atur target porsi portofolio (wajib total 100%).</p>
-            <span id="rebTotalBadge" class="px-2.5 py-1 rounded-full text-[11px] font-extrabold tabular-nums">Total: 100%</span>
+            <span id="rebTotalBadge" class="px-2.5 py-1 rounded-full text-xs font-extrabold tabular-nums">Total: 100%</span>
           </div>
           ${keys.map((k, idx) => `
             <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
@@ -356,7 +356,7 @@
           if (!badge) return;
           badge.textContent = `Total: ${sum}%`;
           const ok = Math.round(sum) === 100;
-          badge.className = `px-2.5 py-1 rounded-full text-[11px] font-extrabold tabular-nums ${ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'}`;
+          badge.className = `px-2.5 py-1 rounded-full text-xs font-extrabold tabular-nums ${ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'}`;
         };
         document.querySelectorAll('[data-reb-key]').forEach((inp) => { inp.oninput = syncTotal; });
         syncTotal();

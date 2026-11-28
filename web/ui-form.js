@@ -334,7 +334,7 @@
       <div class="p-3.5 flex items-center justify-between gap-3">
         <span class="text-xs font-semibold truncate tabular-nums" title="Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})">Terhapus: ${escapeHtmlJS(txSnapshot.kategori)} (${escapeHtmlJS(formatRupiah(txSnapshot.nominal).replace(',00', ''))})</span>
         <div class="flex items-center gap-1.5 shrink-0">
-          <button type="button" id="btnUndoDeleteTx" class="px-3 min-h-9 rounded-xl bg-brand hover:bg-brand-hover text-white text-[11px] font-bold transition-colors">Batalkan</button>
+          <button type="button" id="btnUndoDeleteTx" class="px-3 min-h-9 rounded-xl bg-brand hover:bg-brand-hover text-white text-xs font-bold transition-colors">Batalkan</button>
           <button type="button" id="btnDismissUndoTx" aria-label="Tutup" class="w-8 h-8 rounded-lg flex items-center justify-center opacity-80 hover:opacity-100"><i class="ph ph-x" aria-hidden="true"></i></button>
         </div>
       </div>

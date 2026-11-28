@@ -768,7 +768,7 @@
     const bioBtn = document.createElement('button');
     bioBtn.type = 'button';
     const bioOn = hasPin && isBiometricUnlockEnabled();
-    bioBtn.className = 'flex-1 min-h-10 px-3 py-2 rounded-xl border text-[11px] font-bold inline-flex items-center justify-center gap-1.5 ' +
+    bioBtn.className = 'flex-1 min-h-10 px-3 py-2 rounded-xl border text-xs font-bold inline-flex items-center justify-center gap-1.5 ' +
       (bioOn ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200');
     const bioIcon = document.createElement('i');
     bioIcon.className = 'ph ph-fingerprint text-base';
@@ -794,7 +794,7 @@
 
     const guideBtn = document.createElement('button');
     guideBtn.type = 'button';
-    guideBtn.className = 'min-h-10 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 text-[11px] font-bold inline-flex items-center justify-center gap-1.5';
+    guideBtn.className = 'min-h-10 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 text-xs font-bold inline-flex items-center justify-center gap-1.5';
     guideBtn.textContent = msg('Panduan Awal', 'Setup Wizard');
     guideBtn.addEventListener('click', () => {
       Swal.close();
@@ -808,7 +808,7 @@
     // sekali setiap kali aplikasi dibuka dari nol (DEK harus dibuka PIN).
     const note = document.createElement('p');
     note.id = 'acc-bio-note';
-    note.className = 'mt-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400';
+    note.className = 'mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400';
     note.textContent = msg(
       'Sidik jari mempercepat buka kunci, tetapi PIN tetap diminta sekali setiap kali aplikasi dibuka dari nol.',
       'Biometrics speed up unlocking, but the PIN is still asked once every time the app is opened from scratch.'

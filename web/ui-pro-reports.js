@@ -187,10 +187,10 @@
     `).join('');
     renderHtml(box, `
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs mb-3">
-        <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Masuk ${escapeHtmlJS(recap.year)}</p><p class="font-black tabular-nums text-emerald-700 dark:text-emerald-400">${escapeHtmlJS(fmt(recap.totalIncome))}</p></div>
-        <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Keluar ${escapeHtmlJS(recap.year)}</p><p class="font-black tabular-nums text-rose-600 dark:text-rose-400">${escapeHtmlJS(fmt(recap.totalExpense))}</p></div>
-        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Tabungan Bersih</p><p class="font-black tabular-nums text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(recap.netSavings))}</p></div>
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-600 dark:text-slate-400">Savings Rate</p><p class="font-black tabular-nums">${recap.savingsRatePct}%</p></div>
+        <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-xs text-slate-600 dark:text-slate-400">Masuk ${escapeHtmlJS(recap.year)}</p><p class="font-black tabular-nums text-emerald-700 dark:text-emerald-400">${escapeHtmlJS(fmt(recap.totalIncome))}</p></div>
+        <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-xs text-slate-600 dark:text-slate-400">Keluar ${escapeHtmlJS(recap.year)}</p><p class="font-black tabular-nums text-rose-600 dark:text-rose-400">${escapeHtmlJS(fmt(recap.totalExpense))}</p></div>
+        <div class="p-3 rounded-xl bg-brand/10"><p class="text-xs text-slate-600 dark:text-slate-400">Tabungan Bersih</p><p class="font-black tabular-nums text-brand dark:text-brand-ink">${escapeHtmlJS(fmt(recap.netSavings))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-xs text-slate-600 dark:text-slate-400">Savings Rate</p><p class="font-black tabular-nums">${recap.savingsRatePct}%</p></div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -200,7 +200,7 @@
         <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
           <p class="font-bold">Top Pengeluaran ${escapeHtmlJS(recap.year)}</p>
           ${recap.topCategories.map((c) => `<div class="flex justify-between gap-2"><span>${escapeHtmlJS(c.category)}</span><strong class="tabular-nums">${escapeHtmlJS(fmt(c.amount))} (${c.sharePct}%)</strong></div>`).join('') || '<p class="text-slate-500">Belum ada pengeluaran.</p>'}
-          ${recap.bestSavingMonth ? `<p class="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] flex items-center gap-1.5"><i class="ph-bold ph-trophy text-amber-500" aria-hidden="true"></i><span>Paling hemat: <strong class="tabular-nums">${escapeHtmlJS(recap.bestSavingMonth.period)}</strong></span></p>` : ''}
+          ${recap.bestSavingMonth ? `<p class="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs flex items-center gap-1.5"><i class="ph-bold ph-trophy text-amber-500" aria-hidden="true"></i><span>Paling hemat: <strong class="tabular-nums">${escapeHtmlJS(recap.bestSavingMonth.period)}</strong></span></p>` : ''}
         </div>
       </div>
     `);
@@ -215,9 +215,9 @@
     const fmt = (n) => formatRupiah(n).replace(',00', '');
     renderHtml(box, `
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs mb-3">
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(pA)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseA))}</p></div>
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(pB)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseB))}</p></div>
-        <div class="p-3 rounded-xl bg-brand/10"><p class="text-[11px] text-slate-600 dark:text-slate-400">Selisih Keluar</p><p class="font-black tabular-nums">${cmp.expenseB - cmp.expenseA >= 0 ? '+' : '-'}${escapeHtmlJS(fmt(Math.abs(cmp.expenseB - cmp.expenseA)))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(pA)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseA))}</p></div>
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800"><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(pB)} Keluar</p><p class="font-black tabular-nums">${escapeHtmlJS(fmt(cmp.expenseB))}</p></div>
+        <div class="p-3 rounded-xl bg-brand/10"><p class="text-xs text-slate-600 dark:text-slate-400">Selisih Keluar</p><p class="font-black tabular-nums">${cmp.expenseB - cmp.expenseA >= 0 ? '+' : '-'}${escapeHtmlJS(fmt(Math.abs(cmp.expenseB - cmp.expenseA)))}</p></div>
       </div>
       <div class="max-h-56 overflow-y-auto space-y-1.5 text-xs">
         ${cmp.categories.map((r) => `
@@ -247,7 +247,7 @@
             <select id="recapYearSel" aria-label="Pilih Tahun Rekap" class="col-span-2 sm:w-auto min-w-0 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand" data-action="renderAnnualRecapBody" data-args='["$value"]' data-action-on="change">
               ${years.map((y) => `<option value="${escapeHtmlJS(y)}" ${y === curYear ? 'selected' : ''}>Tahun ${escapeHtmlJS(y)}</option>`).join('')}
             </select>
-            <span class="col-span-2 sm:w-auto text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium px-0.5">atau bandingkan:</span>
+            <span class="col-span-2 sm:w-auto text-xs text-slate-500 dark:text-slate-400 font-medium px-0.5">atau bandingkan:</span>
             <input id="cmpPeriodA" aria-label="Periode pertama" type="month" value="${escapeHtmlJS(prevPeriod)}" class="w-full sm:w-auto min-w-0 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">
             <span class="hidden sm:inline text-slate-500 dark:text-slate-400 font-semibold">vs</span>
             <input id="cmpPeriodB" aria-label="Periode kedua" type="month" value="${escapeHtmlJS(curPeriod)}" class="w-full sm:w-auto min-w-0 h-9 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-brand">

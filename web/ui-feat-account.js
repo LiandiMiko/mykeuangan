@@ -475,14 +475,14 @@
         <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
           <label for="acc-pin-input" class="block font-bold text-slate-500 mb-1">${txMsg('PIN Aplikasi — Enkripsi Data Lokal (4–6 digit,', 'App PIN — Local Data Encryption (4–6 digits,')} ${pinStatus})</label>
           <input id="acc-pin-input" type="password" inputmode="numeric" maxlength="6" class="swal2-input" style="margin:0;width:100%" placeholder="${pinPlaceholder}">
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">${txMsg('PIN mengenkripsi snapshot & antrean offline di perangkat ini (AES-GCM 256-bit). Tanpa PIN yang benar, data lokal tidak bisa dibaca. Percobaan salah berulang mengunci PIN makin lama (60 detik → 5 → 15 → 60 menit); setelah 3 kali terkunci, buka kunci membutuhkan verifikasi password akun.', 'Your PIN encrypts the offline snapshot & queue on this device (AES-GCM 256-bit). Without the correct PIN, local data cannot be read. Repeated wrong attempts lock the PIN for longer (60 seconds → 5 → 15 → 60 minutes); after 3 lockouts, unlocking requires verifying your account password.')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">${txMsg('PIN mengenkripsi snapshot & antrean offline di perangkat ini (AES-GCM 256-bit). Tanpa PIN yang benar, data lokal tidak bisa dibaca. Percobaan salah berulang mengunci PIN makin lama (60 detik → 5 → 15 → 60 menit); setelah 3 kali terkunci, buka kunci membutuhkan verifikasi password akun.', 'Your PIN encrypts the offline snapshot & queue on this device (AES-GCM 256-bit). Without the correct PIN, local data cannot be read. Repeated wrong attempts lock the PIN for longer (60 seconds → 5 → 15 → 60 minutes); after 3 lockouts, unlocking requires verifying your account password.')}</p>
         </div>
         <div class="flex flex-wrap gap-2 pt-2">
           <button type="button" data-action="swalClose|changeOwnPassword" class="flex-1 min-h-11 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 inline-flex items-center justify-center gap-1.5"><i class="ph ph-key" aria-hidden="true"></i> <span>${txMsg('Ganti Password', 'Change Password')}</span></button>
           ${hasPin ? `<button type="button" id="acc-clear-pin-btn" class="min-h-11 py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold inline-flex items-center justify-center gap-1.5"><i class="ph ph-lock-open" aria-hidden="true"></i> <span>${txMsg('Hapus PIN', 'Remove PIN')}</span></button>` : ''}
         </div>
         <div class="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+          <p class="text-xs text-slate-500 dark:text-slate-400">
             ${txMsg('Dokumen legal:', 'Legal documents:')}
             <a href="privacy.html" target="_blank" rel="noopener noreferrer" class="text-brand dark:text-brand-ink font-semibold underline">${txMsg('Kebijakan Privasi', 'Privacy Policy')}</a> ·
             <a href="terms.html" target="_blank" rel="noopener noreferrer" class="text-brand dark:text-brand-ink font-semibold underline">${txMsg('Syarat &amp; Ketentuan', 'Terms &amp; Conditions')}</a>
@@ -600,7 +600,7 @@
           <input id="del-acc-confirm" type="text" autocomplete="off" class="swal2-input" style="margin:0;width:100%" placeholder="${keyword}">
           <label for="del-acc-password" class="block font-bold pt-1">${txMsg('Password akun saat ini', 'Current account password')}</label>
           <input id="del-acc-password" type="password" autocomplete="current-password" class="swal2-input" style="margin:0;width:100%" placeholder="${txMsg('Password akun', 'Account password')}">
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">${txMsg('Password diminta ulang untuk memastikan yang menghapus akun benar-benar pemiliknya.', 'Your password is asked again to make sure the account is deleted by its owner.')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">${txMsg('Password diminta ulang untuk memastikan yang menghapus akun benar-benar pemiliknya.', 'Your password is asked again to make sure the account is deleted by its owner.')}</p>
         </div>`,
       showCancelButton: true,
       confirmButtonColor: '#e11d48',
@@ -809,7 +809,7 @@
   function buildQuickMenuCard(id, cardCls, iconCls, iconName, title, sub) {
     return `<button type="button" id="${id}" class="p-4 rounded-2xl border flex flex-col items-center justify-center gap-1.5 hover:shadow-sm transition-colors ${cardCls}">` +
       `<span class="w-10 h-10 rounded-xl flex items-center justify-center ${iconCls}"><i class="ph-bold ph-${iconName} text-xl" aria-hidden="true"></i></span>` +
-      `<span>${title}</span><span class="text-[11px] font-medium opacity-80">${sub}</span></button>`;
+      `<span>${title}</span><span class="text-xs font-medium opacity-80">${sub}</span></button>`;
   }
 
   async function openQuickAddMenu() {
