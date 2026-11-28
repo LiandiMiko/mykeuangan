@@ -108,15 +108,15 @@
             <span class="min-w-0">
               <span class="block text-slate-800 dark:text-white text-sm font-bold truncate" title="${safeName}">${safeName}</span>
               <span class="mt-0.5 flex items-center gap-1.5 min-w-0">
-                <span class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${walletKindLabel(w.kind)}</span>
-                ${isPrimary ? '<span class="shrink-0 px-1.5 py-px rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[10px] font-black uppercase tracking-wide">Dompet Utama</span>' : ''}
+                <span class="text-xs text-slate-500 dark:text-slate-400 truncate">${walletKindLabel(w.kind)}</span>
+                ${isPrimary ? '<span class="shrink-0 px-1.5 py-px rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-black uppercase tracking-wide">Dompet Utama</span>' : ''}
               </span>
             </span>
           </span>
           <span class="text-sm sm:text-base font-extrabold tabular-nums shrink-0 ${bal < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}">${formatRupiah(bal)}</span>
         </button>
         ${isBank && !isPrimary ? `<button type="button" ${mkActionAttrs('setPrimaryBankWallet', [w.id])} aria-label="Jadikan ${safeName} dompet utama" title="Jadikan dompet utama (acuan Cashflow Runway)"
-          class="min-h-9 px-2.5 rounded-full border border-brand/30 bg-brand/5 text-brand dark:text-brand-ink text-[11px] font-bold whitespace-nowrap shrink-0 transition-colors hover:bg-brand/10">
+          class="min-h-9 px-2.5 rounded-full border border-brand/30 bg-brand/5 text-brand dark:text-brand-ink text-xs font-bold whitespace-nowrap shrink-0 transition-colors hover:bg-brand/10">
           <i class="ph ph-star" aria-hidden="true"></i> Jadikan Utama
         </button>` : ''}
         <button type="button" ${mkActionAttrs('editWallet', [w.id])} aria-label="Edit dompet ${safeName}" title="Edit saldo"
@@ -299,7 +299,7 @@
               <input id="wl-bal" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" value="${escapeHtmlJS(formatNominalInputValue(Math.round(Math.abs(bal))) || '0')}" placeholder="Saldo sekarang (Rp)">
             </div>
           </div>
-          <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">Mengubah saldo akan menyesuaikan saldo awal dompet. Riwayat transaksi tidak berubah.</p>
+          <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">Mengubah saldo akan menyesuaikan saldo awal dompet. Riwayat transaksi tidak berubah.</p>
         </div>`,
       showCancelButton: true,
       showDenyButton: (DB.wallets || []).length > 1,

@@ -199,7 +199,9 @@ test('U35: label kecil yang paling sering dibaca memakai slate-600 (7,58:1)', ()
   const formLabels = formHtml.match(/<label[^>]*text-slate-600 dark:text-slate-400[^>]*>/g);
   assert.ok(formLabels, 'label form slate-600 tidak ditemukan');
   assert.ok(formLabels.length >= 5, `label form slate-600 harus >= 5, ketemu ${formLabels.length}`);
-  assert.match(dashboardHtml, /text-\[11px\] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider/);
+  // Gelombang 7a (U34): label statistik naik dari 11px ke 12px (text-xs) —
+  // warna slate-600 tetap, dan ukuran 12px sekaligus menutup celah U35 di sini.
+  assert.match(dashboardHtml, /text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider/);
   const nav = indexHtml.match(/<nav id="mobileBottomNav"[\s\S]*?<\/nav>/);
   assert.match(nav[0], /text-slate-600 dark:text-slate-400/);
 });

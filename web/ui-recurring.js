@@ -20,7 +20,7 @@
           </div>
           <div class="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
             <p class="text-xs font-medium text-slate-700 dark:text-slate-200">${escapeHtmlJS(t('payroll.example'))}: <b class="tabular-nums">28</b> &rarr; ${escapeHtmlJS(getPeriodLabel(DB.currentPeriod, 28))}</p>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('payroll.range_hint'))}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('payroll.range_hint'))}</p>
           </div>
         </div>`,
       focusConfirm: false,
@@ -71,13 +71,13 @@
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <h4 class="font-bold text-slate-800 dark:text-white text-sm truncate" title="${catHtml}">${catHtml}</h4>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">${escapeHtmlJS(isActive ? t('rec.active') : t('rec.paused'))}</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold ${badgeClass}">${escapeHtmlJS(isActive ? t('rec.active') : t('rec.paused'))}</span>
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${escapeHtmlJS(t('rec.day_prefix'))} ${escapeHtmlJS(r.dayOfMonth)}${r.keterangan ? ' · ' + escapeHtmlJS(r.keterangan) : ''}</p>
           <p class="font-black text-sm mt-1 tabular-nums ${amountClass}">${isIncome ? '+' : '-'}${formatRupiah(r.nominal)}</p>
         </div>
         <div class="flex items-center gap-1 shrink-0">
-          <button type="button" ${mkActionAttrs('recordRecurringFromNotif', [r.id])} aria-label="Catat sekarang ${catHtml}" title="Catat transaksi ini sekarang" class="h-10 px-2.5 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-ink text-[11px] font-bold flex items-center justify-center gap-1 hover:bg-brand hover:text-white transition-colors">
+          <button type="button" ${mkActionAttrs('recordRecurringFromNotif', [r.id])} aria-label="Catat sekarang ${catHtml}" title="Catat transaksi ini sekarang" class="h-10 px-2.5 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-ink text-xs font-bold flex items-center justify-center gap-1 hover:bg-brand hover:text-white transition-colors">
             <i class="ph-bold ph-lightning" aria-hidden="true"></i> <span>Catat</span>
           </button>
           <button type="button" ${mkActionAttrs('toggleRecurringItem', [r.id, !isActive])} aria-label="${isActive ? 'Jeda' : 'Aktifkan'} jadwal ${catHtml}" title="${isActive ? 'Jeda' : 'Aktifkan'}" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700">

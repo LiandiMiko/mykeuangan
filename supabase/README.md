@@ -188,6 +188,17 @@ dihapus dari `admin-password`, `admin-user-ops`, `telegram-setup`, dan
   (actor diturunkan dari `auth.uid()`).
 - Reset password gagal audit → respons **500** yang menyatakan password
   sudah berubah tapi audit gagal (jangan diam-diam).
+- Reset password admin (Gelombang 7a) juga mencabut SEMUA sesi target
+  lewat RPC `admin_revoke_user_sessions(p_target_user_id)` (migrasi
+  `20261128120000`, SECURITY DEFINER, hanya service_role; terapkan
+  migrasi SEBELUM deploy `admin-password`, atau pencabutan gagal
+  fail-soft). Kegagalan pencabutan TIDAK membatalkan reset, tetapi
+  tercatat di `details` audit (`sessions_revoked` /
+  `sessions_revoke_error`) dan di respons (`sessionsRevokeFailed`).
+  Batasan jujur: access token yang sudah diterbitkan tetap valid
+  sampai `exp` (±1 jam); hanya refresh token-nya yang mati — sama
+  seperti `auth.admin.signOut` resmi, yang tetap butuh JWT target
+  (tidak dimiliki server) dan karena itu tidak dipakai di sini.
 - Reset password, hapus user, dan ubah role/status mengirim notifikasi
   Telegram ke pemilik akun (bot personal dulu, fallback token env).
   Bila tidak ada chat tertaut, hasilnya dicatat di `details` audit

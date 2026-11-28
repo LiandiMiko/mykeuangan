@@ -204,7 +204,7 @@
 
   function formatInlineMarkdownSafe(escapedText) {
     return String(escapedText || '')
-      .replace(/`([^`\n]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-mono text-slate-800 dark:text-slate-100">$1</code>')
+      .replace(/`([^`\n]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-800 dark:text-slate-100">$1</code>')
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>')
       .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s.,!?:;)])/g, '$1<em>$2</em>');
   }
@@ -356,8 +356,8 @@
     const hasKey = hasStoredGeminiApiKey();
     badge.textContent = hasKey ? (t('ai.key_saved') + ' · ' + getGeminiModel()) : t('ai.key_missing');
     badge.className = hasKey
-      ? 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-      : 'px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
+      ? 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+      : 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
   }
 
   function buildGeminiConfigModalHtml(existing, currentModel, currentThinking) {
@@ -372,14 +372,14 @@
         <div>
           <div class="flex items-center justify-between mb-1">
             <label for="swal-gemini-key" class="font-bold text-slate-600 dark:text-slate-300">API Key Google AI Studio</label>
-            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-[11px] font-bold text-brand dark:text-brand-ink hover:underline">Buat Key &rarr;</a>
+            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-brand dark:text-brand-ink hover:underline">Buat Key &rarr;</a>
           </div>
           <input id="swal-gemini-key" type="password" class="swal2-input" style="margin:0;width:100%" placeholder="${existing ? '•••••••••••• (kosongkan jika tidak mengubah key)' : 'AIza...'}">
         </div>
         <div>
           <label for="swal-gemini-model-preset" class="block font-bold text-slate-600 dark:text-slate-300 mb-1">Model Gemini Terbaru</label>
           <select id="swal-gemini-model-preset" class="swal2-select" style="margin:0;width:100%">${presetOptions}</select>
-          <p id="swal-gemini-model-note" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1"></p>
+          <p id="swal-gemini-model-note" class="text-xs text-slate-500 dark:text-slate-400 mt-1"></p>
           <input id="swal-gemini-model-custom" type="text" class="swal2-input mt-2${isPreset ? ' hide' : ''}" style="margin:0.5rem 0 0;width:100%" value="${escapeSafe(currentModel)}" placeholder="gemini-4-hydrogen">
         </div>
         <div>
@@ -491,11 +491,11 @@
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
           <div class="flex items-center gap-3 min-w-0">
-            ${score !== null ? `<div class="w-12 h-12 rounded-2xl ${scoreColor} flex flex-col items-center justify-center shrink-0 font-black tabular-nums"><span class="text-lg leading-none">${score}</span><span class="text-[10px] opacity-90">/100</span></div>` : ''}
+            ${score !== null ? `<div class="w-12 h-12 rounded-2xl ${scoreColor} flex flex-col items-center justify-center shrink-0 font-black tabular-nums"><span class="text-lg leading-none">${score}</span><span class="text-xs opacity-90">/100</span></div>` : ''}
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-1.5">
-                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tabular-nums">${escapeSafe(t('ai.score'))} · ${escapeSafe(payload.period)}</p>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink">${escapeSafe(activeModel)}</span>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 tabular-nums">${escapeSafe(t('ai.score'))} · ${escapeSafe(payload.period)}</p>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-brand/10 text-brand dark:text-brand-ink">${escapeSafe(activeModel)}</span>
               </div>
               <p class="text-base font-bold text-slate-800 dark:text-white">${escapeSafe(parsed.statusLabel || 'Hasil Analisis')} <span class="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">(Savings: ${escapeSafe(payload.savingsRate)}%${runwayText ? ' · Dana Darurat: ' + escapeSafe(runwayText) : ''}${hr.debtToAssetPct !== undefined ? ' · Rasio Utang: ' + escapeSafe(hr.debtToAssetPct) + '%' : ''})</span></p>
             </div>
@@ -520,7 +520,7 @@
             ${renderBullets(parsed.rekomendasi, '-')}
           </div>
         </div>
-        <p class="text-[11px] text-slate-500 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
+        <p class="text-xs text-slate-500 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
       </div>`);
   }
 

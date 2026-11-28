@@ -102,12 +102,12 @@
     const dormant = classifyAdminActivity(u) === 'dormant';
     const countdown = deletionCountdownText(u);
     let html = '<p class="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">' + escapeHtmlJS(last.date || '-') + '</p>'
-      + '<p class="text-[11px] text-slate-500 dark:text-slate-400">' + escapeHtmlJS(last.rel) + '</p>';
+      + '<p class="text-xs text-slate-500 dark:text-slate-400">' + escapeHtmlJS(last.rel) + '</p>';
     if (dormant) {
-      html += '<p class="mt-1"><span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">' + escapeHtmlJS(admT('adm.dormant')) + '</span></p>';
+      html += '<p class="mt-1"><span class="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">' + escapeHtmlJS(admT('adm.dormant')) + '</span></p>';
     }
     if (countdown) {
-      html += '<p class="mt-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400">' + escapeHtmlJS(countdown) + '</p>';
+      html += '<p class="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-400">' + escapeHtmlJS(countdown) + '</p>';
     }
     return html;
   }
@@ -178,11 +178,11 @@
   function buildAdminUserMeta(u, mobileBtnCls) {
     const isSuspended = u.status === 'suspended';
     const statusBadge = isSuspended
-      ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
-      : '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
+      ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">Suspended</span>'
+      : '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Active</span>';
     const roleBadge = u.role === 'admin'
-      ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
-      : '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
+      ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">Admin</span>'
+      : '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">User</span>';
 
     const nextStatus = isSuspended ? 'active' : 'suspended';
     const statusBtnColor = isSuspended ? 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-800' : 'text-rose-600 dark:text-rose-400 hover:text-rose-700';
@@ -204,7 +204,7 @@
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
         <td class="px-6 py-4">
           <p class="font-bold text-slate-800 dark:text-white">${escapeHtmlJS(u.display_name || 'User')}</p>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">${escapeHtmlJS(u.email)}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(u.email)}</p>
         </td>
         <td class="px-6 py-4">${m.roleBadge}</td>
         <td class="px-6 py-4">${m.statusBadge}</td>
@@ -225,9 +225,9 @@
           </div>
           <div class="flex items-center gap-1.5 shrink-0">${m.roleBadge}${m.statusBadge}</div>
         </div>
-        <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">Terdaftar: ${escapeHtmlJS(String(u.created_at || '').slice(0, 10) || '-')}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">Terdaftar: ${escapeHtmlJS(String(u.created_at || '').slice(0, 10) || '-')}</p>
         <div>
-          <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(admT('adm.last_change'))}</p>
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtmlJS(admT('adm.last_change'))}</p>
           ${buildAdminActivityHtml(u)}
         </div>
         <div class="flex flex-wrap gap-2">${m.actions}</div>
@@ -369,7 +369,7 @@
             <label for="admin-confirm-password" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Ulangi password</label>
             <input id="admin-confirm-password" type="password" class="swal2-input" style="margin:0;width:100%" autocomplete="new-password" minlength="8" placeholder="Ketik ulang password">
           </div>
-          ${requireCurrent ? `<p class="text-[11px] text-slate-500 dark:text-slate-400">Setelah password diganti, semua sesi di perangkat lain akan dicabut; sesi di perangkat ini tetap berjalan.</p>` : ''}
+          ${requireCurrent ? `<p class="text-xs text-slate-500 dark:text-slate-400">Setelah password diganti, semua sesi di perangkat lain akan dicabut; sesi di perangkat ini tetap berjalan.</p>` : ''}
         </div>`,
       showCancelButton: true,
       confirmButtonText: 'Simpan Password',
@@ -422,9 +422,9 @@
       return `<div class="py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 last:border-b-0 text-xs">
         <div class="min-w-0">
           <p class="font-bold text-slate-800 dark:text-slate-100 truncate" title="${escapeHtmlJS(item.action || '-')} → ${escapeHtmlJS(item.target_email || item.target_user_id || '-')}">${escapeHtmlJS(item.action || '-')} &rarr; ${escapeHtmlJS(item.target_email || item.target_user_id || '-')}</p>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}">Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 truncate" title="Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}">Oleh: ${escapeHtmlJS(item.actor_email || 'Admin')}</p>
         </div>
-        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums shrink-0">${ts}</span>
+        <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 tabular-nums shrink-0">${ts}</span>
       </div>`;
     }).join('');
     renderHtml(box, html);
@@ -466,13 +466,13 @@
       + '<div class="flex items-start justify-between gap-2">'
       + '<p class="font-bold text-sm text-slate-800 dark:text-white min-w-0">' + escapeHtmlJS(n.title || '-') + '</p>'
       + '<div class="flex items-center gap-1.5 shrink-0">'
-      + (unread ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-600 text-white">' + escapeHtmlJS(admT('adm.notif_new')) + '</span>' : '')
-      + '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ' + typeBadgeCls + '">' + escapeHtmlJS(typeLabel) + '</span>'
+      + (unread ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-rose-600 text-white">' + escapeHtmlJS(admT('adm.notif_new')) + '</span>' : '')
+      + '<span class="px-2 py-0.5 rounded-md text-xs font-bold ' + typeBadgeCls + '">' + escapeHtmlJS(typeLabel) + '</span>'
       + '</div></div>'
       + '<p class="text-xs text-slate-600 dark:text-slate-300 mt-1">' + escapeHtmlJS(n.body || '') + '</p>'
-      + '<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 tabular-nums">' + escapeHtmlJS(n.target_email || '-') + ' &middot; ' + escapeHtmlJS(formatLastChangeDate(n.created_at) || '-') + '</p>';
+      + '<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">' + escapeHtmlJS(n.target_email || '-') + ' &middot; ' + escapeHtmlJS(formatLastChangeDate(n.created_at) || '-') + '</p>';
     if (deleteOn) {
-      html += '<p class="mt-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400">' + escapeHtmlJS(admT('adm.notif_delete_on')) + ' ' + escapeHtmlJS(deleteOn) + '</p>';
+      html += '<p class="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-400">' + escapeHtmlJS(admT('adm.notif_delete_on')) + ' ' + escapeHtmlJS(deleteOn) + '</p>';
     }
     if (unread) {
       html += '<button type="button" data-admin-notif-read data-notif-id="' + escapeHtmlJS(String(n.id || '')) + '" class="mt-2 min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer">' + escapeHtmlJS(admT('adm.notif_mark_read')) + '</button>';
@@ -619,7 +619,7 @@
           <div>
             <label for="tgBotTokenInput" class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Token Bot Anda</label>
             <input id="tgBotTokenInput" type="password" autocomplete="off" placeholder="123456789:AAE..." class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono" />
-            <p class="text-[11px] text-slate-500 mt-1">Token dikirim sekali ke server, divalidasi, lalu disimpan terenkripsi. Token tidak pernah ditampilkan lagi dan tidak tersimpan di perangkat ini.</p>
+            <p class="text-xs text-slate-500 mt-1">Token dikirim sekali ke server, divalidasi, lalu disimpan terenkripsi. Token tidak pernah ditampilkan lagi dan tidak tersimpan di perangkat ini.</p>
           </div>
           <button type="button" id="btnConnectTgBot" class="w-full min-h-[44px] px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-1.5 transition-colors">
             <i class="ph ph-plugs-connected" aria-hidden="true"></i> Hubungkan Bot Saya
@@ -688,7 +688,7 @@
             <p class="text-slate-600 dark:text-slate-300">Gunakan kode OTP 8 digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
             <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-center">
               <span class="text-3xl font-black tracking-widest text-brand dark:text-white">${escapeHtmlJS(otp)}</span>
-              <p class="text-[11px] text-slate-500 mt-1">Berlaku selama 10 menit</p>
+              <p class="text-xs text-slate-500 mt-1">Berlaku selama 10 menit</p>
             </div>
             <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
               <p class="font-bold">Cara Menghubungkan:</p>
@@ -702,7 +702,7 @@
               <button type="button" id="btnRotateTgWebhook" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-xs text-slate-600 dark:text-slate-300">Perbarui Webhook</button>
               <button type="button" id="btnDisconnectTgBot" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-800 font-bold text-xs text-rose-600 dark:text-rose-400">Putus Bot</button>
             </div>
-            <p class="text-[11px] text-slate-500 -mt-1">${escapeHtmlJS(t('tg.webhook_hint'))}</p>
+            <p class="text-xs text-slate-500 -mt-1">${escapeHtmlJS(t('tg.webhook_hint'))}</p>
           </div>`,
         confirmButtonText: 'Selesai',
         showCloseButton: true,

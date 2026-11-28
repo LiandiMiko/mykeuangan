@@ -473,15 +473,15 @@
         <div style="${forPrint ? 'border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:12px;' : ''}" class="${forPrint ? '' : 'border-b border-slate-200 dark:border-slate-700 pb-3'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <h3 style="${forPrint ? 'margin:0;font-size:16px;font-weight:900;text-transform:uppercase;color:#0f172a;' : ''}" class="${forPrint ? '' : 'text-base font-black text-slate-900 dark:text-white uppercase tracking-wide'}">Ringkasan Finansial Eksekutif</h3>
-            <span style="${forPrint ? `font-size:10px;font-weight:700;padding:3px 8px;border:1px solid ${printAccent};border-radius:999px;color:${printAccent};text-transform:uppercase;` : ''}" class="${forPrint ? '' : 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase'}">1-Page Statement</span>
+            <span style="${forPrint ? `font-size:10px;font-weight:700;padding:3px 8px;border:1px solid ${printAccent};border-radius:999px;color:${printAccent};text-transform:uppercase;` : ''}" class="${forPrint ? '' : 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-brand/10 text-brand dark:text-brand-ink uppercase'}">1-Page Statement</span>
           </div>
           <p style="${forPrint ? 'margin:4px 0 0;font-size:12px;color:#475569;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500 dark:text-slate-400 mt-0.5'}">Pengguna: <strong>${escapeHtmlJS(sessionUser || 'User')}</strong> · Siklus: <strong>${escapeHtmlJS(st.period)}</strong> (${escapeHtmlJS(dateRangeLabel)})</p>
         </div>
         <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}">
           <div class="${cardClass}" style="${cardStyle}">
-            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500'}">Kekayaan Bersih (Net Worth)</span>
+            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-xs font-bold uppercase tracking-wider text-slate-500'}">Kekayaan Bersih (Net Worth)</span>
             <p style="${forPrint ? 'margin:4px 0 8px;font-size:18px;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'text-lg font-black text-slate-900 dark:text-white mt-0.5'}">${fmtFn(st.netWorth)}</p>
-            <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
+            <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
               <div style="display:flex;justify-content:space-between;"><span>Kas Dompet:</span> <strong>${fmtFn(st.walletsTotal)}</strong></div>
               <div style="display:flex;justify-content:space-between;"><span>Investasi/Aset:</span> <strong>${fmtFn(st.assetsTotal)}</strong></div>
               <div style="display:flex;justify-content:space-between;"><span>Piutang:</span> <strong>${fmtFn(st.piutangTotal)}</strong></div>
@@ -489,9 +489,9 @@
             </div>
           </div>
           <div class="${cardClass}" style="${cardStyle}">
-            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500'}">Arus Kas Siklus Berjalan</span>
+            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-xs font-bold uppercase tracking-wider text-slate-500'}">Arus Kas Siklus Berjalan</span>
             <p style="${forPrint ? `margin:4px 0 8px;font-size:18px;font-weight:900;color:${st.netCashflow >= 0 ? '#059669' : '#e11d48'};` : ''}" class="${forPrint ? '' : `text-lg font-black ${st.netCashflow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} mt-0.5`}">${st.netCashflow >= 0 ? '+' : ''}${fmtFn(st.netCashflow)}</p>
-            <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
+            <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
               <div style="display:flex;justify-content:space-between;"><span>Pemasukan:</span> <strong style="color:#059669;">${fmtFn(st.incomeTotal)}</strong></div>
               <div style="display:flex;justify-content:space-between;"><span>Pengeluaran:</span> <strong style="color:#e11d48;">${fmtFn(st.expenseTotal)}</strong></div>
               <div style="display:flex;justify-content:space-between;"><span>Savings Rate:</span> <strong>${st.savingsRate}%</strong></div>
@@ -500,14 +500,14 @@
           </div>
         </div>
         <div class="${cardClass}" style="${forPrint ? cardStyle + 'margin-bottom:12px;' : ''}">
-          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block'}">Metrik Kesehatan Finansial</span>
+          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block'}">Metrik Kesehatan Finansial</span>
           <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-2 gap-2 text-xs'}">
-            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-500'}">Runway Dana Darurat</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${printAccent};` : ''}" class="${forPrint ? '' : 'text-[10px] font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span></div>
-            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-500'}">Rasio Utang / Aset</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${st.ratios.debtToAssetPct}%</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${st.ratios.debtToAssetPct <= 30 ? '#059669' : '#d97706'};` : ''}" class="${forPrint ? '' : `text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}`}">${escapeHtmlJS(st.ratios.debtStatus)}</span></div>
+            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500'}">Runway Dana Darurat</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${printAccent};` : ''}" class="${forPrint ? '' : 'text-xs font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span></div>
+            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-xs text-slate-500'}">Rasio Utang / Aset</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${st.ratios.debtToAssetPct}%</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${st.ratios.debtToAssetPct <= 30 ? '#059669' : '#d97706'};` : ''}" class="${forPrint ? '' : `text-xs font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}`}">${escapeHtmlJS(st.ratios.debtStatus)}</span></div>
           </div>
         </div>
         <div class="${cardClass}" style="${cardStyle}">
-          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block'}">Pengeluaran Terbesar Periode Ini</span>
+          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block'}">Pengeluaran Terbesar Periode Ini</span>
           <div class="space-y-0.5">${topExpHtml}</div>
         </div>
       </div>`;

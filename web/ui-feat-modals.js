@@ -23,7 +23,7 @@
           <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             <div class="min-w-0 text-left">
               <p class="font-bold text-slate-700 dark:text-slate-200 tabular-nums">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.tipe)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(tx.keterangan || '-')}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 truncate" title="${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(tx.keterangan || '-')}</p>
             </div>
             <span class="font-black shrink-0 tabular-nums ${tx.tipe === 'Pemasukan' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${formatRupiah(tx.nominal).replace(',00', '')}</span>
           </div>`).join('')
@@ -166,7 +166,7 @@
             <label for="asset-wallet" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Sumber Dana (opsional)</label>
             <select id="asset-wallet" class="swal2-input" style="margin-top:0.35rem"><option value="">Catat sebagai aset manual</option>${walletOptions('')}</select>
           </div>
-          <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">Jika dompet dipilih, pembelian dicatat otomatis ke pengeluaran kategori Investasi.</p>
+          <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">Jika dompet dipilih, pembelian dicatat otomatis ke pengeluaran kategori Investasi.</p>
         </div>`,
       focusConfirm: false,
       showCancelButton: true,
@@ -225,7 +225,7 @@
           <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
             <div class="min-w-0 text-left">
               <p class="font-bold text-slate-700 dark:text-slate-200 truncate" title="${escapeHtmlJS(tx.kategori)}">${escapeHtmlJS(tx.kategori)}</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate tabular-nums" title="${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 truncate tabular-nums" title="${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}">${escapeHtmlJS(tx.tanggal)} · ${escapeHtmlJS(tx.keterangan || '-')}</p>
             </div>
             <span class="font-black shrink-0 tabular-nums ${tx.tipe === 'Pemasukan' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${tx.tipe === 'Pemasukan' ? '+' : '-'}${formatRupiah(tx.nominal).replace(',00', '')}</span>
           </div>`).join('')
@@ -236,12 +236,12 @@
       html: `
         <div class="text-left space-y-3">
           <div class="grid grid-cols-2 gap-2 text-xs">
-            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70"><p class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold">Saldo Awal</p><p class="font-bold tabular-nums text-slate-800 dark:text-slate-200">${formatRupiah(st.opening).replace(',00', '')}</p></div>
-            <div class="p-2.5 rounded-xl bg-brand/10"><p class="text-[11px] text-brand dark:text-brand-ink uppercase font-bold">Saldo Saat Ini</p><p class="font-black tabular-nums text-brand dark:text-brand-ink">${formatRupiah(st.currentBal).replace(',00', '')}</p></div>
-            <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase font-bold">Total Masuk</p><p class="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">+${formatRupiah(st.totalIn).replace(',00', '')}</p></div>
-            <div class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-[11px] text-rose-600 dark:text-rose-400 uppercase font-bold">Total Keluar</p><p class="font-bold tabular-nums text-rose-600 dark:text-rose-400">-${formatRupiah(st.totalOut).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70"><p class="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">Saldo Awal</p><p class="font-bold tabular-nums text-slate-800 dark:text-slate-200">${formatRupiah(st.opening).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-brand/10"><p class="text-xs text-brand dark:text-brand-ink uppercase font-bold">Saldo Saat Ini</p><p class="font-black tabular-nums text-brand dark:text-brand-ink">${formatRupiah(st.currentBal).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10"><p class="text-xs text-emerald-700 dark:text-emerald-400 uppercase font-bold">Total Masuk</p><p class="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">+${formatRupiah(st.totalIn).replace(',00', '')}</p></div>
+            <div class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10"><p class="text-xs text-rose-600 dark:text-rose-400 uppercase font-bold">Total Keluar</p><p class="font-bold tabular-nums text-rose-600 dark:text-rose-400">-${formatRupiah(st.totalOut).replace(',00', '')}</p></div>
           </div>
-          <p class="text-[11px] text-slate-500 dark:text-slate-400">Mutasi Transfer Netto: <strong class="tabular-nums text-slate-700 dark:text-slate-200">${st.netTransfers >= 0 ? '+' : ''}${formatRupiah(st.netTransfers).replace(',00', '')}</strong></p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Mutasi Transfer Netto: <strong class="tabular-nums text-slate-700 dark:text-slate-200">${st.netTransfers >= 0 ? '+' : ''}${formatRupiah(st.netTransfers).replace(',00', '')}</strong></p>
           <div><p class="text-xs font-bold text-slate-500 mb-1">10 Transaksi Terakhir</p><div class="max-h-52 overflow-y-auto pr-1">${recentHtml}</div></div>
         </div>`,
       showCancelButton: true,
@@ -277,7 +277,7 @@
         </span>
         <span class="text-right shrink-0">
           <span class="font-black text-brand dark:text-brand-ink">${formatRupiah(r.recommendedAmount).replace(',00', '')}</span>
-          <span class="block text-[10px] text-slate-500">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
+          <span class="block text-xs text-slate-500">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
         </span>
       </label>`).join('');
 
