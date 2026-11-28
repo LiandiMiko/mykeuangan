@@ -226,3 +226,125 @@ test('4.2 situs auth & laporan tidak lagi menempelkan error.message mentah', () 
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
   assert.match(buildMjs, /const WEB_MODULES = \[\s*\/\/ Gelombang 4[\s\S]{0,200}?'error-messages\.js',\s*'native-bridge\.js',/);
 });
+
+// ============================================================
+// 4.3 — Pembatas percobaan biometrik, verifikasi saat mematikan
+// biometrik, dan sukses biometrik tidak lagi me-reset lockout PIN.
+// ============================================================
+function loadNativeUx({ capacitor } = {}) {
+  const store = new Map();
+  const localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k)
+  };
+  const document = {
+    addEventListener: () => {},
+    getElementById: () => null,
+    querySelector: () => null,
+    body: { contains: () => false }
+  };
+  const sandbox = {
+    document, localStorage,
+    navigator: {},
+    Swal: { fire: async () => ({}) },
+    getSwalClass: () => '',
+    console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array,
+    Uint8Array, atob, btoa
+  };
+  sandbox.window = sandbox;
+  sandbox.__mkFeat = {};
+  if (capacitor) sandbox.Capacitor = capacitor;
+  vm.createContext(sandbox);
+  const code = fs.readFileSync('web/ui-feat-native-ux.js', 'utf8');
+  vm.runInContext(code, sandbox);
+  return { sandbox, localStorage, store };
+}
+
+test('4.3 biometricLock: 5 gagal beruntun mengunci 60 detik, lalu naik 5 -> 15 -> 60 menit', () => {
+  const { sandbox, localStorage } = loadNativeUx();
+  const bl = sandbox.__mkFeat.biometricLock;
+  assert.ok(bl, 'root.__mkFeat.biometricLock harus terekspos');
+  const T0 = 1000000;
+  for (let i = 0; i < 4; i++) bl.recordBiometricFailure(localStorage, T0);
+  assert.equal(bl.getBiometricCooldownSeconds(T0 + 1000), 0, '4 gagal belum mengunci');
+  const locked = bl.recordBiometricFailure(localStorage, T0);
+  assert.equal(locked.failures, 0, 'counter direset saat kunci');
+  assert.equal(locked.lockoutCount, 1);
+  assert.equal(locked.lockedUntil, T0 + 60000, 'kunci pertama 60 detik');
+  assert.equal(bl.getBiometricCooldownSeconds(T0 + 30000), 30);
+  assert.equal(bl.getBiometricCooldownSeconds(T0 + 60000), 0, 'cooldown habis tepat waktu');
+  for (let i = 0; i < 5; i++) bl.recordBiometricFailure(localStorage, T0 + 60000);
+  const locked2 = bl.readBiometricLockState(localStorage, T0 + 60000);
+  assert.equal(locked2.lockoutCount, 2);
+  assert.equal(locked2.lockedUntil, T0 + 60000 + 300000, 'kunci kedua 5 menit');
+  bl.clearBiometricFailures(localStorage);
+  const cleared = bl.readBiometricLockState(localStorage, T0);
+  assert.equal(cleared.failures, 0);
+  assert.equal(cleared.lockedUntil, 0);
+  assert.equal(cleared.lockoutCount, 0);
+});
+
+test('4.3 biometricLock: JSON rusak tidak melempar, dibaca sebagai state kosong', () => {
+  const { sandbox, localStorage } = loadNativeUx();
+  localStorage.setItem('mk_biometric_lock_state_v1', 'bukan-json{');
+  const bl = sandbox.__mkFeat.biometricLock;
+  const st = bl.readBiometricLockState(localStorage, 0);
+  assert.equal(st.failures, 0);
+  assert.equal(st.lockedUntil, 0);
+  assert.equal(st.lockoutCount, 0);
+  assert.equal(bl.getBiometricCooldownSeconds(), 0);
+});
+
+test('4.3 tryBiometricUnlock: 5 gagal plugin mengunci, percobaan ke-6 tidak sampai ke authenticator; sukses menghapus counter', async () => {
+  const calls = { verify: 0 };
+  const failing = {
+    isNativePlatform: () => true,
+    Plugins: { NativeBiometric: { verifyIdentity: async () => { calls.verify++; throw new Error('auth failed'); } } }
+  };
+  const { sandbox, localStorage } = loadNativeUx({ capacitor: failing });
+  localStorage.setItem('mk_biometric_pin_enabled', '1');
+  const tryBio = sandbox.__mkFeat.tryBiometricUnlock;
+  for (let i = 0; i < 5; i++) assert.equal(await tryBio(), false, `percobaan ${i + 1} gagal`);
+  assert.equal(calls.verify, 5);
+  assert.ok(sandbox.__mkFeat.biometricLock.getBiometricCooldownSeconds() > 0, 'cooldown aktif setelah 5 gagal');
+  assert.equal(await tryBio(), false, 'percobaan ke-6 ditolak wrapper');
+  assert.equal(calls.verify, 5, 'authenticator tidak dipanggil selama cooldown');
+
+  const okCalls = { verify: 0 };
+  const succeeding = {
+    isNativePlatform: () => true,
+    Plugins: { NativeBiometric: { verifyIdentity: async () => { okCalls.verify++; return {}; } } }
+  };
+  const ok = loadNativeUx({ capacitor: succeeding });
+  ok.localStorage.setItem('mk_biometric_pin_enabled', '1');
+  ok.localStorage.setItem('mk_biometric_lock_state_v1', JSON.stringify({ failures: 3, lockedUntil: 0, lockoutCount: 0 }));
+  assert.equal(await ok.sandbox.__mkFeat.tryBiometricUnlock(), true);
+  assert.equal(okCalls.verify, 1);
+  const cleared = ok.sandbox.__mkFeat.biometricLock.readBiometricLockState(ok.localStorage, 0);
+  assert.equal(cleared.failures, 0, 'sukses menghapus counter');
+  assert.equal(cleared.lockedUntil, 0);
+  assert.equal(cleared.lockoutCount, 0);
+});
+
+test('4.3 mematikan biometrik wajib verifikasi PIN; sukses biometrik tidak mereset lockout PIN', () => {
+  const ux = fs.readFileSync('web/ui-feat-native-ux.js', 'utf8');
+  const acc = fs.readFileSync('web/ui-feat-account.js', 'utf8');
+  // toggleBiometricUnlock memanggil promptVerifyCurrentPin SEBELUM
+  // menghapus kunci; tanpa verifier, fail closed (tidak dimatikan).
+  const fn = ux.slice(ux.indexOf('async function toggleBiometricUnlock'));
+  const vIdx = fn.indexOf('promptVerifyCurrentPin');
+  const rIdx = fn.indexOf('removeItem(BIOMETRIC_ENABLED_KEY)');
+  assert.ok(vIdx > 0 && vIdx < rIdx, 'verifikasi PIN harus mendahului penghapusan kunci');
+  assert.match(fn, /typeof verifier !== 'function'/, 'fail closed bila verifier tidak tersedia');
+  assert.match(acc, /root\.__mkFeat\.promptVerifyCurrentPin = promptVerifyCurrentPin;/, 'verifier diekspor untuk native-ux');
+  // Kedua jalur sukses biometrik memakai markBiometricUnlocked, bukan
+  // markPinUnlocked (yang mereset lockout PIN).
+  assert.equal((acc.match(/await markBiometricUnlocked\(\);/g) || []).length, 2, 'dua jalur sukses biometrik');
+  assert.ok(!acc.includes('if (bioOk && hasPinDataKey()) {\n          await markPinUnlocked();'), 'jalur bioOk tidak lagi mereset PIN lockout');
+  const body = acc.slice(acc.indexOf('async function markBiometricUnlocked'), acc.indexOf('async function markBiometricUnlocked') + 400);
+  assert.doesNotMatch(body, /writePinLockState/, 'markBiometricUnlocked tidak menyentuh state lockout PIN');
+  // Tombol coba-lagi menghormati cooldown.
+  assert.match(ux, /bindPinModalBiometricRetry[\s\S]{0,1200}getBiometricCooldownSeconds/, 'tombol coba-lagi mengecek cooldown');
+  assert.match(ux, /setBiometricButtonLocked/, 'label tombol berubah saat terkunci');
+});

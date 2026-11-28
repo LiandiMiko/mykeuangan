@@ -7,6 +7,66 @@
 
   const BIOMETRIC_ENABLED_KEY = 'mk_biometric_pin_enabled';
   const BIOMETRIC_CRED_KEY = 'mk_biometric_cred_id';
+  // Gelombang 4 — pembatas percobaan biometrik (R): dulu
+  // tryBiometricUnlock() menelan semua kegagalan dan tombol coba-lagi
+  // bisa ditekan tanpa batas. Sekarang 5 kegagalan beruntun mengunci
+  // biometrik 60 detik, lalu 5 -> 15 -> 60 menit (durasi yang sama
+  // dengan lockout PIN supaya mudah diingat). State di localStorage:
+  // throttle ini lapisan tambahan — pembatas utama tetap di
+  // OS/authenticator (Android/iOS mengunci biometrik setelah ~5
+  // gagal). Pengguna yang terkunci selalu bisa memakai PIN.
+  const BIOMETRIC_LOCK_STATE_KEY = 'mk_biometric_lock_state_v1';
+  const MAX_BIOMETRIC_ATTEMPTS = 5;
+  const BIOMETRIC_LOCKOUT_DURATIONS_MS = [60000, 5 * 60000, 15 * 60000, 60 * 60000];
+
+  function readBiometricLockState(store, now) {
+    const storage = store || localStorage;
+    let parsed = null;
+    try { parsed = JSON.parse(storage.getItem(BIOMETRIC_LOCK_STATE_KEY) || 'null'); } catch (_) { parsed = null; }
+    const v = parsed && typeof parsed === 'object' ? parsed : {};
+    return {
+      failures: Number(v.failures) || 0,
+      lockedUntil: Number(v.lockedUntil) || 0,
+      lockoutCount: Number(v.lockoutCount) || 0
+    };
+  }
+
+  function writeBiometricLockState(state, store) {
+    const storage = store || localStorage;
+    const next = {
+      failures: Number(state.failures) || 0,
+      lockedUntil: Number(state.lockedUntil) || 0,
+      lockoutCount: Number(state.lockoutCount) || 0
+    };
+    try { storage.setItem(BIOMETRIC_LOCK_STATE_KEY, JSON.stringify(next)); } catch (_) { /* abaikan */ }
+    return next;
+  }
+
+  function biometricLockoutDurationMs(lockoutCount) {
+    const idx = Math.max(0, Math.min(lockoutCount - 1, BIOMETRIC_LOCKOUT_DURATIONS_MS.length - 1));
+    return BIOMETRIC_LOCKOUT_DURATIONS_MS[idx];
+  }
+
+  function getBiometricCooldownSeconds(now) {
+    const t = typeof now === 'number' ? now : Date.now();
+    const { lockedUntil } = readBiometricLockState();
+    return lockedUntil > t ? Math.ceil((lockedUntil - t) / 1000) : 0;
+  }
+
+  function recordBiometricFailure(store, now) {
+    const t = typeof now === 'number' ? now : Date.now();
+    const prev = readBiometricLockState(store, t);
+    let next = { failures: prev.failures + 1, lockedUntil: prev.lockedUntil, lockoutCount: prev.lockoutCount };
+    if (next.failures >= MAX_BIOMETRIC_ATTEMPTS) {
+      const lockoutCount = prev.lockoutCount + 1;
+      next = { failures: 0, lockedUntil: t + biometricLockoutDurationMs(lockoutCount), lockoutCount };
+    }
+    return writeBiometricLockState(next, store);
+  }
+
+  function clearBiometricFailures(store) {
+    return writeBiometricLockState({ failures: 0, lockedUntil: 0, lockoutCount: 0 }, store);
+  }
   const PTR_VIEWS = ['view-dashboard', 'view-histori', 'view-laporan', 'view-aset', 'view-budgeting'];
 
   const isEn = () => typeof localStorage !== 'undefined' && localStorage.getItem('lang') === 'en';
@@ -470,8 +530,12 @@
     return parsed.credIdB64;
   }
 
-  async function tryBiometricUnlock() {
-    if (!isBiometricUnlockEnabled()) return false;
+  // Hasil tri-state: true = terverifikasi, false = authenticator
+  // dipanggil dan gagal, null = tidak sempat dicoba (nonaktif, tanpa
+  // kredensial, tanpa plugin, atau server gagal) — null TIDAK dihitung
+  // sebagai kegagalan oleh wrapper di bawah.
+  async function tryBiometricUnlockInner() {
+    if (!isBiometricUnlockEnabled()) return null;
     const isNative = isNativePlatform();
     const nativeBio = getNativeBiometricPlugin();
     if (nativeBio && typeof nativeBio.verifyIdentity === 'function') {
@@ -487,43 +551,44 @@
         return false;
       }
     }
-    if (isNative) return false;
+    if (isNative) return null;
     const credId = localStorage.getItem(BIOMETRIC_CRED_KEY) || '';
-    if (!credId || !navigator.credentials || typeof navigator.credentials.get !== 'function') return false;
+    if (!credId || !navigator.credentials || typeof navigator.credentials.get !== 'function') return null;
     const rpId = resolveWebAuthnRpId();
     // Server flow (draft, gated): the edge function issues the
     // challenge and verifies the assertion server-side.
     if (WEBAUTHN_SERVER_ENABLED) {
+      let begun = null;
+      try { begun = await beginWebAuthnServerChallenge('assertion'); } catch (_) { begun = null; }
+      if (!begun || !begun.challenge) return null;
+      const publicKey = {
+        challenge: base64UrlToBytes(begun.challenge),
+        allowCredentials: [{ type: 'public-key', id: base64UrlToBytes(credId), transports: ['internal'] }],
+        userVerification: 'required',
+        timeout: 45000
+      };
+      if (rpId) publicKey.rpId = rpId;
+      let assertion = null;
+      try { assertion = await navigator.credentials.get({ publicKey }); } catch (_) { return false; }
+      if (!assertion || !assertion.response) return false;
+      let done = null;
       try {
-        const begun = await beginWebAuthnServerChallenge('assertion');
-        if (!begun || !begun.challenge) return false;
-        const publicKey = {
-          challenge: base64UrlToBytes(begun.challenge),
-          allowCredentials: [{ type: 'public-key', id: base64UrlToBytes(credId), transports: ['internal'] }],
-          userVerification: 'required',
-          timeout: 45000
-        };
-        if (rpId) publicKey.rpId = rpId;
-        const assertion = await navigator.credentials.get({ publicKey });
-        if (!assertion || !assertion.response) return false;
-        const done = await finishWebAuthnServerAssertion({
+        done = await finishWebAuthnServerAssertion({
           credentialId: responseToBase64Url(assertion.rawId),
           clientDataJSON: responseToBase64Url(assertion.response.clientDataJSON),
           authenticatorData: responseToBase64Url(assertion.response.authenticatorData),
           signature: responseToBase64Url(assertion.response.signature),
           userHandle: responseToBase64Url(assertion.response.userHandle)
         });
-        return Boolean(done && done.verified);
-      } catch (_) {
-        return false;
-      }
+      } catch (_) { return null; }
+      return Boolean(done && done.verified);
     }
     // Interim (client-side): challenge is stored BEFORE get(), and the
     // assertion is verified against the stored public key. A bare
     // truthy result (the old `Boolean(assertion)`) no longer unlocks.
     let storedJwk = null;
     try { storedJwk = JSON.parse(webauthnLocalGet(WEBAUTHN_PUBKEY_KEY) || 'null'); } catch (_) { storedJwk = null; }
-    if (!storedJwk || storedJwk.kty !== 'EC') return false;
+    if (!storedJwk || storedJwk.kty !== 'EC') return null;
     try {
       const challengeB64 = newWebAuthnChallenge();
       storeWebAuthnChallenge(challengeB64);
@@ -554,6 +619,18 @@
     }
   }
 
+  // Gelombang 4: wrapper pembatas percobaan. Cooldown aktif -> jangan
+  // panggil authenticator sama sekali. Sukses menghapus counter
+  // biometrik; gagal (false) menambah counter; null tidak dihitung.
+  async function tryBiometricUnlock() {
+    if (getBiometricCooldownSeconds() > 0) return false;
+    let result = null;
+    try { result = await tryBiometricUnlockInner(); } catch (_) { result = false; }
+    if (result === true) { clearBiometricFailures(); return true; }
+    if (result === false) recordBiometricFailure();
+    return false;
+  }
+
   async function toggleBiometricUnlock() {
     if (!localStorage.getItem('mk_app_pin_hash')) {
       await waitSwalClosed();
@@ -561,8 +638,19 @@
       return;
     }
     if (isBiometricUnlockEnabled()) {
+      // Gelombang 4: mematikan biometrik wajib verifikasi ulang PIN —
+      // sebelumnya satu ketukan langsung menghapus kunci tanpa bukti
+      // kepemilikan (berbeda dengan "Hapus PIN" yang memang memverifikasi).
+      const verifier = (root.__mkFeat && root.__mkFeat.promptVerifyCurrentPin) || null;
+      if (typeof verifier !== 'function') {
+        await waitSwalClosed();
+        Swal.fire({ icon: 'warning', title: msg('Verifikasi Tidak Tersedia', 'Verification Unavailable'), text: msg('Verifikasi PIN tidak tersedia saat ini — biometrik tidak dimatikan.', 'PIN verification is unavailable right now — biometrics were not disabled.'), customClass: { popup: getSwalClass() } });
+        return;
+      }
+      if (!(await verifier(msg('Verifikasi PIN untuk Mematikan Biometrik', 'Verify PIN to Disable Biometrics')))) return;
       localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
       localStorage.removeItem(BIOMETRIC_CRED_KEY);
+      clearBiometricFailures();
       await waitSwalClosed();
       Swal.fire({ icon: 'info', title: msg('Biometrik dimatikan', 'Biometrics disabled'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
       return;
@@ -615,10 +703,18 @@
     lbl.textContent = msg('Buka dengan Sidik Jari', 'Unlock with Biometrics');
     btn.append(icon, lbl);
     wrap.appendChild(btn);
+    if (getBiometricCooldownSeconds() > 0) setBiometricButtonLocked(btn, getBiometricCooldownSeconds());
     const actions = popup.querySelector('.swal2-actions');
     if (actions) popup.insertBefore(wrap, actions);
     else popup.appendChild(wrap);
     bindPinModalBiometricRetry(onSuccess);
+  }
+
+  function setBiometricButtonLocked(btn, waitSec) {
+    if (!btn) return;
+    btn.disabled = true;
+    const lbl = btn.querySelector('span');
+    if (lbl) lbl.textContent = msg(`Biometrik terkunci — gunakan PIN (${waitSec} dtk)`, `Biometrics locked — use PIN (${waitSec}s)`);
   }
 
   function bindPinModalBiometricRetry(onSuccess) {
@@ -627,13 +723,25 @@
     btn.dataset.bound = '1';
     btn.addEventListener('click', async () => {
       if (btn.disabled) return;
+      // Gelombang 4: hormati cooldown percobaan biometrik.
+      const waitSec = getBiometricCooldownSeconds();
+      if (waitSec > 0) {
+        setBiometricButtonLocked(btn, waitSec);
+        await waitSwalClosed();
+        Swal.fire({ icon: 'warning', title: msg('Biometrik Terkunci Sementara', 'Biometrics Temporarily Locked'), text: msg(`Terlalu banyak percobaan biometrik yang gagal. Coba lagi dalam ${waitSec} detik atau gunakan PIN.`, `Too many failed biometric attempts. Try again in ${waitSec} seconds or use your PIN.`), customClass: { popup: getSwalClass() } });
+        return;
+      }
       btn.disabled = true;
       try {
         if (await tryBiometricUnlock()) {
           if (typeof onSuccess === 'function') onSuccess();
+        } else if (getBiometricCooldownSeconds() > 0) {
+          // Kegagalan ini baru saja memicu kunci: biarkan tombol
+          // nonaktif sampai cooldown habis.
+          setBiometricButtonLocked(btn, getBiometricCooldownSeconds());
         }
       } finally {
-        if (document.body && document.body.contains(btn)) btn.disabled = false;
+        if (document.body && document.body.contains(btn) && getBiometricCooldownSeconds() === 0) btn.disabled = false;
       }
     });
   }
@@ -780,6 +888,16 @@
   });
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.tryBiometricUnlock = tryBiometricUnlock;
+  // Gelombang 4: permukaan tes/diagnostik untuk pembatas percobaan.
+  root.__mkFeat.biometricLock = {
+    readBiometricLockState,
+    writeBiometricLockState,
+    recordBiometricFailure,
+    clearBiometricFailures,
+    getBiometricCooldownSeconds,
+    MAX_BIOMETRIC_ATTEMPTS,
+    BIOMETRIC_LOCKOUT_DURATIONS_MS
+  };
   root.__mkFeat.isBiometricUnlockEnabled = isBiometricUnlockEnabled;
   root.__mkFeat.checkBiometricAvailability = checkBiometricAvailability;
   root.__mkFeat.bindPinModalBiometricRetry = bindPinModalBiometricRetry;

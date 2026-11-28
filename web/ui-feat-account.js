@@ -133,6 +133,15 @@
     try { sessionStorage.setItem('mk_pin_unlocked', '1'); } catch (_) { /* ignore */ }
   }
 
+  // Gelombang 4: sukses biometrik HANYA menandai sesi unlocked — TIDAK
+  // mereset state lockout PIN. Sebelumnya kedua jalur sukses biometrik
+  // di bawah memanggil markPinUnlocked(), sehingga PIN yang sedang
+  // terkunci (cooldown / wajib verifikasi password akun) bisa dilewati
+  // lewat biometrik dan lockout-nya hilang.
+  async function markBiometricUnlocked() {
+    try { sessionStorage.setItem('mk_pin_unlocked', '1'); } catch (_) { /* ignore */ }
+  }
+
   async function recordFailedPinAttempt() {
     const prev = await readPinLockState();
     const failuresTotal = prev.failuresTotal + 1;
@@ -698,7 +707,7 @@
         let bioOk = false;
         try { bioOk = await root.__mkFeat.tryBiometricUnlock(); } catch (_) { bioOk = false; }
         if (bioOk && hasPinDataKey()) {
-          await markPinUnlocked();
+          await markBiometricUnlocked();
           return true;
         }
         // bioOk tapi DEK belum tersedia -> lanjut ke prompt PIN di bawah.
@@ -728,7 +737,7 @@
         let unlockedByBio = false;
         const res = await promptAppPinInput(() => { unlockedByBio = true; Swal.close(); });
         if (unlockedByBio) {
-          if (hasPinDataKey()) { await markPinUnlocked(); break; }
+          if (hasPinDataKey()) { await markBiometricUnlocked(); break; }
           await Swal.fire({
             icon: 'info',
             title: txMsg('PIN Diperlukan Sekali', 'PIN Required Once'),
@@ -889,6 +898,8 @@
   Object.assign(root, { openAccountSettingsModal, deleteOwnAccountFlow, openQuickAddMenu, installPwaApp });
   root.__mkFeat = root.__mkFeat || {};
   root.__mkFeat.saveInitialAppPin = saveInitialAppPin;
+  // Gelombang 4: dipakai toggleBiometricUnlock() saat mematikan biometrik.
+  root.__mkFeat.promptVerifyCurrentPin = promptVerifyCurrentPin;
   root.__mkFeat.verifyAppPinIfEnabled = verifyAppPinIfEnabled;
   root.__mkFeat.handlePwaShortcutAction = handlePwaShortcutAction;
   // K2: DEK hanya di memori — dibersihkan saat lock/logout. `getPinDataKey`
