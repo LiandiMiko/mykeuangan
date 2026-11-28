@@ -89,7 +89,7 @@
       if (!el) return;
       renderHtml(el, Object.keys(debtBal[g.group])
         .map((n) => buildDebtCard(g.group, n, debtBal[g.group][n], g.iconCol, g.addTxt, g.payTxt))
-        .join('') || '<p class="text-center text-xs text-slate-400 p-4">Klik + untuk menambah</p>');
+        .join('') || '<p class="text-center text-xs text-slate-500 p-4">Klik + untuk menambah</p>');
       bindDebtCardActions(el);
     });
   }

@@ -345,7 +345,7 @@
       ['Jatuh tempo utang baru', dueCount, plan.skippedDebtDueDates || 0]
     ];
     const listHtml = rows.map(([label, add, skip]) =>
-      `<li><strong>${label}:</strong> ${add} <span class="text-slate-400">(${skip} dilewati)</span></li>`
+      `<li><strong>${label}:</strong> ${add} <span class="text-slate-500">(${skip} dilewati)</span></li>`
     ).join('');
     return `<div class="text-left text-xs space-y-2 text-slate-600 dark:text-slate-300"><p>Data baru akan ditambahkan tanpa menduplikasi data yang sudah ada:</p><ul class="list-disc pl-5 space-y-1">${listHtml}</ul></div>`;
   }
@@ -479,7 +479,7 @@
         </div>
         <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}">
           <div class="${cardClass}" style="${cardStyle}">
-            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400'}">Kekayaan Bersih (Net Worth)</span>
+            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500'}">Kekayaan Bersih (Net Worth)</span>
             <p style="${forPrint ? 'margin:4px 0 8px;font-size:18px;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'text-lg font-black text-slate-900 dark:text-white mt-0.5'}">${fmtFn(st.netWorth)}</p>
             <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
               <div style="display:flex;justify-content:space-between;"><span>Kas Dompet:</span> <strong>${fmtFn(st.walletsTotal)}</strong></div>
@@ -489,7 +489,7 @@
             </div>
           </div>
           <div class="${cardClass}" style="${cardStyle}">
-            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400'}">Arus Kas Siklus Berjalan</span>
+            <span style="${forPrint ? 'font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500'}">Arus Kas Siklus Berjalan</span>
             <p style="${forPrint ? `margin:4px 0 8px;font-size:18px;font-weight:900;color:${st.netCashflow >= 0 ? '#059669' : '#e11d48'};` : ''}" class="${forPrint ? '' : `text-lg font-black ${st.netCashflow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} mt-0.5`}">${st.netCashflow >= 0 ? '+' : ''}${fmtFn(st.netCashflow)}</p>
             <div style="${forPrint ? 'font-size:11px;color:#334155;' : ''}" class="${forPrint ? '' : 'text-[11px] text-slate-500 dark:text-slate-400 mt-1 space-y-0.5'}">
               <div style="display:flex;justify-content:space-between;"><span>Pemasukan:</span> <strong style="color:#059669;">${fmtFn(st.incomeTotal)}</strong></div>
@@ -500,14 +500,14 @@
           </div>
         </div>
         <div class="${cardClass}" style="${forPrint ? cardStyle + 'margin-bottom:12px;' : ''}">
-          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block'}">Metrik Kesehatan Finansial</span>
+          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block'}">Metrik Kesehatan Finansial</span>
           <div style="${forPrint ? 'display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;' : ''}" class="${forPrint ? '' : 'grid grid-cols-2 gap-2 text-xs'}">
-            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Runway Dana Darurat</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${printAccent};` : ''}" class="${forPrint ? '' : 'text-[10px] font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span></div>
-            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-400'}">Rasio Utang / Aset</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${st.ratios.debtToAssetPct}%</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${st.ratios.debtToAssetPct <= 30 ? '#059669' : '#d97706'};` : ''}" class="${forPrint ? '' : `text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}`}">${escapeHtmlJS(st.ratios.debtStatus)}</span></div>
+            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-500'}">Runway Dana Darurat</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${escapeHtmlJS(runwayText)}</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${printAccent};` : ''}" class="${forPrint ? '' : 'text-[10px] font-bold text-brand'}">${escapeHtmlJS(st.ratios.runwayStatus)}</span></div>
+            <div class="${innerCardClass}" style="${innerCardStyle}"><span style="${forPrint ? 'font-size:10px;color:#64748b;' : ''}" class="${forPrint ? '' : 'text-[10px] text-slate-500'}">Rasio Utang / Aset</span><p style="${forPrint ? 'margin:2px 0;font-weight:900;color:#0f172a;' : ''}" class="${forPrint ? '' : 'font-black text-slate-800 dark:text-white mt-0.5'}">${st.ratios.debtToAssetPct}%</p><span style="${forPrint ? `font-size:10px;font-weight:700;color:${st.ratios.debtToAssetPct <= 30 ? '#059669' : '#d97706'};` : ''}" class="${forPrint ? '' : `text-[10px] font-bold ${st.ratios.debtToAssetPct <= 30 ? 'text-emerald-600' : 'text-amber-600'}`}">${escapeHtmlJS(st.ratios.debtStatus)}</span></div>
           </div>
         </div>
         <div class="${cardClass}" style="${cardStyle}">
-          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 block'}">Pengeluaran Terbesar Periode Ini</span>
+          <span style="${forPrint ? 'display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;' : ''}" class="${forPrint ? '' : 'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block'}">Pengeluaran Terbesar Periode Ini</span>
           <div class="space-y-0.5">${topExpHtml}</div>
         </div>
       </div>`;

@@ -134,25 +134,25 @@
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
             <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Burn Rate &amp; Proyeksi Akhir Siklus</h4>
-            <p class="text-[11px] text-slate-400 mt-0.5">Hari ke-${fc.elapsedDays} dari ${fc.totalDays} · ${fc.remainingDays} hari tersisa</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Hari ke-${fc.elapsedDays} dari ${fc.totalDays} · ${fc.remainingDays} hari tersisa</p>
           </div>
           <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${badge.cls}">${badge.label}</span>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-400">Burn Rate Harian</p>
+            <p class="text-[10px] font-bold uppercase text-slate-500">Burn Rate Harian</p>
             <p class="text-sm sm:text-base font-black text-slate-800 dark:text-white mt-0.5 tabular-nums">${fmt(fc.dailyBurnRate)}/hr</p>
           </div>
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-400">Proyeksi Keluar</p>
+            <p class="text-[10px] font-bold uppercase text-slate-500">Proyeksi Keluar</p>
             <p class="text-sm sm:text-base font-black ${fc.status === 'over' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'} mt-0.5 tabular-nums">${fmt(fc.projectedExpense)}</p>
           </div>
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-400">Batas Aman Harian</p>
+            <p class="text-[10px] font-bold uppercase text-slate-500">Batas Aman Harian</p>
             <p class="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">${fc.dailySafeAllowance !== null ? fmt(fc.dailySafeAllowance) + '/hr' : '—'}</p>
           </div>
           <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-            <p class="text-[10px] font-bold uppercase text-slate-400">Estimasi Sisa Budget</p>
+            <p class="text-[10px] font-bold uppercase text-slate-500">Estimasi Sisa Budget</p>
             <p class="text-sm sm:text-base font-black ${fc.projectedVariance !== null && fc.projectedVariance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'} mt-0.5 tabular-nums">${fc.projectedVariance !== null ? (fc.projectedVariance >= 0 ? '+' : '-') + fmt(Math.abs(fc.projectedVariance)) : '—'}</p>
           </div>
         </div>
@@ -222,16 +222,16 @@
       return { text: t('budget.over'), icon: 'warning-circle', iconWrapClass: 'bg-rose-50 dark:bg-rose-500/10 text-rose-500', textClass: 'text-rose-600 dark:text-rose-400', progressClass: 'bg-rose-500' };
     }
     if (pct >= 80) {
-      return { text: t('budget.warning'), icon: 'warning', iconWrapClass: 'bg-amber-50 dark:bg-amber-500/10 text-amber-500', textClass: 'text-amber-600 dark:text-amber-400', progressClass: 'bg-amber-500' };
+      return { text: t('budget.warning'), icon: 'warning', iconWrapClass: 'bg-amber-50 dark:bg-amber-500/10 text-amber-500', textClass: 'text-amber-700 dark:text-amber-400', progressClass: 'bg-amber-500' };
     }
-    return { text: t('budget.aman'), icon: 'check-circle', iconWrapClass: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500', textClass: 'text-emerald-600 dark:text-emerald-400', progressClass: 'bg-emerald-500' };
+    return { text: t('budget.aman'), icon: 'check-circle', iconWrapClass: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500', textClass: 'text-emerald-700 dark:text-emerald-400', progressClass: 'bg-emerald-500' };
   }
 
   function buildBudgetTxListHtml(catTxns, showCategoryBadge) {
     if (catTxns.length === 0) {
       return `
         <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-center">
-          <p class="text-[11px] text-slate-400 italic">Belum ada transaksi kategori ini di siklus ini</p>
+          <p class="text-[11px] text-slate-500 italic">Belum ada transaksi kategori ini di siklus ini</p>
         </div>`;
     }
     return `
@@ -248,7 +248,7 @@
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <p class="text-[11px] font-black tabular-nums text-rose-600 dark:text-rose-400">−${formatRupiah(tx.nominal).replace(',00', '')}</p>
-              <button type="button" data-budget-transaction="${escapeHtmlJS(tx.id)}" class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100" aria-label="Edit transaksi" title="Edit">
+              <button type="button" data-budget-transaction="${escapeHtmlJS(tx.id)}" class="w-11 h-11 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 flex items-center justify-center hover:bg-blue-100" aria-label="Edit transaksi" title="Edit">
                 <i class="ph ph-pencil text-xs" aria-hidden="true"></i>
               </button>
             </div>

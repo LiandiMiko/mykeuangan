@@ -38,15 +38,27 @@
     return items;
   }
 
+  // Gelombang 6 (U18): umumkan item aktif ke screen reader lewat
+  // aria-selected pada tiap option + aria-activedescendant pada input.
   function highlightCmdItem() {
     const listEl = document.getElementById('mkCmdList');
     if (!listEl) return;
+    const input = document.getElementById('mkCmdInput');
+    let activeId = null;
     listEl.querySelectorAll('[data-cmd-idx]').forEach((btn, idx) => {
       const on = idx === cmdActiveIdx;
       btn.classList.toggle('bg-brand/10', on);
       btn.classList.toggle('text-brand', on);
-      if (on) btn.scrollIntoView({ block: 'nearest' });
+      btn.setAttribute('aria-selected', String(on));
+      if (on) {
+        activeId = btn.id;
+        btn.scrollIntoView({ block: 'nearest' });
+      }
     });
+    if (input) {
+      if (activeId) input.setAttribute('aria-activedescendant', activeId);
+      else if (typeof input.removeAttribute === 'function') input.removeAttribute('aria-activedescendant');
+    }
   }
 
   function closeCommandPalette() {
@@ -66,17 +78,18 @@
     cmdFiltered = cachedCmdItems.filter((it) => !q || `${it.label} ${it.hint}`.toLowerCase().includes(q)).slice(0, 14);
     cmdActiveIdx = 0;
     if (!cmdFiltered.length) {
-      renderHtml(listEl, '<p class="p-4 text-xs text-slate-400 text-center">Tidak ditemukan perintah yang cocok.</p>');
+      renderHtml(listEl, '<p class="p-4 text-xs text-slate-500 text-center">Tidak ditemukan perintah yang cocok.</p>');
+      if (input && typeof input.removeAttribute === 'function') input.removeAttribute('aria-activedescendant');
       return;
     }
     renderHtml(listEl, cmdFiltered.map((it, idx) => `
-      <button type="button" data-cmd-idx="${idx}"
+      <button type="button" id="mkCmdOpt-${idx}" role="option" aria-selected="${idx === cmdActiveIdx ? 'true' : 'false'}" data-cmd-idx="${idx}"
               class="w-full px-3.5 py-2.5 rounded-xl text-left flex items-center justify-between gap-2 hover:bg-brand/10 hover:text-brand dark:hover:text-brand-ink transition-colors">
         <span class="min-w-0 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-100">
           <i class="ph ${escapeHtmlJS(it.icon)} text-base text-brand dark:text-brand-ink shrink-0" aria-hidden="true"></i>
           <span class="truncate">${escapeHtmlJS(it.label)}</span>
         </span>
-        <span class="shrink-0 max-w-[42%] truncate text-[11px] text-slate-400">${escapeHtmlJS(it.hint)}</span>
+        <span class="shrink-0 max-w-[42%] truncate text-[11px] text-slate-500">${escapeHtmlJS(it.hint)}</span>
       </button>
     `).join(''));
     listEl.querySelectorAll('[data-cmd-idx]').forEach((btn) => {
@@ -107,11 +120,12 @@
         <div class="p-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center gap-2.5">
           <i class="ph ph-magnifying-glass text-lg text-brand dark:text-brand-ink shrink-0" aria-hidden="true"></i>
           <input id="mkCmdInput" type="search" enterkeyhint="go" autocomplete="off" placeholder="Ketik halaman, aksi, kalkulator, tema..."
-                 class="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400">
+                 role="combobox" aria-expanded="true" aria-controls="mkCmdList" aria-label="Cari perintah cepat"
+                 class="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-500">
           <kbd class="hidden sm:inline-block px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400">ESC</kbd>
-          <button id="mkCmdCloseBtn" type="button" aria-label="Tutup perintah cepat" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"><i class="ph ph-x text-base" aria-hidden="true"></i></button>
+          <button id="mkCmdCloseBtn" type="button" aria-label="Tutup perintah cepat" class="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"><i class="ph ph-x text-base" aria-hidden="true"></i></button>
         </div>
-        <div id="mkCmdList" class="p-2 pb-3 sm:pb-2 overflow-y-auto space-y-0.5"></div>
+        <div id="mkCmdList" role="listbox" aria-label="Daftar perintah cepat" class="p-2 pb-3 sm:pb-2 overflow-y-auto space-y-0.5"></div>
         <div class="hidden sm:flex px-3.5 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
           <span>Gunakan <b class="font-semibold text-slate-700 dark:text-slate-200">&uarr;&darr;</b> navigasi &bull; <b class="font-semibold text-slate-700 dark:text-slate-200">Enter</b> pilih</span>
           <span><b class="font-semibold text-slate-700 dark:text-slate-200">Ctrl+K</b> buka cepat</span>
@@ -176,7 +190,7 @@
         return;
       }
       bar.classList.remove('hide');
-      renderHtml(bar, '<span class="text-[11px] font-bold text-slate-400 mr-1">Tag:</span>' +
+      renderHtml(bar, '<span class="text-[11px] font-bold text-slate-500 mr-1">Tag:</span>' +
         items.slice(0, 10).map((it) => `
           <button type="button" ${mkActionAttrs('applyTagFilter', [target, it.tag])}
                   class="px-2.5 py-1 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-[11px] font-bold hover:bg-brand/20 transition-colors">
@@ -203,9 +217,9 @@
       ? custom.map((r, i) => `
           <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs">
             <span class="truncate"><code>${escapeHtmlJS(r.keyword)}</code> → <strong>${escapeHtmlJS(r.category)}</strong> (${escapeHtmlJS(r.tipe)})</span>
-            <button type="button" data-del-rule="${i}" class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 font-bold">Hapus</button>
+            <button type="button" data-del-rule="${i}" class="min-h-9 min-w-11 px-3 py-1 rounded-lg bg-rose-500/10 text-rose-600 font-bold shrink-0">Hapus</button>
           </div>`).join('')
-      : '<p class="text-xs text-slate-400">Belum ada aturan kustom (aturan bawaan tetap aktif).</p>';
+      : '<p class="text-xs text-slate-500">Belum ada aturan kustom (aturan bawaan tetap aktif).</p>';
 
     const res = await Swal.fire(pro.swalOpt({
       title: 'Aturan Auto-Kategori (CSV & Kilat)',
@@ -228,8 +242,25 @@
       confirmButtonText: 'Simpan Aturan',
       cancelButtonText: t('btn.tutup'),
       didOpen: () => {
+        // Gelombang 6 (U6): hapus aturan minta konfirmasi — ketuk pertama
+        // mempersenjatai tombol ("Yakin?"), ketuk kedua baru menghapus.
+        // (Sebelumnya hapus langsung tanpa konfirmasi; salah ketuk = aturan hilang.)
         document.querySelectorAll('[data-del-rule]').forEach((b) => {
           b.onclick = () => {
+            if (!b.dataset.armed) {
+              b.dataset.armed = '1';
+              b.textContent = 'Yakin?';
+              b.classList.remove('bg-rose-500/10', 'text-rose-600');
+              b.classList.add('bg-rose-600', 'text-white');
+              window.setTimeout(() => {
+                if (!b.isConnected || !b.dataset.armed) return;
+                delete b.dataset.armed;
+                b.textContent = 'Hapus';
+                b.classList.remove('bg-rose-600', 'text-white');
+                b.classList.add('bg-rose-500/10', 'text-rose-600');
+              }, 3000);
+              return;
+            }
             const idx = Number(b.getAttribute('data-del-rule'));
             pro.safeWriteJson(pro.KEYS.AUTOCAT_RULES, custom.filter((_, i) => i !== idx));
             Swal.close();

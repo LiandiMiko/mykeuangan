@@ -95,7 +95,7 @@
           <p class="text-[11px] opacity-90 mt-0.5">${escapeHtmlJS(n.message)}</p>
           ${actionBtn}
         </div>`;
-    }).join('') : `<p class="text-xs text-slate-400 py-4 text-center">${escapeHtmlJS(t('notif.empty'))}</p>`;
+    }).join('') : `<p class="text-xs text-slate-500 py-4 text-center">${escapeHtmlJS(t('notif.empty'))}</p>`;
 
     await Swal.fire(pro.swalOpt({
       title: t('notif.title'),

@@ -116,6 +116,7 @@
 
     if (snapshots.length < 2) {
       canvas.style.display = 'none';
+      canvas.setAttribute('aria-label', 'Grafik tren nilai portfolio 30 hari terakhir. Belum ada cukup data (butuh minimal 2 hari).');
       if (placeholder) placeholder.style.display = 'flex';
       return;
     }
@@ -128,6 +129,14 @@
       portfolioChartInstance = null;
     }
     portfolioChartInstance = new Chart(canvas.getContext('2d'), buildPortfolioChartConfig(snapshots));
+    // Gelombang 6 (U20): ringkasan tren untuk screen reader, diperbarui tiap render.
+    const firstTotal = Number(snapshots[0].total) || 0;
+    const lastTotal = Number(snapshots[snapshots.length - 1].total) || 0;
+    const totalPct = firstTotal > 0 ? Math.round(((lastTotal - firstTotal) / firstTotal) * 100) : 0;
+    const totalDir = lastTotal > firstTotal ? 'naik' : (lastTotal < firstTotal ? 'turun' : 'tetap');
+    canvas.setAttribute('aria-label', 'Grafik tren nilai portfolio 30 hari terakhir. Total ' +
+      formatRupiah(firstTotal).replace(',00', '') + ' menjadi ' + formatRupiah(lastTotal).replace(',00', '') +
+      ', ' + totalDir + ' ' + Math.abs(totalPct) + '%.');
   }
 
   function resolveAssetPresentation(a, typeLower, qty) {
@@ -203,7 +212,7 @@
     const container = document.getElementById('list-manual-assets');
     if (!container) return;
     if (!DB.assets || DB.assets.length === 0) {
-      renderHtml(container, '<p class="p-6 text-center text-xs text-slate-400 col-span-full">Belum ada aset. Klik "Tambah Aset".</p>');
+      renderHtml(container, '<p class="p-6 text-center text-xs text-slate-500 col-span-full">Belum ada aset. Klik "Tambah Aset".</p>');
       return;
     }
     renderHtml(container, DB.assets.map(buildAssetRowHtml).join(''));

@@ -101,7 +101,7 @@
           <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor(r.runwayStatus)}">${r.emergencyRunwayMonths !== null ? (r.emergencyRunwayMonths >= 6 ? 'Aman 6+ bln' : r.emergencyRunwayMonths >= 3 ? 'Cukup' : 'Perlu ditambah') : 'Info'}</span>
         </div>
         <p class="text-2xl font-black text-slate-900 dark:text-white">${r.emergencyRunwayMonths !== null ? (r.emergencyRunwayMonths + ' bln') : '—'}</p>
-        <p class="text-[11px] text-slate-400 mt-1">Kas likuid ${formatRupiah(r.liquidCash).replace(',00', '')} / rata-rata keluar ${formatRupiah(r.avgMonthlyExpense).replace(',00', '')}</p>
+        <p class="text-[11px] text-slate-500 mt-1">Kas likuid ${formatRupiah(r.liquidCash).replace(',00', '')} / rata-rata keluar ${formatRupiah(r.avgMonthlyExpense).replace(',00', '')}</p>
       </div>
       <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div class="flex items-center justify-between gap-2 mb-2">
@@ -109,7 +109,7 @@
           <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor(r.savingsStatus)}">${r.savingsRatePct >= 20 ? 'Ideal ≥20%' : r.savingsRatePct >= 10 ? 'Baik' : 'Rendah'}</span>
         </div>
         <p class="text-2xl font-black ${r.savingsRatePct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${r.savingsRatePct}%</p>
-        <p class="text-[11px] text-slate-400 mt-1">Porsi pemasukan yang tersisa setelah pengeluaran</p>
+        <p class="text-[11px] text-slate-500 mt-1">Porsi pemasukan yang tersisa setelah pengeluaran</p>
       </div>
       <div class="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div class="flex items-center justify-between gap-2 mb-2">
@@ -117,7 +117,7 @@
           <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor(r.debtStatus)}">${r.debtToAssetPct === 0 ? 'Bebas Utang' : r.debtToAssetPct <= 30 ? 'Sehat ≤30%' : 'Tinggi >30%'}</span>
         </div>
         <p class="text-2xl font-black text-slate-900 dark:text-white">${r.debtToAssetPct}%</p>
-        <p class="text-[11px] text-slate-400 mt-1">Utang ${formatRupiah(r.utangTotal).replace(',00', '')} dari aset kotor ${formatRupiah(r.grossAssets).replace(',00', '')}</p>
+        <p class="text-[11px] text-slate-500 mt-1">Utang ${formatRupiah(r.utangTotal).replace(',00', '')} dari aset kotor ${formatRupiah(r.grossAssets).replace(',00', '')}</p>
       </div>`);
   }
 
@@ -205,7 +205,7 @@
     const anomalyBody = info.anomalies.length
       ? `<ul class="mt-2 space-y-1.5">${info.anomalies.map((tx) => `
           <li class="flex items-center justify-between gap-2 text-xs">
-            <span class="truncate text-slate-700 dark:text-slate-200"><strong>${escapeHtmlJS(tx.kategori)}</strong>${tx.keterangan ? ' · ' + escapeHtmlJS(tx.keterangan) : ''} <span class="text-[10px] text-slate-400">(${escapeHtmlJS(tx.tanggal)})</span></span>
+            <span class="truncate text-slate-700 dark:text-slate-200"><strong>${escapeHtmlJS(tx.kategori)}</strong>${tx.keterangan ? ' · ' + escapeHtmlJS(tx.keterangan) : ''} <span class="text-[10px] text-slate-500">(${escapeHtmlJS(tx.tanggal)})</span></span>
             <span class="shrink-0 font-bold text-rose-600 dark:text-rose-400">${formatRupiah(tx.nominal).replace(',00', '')} · ${tx.multipleOfAvg}x rata2</span>
           </li>`).join('')}</ul>`
       : `<p class="mt-2 text-xs text-slate-500 dark:text-slate-400">${info.expenseCount > 0 ? `Rata-rata transaksi keluar ${formatRupiah(info.avgExpenseTx).replace(',00', '')}. Tidak ada lonjakan ekstrem siklus ini.` : 'Belum ada transaksi pengeluaran untuk dianalisis pada siklus ini.'}</p>`;

@@ -22,12 +22,12 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
         <div>
-          <label for="tr_tanggal" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="form.tanggal">Tanggal</label>
+          <label for="tr_tanggal" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-600 dark:text-slate-400" data-i18n="form.tanggal">Tanggal</label>
           <input type="text" id="tr_tanggal" required aria-describedby="tr_tanggal_error" class="w-full min-h-12 px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white">
           <p id="tr_tanggal_error" role="alert" class="hide mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
         </div>
         <div>
-          <label for="tr_kategori" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="form.kategori">Kategori</label>
+          <label for="tr_kategori" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-600 dark:text-slate-400" data-i18n="form.kategori">Kategori</label>
           <div class="flex gap-2">
             <div class="relative flex-1 min-w-0">
               <select id="tr_kategori" required class="w-full min-w-0 min-h-12 pl-4 pr-10 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white appearance-none"></select>
@@ -43,14 +43,14 @@
         </div>
       </div>
       <div class="mb-4 sm:mb-6">
-        <label id="tr_wallet_label" for="tr_wallet" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400">Dompet</label>
+        <label id="tr_wallet_label" for="tr_wallet" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-600 dark:text-slate-400">Dompet</label>
         <div class="relative">
           <select id="tr_wallet" class="w-full min-h-12 pl-4 pr-10 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-slate-800 dark:text-white font-semibold appearance-none"></select>
           <i class="ph ph-caret-down pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base" aria-hidden="true"></i>
         </div>
       </div>
       <div class="mb-4 sm:mb-6">
-        <label for="tr_nominal" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="form.nominal">Nominal Transaksi (Rp)</label>
+        <label for="tr_nominal" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-600 dark:text-slate-400" data-i18n="form.nominal">Nominal Transaksi (Rp)</label>
         <div class="relative">
           <span class="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 font-bold text-slate-500 dark:text-slate-400">Rp</span>
           <input type="text" id="tr_nominal" inputmode="text" enterkeyhint="done" autocomplete="off" required placeholder="0 atau 25000+15000" aria-describedby="tr_nominal_error" class="w-full pl-12 sm:pl-14 pr-5 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand text-2xl sm:text-3xl font-black text-slate-800 dark:text-white tabular-nums">
@@ -64,7 +64,7 @@
           <button type="button" data-action="resetQuickNominalAmount" class="min-h-10 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-xs font-bold text-rose-600 dark:text-rose-400 transition-colors ml-auto shrink-0">Reset</button>
         </div>
         <div class="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Kalkulator cepat nominal">
-          <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Hitung:</span>
+          <span class="text-[11px] font-bold text-slate-600 dark:text-slate-400 mr-1 shrink-0">Hitung:</span>
           <button type="button" data-action="insertNominalCalcOp" data-args='["+"]' aria-label="Tambah" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">+</button>
           <button type="button" data-action="insertNominalCalcOp" data-args='["-"]' aria-label="Kurang" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&minus;</button>
           <button type="button" data-action="insertNominalCalcOp" data-args='["*"]' aria-label="Kali" class="min-w-9 min-h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 shrink-0">&times;</button>
@@ -74,7 +74,7 @@
         <p id="tr_nominal_error" role="alert" class="hide mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
       </div>
       <div class="mb-4 sm:mb-6">
-        <label for="tr_keterangan" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-500 dark:text-slate-400" data-i18n="form.catatan">Catatan Opsional</label>
+        <label for="tr_keterangan" class="block text-xs font-bold mb-1.5 uppercase tracking-widest text-slate-600 dark:text-slate-400" data-i18n="form.catatan">Catatan Opsional</label>
         <textarea id="tr_keterangan" rows="3" enterkeyhint="done" class="mk-autogrow w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-brand font-medium text-slate-800 dark:text-white"></textarea>
       </div>
       <div id="splitBillBox" class="mb-5 sm:mb-8 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
@@ -84,12 +84,12 @@
         </label>
         <div id="tr_split_fields" class="hide grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
           <div>
-            <label for="tr_split_person" class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Nama Teman (Piutang)</label>
+            <label for="tr_split_person" class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Nama Teman (Piutang)</label>
             <input type="text" id="tr_split_person" list="tr_split_person_list" maxlength="60" enterkeyhint="next" aria-describedby="tr_split_error" placeholder="Mis. Budi" class="w-full min-h-11 px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
             <datalist id="tr_split_person_list"></datalist>
           </div>
           <div>
-            <label for="tr_split_amount" class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Porsi Teman (Rp)</label>
+            <label for="tr_split_amount" class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Porsi Teman (Rp)</label>
             <input type="text" id="tr_split_amount" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-describedby="tr_split_error" placeholder="Mis. 50.000" class="w-full min-h-11 px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand tabular-nums">
           </div>
           <p id="tr_split_error" role="alert" class="hide sm:col-span-2 text-xs font-semibold text-rose-600 dark:text-rose-400"></p>

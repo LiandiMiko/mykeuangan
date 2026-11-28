@@ -146,7 +146,7 @@
             </div>
           </div>`;
       }).join('')
-      : '<p class="text-xs text-slate-400 py-4 text-center">Belum ada kategori.</p>';
+      : '<p class="text-xs text-slate-500 py-4 text-center">Belum ada kategori.</p>';
 
     await Swal.fire({
       title: 'Kelola Kategori (' + (tipe === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran') + ')',

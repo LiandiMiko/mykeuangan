@@ -277,7 +277,7 @@
         </span>
         <span class="text-right shrink-0">
           <span class="font-black text-brand dark:text-brand-ink">${formatRupiah(r.recommendedAmount).replace(',00', '')}</span>
-          <span class="block text-[10px] text-slate-400">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
+          <span class="block text-[10px] text-slate-500">rata² ${formatRupiah(r.averageActual).replace(',00', '')}</span>
         </span>
       </label>`).join('');
 

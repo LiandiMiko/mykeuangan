@@ -520,7 +520,7 @@
             ${renderBullets(parsed.rekomendasi, '-')}
           </div>
         </div>
-        <p class="text-[11px] text-slate-400 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
+        <p class="text-[11px] text-slate-500 dark:text-slate-500">Kuota AI hari ini: ${aiUsage.count}/${AI_DAILY_LIMIT} panggilan · jeda minimal 10 detik antar analisis.</p>
       </div>`);
   }
 

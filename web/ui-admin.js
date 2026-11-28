@@ -526,7 +526,7 @@
           <div>
             <label for="tgBotTokenInput" class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Token Bot Anda</label>
             <input id="tgBotTokenInput" type="password" autocomplete="off" placeholder="123456789:AAE..." class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-mono" />
-            <p class="text-[11px] text-slate-400 mt-1">Token dikirim sekali ke server, divalidasi, lalu disimpan terenkripsi. Token tidak pernah ditampilkan lagi dan tidak tersimpan di perangkat ini.</p>
+            <p class="text-[11px] text-slate-500 mt-1">Token dikirim sekali ke server, divalidasi, lalu disimpan terenkripsi. Token tidak pernah ditampilkan lagi dan tidak tersimpan di perangkat ini.</p>
           </div>
           <button type="button" id="btnConnectTgBot" class="w-full min-h-[44px] px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-1.5 transition-colors">
             <i class="ph ph-plugs-connected" aria-hidden="true"></i> Hubungkan Bot Saya
@@ -595,7 +595,7 @@
             <p class="text-slate-600 dark:text-slate-300">Gunakan kode OTP 8 digit berikut untuk menghubungkan akun Telegram Anda secara mandiri:</p>
             <div class="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-center">
               <span class="text-3xl font-black tracking-widest text-brand dark:text-white">${escapeHtmlJS(otp)}</span>
-              <p class="text-[11px] text-slate-400 mt-1">Berlaku selama 10 menit</p>
+              <p class="text-[11px] text-slate-500 mt-1">Berlaku selama 10 menit</p>
             </div>
             <div class="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-xl text-xs space-y-2">
               <p class="font-bold">Cara Menghubungkan:</p>
