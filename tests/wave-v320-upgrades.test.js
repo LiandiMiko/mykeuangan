@@ -739,11 +739,11 @@ test('v3.20.5: Android APK signing uses explicit debug-keystore.properties, apks
 
       const vInfo1 = mod.patchAndroidProject(tmpDir, '3.20.5');
       const vInfo2 = mod.patchAndroidProject(tmpDir, '3.20.5');
-      assert.equal(vInfo1.versionCode, 32005, tpl.name);
+      assert.equal(vInfo1.versionCode, 3020005, tpl.name);
       assert.equal(vInfo2.versionName, '3.20.5', tpl.name);
 
       const patchedGradle = fs.readFileSync(gradlePath, 'utf8');
-      assert.match(patchedGradle, /versionCode 32005/, tpl.name);
+      assert.match(patchedGradle, /versionCode 3020005/, tpl.name);
       assert.match(patchedGradle, /versionName "3\.20\.5"/, tpl.name);
       assert.match(patchedGradle, /debug-keystore\.properties/, tpl.name);
       assert.match(patchedGradle, /signingConfigs\s*\{[\s\S]*debug\s*\{[\s\S]*release\s*\{/, tpl.name);
