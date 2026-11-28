@@ -13,6 +13,39 @@
   const MAX_DATA_ROWS = 500;
   const MAX_NOMINAL = 999999999999.99;
 
+  // Gelombang 7c Item 4 — pemilih dompet impor CSV.
+  // Dompet tujuan default: dompet utama bank (setting
+  // primaryBankWalletId dari PR #2) bila ada DAN valid (masih ada di
+  // daftar dompet dan berjenis bank); bila tidak ada/tidak valid,
+  // dompet pertama dalam daftar — persis perilaku lama yang dikunci
+  // tes bank-statement (dulu: selalu wallets[0]).
+  function resolveDefaultImportWalletId(wallets, primaryBankWalletId) {
+    const list = Array.isArray(wallets) ? wallets : [];
+    const primaryId = typeof primaryBankWalletId === 'string' ? primaryBankWalletId.trim() : '';
+    if (primaryId) {
+      const primary = list.find((w) => String(w && w.id || '') === primaryId);
+      if (primary && String(primary.kind || '') === 'bank') return String(primary.id || '');
+    }
+    return list.length ? String(list[0].id || '') : '';
+  }
+
+  // Pilihan eksplisit (dari pemilih dompet di UI impor) menang atas
+  // default. Pilihan yang tidak valid (dompet terhapus / id asing)
+  // TIDAK menggagalkan impor diam-diam dan TIDAK masuk ke dompet
+  // yang salah: fallback ke default di atas dan laporkan lewat
+  // walletFallback supaya UI menampilkan pesan yang jelas.
+  function resolveImportTargetWallet(wallets, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const fallbackId = resolveDefaultImportWalletId(wallets, opts.primaryBankWalletId);
+    const requested = typeof opts.targetWalletId === 'string' ? opts.targetWalletId.trim() : '';
+    if (!requested) return { targetWalletId: fallbackId, walletFallback: null };
+    const list = Array.isArray(wallets) ? wallets : [];
+    if (list.some((w) => String(w && w.id || '') === requested)) {
+      return { targetWalletId: requested, walletFallback: null };
+    }
+    return { targetWalletId: fallbackId, walletFallback: { requested, used: fallbackId } };
+  }
+
   function isKnownImportCategory(rawCat, tipe, options) {
     const clean = String(rawCat || '').trim();
     if (!clean) return true;
@@ -303,10 +336,12 @@
         else transaction.walletId = String(wallet.id || '');
       }
     } else {
-      // Berkas mutasi bank tidak punya kolom dompet: tetap memakai
-      // dompet pertama (perilaku lama yang dikunci tes bank-statement).
-      // Penyimpangan sadar dari §9c — lihat laporan: perlu pemilih
-      // dompet di UI impor sebelum aturan ini bisa diperketat.
+      // Berkas mutasi bank tidak punya kolom dompet: memakai dompet
+      // tujuan impor (pilihan pengguna di UI, atau default =
+      // dompet utama bank bila valid, bila tidak dompet pertama =
+      // perilaku lama yang dikunci tes bank-statement). Pemilih
+      // dompet di UI impor (Gelombang 7c Item 4) menutup
+      // penyimpangan §9c yang dulu didokumentasikan di sini.
       transaction.walletId = defaultWalletId;
     }
 
@@ -339,11 +374,19 @@
 
     const walletList = wallets || [];
     const walletByName = new Map(walletList.map((w) => [String(w.name || '').trim().toLocaleLowerCase(), w]));
+    // Gelombang 7c Item 4: dompet tujuan impor ditentukan DI SINI,
+    // sebelum satu baris pun diproses — pilihan eksplisit dari UI,
+    // atau default (dompet utama bank bila valid, bila tidak dompet
+    // pertama = perilaku lama). Baris yang membawa kolom dompet
+    // sendiri tetap memakai dompet dari file (§9c, tidak berubah);
+    // dompet tujuan berlaku untuk semua baris TANPA kolom dompet —
+    // yaitu setiap baris mutasi bank, kasus yang diperbaiki item ini.
+    const target = resolveImportTargetWallet(walletList, options);
     const ctx = {
       cols,
       headerIndex,
       walletByName,
-      defaultWalletId: walletList.length ? String(walletList[0].id || '') : '',
+      defaultWalletId: target.targetWalletId,
       knownTransactions: new Set((existingTransactions || []).map(fingerprint)),
       fileTransactions: new Set(),
       options: options || {}
@@ -363,11 +406,14 @@
       rows: parsed,
       valid,
       duplicateCount: parsed.filter((item) => item.duplicate).length,
-      invalidCount: parsed.filter((item) => item.errors.length > 0).length
+      invalidCount: parsed.filter((item) => item.errors.length > 0).length,
+      targetWalletId: target.targetWalletId,
+      walletFallback: target.walletFallback,
+      hasWalletColumn: cols.walletCol !== undefined
     };
   }
 
-  const api = { parseRows, parseTransactionCsv, normalizeDateString, parseAmountAndDirection, MAX_DATA_ROWS, MAX_NOMINAL };
+  const api = { parseRows, parseTransactionCsv, normalizeDateString, parseAmountAndDirection, resolveDefaultImportWalletId, resolveImportTargetWallet, MAX_DATA_ROWS, MAX_NOMINAL };
   root.TransactionImport = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,5 +1,5 @@
 // @depends-on: ui-state.js
-/* global DB, laporanState, TransactionImport, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, getPeriodRange, walletName, getAutoCategoryRules, updateReportBulkBar, t, mkActionAttrs */
+/* global DB, laporanState, TransactionImport, Swal, callServer, refreshFromServer, formatRupiah, escapeHtmlJS, escapeAttrJS, renderHtml, renderSelectOptions, getSwalClass, showActionError, getPeriodRange, walletName, walletOptions, getAutoCategoryRules, updateReportBulkBar, t, mkActionAttrs */
 /* ============================================================
    REPORTS, PAGINATION, FILTERS & CSV IMPORT
    ============================================================ */
@@ -227,10 +227,20 @@
     const importButton = document.getElementById('lapImportBtn');
     const input = document.getElementById('lapCsvInput');
     if (importButton && input) {
-      importButton.addEventListener('click', () => input.click());
+      // Gelombang 7c Item 4: pemilih dompet tampil SEBELUM file
+      // dipilih/diimpor — pengguna memilih dompet tujuan dulu, baru
+      // pemilih file dibuka. Batal di dialog = tidak ada impor.
+      importButton.addEventListener('click', async () => {
+        const walletId = await promptImportWallet();
+        if (!walletId) return;
+        pendingImportWalletId = walletId;
+        input.click();
+      });
       input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
-        if (file) await importTransactionsCsv(file);
+        const walletId = pendingImportWalletId;
+        pendingImportWalletId = '';
+        if (file) await importTransactionsCsv(file, walletId);
         input.value = '';
       });
     }
@@ -277,7 +287,60 @@
     URL.revokeObjectURL(url);
   }
 
-  async function importTransactionsCsv(file) {
+  // Gelombang 7c Item 4 — pemilih dompet tujuan impor CSV.
+  // Dompet tujuan yang dipilih di sini disimpan di
+  // pendingImportWalletId sampai file dipilih, lalu diteruskan ke
+  // importTransactionsCsv → parseTransactionCsv (options.targetWalletId).
+  // Default terpilih = dompet utama bank bila valid, bila tidak
+  // dompet pertama (perilaku lama). Opsi memakai format yang sudah
+  // ada di tempat lain (walletOptions: nama + jenis + saldo berjalan).
+  let pendingImportWalletId = '';
+
+  function resolveImportWalletDefault() {
+    if (typeof TransactionImport !== 'undefined' && TransactionImport
+      && typeof TransactionImport.resolveDefaultImportWalletId === 'function') {
+      return TransactionImport.resolveDefaultImportWalletId(DB.wallets, DB.primaryBankWalletId);
+    }
+    const primary = String(DB.primaryBankWalletId || '');
+    if (primary && (DB.wallets || []).some((w) => w.id === primary && String(w.kind || '') === 'bank')) return primary;
+    return (DB.wallets && DB.wallets[0] && DB.wallets[0].id) || '';
+  }
+
+  async function promptImportWallet() {
+    if (!(DB.wallets || []).length) {
+      showActionError(new Error(t('lap.import_no_wallet')));
+      return '';
+    }
+    const defaultId = resolveImportWalletDefault();
+    const optionsHtml = typeof walletOptions === 'function'
+      ? walletOptions(defaultId, true)
+      : (DB.wallets || []).map((w) => `<option value="${escapeAttrJS(w.id)}" ${w.id === defaultId ? 'selected' : ''}>${escapeHtmlJS(w.name)}</option>`).join('');
+    const confirmation = await Swal.fire({
+      icon: 'question',
+      title: t('lap.import_wallet_title'),
+      html: `
+        <div class="text-left text-sm space-y-2">
+          <p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.import_wallet_hint'))}</p>
+          <div>
+            <label for="csvImportWalletSelect" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">${escapeHtmlJS(t('lap.import_wallet'))}</label>
+            <select id="csvImportWalletSelect" class="swal2-input" style="margin:0;width:100%">${optionsHtml}</select>
+          </div>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: t('lap.import'),
+      cancelButtonText: t('btn.batal'),
+      customClass: { popup: getSwalClass() },
+      preConfirm: () => {
+        const el = document.getElementById('csvImportWalletSelect');
+        const value = el ? String(el.value || '').trim() : '';
+        if (!value) { Swal.showValidationMessage(t('lap.import_no_wallet')); return false; }
+        return value;
+      }
+    });
+    return confirmation.isConfirmed && confirmation.value ? String(confirmation.value) : '';
+  }
+
+  async function importTransactionsCsv(file, selectedWalletId) {
     if (file.size > 2 * 1024 * 1024) {
       showActionError(new Error(t('lap.import_limit')));
       return;
@@ -291,7 +354,13 @@
       // batasnya dan ditampilkan lewat catch di bawah.
       const importOptions = {
         autoCategoryRules: typeof getAutoCategoryRules === 'function' ? getAutoCategoryRules() : [],
-        categories: DB.categories
+        categories: DB.categories,
+        // Gelombang 7c Item 4: dompet tujuan pilihan pengguna (dari
+        // pemilih sebelum file dipilih) + dompet utama sebagai
+        // rujukan default bila pilihan tidak ada/tidak valid.
+        // Parser memvalidasi pilihan dan fallback dengan pesan.
+        targetWalletId: selectedWalletId || '',
+        primaryBankWalletId: DB.primaryBankWalletId || ''
       };
       const result = TransactionImport.parseTransactionCsv(text, DB.transactions, DB.wallets, importOptions);
       const preview = result.rows.slice(0, 5).map((item) => {
@@ -301,9 +370,19 @@
       }).join('');
       const invalidRows = result.rows.filter((item) => item.errors.length)
         .map((item) => `<li class="py-1"><strong>${t('lap.csv_line')} ${item.line}:</strong> ${escapeHtmlJS(item.errors.join(' '))}</li>`).join('');
+      const walletLine = result.targetWalletId
+        ? `<p>${escapeHtmlJS(t('lap.import_wallet'))}: <strong>${escapeHtmlJS(walletName(result.targetWalletId))}</strong></p>`
+        : '';
+      const walletNote = result.walletFallback
+        ? `<p class="text-xs text-amber-600 dark:text-amber-400">${escapeHtmlJS(t('lap.import_wallet_fallback') + ' ' + walletName(result.targetWalletId))}</p>`
+        : (result.hasWalletColumn
+          ? `<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.import_wallet_per_row'))}</p>`
+          : '');
       const html = `
         <div class="text-left text-sm space-y-2">
           <p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtmlJS(t('lap.import_format'))}</p>
+          ${walletLine}
+          ${walletNote}
           <p>${escapeHtmlJS(t('lap.import_valid'))}: <strong>${result.valid.length}</strong></p>
           <p>${escapeHtmlJS(t('lap.import_duplicates'))}: <strong>${result.duplicateCount}</strong></p>
           <p>${escapeHtmlJS(t('lap.import_invalid'))}: <strong>${result.invalidCount}</strong></p>
@@ -367,6 +446,8 @@
     renderReportRows,
     downloadTransactionTemplate,
     importTransactionsCsv,
+    promptImportWallet,
+    resolveImportWalletDefault,
     getFilteredReportTransactions
   });
 })(typeof window !== 'undefined' ? window : globalThis);
