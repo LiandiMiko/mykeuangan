@@ -210,9 +210,10 @@ test('3.4g password-policy.js dimuat pertama dan sebelum consumer-nya', (t) => {
   assert.equal(first[1], 'password-policy.js', 'password-policy.js harus entri PERTAMA SUPABASE_MODULES (sebelum supabase-auth-ui.js)');
   const { dir, html } = buildTempRepo(t);
   // Gelombang 7b: modul tidak lagi di-inline — urutan load dibaca dari
-  // tag <script src="./app/..."> di dist/index.html, lalu isi tiap file
-  // dist/app/*.js digabung mengikuti urutan itu.
-  const appOrder = [...html.matchAll(/<script src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+  // tag <script defer src="./app/..."> di dist/index.html (Gelombang 7d:
+  // defer, urutan tetap terjaga), lalu isi tiap file dist/app/*.js
+  // digabung mengikuti urutan itu.
+  const appOrder = [...html.matchAll(/<script defer src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(appOrder.indexOf('password-policy.js') !== -1, 'dist harus memuat tag password-policy.js');
   assert.ok(appOrder.indexOf('password-policy.js') < appOrder.indexOf('supabase-auth.js'), 'password-policy.js harus dimuat SEBELUM consumer-nya (supabase-auth.js)');
   const concatenated = appOrder.map((f) => fs.readFileSync(path.join(dir, 'dist', 'app', f), 'utf8')).join('\n');

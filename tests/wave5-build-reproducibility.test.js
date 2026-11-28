@@ -220,10 +220,11 @@ test('5.2d minifikasi: dist/app/*.js lebih kecil, sintaks valid, global utuh, co
   );
 
   // Gelombang 7b: dist/index.html TIDAK boleh lagi memuat blok <script>
-  // inline — semua modul dimuat lewat <script src="./app/...">.
+  // inline — semua modul dimuat lewat <script defer src="./app/...">
+  // (Gelombang 7d: defer, urutan tetap terjaga).
   const inlineBlocks = [...miniHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
   assert.equal(inlineBlocks.length, 0, `dist/index.html tidak boleh memuat blok <script> inline, ketemu ${inlineBlocks.length}`);
-  const appTags = [...miniHtml.matchAll(/<script src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const appTags = [...miniHtml.matchAll(/<script defer src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(appTags.length > 40, `harus ada >40 tag <script src="./app/...">, ketemu ${appTags.length}`);
   for (const f of appTags) {
     assert.ok(fs.existsSync(path.join(dir, 'dist', 'app', f)), `dist/app/${f} yang dirujuk dist/index.html harus ada`);

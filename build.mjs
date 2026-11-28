@@ -178,7 +178,15 @@ function read(name) {
 const appFiles = new Map();
 function emitAppScript(file, code) {
   appFiles.set(`app/${file}`, code);
-  return `<script src="./app/${file}"></script>`;
+  // Gelombang 7d (P4): semua modul app dimuat dengan `defer` — unduhan
+  // berjalan paralel dengan parsing HTML dan eksekusi tetap BERURUTAN
+  // (defer menjaga urutan dokumen), tepat sebelum DOMContentLoaded.
+  // Dulu sinkron: parser tertahan 56 file sebelum DOMContentLoaded.
+  // Catatan: tag supabase.js (resolveSupabaseTag) SENGAJA tetap sinkron
+  // — web/delete-account.html memanggil window.supabase.createClient
+  // dari skrip inline saat parse, jadi supabase.js harus sudah ada
+  // sebelum skrip inline itu jalan.
+  return `<script defer src="./app/${file}"></script>`;
 }
 function emitAppScripts(files) {
   return files

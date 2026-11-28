@@ -9,6 +9,14 @@
 <link rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
   crossorigin="anonymous">
+<!-- Gelombang 7d (P4): preload aset kritis jalur pertama — supabase.js
+  (otentikasi; tag-nya defer di akhir body, preload memberi tahu
+  browser lebih awal), tailwind.min.css (render), dan font Inter
+  (first paint). Preload TIDAK mengubah urutan eksekusi; hanya
+  mempercepat penemuan aset oleh browser. -->
+<link rel="preload" href="./vendor/supabase.js" as="script">
+<link rel="preload" href="./vendor/tailwind.min.css" as="style">
+<link rel="preload" href="./vendor/inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 <!-- Tailwind Play CDN: diganti build menjadi <style> berisi
   web/vendor/tailwind.min.css yang sudah dikompilasi. SRI di sini hanya
   pengaman jangkar source (sha384 dari skrip Play CDN, yang me-redirect
