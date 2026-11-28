@@ -26,10 +26,18 @@ function createFakeDb(seed = {}, hooks = {}) {
   for (const [name, rows] of Object.entries(seed)) tables[name] = rows.map((r) => ({ ...r }));
   const calls = { inserts: [], updates: [], deletes: [], upserts: [], rpc: [] };
   let rpcError = null;
+  // Gelombang 7a: override per nama fungsi — supaya satu RPC bisa
+  // dibuat gagal (mis. pencabutan sesi) sementara RPC lain
+  // (mis. audit) tetap sukses, dan supaya RPC bisa mengembalikan
+  // data (mis. jumlah sesi yang dicabut).
+  const rpcErrorsByFn = new Map();
+  const rpcDataByFn = new Map();
   let idCounter = 1;
   const state = {
     tables, calls,
     setRpcError(e) { rpcError = e; },
+    setRpcErrorFor(fn, e) { rpcErrorsByFn.set(fn, e); },
+    setRpcData(fn, data) { rpcDataByFn.set(fn, data); },
     authGetUser: async (token) => {
       if (token === 'admin-token') return { data: { user: { id: ADMIN_ID, email: 'admin@example.com' } }, error: null };
       if (token === 'user-token') return { data: { user: { id: '33333333-3333-4333-8333-333333333333', email: 'user@example.com' } }, error: null };
@@ -118,8 +126,9 @@ function createFakeDb(seed = {}, hooks = {}) {
       from: (table) => new Builder(table, label),
       rpc: async (fn, args) => {
         calls.rpc.push({ fn, args: plain(args || {}), via: label });
+        if (rpcErrorsByFn.has(fn)) return { data: null, error: rpcErrorsByFn.get(fn) };
         if (rpcError) return { data: null, error: rpcError };
-        return { data: null, error: null };
+        return { data: rpcDataByFn.has(fn) ? rpcDataByFn.get(fn) : null, error: null };
       },
       auth: {
         getUser: (token) => state.authGetUser(token),
@@ -368,14 +377,26 @@ function seedAdminDb() {
 
 test('3.3 admin reset: sukses -> tepat 1 RPC audit reset_password + notifikasi ke chat tertaut', async () => {
   const db = seedAdminDb();
+  // Gelombang 7a: RPC pencabut sesi mengembalikan jumlah sesi target.
+  db.state.setRpcData('admin_revoke_user_sessions', 3);
   const fetchStub = createFetchStub(() => okJson({ ok: true }));
   const { handler } = loadEdgeFunction(db, fetchStub, 'supabase/functions/admin-password/index.ts', {});
   const res = await handler(postReq('/functions/v1/admin-password', 'admin-token', { userId: TARGET_ID, password: 'Kuat#2026!' }));
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).success, true);
+  const body = await res.json();
+  assert.equal(body.success, true);
+  assert.equal(body.sessionsRevoked, 3, 'respons menyebut jumlah sesi target yang dicabut');
+  assert.equal(body.sessionsRevokeFailed, false);
   assert.equal(db.state.updateUserByIdCalls.length, 1);
-  assert.equal(db.state.calls.rpc.length, 1);
-  const rpc = db.state.calls.rpc[0];
+  // Gelombang 7a: 2 RPC — pencabutan sesi DULU (tepat setelah password
+  // diubah), baru audit. Urutan ini penting: sesi lama tidak boleh
+  // hidup lebih lama dari yang perlu setelah password diganti.
+  assert.equal(db.state.calls.rpc.length, 2);
+  const revokeRpc = db.state.calls.rpc[0];
+  assert.equal(revokeRpc.fn, 'admin_revoke_user_sessions');
+  assert.equal(revokeRpc.via, 'service', 'RPC pencabut sesi lewat service_role');
+  assert.equal(revokeRpc.args.p_target_user_id, TARGET_ID);
+  const rpc = db.state.calls.rpc[1];
   assert.equal(rpc.fn, 'admin_log_action');
   // Bentuk panggilan edge function menurut migrasi 20261128040000:
   // adminClient (service_role) + actor eksplisit.
@@ -386,6 +407,9 @@ test('3.3 admin reset: sukses -> tepat 1 RPC audit reset_password + notifikasi k
   assert.equal(rpc.args.p_target_user_id, TARGET_ID);
   assert.equal(rpc.args.p_target_email, 'korban@example.com');
   assert.equal(rpc.args.p_details.telegram_notified, true);
+  // Gelombang 7a: hasil pencabutan sesi tercatat di details audit.
+  assert.equal(rpc.args.p_details.sessions_revoked, 3);
+  assert.equal(rpc.args.p_details.sessions_revoke_error, null);
   const sends = fetchStub.calls.filter((c) => c.url.includes('/sendMessage'));
   assert.equal(sends.length, 1);
   assert.equal(JSON.parse(sends[0].body).chat_id, 111);
@@ -402,6 +426,111 @@ test('3.3 admin reset: audit gagal -> 500 yang lantang (password sudah berubah, 
   assert.equal(res.status, 500);
   assert.match((await res.json()).error, /audit gagal/i);
   assert.equal(db.state.updateUserByIdCalls.length, 1, 'password tetap sudah diubah sebelum audit');
+});
+
+/* ============================================================
+   §3a Gelombang 7a — admin reset mencabut sesi target
+   (item terbuka Wave 2: reset password admin belum mencabut
+   sesi target karena auth.admin.signOut butuh JWT target).
+   ============================================================ */
+
+const REVOKE_MIG = 'supabase/migrations/20261128120000_admin_revoke_user_sessions.sql';
+
+test('7a admin reset: pencabutan sesi gagal -> fail-soft, reset tetap 200, kegagalan TERCATAT (bukan diam-diam)', async () => {
+  const db = seedAdminDb();
+  // Hanya RPC pencabut sesi yang gagal; audit harus tetap jalan
+  // supaya kegagalan itu tercatat.
+  db.state.setRpcErrorFor('admin_revoke_user_sessions', { message: 'sessions table boom' });
+  const fetchStub = createFetchStub(() => okJson({ ok: true }));
+  const { handler } = loadEdgeFunction(db, fetchStub, 'supabase/functions/admin-password/index.ts', {});
+  const res = await handler(postReq('/functions/v1/admin-password', 'admin-token', { userId: TARGET_ID, password: 'Kuat#2026!' }));
+  assert.equal(res.status, 200, 'reset password tetap berhasil walau pencabutan sesi gagal');
+  const body = await res.json();
+  assert.equal(body.success, true);
+  assert.equal(body.sessionsRevoked, null);
+  assert.equal(body.sessionsRevokeFailed, true, 'respons menyatakan pencabutan gagal');
+  assert.equal(db.state.updateUserByIdCalls.length, 1, 'password tetap sudah diubah');
+  const rpcs = db.state.calls.rpc;
+  assert.equal(rpcs.filter((r) => r.fn === 'admin_revoke_user_sessions').length, 1);
+  const audit = rpcs.find((r) => r.fn === 'admin_log_action');
+  assert.ok(audit, 'audit tetap dicatat walau pencabutan gagal');
+  assert.equal(audit.args.p_details.sessions_revoked, null);
+  assert.match(audit.args.p_details.sessions_revoke_error, /sessions table boom/);
+});
+
+test('7a admin reset: pencabutan TIDAK dipanggil saat reset gagal (password buruk, non-admin, reset diri sendiri)', async () => {
+  const db = seedAdminDb();
+  const fetchStub = createFetchStub(() => okJson({ ok: true }));
+  const { handler } = loadEdgeFunction(db, fetchStub, 'supabase/functions/admin-password/index.ts', {});
+  const badPw = await handler(postReq('/functions/v1/admin-password', 'admin-token', { userId: TARGET_ID, password: 'password' }));
+  assert.equal(badPw.status, 400);
+  const nonAdmin = await handler(postReq('/functions/v1/admin-password', 'user-token', { userId: TARGET_ID, password: 'Kuat#2026!' }));
+  assert.equal(nonAdmin.status, 403);
+  // Reset diri sendiri ditolak 400 — jadi tidak ada jalur yang
+  // mencabut sesi admin sendiri lewat fungsi ini.
+  const selfReset = await handler(postReq('/functions/v1/admin-password', 'admin-token', { userId: ADMIN_ID, password: 'Kuat#2026!' }));
+  assert.equal(selfReset.status, 400);
+  assert.equal(db.state.calls.rpc.filter((r) => r.fn === 'admin_revoke_user_sessions').length, 0);
+  assert.equal(db.state.updateUserByIdCalls.length, 0);
+});
+
+test('7a admin reset: sumber TIDAK memanggil admin.signOut (akan mencabut sesi admin sendiri, bukan target)', () => {
+  // admin.signOut(jwt, scope) butuh JWT target yang tidak dimiliki
+  // server — memanggilnya dengan JWT admin justru mencabut sesi
+  // admin pemanggil. Pencabutan HANYA lewat RPC di bawah.
+  assert.doesNotMatch(adminPwTs, /admin\.signOut\(/);
+  assert.match(adminPwTs, /admin_revoke_user_sessions/);
+  assert.match(adminPwTs, /revokeUserSessions\(adminClient, userId\)/);
+});
+
+test('7a migrasi 20261128120000: RPC pencabut sesi — SECURITY DEFINER, hanya service_role, hanya auth.sessions', () => {
+  const sql = fs.readFileSync(REVOKE_MIG, 'utf8');
+  assert.match(sql, /create or replace function public\.admin_revoke_user_sessions\(p_target_user_id uuid\)/);
+  assert.match(sql, /returns integer/);
+  assert.match(sql, /security definer/);
+  assert.match(sql, /set search_path = ''/);
+  assert.match(sql, /delete from auth\.sessions where user_id = p_target_user_id;/);
+  // Sempit: tidak menyentuh auth.users / auth.identities /
+  // auth.refresh_tokens — penghapusan akun punya jalurnya sendiri.
+  assert.doesNotMatch(sql, /delete from auth\.users/);
+  assert.doesNotMatch(sql, /delete from auth\.identities/);
+  assert.doesNotMatch(sql, /delete from auth\.refresh_tokens/);
+  // ACL: revoke dari public, anon, DAN authenticated (revoke dari
+  // public saja tidak menghapus grant eksplisit anon — Wave 4);
+  // grant hanya ke service_role.
+  assert.match(sql, /revoke all on function public\.admin_revoke_user_sessions\(uuid\) from public, anon, authenticated;/);
+  assert.match(sql, /grant execute on function public\.admin_revoke_user_sessions\(uuid\) to service_role;/);
+  // Penjaga memakai to_regprocedure (to_regproc selalu NULL bila
+  // diberi daftar argumen — Wave 4 / PR #7).
+  assert.match(sql, /to_regprocedure\('public\.admin_revoke_user_sessions\(uuid\)'\)/);
+  assert.doesNotMatch(sql, /to_regproc\(/);
+  // Jujur soal keterbatasan: access token tetap valid sampai exp.
+  assert.match(sql, /tetap valid sampai `exp`/);
+  // Migrasi idempotent + satu transaksi.
+  assert.match(sql, /^begin;/m);
+  assert.match(sql, /^commit;/m);
+});
+
+test('7a vendor 2.119.2: GoTrueAdminApi.signOut butuh JWT target; TIDAK ADA pencabut sesi berbasis user-id', () => {
+  // Bukti langsung dari bundle ter-vendor (web/vendor/supabase.js).
+  // Bila vendor belum disalin ke worktree ini, tes dilewati —
+  // build tetap memverifikasi vendor (wave3-frontend-cdn-build).
+  const vendorPath = 'web/vendor/supabase.js';
+  if (!fs.existsSync(vendorPath)) {
+    console.log('7a vendor: web/vendor/supabase.js belum ada di worktree — lewati (bukti ada di laporan).');
+    return;
+  }
+  const vendor = fs.readFileSync(vendorPath, 'utf8');
+  assert.match(vendor, /2\.119\.2/, 'vendor harus supabase-js 2.119.2');
+  // signOut(jwt, scope='global') — argumen pertama JWT, POST /logout.
+  assert.match(vendor, /async signOut\(e,t=bi\[0\]\)/);
+  assert.match(vendor, /\$\{this\.url\}\/logout\?scope=\$\{t\}/);
+  assert.match(vendor, /jwt:e/);
+  // Tidak ada satu pun API admin berbasis user-id untuk sesi.
+  assert.doesNotMatch(vendor, /signOutUser/);
+  assert.doesNotMatch(vendor, /deleteSession/);
+  assert.doesNotMatch(vendor, /\/sessions/);
+  assert.doesNotMatch(vendor, /revokeSession/);
 });
 
 test('3.3 admin reset: tanpa audit/notifikasi saat reset gagal (password umum, non-admin)', async () => {

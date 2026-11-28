@@ -146,6 +146,46 @@ async function notifyUserByTelegram(
   }
 }
 
+// --- Pencabutan sesi target (Gelombang 7a) -------------------------
+// Penyelidikan 7a pada supabase-js 2.119.2 (ter-vendor di
+// web/vendor/supabase.js, kelas GoTrueAdminApi): TIDAK ADA cara
+// mencabut sesi pengguna lain lewat API admin tanpa JWT target.
+// `auth.admin.signOut` — argumen pertamanya adalah JWT sesi
+// yang mau dicabut; server hanya memegang JWT admin pemanggil,
+// jadi memanggilnya akan mencabut sesi admin sendiri. Tidak ada
+// signOutUser / deleteSession / endpoint
+// /admin/users/{id}/sessions di seluruh bundle 2.119.2.
+// Karena itu pencabutan dilakukan lewat RPC SECURITY DEFINER
+// public.admin_revoke_user_sessions() (migrasi 20261128120000):
+// DELETE FROM auth.sessions WHERE user_id = target — persis yang
+// dilakukan GoTrue sendiri saat /logout, sehingga refresh token
+// target tercabut dan ia harus login ulang.
+// Fail-soft: bila RPC gagal, reset password TETAP berhasil,
+// tetapi kegagalan DICATAT (console + details audit + respons) —
+// tidak pernah diam-diam.
+// Keterbatasan jujur (sama seperti signOut resmi): access token
+// JWT yang sudah diterbitkan tetap valid sampai `exp` (±1 jam)
+// untuk PostgREST/RLS; hanya refresh-nya yang mati.
+async function revokeUserSessions(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<{ revoked: number | null; error: string | null }> {
+  try {
+    const { data, error } = await adminClient.rpc('admin_revoke_user_sessions', {
+      p_target_user_id: userId,
+    });
+    if (error) {
+      console.error('admin-password: pencabutan sesi gagal', error.message);
+      return { revoked: null, error: error.message || 'Gagal mencabut sesi pengguna.' };
+    }
+    return { revoked: typeof data === 'number' ? data : null, error: null };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Gagal mencabut sesi pengguna.';
+    console.error('admin-password: pencabutan sesi gagal', msg);
+    return { revoked: null, error: msg };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCorsHeaders(req) });
   if (req.method !== 'POST') return jsonResponse(req, { error: 'Method not allowed.' }, 405);
@@ -227,8 +267,14 @@ Deno.serve(async (req) => {
     return jsonResponse(req, { error: updateError.message || 'Password pengguna gagal diperbarui.' }, 400);
   }
 
+  // Gelombang 7a: cabut SEMUA sesi target — password baru tidak
+  // boleh didahului sesi lama yang masih hidup (mis. perangkat
+  // dicuri). Fail-soft: kegagalan pencabutan TIDAK membatalkan
+  // reset password, tetapi WAJIB tercatat (lihat revokeUserSessions).
+  const revoke = await revokeUserSessions(adminClient, userId);
+
   // S14: beri tahu pemilik akun lewat Telegram (best-effort), lalu catat
-  // audit. Hasil notifikasi dicatat di details audit.
+  // audit. Hasil notifikasi + pencabutan sesi dicatat di details audit.
   const notify = await notifyUserByTelegram(
     adminClient,
     userId,
@@ -247,7 +293,12 @@ Deno.serve(async (req) => {
     p_action: 'reset_password',
     p_target_user_id: userId,
     p_target_email: target.email || '',
-    p_details: { telegram_notified: notify.notified, telegram_reason: notify.reason },
+    p_details: {
+      telegram_notified: notify.notified,
+      telegram_reason: notify.reason,
+      sessions_revoked: revoke.revoked,
+      sessions_revoke_error: revoke.error,
+    },
     p_actor_user_id: authData.user.id,
     p_actor_email: authData.user.email || '',
   });
@@ -256,5 +307,9 @@ Deno.serve(async (req) => {
     return jsonResponse(req, { error: 'Password berhasil diubah, tetapi pencatatan audit gagal. Hubungi admin — kejadian ini harus dicatat manual.' }, 500);
   }
 
-  return jsonResponse(req, { success: true });
+  return jsonResponse(req, {
+    success: true,
+    sessionsRevoked: revoke.revoked,
+    sessionsRevokeFailed: revoke.error !== null,
+  });
 });
