@@ -5,9 +5,35 @@
     ? require('./finance-analysis-core.js')
     : root.FinanceAnalysisCore;
 
-  function filterNewBackupTransactions(rawTx, existingTxList) {
-    const txSig = (t) => `${String(t.tanggal || '').slice(0, 10)}|${String(t.tipe || '').trim()}|${String(t.kategori || '').trim().toLowerCase()}|${Math.round(Number(t.nominal) || 0)}|${String(t.keterangan || '').trim().toLowerCase()}`;
-    const seen = new Set(existingTxList.map(txSig));
+  const MAX_NOMINAL = 999999999999.99;
+
+  // Nama dompet untuk sebuah id dompet lama (dari backup) atau id dompet
+  // yang sudah ada di akun. '' = tidak dapat dipetakan.
+  function resolveBackupWalletName(oldWalletId, walletNameByOldId, existingWallets) {
+    if (!oldWalletId) return '';
+    const id = String(oldWalletId);
+    const mapped = walletNameByOldId ? String(walletNameByOldId[id] || '').trim() : '';
+    if (mapped) return mapped;
+    const existing = (Array.isArray(existingWallets) ? existingWallets : [])
+      .find((w) => String(w.id) === id);
+    return existing ? String(existing.name || '').trim() : '';
+  }
+
+  function filterNewBackupTransactions(rawTx, existingTxList, walletNameByOldId, existingWallets) {
+    // Dedup UTAMA berdasarkan id stabil (id/legacy_id dari ekspor).
+    // Dulu hanya ada signature kasar tanggal|tipe|kategori|nominal|
+    // keterangan — kopi identik harian yang sah dianggap duplikat.
+    // Signature lengkap (termasuk nama dompet hasil resolusi) hanya
+    // fallback untuk baris tanpa id. Sisa risiko: dua pembelian yang
+    // benar-benar identik (hari, dompet, nominal, catatan sama) tanpa
+    // id tetap bisa bertabrakan — jalur berbasis id yang menutupnya.
+    const walletNameOf = (walletId) => resolveBackupWalletName(walletId, walletNameByOldId, existingWallets);
+    const txSig = (t) => `${String(t.tanggal || '').slice(0, 10)}|${String(t.tipe || '').trim()}|${String(t.kategori || '').trim().toLowerCase()}|${Math.round(Number(t.nominal) || 0)}|${String(t.keterangan || '').trim().toLowerCase()}|${String(t.walletName || t.walletId || '').trim().toLowerCase()}`;
+    const seenIds = new Set((existingTxList || []).map((t) => String(t.id || t.legacyId || '')).filter(Boolean));
+    const seen = new Set((existingTxList || []).map((t) => txSig({
+      ...t,
+      walletName: t.walletName || walletNameOf(t.walletId)
+    })));
     const added = [];
     let skipped = 0;
 
@@ -17,15 +43,132 @@
       const tipe = String(t.tipe || '').trim();
       const kategori = String(t.kategori || '').trim();
       const nominal = Number(t.nominal);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !kategori || !Number.isFinite(nominal) || nominal <= 0) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || (tipe !== 'Pemasukan' && tipe !== 'Pengeluaran') || !kategori || !Number.isFinite(nominal) || nominal <= 0 || nominal > MAX_NOMINAL) {
         skipped += 1;
         return;
       }
-      const item = { tanggal, tipe, kategori, nominal, keterangan: String(t.keterangan || '').trim(), walletId: t.walletId ? String(t.walletId) : '' };
-      const sig = txSig(item);
-      if (seen.has(sig)) { skipped += 1; return; }
-      seen.add(sig);
+      const stableId = String(t.id || t.legacyId || t.legacy_id || '').trim();
+      if (stableId && seenIds.has(stableId)) { skipped += 1; return; }
+      const item = {
+        id: stableId, legacyId: stableId,
+        tanggal, tipe, kategori, nominal,
+        keterangan: String(t.keterangan || '').trim(),
+        walletId: t.walletId ? String(t.walletId) : '',
+        walletName: walletNameOf(t.walletId)
+      };
+      // Signature hanya untuk baris TANPA id stabil: dua kopi identik
+      // dengan id berbeda adalah dua pembelian sah dan keduanya masuk.
+      if (!stableId) {
+        const sig = txSig(item);
+        if (seen.has(sig)) { skipped += 1; return; }
+        seen.add(sig);
+      } else {
+        seenIds.add(stableId);
+      }
       added.push(item);
+    });
+    return { added, skipped };
+  }
+
+  function filterNewBackupTransfers(rawTransfers, existingTransfers, walletNameByOldId, existingWallets) {
+    // Koleksi ke-9 yang dulu hilang dari restore (§1): transfer antar
+    // dompet tidak pernah dibaca dari backup. Validasi tanggal/jenis/
+    // nominal/biaya; dompet dipetakan BERDASARKAN NAMA (id lama tidak
+    // berlaku lintas akun). Transfer yang dompetnya tak dapat dipetakan
+    // masuk `unmapped` — pemanggil harus membatalkan restore (§2),
+    // bukan mengalihkannya diam-diam ke dompet pertama.
+    const walletNameOf = (walletId) => resolveBackupWalletName(walletId, walletNameByOldId, existingWallets);
+    const nameOfExisting = (walletId) => {
+      const w = (Array.isArray(existingWallets) ? existingWallets : []).find((x) => String(x.id) === String(walletId || ''));
+      return w ? String(w.name || '').trim() : String(walletId || '');
+    };
+    const trSig = (t) => `${String(t.tanggal || '').slice(0, 10)}|${String(t.kind || 'transfer')}|${String(t.fromWalletName || '').trim().toLowerCase()}|${String(t.toWalletName || '').trim().toLowerCase()}|${Math.round(Number(t.nominal) || 0)}|${Math.round(Number(t.fee) || 0)}|${String(t.keterangan || '').trim().toLowerCase()}`;
+    const seenIds = new Set((existingTransfers || []).map((t) => String(t.id || t.legacyId || '')).filter(Boolean));
+    const seen = new Set((existingTransfers || []).map((t) => trSig({
+      ...t,
+      fromWalletName: t.fromWalletName || nameOfExisting(t.fromWallet),
+      toWalletName: t.toWalletName || nameOfExisting(t.toWallet)
+    })));
+    const added = [];
+    const unmapped = [];
+    let skipped = 0;
+    (Array.isArray(rawTransfers) ? rawTransfers : []).forEach((x) => {
+      if (!x || typeof x !== 'object') { skipped += 1; return; }
+      const tanggal = String(x.tanggal || '').slice(0, 10);
+      const kind = String(x.kind || 'transfer').trim();
+      const nominal = Number(x.nominal);
+      const fee = Number(x.fee) || 0;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)
+        || !['transfer', 'tarik_tunai', 'investasi'].includes(kind)
+        || !Number.isFinite(nominal) || nominal <= 0 || nominal > MAX_NOMINAL
+        || !Number.isFinite(fee) || fee < 0 || fee > MAX_NOMINAL) {
+        skipped += 1;
+        return;
+      }
+      const stableId = String(x.id || x.legacyId || x.legacy_id || '').trim();
+      if (stableId && seenIds.has(stableId)) { skipped += 1; return; }
+      const fromWalletName = walletNameOf(x.fromWallet);
+      const toWalletName = kind === 'investasi' ? '' : walletNameOf(x.toWallet);
+      if (!fromWalletName || (kind !== 'investasi' && !toWalletName)) {
+        unmapped.push({
+          tanggal, kind, nominal, fee,
+          keterangan: String(x.keterangan || '').trim(),
+          missingWalletName: !fromWalletName
+            ? (x.fromWallet ? String(walletNameByOldId && walletNameByOldId[String(x.fromWallet)] || 'dompet tidak dikenal') : 'dompet asal kosong')
+            : String(walletNameByOldId && walletNameByOldId[String(x.toWallet)] || 'dompet tidak dikenal')
+        });
+        skipped += 1;
+        return;
+      }
+      if (fromWalletName.toLowerCase() === toWalletName.toLowerCase() && kind !== 'investasi') { skipped += 1; return; }
+      const item = {
+        id: stableId, legacyId: stableId, tanggal, kind, nominal, fee,
+        keterangan: String(x.keterangan || '').trim(),
+        fromWallet: x.fromWallet ? String(x.fromWallet) : '',
+        toWallet: x.toWallet ? String(x.toWallet) : '',
+        fromWalletName, toWalletName
+      };
+      if (!stableId) {
+        const sig = trSig(item);
+        if (seen.has(sig)) { skipped += 1; return; }
+        seen.add(sig);
+      } else {
+        seenIds.add(stableId);
+      }
+      added.push(item);
+    });
+    return { added, skipped, unmapped };
+  }
+
+  function filterNewBackupEntities(rawEntities, existingEntities) {
+    // Koleksi ke-10 yang dulu hilang dari restore (§1): registry
+    // utang/piutang. Backup mengekspornya sebagai objek
+    // {UtangApp:[...], UtangPerson:[...], Piutang:[...]}; bentuk
+    // array [{grp,name}] juga diterima.
+    const VALID_GROUPS = ['UtangApp', 'UtangPerson', 'Piutang'];
+    const existing = existingEntities && typeof existingEntities === 'object' ? existingEntities : {};
+    const seen = {};
+    VALID_GROUPS.forEach((g) => {
+      seen[g] = new Set((Array.isArray(existing[g]) ? existing[g] : []).map((n) => String(n || '').trim().toLowerCase()));
+    });
+    const rawList = [];
+    if (Array.isArray(rawEntities)) {
+      rawEntities.forEach((e) => { if (e && typeof e === 'object') rawList.push(e); });
+    } else if (rawEntities && typeof rawEntities === 'object') {
+      VALID_GROUPS.forEach((g) => {
+        (Array.isArray(rawEntities[g]) ? rawEntities[g] : []).forEach((name) => rawList.push({ grp: g, name }));
+      });
+    }
+    const added = [];
+    let skipped = 0;
+    rawList.forEach((e) => {
+      const grp = String(e.grp || e.group || '').trim();
+      const name = String(e.name || '').trim().slice(0, 80);
+      if (!VALID_GROUPS.includes(grp) || !name) { skipped += 1; return; }
+      const key = name.toLowerCase();
+      if (seen[grp].has(key)) { skipped += 1; return; }
+      seen[grp].add(key);
+      added.push({ grp, name });
     });
     return { added, skipped };
   }
@@ -193,7 +336,10 @@
       walletNameByOldId: {},
       newRecurring: [], skippedRecurring: 0,
       newAssets: [], skippedAssets: 0,
-      newDebtDueDates: {}, skippedDebtDueDates: 0
+      newDebtDueDates: {}, skippedDebtDueDates: 0,
+      newTransfers: [], skippedTransfers: 0, unmappedTransfers: [],
+      newEntities: [], skippedEntities: 0,
+      unmappedTransactions: []
     };
     if (!backupObj || typeof backupObj !== 'object') return empty;
 
@@ -206,24 +352,41 @@
     const rawRecurring = Array.isArray(src.recurring) ? src.recurring : null;
     const rawAssets = Array.isArray(src.assets) ? src.assets : null;
     const rawDueDates = (src.debtDueDates && typeof src.debtDueDates === 'object' && !Array.isArray(src.debtDueDates)) ? src.debtDueDates : null;
-    if (!rawTx && !rawBudgets && !rawGoals && !rawCategories && !rawWallets && !rawRecurring && !rawAssets && !rawDueDates) return empty;
+    const rawTransfers = Array.isArray(src.transfers) ? src.transfers : null;
+    const rawEntities = src.entities ? src.entities : null;
+    if (!rawTx && !rawBudgets && !rawGoals && !rawCategories && !rawWallets && !rawRecurring && !rawAssets && !rawDueDates && !rawTransfers && !rawEntities) return empty;
 
     const existing = existingData && typeof existingData === 'object' ? existingData : {};
     const existingTxList = Array.isArray(existing.transactions)
       ? existing.transactions
       : (Array.isArray(existing.transaksi) ? existing.transaksi : []);
-    const txRes = filterNewBackupTransactions(rawTx, existingTxList);
+    const existingWallets = Array.isArray(existing.wallets) ? existing.wallets : [];
+    const existingTransfers = Array.isArray(existing.transfers) ? existing.transfers : [];
+    // Dompet dulu: pemetaannya dibutuhkan transaksi & transfer (§2).
+    const walletRes = filterNewBackupWallets(rawWallets, existingWallets);
+    const txRes = filterNewBackupTransactions(rawTx, existingTxList, walletRes.walletNameByOldId, existingWallets);
     const budgetRes = filterNewBackupBudgets(rawBudgets, existing.budgets);
     const goalRes = filterNewBackupGoals(rawGoals, existing.goals);
     const catRes = filterNewBackupCategories(rawCategories, existing.categories);
-    const walletRes = filterNewBackupWallets(rawWallets, existing.wallets);
     const recRes = filterNewBackupRecurring(rawRecurring, existing.recurring);
     const assetRes = filterNewBackupAssets(rawAssets, existing.assets);
     const dueRes = filterNewBackupDebtDueDates(rawDueDates, existing.debtDueDates);
+    const transferRes = filterNewBackupTransfers(rawTransfers, existingTransfers, walletRes.walletNameByOldId, existingWallets);
+    const entityRes = filterNewBackupEntities(rawEntities, existing.entities);
+    // Transaksi yang dompetnya tidak dapat dipetakan: restore harus
+    // DIBATALKAN (§2) — jangan alihkan diam-diam ke dompet pertama.
+    // Nama dompet lama yang hilang dicatat untuk ditampilkan ke user.
+    const unmappedTransactions = txRes.added
+      .filter((t) => t.walletId && !t.walletName)
+      .map((t) => ({
+        tanggal: t.tanggal, kategori: t.kategori, nominal: t.nominal,
+        oldWalletName: String(walletRes.walletNameByOldId[String(t.walletId)] || t.walletId)
+      }));
+    const mappedTransactions = txRes.added.filter((t) => !t.walletId || t.walletName);
 
     return {
       valid: true,
-      newTransactions: txRes.added, skippedTransactions: txRes.skipped,
+      newTransactions: mappedTransactions, skippedTransactions: txRes.skipped + unmappedTransactions.length,
       newBudgets: budgetRes.added, skippedBudgets: budgetRes.skipped,
       newGoals: goalRes.added, skippedGoals: goalRes.skipped,
       newCategories: catRes.added, skippedCategories: catRes.skipped,
@@ -231,7 +394,11 @@
       walletNameByOldId: walletRes.walletNameByOldId,
       newRecurring: recRes.added, skippedRecurring: recRes.skipped,
       newAssets: assetRes.added, skippedAssets: assetRes.skipped,
-      newDebtDueDates: dueRes.added, skippedDebtDueDates: dueRes.skipped
+      newDebtDueDates: dueRes.added, skippedDebtDueDates: dueRes.skipped,
+      newTransfers: transferRes.added, skippedTransfers: transferRes.skipped,
+      unmappedTransfers: transferRes.unmapped,
+      newEntities: entityRes.added, skippedEntities: entityRes.skipped,
+      unmappedTransactions
     };
   }
 
@@ -375,7 +542,11 @@
     };
   }
 
-  const backupApi = { prepareBackupRestorePayload, projectGoalMilestone, getDueRecurringBills, computeCycleForecast };
+  const backupApi = {
+    prepareBackupRestorePayload, projectGoalMilestone, getDueRecurringBills, computeCycleForecast,
+    filterNewBackupTransactions, filterNewBackupTransfers, filterNewBackupEntities,
+    filterNewBackupWallets, resolveBackupWalletName, MAX_NOMINAL
+  };
   root.FinanceAnalysisBackup = backupApi;
   if (typeof module !== 'undefined' && module.exports) module.exports = backupApi;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -18,6 +18,54 @@
     MNT: 'mantle', WBTC: 'wrapped-bitcoin', XAUT: 'tether-gold', HYPE: 'hyperliquid', PI: 'pi-network'
   };
 
+  const MAX_NOMINAL = 999999999999.99;
+
+  // Saldo turunan satu dompet dari state yang sudah diambil
+  // (web/finance-analysis-core.js: aturan cashDelta yang sama).
+  // Dipakai pre-check klien di api_addTransfer — UX saja; kontrol
+  // sebenarnya ada di RPC transfer_between_wallets (ada jeda TOCTOU
+  // antara cek ini dan eksekusi server, hanya server yang menutupnya).
+  function computeWalletBalanceFromState(state, walletId) {
+    const wallets = (state && Array.isArray(state.wallets)) ? state.wallets : [];
+    const wallet = wallets.find((w) => String(w.id) === String(walletId));
+    if (!wallet) return null;
+    const defaultWalletId = wallets.length ? wallets[0].id : null;
+    let balance = Number(wallet.openingBalance) || 0;
+    const cashDelta = (t) => {
+      const cat = String(t.kategori || '');
+      const amount = Number(t.nominal) || 0;
+      if (/^piutang/i.test(cat)) return t.tipe === 'Pemasukan' ? amount : -amount;
+      if (/^utang/i.test(cat)) return t.tipe === 'Pemasukan' ? 0 : -amount;
+      return t.tipe === 'Pemasukan' ? amount : -amount;
+    };
+    (Array.isArray(state.transactions) ? state.transactions : []).forEach((t) => {
+      const wid = (t.walletId && wallets.some((w) => String(w.id) === String(t.walletId))) ? t.walletId : defaultWalletId;
+      if (String(wid) === String(walletId)) balance += cashDelta(t);
+    });
+    (Array.isArray(state.transfers) ? state.transfers : []).forEach((x) => {
+      const n = Number(x.nominal) || 0;
+      const f = Number(x.fee) || 0;
+      if (String(x.fromWallet) === String(walletId)) balance -= (n + f);
+      if (String(x.toWallet) === String(walletId)) balance += n;
+    });
+    return balance;
+  }
+
+  function checkTransferBalancePrecondition(d, nominal, fee) {
+    // Hanya bila state global DB tersedia (browser). Tanpa DB (mis.
+    // konteks tes / worker), lewati — RPC tetap menegakkan saldo.
+    if (typeof DB === 'undefined' || !DB || typeof DB !== 'object') return;
+    const wallets = Array.isArray(DB.wallets) ? DB.wallets : [];
+    if (!wallets.some((w) => String(w.id) === String(d.fromWallet))) {
+      throw new Error('Dompet asal tidak ditemukan.');
+    }
+    const balance = computeWalletBalanceFromState(DB, d.fromWallet);
+    if (balance === null) throw new Error('Dompet asal tidak ditemukan.');
+    if (balance < nominal + fee) {
+      throw new Error('Saldo dompet asal tidak mencukupi untuk transfer ini.');
+    }
+  }
+
   async function extractEdgeErrorMessage(error, defaultMessage) {
     let msg = (error && error.message) ? error.message : defaultMessage;
     const res = error && error.context;
@@ -44,8 +92,12 @@
   }
 
   async function fetchCurrencyApiIdrRates() {
+    // Versi dipin ke 2026.11.27 (latest stabil saat Wave 3.5, diverifikasi
+    // dari registry npm) — sama dengan pin di
+    // supabase/functions/telegram-bot/jobs.ts. Jangan pakai @latest:
+    // rilis baru upstream bisa mengubah format tanpa pemberitahuan.
     const urls = [
-      'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/idr.min.json',
+      'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@2026.11.27/v1/currencies/idr.min.json',
       'https://latest.currency-api.pages.dev/v1/currencies/idr.min.json'
     ];
     for (const url of urls) {
@@ -223,8 +275,21 @@
       const buyPrice = num(d.buyPrice);
       const rawVal = num(d.value);
       const val = rawVal > 0 ? rawVal : (typeLower === 'crypto' && qty > 0 && buyPrice > 0 ? Math.round(qty * buyPrice) : rawVal);
+      // Jalur tanpa dompet: dulu TIDAK ada validasi sama sekali —
+      // num() memaksa sampah jadi 0 dan nilai negatif lolos ke insert.
+      // Sekarang: tolak input tidak valid, jangan diam-diam memasukkan
+      // baris sampah. (Validasi aset + CHECK tabel ditangani agen lain
+      // untuk sisi DB; ini pertahanan klien.)
+      const name = String(d.name || '').trim();
+      const type = String(d.type || 'Other').trim();
+      if (!name || name.length > 80) throw new Error('Nama aset wajib diisi maksimal 80 karakter.');
+      if (!['Crypto', 'Emas', 'USD', 'Saham', 'Cash', 'Other'].includes(type)) throw new Error('Jenis aset tidak valid.');
+      if (!Number.isFinite(qty) || qty < 0 || qty > MAX_NOMINAL) throw new Error('Jumlah aset tidak valid.');
+      if (!Number.isFinite(buyPrice) || buyPrice < 0 || buyPrice > MAX_NOMINAL) throw new Error('Harga beli aset tidak valid.');
+      if (!Number.isFinite(rawVal) || rawVal < 0 || rawVal > MAX_NOMINAL) throw new Error('Nilai aset tidak valid.');
+      if (type.toLowerCase() === 'crypto' && qty > 0 && buyPrice <= 0) throw new Error('Isi harga beli untuk aset crypto.');
       const { error } = await sb.from('assets').insert({
-        name: String(d.name || ''), type: String(d.type || 'Other'), symbol: String(d.symbol || '').toUpperCase(),
+        name, type, symbol: String(d.symbol || '').toUpperCase(),
         quantity: qty, buy_price: buyPrice, value: val
       });
       fail(error);
@@ -268,12 +333,24 @@
     },
 
     async api_updateWallet(id, d) {
+      if (!d || typeof d !== 'object') throw new Error('Data dompet tidak valid.');
       const patch = {};
-      if (d.name && String(d.name).trim()) patch.name = String(d.name).trim();
-      if (d.kind && ['bank', 'cash', 'ewallet'].includes(String(d.kind))) patch.kind = String(d.kind);
-      if (d.openingBalance !== undefined && d.openingBalance !== null && isFinite(Number(d.openingBalance))) {
-        patch.opening_balance = Number(d.openingBalance);
+      if (d.name !== undefined && d.name !== null) {
+        if (!String(d.name).trim() || String(d.name).trim().length > 80) throw new Error('Nama dompet wajib diisi maksimal 80 karakter.');
+        patch.name = String(d.name).trim();
       }
+      if (d.kind !== undefined && d.kind !== null) {
+        if (!['bank', 'cash', 'ewallet'].includes(String(d.kind))) throw new Error('Jenis dompet tidak valid.');
+        patch.kind = String(d.kind);
+      }
+      if (d.openingBalance !== undefined && d.openingBalance !== null) {
+        const opening = Number(d.openingBalance);
+        if (!Number.isFinite(opening) || opening < 0 || opening > MAX_NOMINAL) throw new Error('Saldo awal dompet tidak valid.');
+        patch.opening_balance = opening;
+      }
+      // Dulu: field tidak valid diam-diam dibuang dan update KOSONG tetap
+      // dikirim lalu dilaporkan sukses — no-op yang menyamar sebagai sukses.
+      if (!Object.keys(patch).length) throw new Error('Tidak ada perubahan dompet yang valid untuk disimpan.');
       const { error } = await sb.from('wallets').update(patch).eq('id', id);
       fail(error);
       return fetchWalletsOnly();
@@ -291,20 +368,63 @@
 
     async api_addTransfer(d) {
       const nominal = num(d.nominal);
-      if (nominal <= 0) throw new Error('Nominal harus lebih dari 0');
+      const fee = Math.max(0, num(d.fee));
+      if (nominal <= 0 || nominal > MAX_NOMINAL) throw new Error('Nominal harus lebih dari 0 dan tidak melebihi Rp 999.999.999.999,99.');
+      if (fee > MAX_NOMINAL) throw new Error('Biaya transfer tidak valid.');
       if (d.kind !== 'investasi' && (!d.fromWallet || !d.toWallet || d.fromWallet === d.toWallet)) {
         throw new Error('Pilih dompet asal dan tujuan yang berbeda');
       }
+      if (!d.fromWallet) throw new Error('Dompet asal wajib diisi.');
+      // Pre-check klien (UX): saldo dari state DB yang sudah diambil.
+      // RPC di bawah adalah kontrol sebenarnya (TOCTOU).
+      checkTransferBalancePrecondition(d, nominal, fee);
       // Idempotency key antrean offline (T13, Gelombang 2.5): dibuat sekali
       // di klien saat enqueue, dikirim di dalam payload.
       const idempotencyKey = typeof d.idempotencyKey === 'string' ? d.idempotencyKey.trim() : '';
+      const rpcArgs = {
+        p_from: d.fromWallet,
+        p_to: d.toWallet || null,
+        p_nominal: nominal,
+        p_fee: fee,
+        p_tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
+        p_keterangan: d.keterangan || '',
+        p_idempotency_key: idempotencyKey || null
+      };
+      // Jalur utama (Wave 3.5 §6): RPC transfer_between_wallets —
+      // lock kedua dompet, cek kepemilikan + saldo di server.
+      if (sb.rpc && typeof sb.rpc === 'function') {
+        const { data, error } = await sb.rpc('transfer_between_wallets', rpcArgs);
+        if (error) {
+          const msg = String(error.message || '');
+          // Migrasi belum diterapkan di server: gagal eksplisit, jangan
+          // diam-diam kembali ke insert tanpa cek saldo.
+          if (/could not find the function|PGRST202|404/i.test(msg)) {
+            throw new Error('Fitur transfer belum tersedia: migrasi transfer_between_wallets belum diterapkan di server.');
+          }
+          if (error.code === '23505' && idempotencyKey) {
+            const existing = await sb.from('transfers')
+              .select('id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan')
+              .eq('idempotency_key', idempotencyKey).maybeSingle();
+            if (existing.error) fail(existing.error);
+            if (existing.data) return fetchWalletsAndTransfers();
+            fail(error);
+          }
+          fail(error);
+        }
+        if (!data || !data.length) throw new Error('Transfer tidak mengembalikan data.');
+        return fetchWalletsAndTransfers();
+      }
+      // Jembatan kompatibilitas: hanya bila sb.rpc tidak ada sama sekali
+      // (stub tes lama). JANGAN dipakai di produksi — sb Supabase asli
+      // selalu punya rpc, jadi jalur ini tidak pernah menonaktifkan
+      // cek saldo server di aplikasi nyata.
       const { error } = await sb.from('transfers').insert({
-        tanggal: String(d.tanggal || ymd(new Date())).slice(0, 10),
+        tanggal: rpcArgs.p_tanggal,
         kind: d.kind || 'transfer',
         from_wallet: d.fromWallet || null,
         to_wallet: d.toWallet || null,
         nominal,
-        fee: Math.max(0, num(d.fee)),
+        fee,
         keterangan: d.keterangan || '',
         ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {})
       });
@@ -400,4 +520,6 @@
 
   core.fetchDirectMarketPricesIDR = fetchDirectMarketPricesIDR;
   core.refreshPricesDirect = refreshPricesDirect;
+  core.computeWalletBalanceFromState = computeWalletBalanceFromState;
+  core.MAX_NOMINAL = MAX_NOMINAL;
 })();

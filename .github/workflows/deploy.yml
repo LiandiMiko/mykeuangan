@@ -22,8 +22,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm run check
+      - name: Fetch self-hosted vendor assets
+        # Wave 3.4 / S25: fetch vendor BERJALAN JUGA di PR (dulu hanya di
+        # deploy) — DAN SEBELUM `npm run check`. Test 3.4 menyalin repo ke
+        # direktori temp dan menjalankan build di sana; tanpa web/vendor/
+        # di checkout, 7 dari 8 test 3.4 gagal (ENOENT) di CI padahal lolos
+        # di mesin dev yang vendor-nya sudah terunduh. Build juga butuh
+        # tailwind.min.css (gerbang vendor di build.mjs), jadi langkah
+        # Tailwind ikut dipindah ke sebelum check.
+        run: node scripts/fetch-vendors.mjs
       - run: npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i web/tailwind-input.css -o web/vendor/tailwind.min.css --minify
+      - run: npm run check
       - name: Siapkan config fallback (jika belum ada)
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
@@ -33,9 +42,6 @@ jobs:
       - name: Build dist (PR check)
         if: github.event_name == 'pull_request'
         run: node -e "const fs=require('fs'), cp=require('child_process'); if(fs.existsSync('web/config.js')) cp.execSync('node build.mjs', {stdio:'inherit'});"
-      - name: Fetch self-hosted vendor assets
-        if: github.event_name != 'pull_request'
-        run: node scripts/fetch-vendors.mjs
       - name: Build dist (Deploy)
         if: github.event_name != 'pull_request'
         run: |

@@ -7,6 +7,9 @@
   const { sb, fail, resolveReady, showCoreNotice } = core;
 
   const PROFILE_CACHE_KEY = 'mk_cached_profile_v1';
+  // Wave 3.1 / S3 — cached profiles expire after 24h. A stale cache must
+  // never resurrect a role (especially admin) after it stopped being true.
+  const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const LOGOUT_STORAGE_KEYS = [
     'mk_gemini_api_key',
     'mk_gemini_model',
@@ -42,7 +45,11 @@
       const raw = localStorage.getItem(PROFILE_CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      return parsed && parsed.userId === userId ? parsed : null;
+      if (!parsed || parsed.userId !== userId) return null;
+      // TTL (S3): ignore caches older than 24h, even offline.
+      const savedAt = Date.parse(parsed.savedAt || '');
+      if (!savedAt || Date.now() - savedAt > PROFILE_CACHE_TTL_MS) return null;
+      return parsed;
     } catch (_) {
       return null;
     }
@@ -67,10 +74,11 @@
     const rEl = document.getElementById('ui-role');
     if (uEl) uEl.textContent = window.sessionUser;
     if (rEl) rEl.textContent = window.sessionRole.toUpperCase();
-    if (window.sessionRole === 'admin') {
-      const admNav = document.getElementById('nav-admin');
-      if (admNav) admNav.style.display = 'flex';
-    }
+    // S3: admin nav is only ever revealed by a server-verified admin role;
+    // any other identity explicitly hides it again (a cached admin role
+    // must never leak through a later non-admin identity).
+    const admNav = document.getElementById('nav-admin');
+    if (admNav) admNav.style.display = window.sessionRole === 'admin' ? 'flex' : 'none';
   }
 
   async function finishLogin(session) {
@@ -78,12 +86,32 @@
     const email = (user && user.email) || '';
     const meta = (user && user.user_metadata) || {};
     const fallbackName = String(meta.full_name || meta.name || email.split('@')[0] || 'User').slice(0, 60);
+    // Wave 3.5 / S30: bila akun berganti tanpa logout bersih, hapus
+    // snapshot offline milik akun sebelumnya agar tidak tertinggal di
+    // perangkat (best-effort — jangan pernah gagalkan login).
+    try {
+      const prevUserId = localStorage.getItem('mk_last_user_id');
+      if (user && user.id) {
+        if (prevUserId && prevUserId !== user.id) {
+          const clearSnap = window.clearOfflineSnapshot
+            || (window.__mkFeat && window.__mkFeat.clearOfflineSnapshot);
+          if (typeof clearSnap === 'function') await clearSnap();
+        }
+        localStorage.setItem('mk_last_user_id', user.id);
+      }
+    } catch (_) { /* abaikan — snapshot hanyalah cache */ }
+    // S3: set when the server explicitly answered "no profile row".
+    // That is different from a network/query error, and it is fail-closed.
+    let profileMissing = false;
     try {
       applySessionIdentity(fallbackName, 'user');
       if (user && user.id) {
         const { data: prof, error } = await sb.from('profiles').select('display_name,role,status').eq('id', user.id).maybeSingle();
         fail(error);
-        if (!prof) throw new Error('Profil akun belum tersedia. Hubungi administrator untuk menyelesaikan penyiapan akun.');
+        if (!prof) {
+          profileMissing = true;
+          throw new Error('Profil akun belum tersedia. Hubungi administrator untuk menyelesaikan penyiapan akun.');
+        }
         if (prof.status !== 'active') {
           await showAuthNotice('Akun Nonaktif', 'Akun Anda belum aktif. Hubungi administrator untuk bantuan.');
           await sb.auth.signOut();
@@ -94,9 +122,26 @@
         saveCachedProfile(user.id, window.sessionUser, window.sessionRole, prof.status);
       }
     } catch (e) {
-      const cached = user && user.id ? readCachedProfile(user.id) : null;
-      if (cached && cached.status === 'active') {
-        applySessionIdentity(cached.displayName || fallbackName, cached.role || 'user');
+      const online = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+      // Online + server explicitly says "no profile": fail closed — show
+      // the error, sign out, and do NOT resolveReady(). The app must not
+      // start a session for an account the server does not recognise.
+      if (profileMissing && online) {
+        console.error('finishLogin', e);
+        await showAuthNotice('Profil Tidak Ditemukan', 'Profil akun belum tersedia. Hubungi administrator untuk menyelesaikan penyiapan akun.');
+        try { await sb.auth.signOut(); } catch (_) { /* ignore sign-out failure */ }
+        return;
+      }
+      // Cache is only a fallback while genuinely offline — and a cached
+      // 'admin' role is NEVER trusted: offline identity is always 'user'.
+      if (!online) {
+        const cached = user && user.id ? readCachedProfile(user.id) : null;
+        if (cached && cached.status === 'active') {
+          applySessionIdentity(cached.displayName || fallbackName, 'user');
+        } else {
+          console.error('finishLogin', e);
+          await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (e.message || String(e)));
+        }
       } else {
         console.error('finishLogin', e);
         await showAuthNotice('Gagal Memuat Profil', 'Tidak dapat memuat profil akun: ' + (e.message || String(e)));
@@ -135,9 +180,29 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') refreshActiveSession();
   });
+  // S3: re-validate the profile immediately when connectivity returns,
+  // so an offline-downgraded identity does not linger.
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('online', () => { refreshActiveSession(); });
+  }
   window.setInterval(() => {
     if (document.visibilityState === 'visible') refreshActiveSession();
   }, 60000);
+
+  // Wave 3.1 / S5 — shared password policy (web/password-policy.js).
+  // Falls back to the old length-only check when the policy file has
+  // not been loaded (yet); returns the first error message or ''.
+  function checkPasswordPolicy(pass, email, en) {
+    const pol = (window.__mkFeat && window.__mkFeat.passwordPolicy) || window.__mkPasswordPolicy;
+    if (pol && typeof pol.validatePassword === 'function') {
+      const res = pol.validatePassword(pass, { email, lang: en ? 'en' : 'id' });
+      return res.ok ? '' : (res.errors[0] && res.errors[0].message) || '';
+    }
+    if (typeof pass !== 'string' || pass.length < 8 || pass.length > 128) {
+      return en ? 'Password must be 8 to 128 characters.' : 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+    }
+    return '';
+  }
 
   async function executeAuthSubmit(submitMode, el, errEl) {
     const authUi = window.__mkAuthUi || {};
@@ -158,8 +223,9 @@
     } else if (submitMode === 'register') {
       const pass = el.querySelector('#mkPass').value;
       const passConfirm = el.querySelector('#mkPassConfirm').value;
-      if (pass.length < 8 || pass.length > 128) {
-        errEl.textContent = en ? 'Password must be 8 to 128 characters.' : 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+      const policyError = checkPasswordPolicy(pass, email, en);
+      if (policyError) {
+        errEl.textContent = policyError;
         authUi.focusAuthErrorField(el, 'mkPass', false);
         return;
       }
@@ -305,6 +371,15 @@
       activeLoginEl = null;
     }
     finishLogin(session);
+  };
+
+  // Wave 3.1 / S3 — test/diagnostic surface for the login/profile flow.
+  window.__mkAuthTest = {
+    finishLogin,
+    checkActiveSession,
+    readCachedProfile,
+    saveCachedProfile,
+    PROFILE_CACHE_TTL_MS
   };
 
   /* ============================================================

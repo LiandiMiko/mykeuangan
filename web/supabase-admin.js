@@ -24,6 +24,21 @@
     return data;
   }
 
+  // Wave 3.1 / S5 — shared password policy (web/password-policy.js).
+  // Throws the first policy error message. Falls back to the old
+  // length-only check when the policy file has not been loaded (yet).
+  function enforcePasswordPolicy(password, email) {
+    const pol = (window.__mkFeat && window.__mkFeat.passwordPolicy) || window.__mkPasswordPolicy;
+    if (pol && typeof pol.validatePassword === 'function') {
+      const res = pol.validatePassword(password, { email });
+      if (!res.ok) throw new Error((res.errors[0] && res.errors[0].message) || 'Password tidak memenuhi kebijakan keamanan.');
+      return;
+    }
+    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+      throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
+    }
+  }
+
   async function logAdminActionSafe(action, targetUserId, targetEmail, details) {
     try {
       await sb.rpc('admin_log_action', {
@@ -113,12 +128,18 @@
       if (typeof oldPassword !== 'string' || !oldPassword) {
         throw new Error('Masukkan password lama Anda saat ini.');
       }
-      if (typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
-        throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
-      }
+      // Policy first (before any auth call), without the email rule —
+      // the email is only known after getUser() below.
+      enforcePasswordPolicy(newPassword, null);
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (!authData.user || !authData.user.email) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
+      // Email rule, now that the email is known.
+      const pol = (window.__mkFeat && window.__mkFeat.passwordPolicy) || window.__mkPasswordPolicy;
+      if (pol && typeof pol.containsEmailLocalPart === 'function'
+        && pol.containsEmailLocalPart(newPassword, authData.user.email)) {
+        throw new Error('Password tidak boleh mengandung bagian dari alamat email Anda.');
+      }
       let verifyError = null;
       try {
         const res = await sb.auth.signInWithPassword({ email: authData.user.email, password: oldPassword });
@@ -147,9 +168,7 @@
 
     async api_adminSetPassword(userId, password) {
       if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
-      if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
-        throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
-      }
+      enforcePasswordPolicy(password, null);
       await invokeEdgeFunction('admin-password', { userId, password }, 'Reset password gagal.');
       await logAdminActionSafe('reset_password', userId, '', {});
     },
@@ -219,13 +238,29 @@
       return true;
     },
 
+    // Wave 3.5 / S36 (§10): entri tidak valid DITOLAK dengan pesan yang
+    // menyebut kuncinya — jangan lagi dibuang diam-diam lalu mengembalikan
+    // sukses seolah semua tersimpan.
     async api_saveDebtDueDates(dueMap) {
+      if (!dueMap || typeof dueMap !== 'object' || Array.isArray(dueMap)) {
+        throw new Error('Data tanggal jatuh tempo tidak valid.');
+      }
       const clean = {};
-      if (dueMap && typeof dueMap === 'object' && !Array.isArray(dueMap)) {
-        Object.keys(dueMap).forEach((k) => {
-          const v = String(dueMap[k] || '').slice(0, 10);
-          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) clean[String(k).slice(0, 120)] = v;
-        });
+      const invalid = [];
+      Object.keys(dueMap).forEach((k) => {
+        const key = String(k).slice(0, 120);
+        const v = String(dueMap[k] || '').slice(0, 10);
+        // Format YYYY-MM-DD + tanggal kalender nyata (tolak 2026-02-30).
+        // Parse sebagai UTC ('Z'): tanpa itu, round-trip via toISOString()
+        // (UTC) gagal di zona waktu positif — mis. di WIB 2026-12-01
+        // 00:00 lokal = 2026-11-30 17:00 UTC, jadi tanggal valid ditolak.
+        const roundTrips = /^\d{4}-\d{2}-\d{2}$/.test(v)
+          && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v;
+        if (roundTrips) clean[key] = v;
+        else invalid.push(key);
+      });
+      if (invalid.length) {
+        throw new Error('Tanggal jatuh tempo tidak valid untuk: ' + invalid.slice(0, 5).join(', ') + (invalid.length > 5 ? ' …' : ''));
       }
       await setSetting('debtDueDates', JSON.stringify(clean));
       return { debtDueDates: clean };

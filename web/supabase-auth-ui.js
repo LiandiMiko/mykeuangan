@@ -160,6 +160,20 @@
     };
   }
 
+  // Wave 3.1 / S5 — shared password policy; length-only fallback when
+  // web/password-policy.js has not been loaded (yet).
+  function checkPasswordPolicy(pass, email, en) {
+    const pol = (window.__mkFeat && window.__mkFeat.passwordPolicy) || window.__mkPasswordPolicy;
+    if (pol && typeof pol.validatePassword === 'function') {
+      const res = pol.validatePassword(pass, { email, lang: en ? 'en' : 'id' });
+      return res.ok ? '' : (res.errors[0] && res.errors[0].message) || '';
+    }
+    if (typeof pass !== 'string' || pass.length < 8 || pass.length > 128) {
+      return en ? 'Password must be 8 to 128 characters.' : 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+    }
+    return '';
+  }
+
   function showPasswordRecoveryModal(sb, isAuthEn, showAuthNotice) {
     if (document.getElementById('mkRecoveryOverlay')) return;
     const en = isAuthEn();
@@ -192,8 +206,16 @@
       const btn = wrap.querySelector('#mkRecSubmitBtn');
       const pass = wrap.querySelector('#mkRecPass').value;
       const confirmPass = wrap.querySelector('#mkRecPassConfirm').value;
-      if (pass.length < 8 || pass.length > 128) {
-        errEl.textContent = en ? 'Password must be 8 to 128 characters.' : 'Kata sandi harus terdiri dari 8 sampai 128 karakter.';
+      // Email is needed for the "password contains email" rule; best
+      // effort only — the check still runs without it.
+      let recoveryEmail = null;
+      try {
+        const { data } = await sb.auth.getUser();
+        recoveryEmail = (data && data.user && data.user.email) || null;
+      } catch (_) { /* ignore: policy still applies without the email rule */ }
+      const policyError = checkPasswordPolicy(pass, recoveryEmail, en);
+      if (policyError) {
+        errEl.textContent = policyError;
         focusAuthErrorField(wrap, 'mkRecPass', false);
         return;
       }

@@ -16,6 +16,43 @@
   // IndexedDB tidak tersedia — lihat read/writePinLockState di ui-feat-account.js.
   const IDB_PIN_LOCK_STORE = 'pin_lock_state';
   const MAX_OFFLINE_RETRIES = 3;
+  // Wave 3.5 §7: nomor urut monoton antrean (disimpan di localStorage
+  // agar monoton lintas reload). Flush mengurutkan berdasarkan ini,
+  // bukan berdasarkan getAll() IndexedDB (urut string localId) atau
+  // mirror localStorage yang tidak berurutan.
+  const OFFLINE_SEQ_KEY = 'mk_offline_seq_v1';
+  function nextOfflineSeq() {
+    try {
+      const cur = Number(localStorage.getItem(OFFLINE_SEQ_KEY) || '0') || 0;
+      const next = cur + 1;
+      localStorage.setItem(OFFLINE_SEQ_KEY, String(next));
+      return next;
+    } catch (_) {
+      return Date.now();
+    }
+  }
+  function ensureOfflineSeq(item) {
+    if (item && (item.seq === undefined || item.seq === null)) item.seq = nextOfflineSeq();
+    return item;
+  }
+  function sortOfflineQueue(items) {
+    return (items || []).slice().sort((a, b) => {
+      const sa = (a && typeof a.seq === 'number') ? a.seq : Infinity;
+      const sb = (b && typeof b.seq === 'number') ? b.seq : Infinity;
+      if (sa !== sb) return sa - sb;
+      const ca = Date.parse((a && a.createdAt) || '') || 0;
+      const cb = Date.parse((b && b.createdAt) || '') || 0;
+      if (ca !== cb) return ca - cb;
+      return String((a && a.localId) || '') < String((b && b.localId) || '') ? -1 : 1;
+    });
+  }
+  // Kunci ordering per target: update/delete atas transaksi yang sama,
+  // transfer yang sama, dsb. Item gagal memblokir item lain dengan
+  // kunci yang sama di flush yang sama (bukan seluruh antrean).
+  function offlineTargetKey(item) {
+    if (!item) return '';
+    return String(item.targetId || item.localId || '');
+  }
   let isFlushingOffline = false;
   let offlineDbPromise = null;
 
@@ -277,7 +314,7 @@
   }
 
   async function saveOfflineQueueItem(item) {
-    const stored = Object.assign({}, item);
+    const stored = ensureOfflineSeq(Object.assign({}, item));
     if (stored.payload) stored.payload = await encryptQueuePayload(stored.payload);
     await saveOfflineQueueItemRaw(stored);
   }
@@ -296,7 +333,7 @@
 
   async function getOfflineQueueItems() {
     const db = await openOfflineDb();
-    if (!db) return readLocalQueue();
+    if (!db) return sortOfflineQueue(readLocalQueue());
     return new Promise((resolve) => {
       try {
         const tx = db.transaction(IDB_STORE, 'readonly');
@@ -304,11 +341,11 @@
         req.onsuccess = () => {
           const idbItems = Array.isArray(req.result) ? req.result : [];
           if (idbItems.length) writeLocalQueue(idbItems);
-          resolve(idbItems.length ? idbItems : readLocalQueue());
+          resolve(sortOfflineQueue(idbItems.length ? idbItems : readLocalQueue()));
         };
-        req.onerror = () => resolve(readLocalQueue());
+        req.onerror = () => resolve(sortOfflineQueue(readLocalQueue()));
       } catch (_) {
-        resolve(readLocalQueue());
+        resolve(sortOfflineQueue(readLocalQueue()));
       }
     });
   }
@@ -438,20 +475,32 @@
     let latestTransfers = null;
     let latestWallets = null;
     let latestPeriod = '';
+    const extraRefresh = {};
+    // §7b: item yang gagal (server menolak / dekripsi gagal setelah
+    // retry habis) memblokir item lain untuk TARGET YANG SAMA di flush
+    // ini — update/delete tidak boleh menyalip add yang gagal untuk
+    // transaksi yang sama. Target lain tetap jalan.
+    const blockedTargets = new Set();
     try {
       for (const item of pendingItems) {
         const op = item.op || 'api_addTransaction';
-        // Dekripsi payload sebelum dikirim (K2). Bila dekripsi gagal (kunci
-        // salah/rusak), tandai item `failed` dengan lastError yang jelas dan
-        // JANGAN menghapus itemnya — data dipertahankan untuk diperiksa user.
+        if (blockedTargets.has(offlineTargetKey(item))) continue;
+        // Dekripsi payload sebelum dikirim (K2). Bila dekripsi gagal,
+        // JANGAN langsung failed: catat lewat penghitung retry yang
+        // sama seperti penolakan server (§7c) — hanya gagal permanen
+        // setelah MAX_OFFLINE_RETRIES percobaan.
         let payload = null;
         if (op !== 'api_deleteTransaction' && item.payload) {
           payload = await decryptQueuePayload(item);
           if (payload === null) {
-            const errMsg = 'Gagal mendekripsi antrean offline (kunci PIN tidak tersedia atau data rusak). Item dipertahankan.';
-            await saveOfflineQueueItem(Object.assign({}, item, { failed: true, lastError: errMsg.slice(0, 180) }));
-            newlyFailed += 1;
-            lastErrMsg = errMsg;
+            const recorded = await recordOfflineFailure(item, new Error('Gagal mendekripsi antrean offline (kunci PIN tidak tersedia atau data rusak). Item dipertahankan.'));
+            // Sekali ditolak di flush ini, item lain untuk target yang
+            // sama tidak boleh menyalip — walau retry item ini belum habis.
+            blockedTargets.add(offlineTargetKey(item));
+            if (recorded.isFailed) {
+              newlyFailed += 1;
+              lastErrMsg = recorded.errMsg;
+            }
             continue;
           }
         }
@@ -460,13 +509,20 @@
           if (op === 'api_updateTransaction') res = await root._rawCallServer('api_updateTransaction', item.targetId, Object.assign({}, payload));
           else if (op === 'api_deleteTransaction') res = await root._rawCallServer('api_deleteTransaction', item.targetId);
           else if (op === 'api_addTransfer') res = await root._rawCallServer('api_addTransfer', Object.assign({}, payload));
-          else res = await root._rawCallServer('api_addTransaction', Object.assign({}, payload));
+          else if (op === 'api_addTransaction') res = await root._rawCallServer('api_addTransaction', Object.assign({}, payload));
+          else if (payload && Array.isArray(payload.args)) res = await root._rawCallServer(op, ...payload.args);
+          else res = await root._rawCallServer(op, Object.assign({}, payload));
 
           if (res && res.transaction) addedTransactions.push(res.transaction);
           if (res && res.deletedTransactionId) deletedTransactionIds.push(res.deletedTransactionId);
           if (res && res.transfers) latestTransfers = res.transfers;
           if (res && res.wallets) latestWallets = res.wallets;
           if (res && res.currentPeriod && (!latestPeriod || res.currentPeriod > latestPeriod)) latestPeriod = res.currentPeriod;
+          if (res) {
+            ['budgets', 'goals', 'recurring', 'categories', 'assets', 'debtDueDates'].forEach((k) => {
+              if (res[k] !== undefined) extraRefresh[k] = res[k];
+            });
+          }
           await removeOfflineQueueItem(item.localId);
           if (typeof DB !== 'undefined' && Array.isArray(DB.transactions) && op === 'api_addTransaction') {
             DB.transactions = DB.transactions.filter((tx) => tx.id !== item.localId);
@@ -475,6 +531,9 @@
         } catch (err) {
           if (isNetworkOfflineError(err)) break;
           const recorded = await recordOfflineFailure(item, err);
+          // Sekali ditolak di flush ini, item lain untuk target yang
+          // sama tidak boleh menyalip — walau retry item ini belum habis.
+          blockedTargets.add(offlineTargetKey(item));
           if (recorded.isFailed) {
             newlyFailed += 1;
             lastErrMsg = recorded.errMsg;
@@ -487,7 +546,8 @@
           deletedTransactionIds,
           ...(latestTransfers ? { transfers: latestTransfers } : {}),
           ...(latestWallets ? { wallets: latestWallets } : {}),
-          ...(latestPeriod ? { currentPeriod: latestPeriod } : {})
+          ...(latestPeriod ? { currentPeriod: latestPeriod } : {}),
+          ...extraRefresh
         });
       }
       if (synced > 0 && !silent && typeof Swal !== 'undefined') {
@@ -509,7 +569,33 @@
     return synced;
   }
 
-  const OFFLINE_MUTATIONS = new Set(['api_addTransaction', 'api_updateTransaction', 'api_deleteTransaction', 'api_addTransfer']);
+  // Wave 3.5 §7d: dulu hanya 4 op yang diantrekan; sisanya hilang
+  // begitu saja saat offline (kecuali api_savePeriod yang lebih parah:
+  // berpura-pura sukses). Operasi generik diantrekan dengan argumen
+  // lengkapnya dan di-flush lewat _rawCallServer(op, ...args).
+  const OFFLINE_MUTATIONS = new Set([
+    'api_addTransaction', 'api_updateTransaction', 'api_deleteTransaction', 'api_addTransfer',
+    'api_addWallet', 'api_addCategory', 'api_saveBudget', 'api_saveGoal',
+    'api_saveRecurring', 'api_addAssetV2', 'api_deleteTransfer',
+    'api_saveDebtDueDates', 'api_savePayrollDay', 'api_savePrimaryBankWallet',
+    'api_savePeriod'
+  ]);
+
+  // Kunci ordering untuk op generik (dipakai pemblokiran per-target
+  // saat flush): perubahan atas objek yang sama berbagi kunci.
+  function deriveGenericTargetId(op, args) {
+    const a = args || [];
+    if (op === 'api_deleteTransfer') return String(a[0] || '');
+    if (op === 'api_saveBudget') return 'budget:' + String(a[0] || '') + ':' + String(a[1] || '');
+    if (op === 'api_saveGoal') return 'goal:' + String((a[0] && (a[0].id || a[0].name)) || '');
+    if (op === 'api_saveRecurring') return 'recurring:' + String((a[0] && (a[0].id || a[0].kategori)) || '');
+    if (op === 'api_addCategory') return 'category:' + String(a[0] || '') + ':' + String(a[1] || '');
+    if (op === 'api_saveDebtDueDates') return 'debtDueDates';
+    if (op === 'api_savePayrollDay') return 'payrollDay';
+    if (op === 'api_savePrimaryBankWallet') return 'primaryBankWallet';
+    if (op === 'api_savePeriod') return 'period';
+    return '';
+  }
 
   function buildOfflineTransactionResponse(localId, txPayload) {
     return {
@@ -609,16 +695,31 @@
       bumpOfflineBadgeRefresh();
       return { _offlineQueued: true, deletedTransactionId: id };
     }
-    const trPayload = Object.assign({}, args[0] || {});
-    const localId = stamp();
-    await saveOfflineQueueItem(attachIdempotencyKey({ localId, op: 'api_addTransfer', payload: trPayload, createdAt: new Date().toISOString() }));
-    const optimistic = {
-      id: localId, tanggal: trPayload.tanggal || new Date().toISOString().slice(0, 10),
-      kind: trPayload.kind || 'transfer', fromWallet: trPayload.fromWallet || '', toWallet: trPayload.toWallet || '',
-      nominal: Number(trPayload.nominal) || 0, fee: Math.max(0, Number(trPayload.fee) || 0), keterangan: (trPayload.keterangan ? trPayload.keterangan + ' ' : '') + '[Offline Queue]'
+    if (op === 'api_addTransfer') {
+      const trPayload = Object.assign({}, args[0] || {});
+      const localId = stamp();
+      await saveOfflineQueueItem(attachIdempotencyKey({ localId, op: 'api_addTransfer', payload: trPayload, createdAt: new Date().toISOString() }));
+      const optimistic = {
+        id: localId, tanggal: trPayload.tanggal || new Date().toISOString().slice(0, 10),
+        kind: trPayload.kind || 'transfer', fromWallet: trPayload.fromWallet || '', toWallet: trPayload.toWallet || '',
+        nominal: Number(trPayload.nominal) || 0, fee: Math.max(0, Number(trPayload.fee) || 0), keterangan: (trPayload.keterangan ? trPayload.keterangan + ' ' : '') + '[Offline Queue]'
+      };
+      bumpOfflineBadgeRefresh();
+      return { _offlineQueued: true, transfers: [...((typeof DB !== 'undefined' && Array.isArray(DB.transfers)) ? DB.transfers : []), optimistic] };
+    }
+    // Op generik (§7d): antrekan argumen lengkap; flush memanggil
+    // _rawCallServer(op, ...args). Kunci idempotensi ditempel bila
+    // op memakai insert (addWallet/addCategory/addAssetV2).
+    const genericIdempotent = ['api_addWallet', 'api_addCategory', 'api_addAssetV2'].includes(op);
+    const genericItem = {
+      localId: stamp(), op,
+      targetId: deriveGenericTargetId(op, args) || undefined,
+      payload: { args: Array.isArray(args) ? args : [] },
+      createdAt: new Date().toISOString()
     };
+    await saveOfflineQueueItem(genericIdempotent ? attachIdempotencyKey(genericItem) : genericItem);
     bumpOfflineBadgeRefresh();
-    return { _offlineQueued: true, transfers: [...((typeof DB !== 'undefined' && Array.isArray(DB.transfers)) ? DB.transfers : []), optimistic] };
+    return { _offlineQueued: true, queuedOp: op };
   }
 
   async function hydrateInitialOfflineData(res) {
@@ -656,7 +757,11 @@
         return res;
       } catch (err) {
         if (OFFLINE_MUTATIONS.has(fn) && isNetworkOfflineError(err)) return queueOfflineMutation(fn, args);
-        if (fn === 'api_savePeriod' && isNetworkOfflineError(err)) return args[0];
+        // Wave 3.5 §7e: api_savePeriod TIDAK BOLEH lagi berpura-pura
+        // sukses saat offline — dulu `return args[0]` membuat UI
+        // percaya periode tersimpan padahal hilang. Sekarang periode
+        // masuk antrean (OFFLINE_MUTATIONS) seperti perubahan lain;
+        // error non-jaringan tetap dilempar apa adanya.
         throw err;
       }
     };
@@ -746,6 +851,11 @@
   root.__mkFeat.encryptQueuePayload = encryptQueuePayload;
   root.__mkFeat.decryptQueuePayload = decryptQueuePayload;
   root.__mkFeat.saveOfflineQueueItem = saveOfflineQueueItem;
+  root.__mkFeat.sortOfflineQueue = sortOfflineQueue;
+  root.__mkFeat.offlineTargetKey = offlineTargetKey;
+  root.__mkFeat.deriveGenericTargetId = deriveGenericTargetId;
+  root.__mkFeat.OFFLINE_MUTATIONS = OFFLINE_MUTATIONS;
+  root.__mkFeat.MAX_OFFLINE_RETRIES = MAX_OFFLINE_RETRIES;
   root.__mkFeat.generateIdempotencyKey = generateIdempotencyKey;
   root.__mkFeat.getOfflineQueueSummary = getOfflineQueueSummary;
   root.__mkFeat.exportOfflineQueuePlaintext = exportOfflineQueuePlaintext;

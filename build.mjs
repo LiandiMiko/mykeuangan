@@ -3,14 +3,21 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  DERIVED_VENDOR_FILES,
+  VENDOR_MANIFEST,
+  verifyAllVendors,
+  verifyVendorFile
+} from './scripts/fetch-vendors.mjs';
 
 const SRC = 'src';
 const WEB = 'web';
 const OUT = 'dist';
 const VENDOR_ROOT = path.join(WEB, 'vendor');
-const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
-const SUPABASE_JS_FALLBACK = 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
-const VENDOR = path.join(VENDOR_ROOT, 'supabase.js');
+// Wave 3.4 / S24–S25: TIDAK ada lagi fallback CDN untuk vendor. Semua
+// vendor WAJIB self-hosted di web/vendor/ dan terverifikasi hash-nya
+// (lihat verifyRequiredVendorFiles di bawah). Build gagal dengan jelas
+// kalau ada vendor yang hilang/rusak — tidak ada lagi CDN diam-diam.
 
 const WEB_MODULES = [
   'native-bridge.js',
@@ -67,6 +74,11 @@ const UI_PRO_MODULES = [
 ];
 
 const SUPABASE_MODULES = [
+  // Wave 3.1 / S5: password-policy.js HARUS dimuat pertama — semua
+  // consumer password/PIN (supabase-auth-ui.js, supabase-auth.js,
+  // supabase-admin.js, ui-feat-account.js) membacanya saat load.
+  // Tanpa ini mereka diam-diam fallback ke cek panjang saja.
+  'password-policy.js',
   'supabase-core.js',
   'supabase-auth-ui.js',
   'supabase-auth.js',
@@ -103,36 +115,77 @@ function readInlineScripts(files) {
     .join('\n');
 }
 
+// Wave 3.4 / S24–S25: vendor WAJIB ada + terverifikasi. Tidak ada fallback
+// CDN dan tidak ada lagi pemuatan lewat document-write — kalau supabase.js
+// lokal hilang, kosong, atau hash-nya tidak cocok, build GAGAL dengan
+// pesan yang jelas.
 function resolveSupabaseTag() {
-  if (fs.existsSync(VENDOR) && fs.statSync(VENDOR).size > 0) {
-    return '<script src="./vendor/supabase.js"></script>';
-  }
-  return `<script src="${SUPABASE_JS}" crossorigin="anonymous"></script>\n` +
-    `<script>window.supabase || document.write('<script src="${SUPABASE_JS_FALLBACK}" crossorigin="anonymous"><\\/script>')</script>`;
+  const entry = VENDOR_MANIFEST.find((e) => e.file === 'supabase.js');
+  verifyVendorFile(entry);
+  return '<script src="./vendor/supabase.js"></script>';
 }
 
+// Wave 3.4 / S24–S25: semua rewrite CDN → vendor lokal bersifat WAJIB.
+// Dulu: tag CDN dibiarkan kalau file lokal tidak ada (silent fallback).
+// Sekarang: file vendor hilang/kosong → build throw menyebut nama file.
+// Penjaga akhir (regex src/href) memastikan tidak satu pun URL CDN
+// lolos ke dist — termasuk kalau pola replace di styles.html berubah.
 function rewriteLocalVendorTags(html) {
   let out = html;
   const interCss = path.join(VENDOR_ROOT, 'inter', 'inter.css');
-  if (fs.existsSync(interCss)) {
-    out = out.replace(
-      /<link[^>]*href="https:\/\/fonts\.googleapis\.com\/css2\?family=Inter:[^"]*"[^>]*>/i,
-      '<link rel="stylesheet" href="./vendor/inter/inter.css">'
-    );
+  if (!fs.existsSync(interCss) || fs.statSync(interCss).size === 0) {
+    throw new Error('Vendor tidak ada/kosong: web/vendor/inter/inter.css — jalankan node scripts/fetch-vendors.mjs.');
   }
+  out = out.replace(
+    /<link[^>]*href="https:\/\/fonts\.googleapis\.com\/css2\?family=Inter:[^"]*"[^>]*>/i,
+    '<link rel="stylesheet" href="./vendor/inter/inter.css">'
+  );
   const phWeights = ['regular', 'bold', 'fill'];
-  if (phWeights.every((w) => fs.existsSync(path.join(VENDOR_ROOT, 'phosphor', w, 'style.css')))) {
-    const links = phWeights.map((w) => `<link rel="stylesheet" href="./vendor/phosphor/${w}/style.css">`).join('\n');
-    out = out.replace(/<script[^>]*src="https:\/\/unpkg\.com\/@phosphor-icons\/web@2\.1\.1"[^>]*><\/script>/i, links);
+  const missingPh = phWeights.filter((w) => {
+    const f = path.join(VENDOR_ROOT, 'phosphor', w, 'style.css');
+    return !fs.existsSync(f) || fs.statSync(f).size === 0;
+  });
+  if (missingPh.length) {
+    throw new Error(`Vendor Phosphor tidak lengkap: ${missingPh.map((w) => `web/vendor/phosphor/${w}/style.css`).join(', ')} — jalankan node scripts/fetch-vendors.mjs.`);
   }
+  const links = phWeights.map((w) => `<link rel="stylesheet" href="./vendor/phosphor/${w}/style.css">`).join('\n');
+  out = out.replace(/<script[^>]*src="https:\/\/unpkg\.com\/@phosphor-icons\/web@2\.1\.1"[^>]*><\/script>/i, links);
   for (const [cdnUrl, relFile] of CDN_TO_LOCAL_VENDOR) {
     const full = path.join(VENDOR_ROOT, relFile);
-    if (fs.existsSync(full) && fs.statSync(full).size > 0) {
-      out = out.replaceAll(`${cdnUrl}" crossorigin="anonymous"`, `./vendor/${relFile}"`);
-      out = out.replaceAll(cdnUrl, `./vendor/${relFile}`);
+    if (!fs.existsSync(full) || fs.statSync(full).size === 0) {
+      throw new Error(`Vendor tidak ada/kosong: web/vendor/${relFile} — jalankan node scripts/fetch-vendors.mjs.`);
     }
+    out = out.replaceAll(cdnUrl, `./vendor/${relFile}`);
+  }
+  const leftoverCdn = out.match(/(?:src|href)\s*=\s*"https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.tailwindcss\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)[^"]*"/i);
+  if (leftoverCdn) {
+    throw new Error(`Tag CDN tersisa setelah rewrite vendor: ${leftoverCdn[0]} — periksa src/styles.html dan CDN_TO_LOCAL_VENDOR.`);
   }
   return out;
+}
+
+// Wave 3.4 / S25: gerbang vendor di awal build — SEBELUM ada output dist/.
+// Memeriksa setiap entri VENDOR_MANIFEST (ada + tidak kosong + hash
+// sha256/sha384 cocok), file turunan (inter.css), dan tailwind.min.css.
+// Gagal → throw berisi daftar lengkap file bermasalah.
+function verifyRequiredVendorFiles() {
+  const problems = [];
+  try {
+    verifyAllVendors();
+  } catch (err) {
+    problems.push(String(err.message || err));
+  }
+  for (const derived of DERIVED_VENDOR_FILES) {
+    const dest = path.join(VENDOR_ROOT, derived.file);
+    if (!fs.existsSync(dest)) problems.push(`Vendor tidak ada: ${dest} (${derived.note})`);
+    else if (fs.statSync(dest).size === 0) problems.push(`Vendor kosong: ${dest} (${derived.note})`);
+  }
+  const tailwindCss = path.join(VENDOR_ROOT, 'tailwind.min.css');
+  if (!fs.existsSync(tailwindCss)) problems.push(`Vendor tidak ada: ${tailwindCss} (dibuat oleh npm run build:css)`);
+  else if (fs.statSync(tailwindCss).size === 0) problems.push(`Vendor kosong: ${tailwindCss} (dibuat oleh npm run build:css)`);
+  if (problems.length) {
+    throw new Error(`Build dibatalkan — vendor tidak lengkap / tidak terverifikasi:\n- ${problems.join('\n- ')}\nJalankan: node scripts/fetch-vendors.mjs && npm run build:css`);
+  }
 }
 
 function copyVendorDir(srcDir, dstDir, relBase) {
@@ -233,19 +286,22 @@ function buildHtmlBundle(config, appVersion) {
     return read(name);
   });
 
+  // Wave 3.4 / S24: tailwind.min.css WAJIB ada. Dulu, kalau file ini
+  // hilang, Play CDN tetap dipakai diam-diam. Sekarang build gagal.
   const tailwindVendorPath = path.join(VENDOR_ROOT, 'tailwind.min.css');
-  if (fs.existsSync(tailwindVendorPath)) {
-    const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
-    const playCdnRegex = /<script[^>]*src="https:\/\/cdn\.tailwindcss\.com"[^>]*><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i;
-    if (!playCdnRegex.test(html)) {
-      throw new Error('Play CDN Tailwind block tidak ditemukan di src/styles.html untuk diganti CSS statis.');
-    }
-    html = html.replace(playCdnRegex, `<style>\n${compiledTailwind}\n</style>`);
-    html = html.replace(
-      /(<meta\s+http-equiv="Content-Security-Policy"\s+content="[^"]*?)(\s*'unsafe-eval')([^"]*?)(\s+https:\/\/cdn\.tailwindcss\.com)([^"]*")/i,
-      '$1$3$5'
-    );
+  if (!fs.existsSync(tailwindVendorPath) || fs.statSync(tailwindVendorPath).size === 0) {
+    throw new Error('Vendor tidak ada/kosong: web/vendor/tailwind.min.css — jalankan npm run build:css.');
   }
+  const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
+  const playCdnRegex = /<script[^>]*src="https:\/\/cdn\.tailwindcss\.com"[^>]*><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i;
+  if (!playCdnRegex.test(html)) {
+    throw new Error('Play CDN Tailwind block tidak ditemukan di src/styles.html untuk diganti CSS statis.');
+  }
+  html = html.replace(playCdnRegex, `<style>\n${compiledTailwind}\n</style>`);
+  // Catatan: CSP di src/Index.html tetap memuat 'unsafe-eval' karena
+  // arsitektur inline first-party masih membutuhkannya (follow-up Wave 2).
+  // Dulu build menghapus host Play CDN dari CSP di sini; tidak perlu lagi
+  // karena host itu sudah dihapus dari CSP di source (Wave 3.4).
   html = rewriteLocalVendorTags(html);
   if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?>) yang belum diganti.');
   return html;
@@ -261,6 +317,10 @@ if (/GANTI-/.test(config)) throw new Error('web/config.js masih berisi placehold
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const updatesHtml = read('updates');
 const versionManifest = buildVersionManifest(pkg, updatesHtml);
+
+// Wave 3.4 / S25: gerbang vendor — SEBELUM dist/ ditulis. Build gagal
+// di sini kalau ada vendor hilang/kosong/hash tidak cocok.
+verifyRequiredVendorFiles();
 
 const html = buildHtmlBundle(config, pkg.version);
 fs.mkdirSync(OUT, { recursive: true });

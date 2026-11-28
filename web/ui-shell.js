@@ -322,7 +322,13 @@
       }
       root.isDataReady = false;
       console.error('[INIT] error:', e);
-      showLoadFailureBanner(e);
+      // Wave 3.5 / S30: snapshot kedaluwarsa (> 7 hari) tidak diterapkan —
+      // beri tahu pengguna alasannya, bukan sekadar "gagal memuat".
+      if (cached && cached.stale) {
+        showLoadFailureBanner(new Error('Snapshot offline sudah kedaluwarsa (lebih dari 7 hari). Hubungkan ke internet untuk memuat data terbaru.'));
+      } else {
+        showLoadFailureBanner(e);
+      }
     } finally {
       const loader = document.getElementById('appLoader');
       if (loader) loader.classList.add('hide');

@@ -11,7 +11,10 @@
     String(tx.kategori || '').trim().toLocaleLowerCase(),
     Number(tx.nominal),
     String(tx.keterangan || '').trim().toLocaleLowerCase(),
-    tx.walletId || defaultWalletId || ''
+    tx.walletId || defaultWalletId || '',
+    // Id stabil (§4): dua kopi identik dengan id berbeda adalah dua
+    // baris berbeda; tanpa ini fingerprint kasar menelan kopi kedua.
+    String(tx.legacyId || tx.legacy_id || '')
   ].join('\u001f');
 
   async function fetchTransactionsOnDates(dates) {
@@ -20,7 +23,7 @@
       const dateChunk = dates.slice(index, index + 50);
       for (let from = 0; ; from += 1000) {
         const { data, error } = await sb.from('transactions')
-          .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id')
+          .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id,legacy_id')
           .in('tanggal', dateChunk)
           .order('tanggal', { ascending: true })
           .order('id', { ascending: true })
@@ -134,17 +137,55 @@
       if (!Array.isArray(items) || items.length === 0 || items.length > 500) {
         throw new Error('Impor harus berisi 1 sampai 500 transaksi.');
       }
-      const rows = items.map((item) => trxRow(item));
-      const dates = Array.from(new Set(rows.map((row) => row.tanggal))).sort();
-      const [existing, defaultWallet] = await Promise.all([
-        fetchTransactionsOnDates(dates),
-        sb.from('wallets').select('id').order('sort', { ascending: true }).order('name', { ascending: true }).limit(1).maybeSingle()
+      // Validasi PER BARIS (§9e/§10): dulu satu throw generik tanpa
+      // menyebut baris mana; sekarang kumpulkan semua baris gagal
+      // (indeks 1-based + alasan) dan laporkan sekaligus. Validasi
+      // kategori & dompet terhadap data milik user sendiri — bukan
+      // sekadar format — supaya PostgREST langsung tidak bisa
+      // memasukkan kategori/dompet asing lewat jalur ini.
+      const rowErrors = [];
+      const rows = [];
+      items.forEach((item, idx) => {
+        try {
+          rows.push(trxRow(item));
+        } catch (e) {
+          rowErrors.push({ index: idx + 1, message: String((e && e.message) || e) });
+          rows.push(null);
+        }
+      });
+      const [existing, defaultWallet, catsRes, walletsRes] = await Promise.all([
+        fetchTransactionsOnDates(Array.from(new Set(rows.filter(Boolean).map((row) => row.tanggal))).sort()),
+        sb.from('wallets').select('id').order('sort', { ascending: true }).order('name', { ascending: true }).limit(1).maybeSingle(),
+        fetchCategoriesOnly(),
+        sb.from('wallets').select('id').limit(1000)
       ]);
       fail(defaultWallet.error);
+      fail(walletsRes.error);
       const defaultWalletId = defaultWallet.data ? defaultWallet.data.id : '';
-      const seen = new Set(existing.map((row) => transactionFingerprint({ ...row, walletId: row.wallet_id || '' }, defaultWalletId)));
+      const knownCategories = new Set([
+        ...((catsRes.categories && catsRes.categories.pemasukan) || []),
+        ...((catsRes.categories && catsRes.categories.pengeluaran) || [])
+      ].map((c) => String(c || '').trim().toLocaleLowerCase()));
+      const knownWalletIds = new Set((walletsRes.data || []).map((w) => String(w.id)));
+      rows.forEach((row, idx) => {
+        if (!row) return;
+        if (knownCategories.size && !knownCategories.has(String(row.kategori || '').trim().toLocaleLowerCase())) {
+          rowErrors.push({ index: idx + 1, message: 'Kategori tidak dikenal: ' + row.kategori });
+          rows[idx] = null;
+        } else if (row.wallet_id && !knownWalletIds.has(String(row.wallet_id))) {
+          rowErrors.push({ index: idx + 1, message: 'Dompet tidak ditemukan untuk transaksi ini.' });
+          rows[idx] = null;
+        }
+      });
+      if (rowErrors.length) {
+        const detail = rowErrors.slice(0, 10).map((e) => 'baris ' + e.index + ': ' + e.message).join('; ');
+        throw new Error('Impor gagal pada ' + rowErrors.length + ' baris (' + detail + (rowErrors.length > 10 ? '; ...' : '') + ').');
+      }
+      const validRows = rows.filter(Boolean);
+      const dates = Array.from(new Set(validRows.map((row) => row.tanggal))).sort();
+      const seen = new Set(existing.map((row) => transactionFingerprint({ ...row, walletId: row.wallet_id || '', legacyId: row.legacy_id || '' }, defaultWalletId)));
       const insertRows = [];
-      rows.forEach((row) => {
+      validRows.forEach((row) => {
         const key = transactionFingerprint({ ...row, walletId: row.wallet_id || '' }, defaultWalletId);
         if (!seen.has(key)) { seen.add(key); insertRows.push({ ...row, source: 'import' }); }
       });
@@ -198,7 +239,12 @@
     },
 
     async api_addEntity(group, name) {
-      const { error } = await sb.from('entities').upsert({ grp: group, name }, { onConflict: 'user_id,grp,name', ignoreDuplicates: true });
+      // Dulu: tanpa validasi nama sama sekali (hanya CHECK grp di DB).
+      const grp = String(group || '').trim();
+      const clean = String(name || '').trim();
+      if (!['UtangApp', 'UtangPerson', 'Piutang'].includes(grp)) throw new Error('Grup entitas tidak valid.');
+      if (!clean || clean.length > 80) throw new Error('Nama entitas wajib diisi maksimal 80 karakter.');
+      const { error } = await sb.from('entities').upsert({ grp, name: clean }, { onConflict: 'user_id,grp,name', ignoreDuplicates: true });
       fail(error);
       return fetchEntitiesOnly();
     },
@@ -214,6 +260,18 @@
       const { error } = await sb.from('entities').delete().eq('grp', group).eq('name', name);
       fail(error);
       return fetchEntitiesOnly();
+    },
+
+    // Wave 3.5 §3: restore atomik — SATU panggilan RPC, bukan N
+    // insert terpisah. Server memvalidasi + meng-insert 10 koleksi
+    // dalam satu transaksi; gagal di tengah = rollback semua.
+    // Klien lama (fallback sekuensial) ada di ui-feat-backup.js dan
+    // hanya dipakai bila RPC belum ada di server.
+    async api_restoreBackup(payload) {
+      if (!payload || typeof payload !== 'object') throw new Error('Payload restore tidak valid.');
+      const { data, error } = await sb.rpc('restore_backup', { p_payload: payload });
+      fail(error);
+      return { restored: data };
     },
 
     async api_savePayrollDay(day) {

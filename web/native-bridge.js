@@ -7,6 +7,13 @@
 
   const NATIVE_AUTH_REDIRECT_URL = 'com.mykeuguech.app://auth-callback';
   const HOSTED_WEB_ORIGIN = 'https://liandimiko.github.io/mykeuangan';
+  // Wave 3.1 / S2 — OAuth state: single-use, stored in sessionStorage
+  // before the browser opens, validated (constant-time) on callback.
+  // A callback without a matching state is rejected before any token
+  // exchange happens. Raw access_token/refresh_token URLs are NEVER
+  // accepted (code + PKCE exchange only).
+  const OAUTH_STATE_KEY = 'mk_oauth_state_v1';
+  const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
   const LEGAL_RELATIVE_PAGES = new Set(['privacy.html', 'terms.html', 'delete-account.html']);
   let lastBackPressedAt = 0;
   let lastHandledOAuthUrl = '';
@@ -222,18 +229,85 @@
       code: q.code || h.code || '',
       accessToken: h.access_token || q.access_token || '',
       refreshToken: h.refresh_token || q.refresh_token || '',
+      state: q.state || h.state || '',
       error: h.error_description || q.error_description || h.error || q.error || ''
     };
   }
 
+  function base64UrlEncodeBytes(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function generateOAuthState() {
+    const bytes = new Uint8Array(32);
+    const nonceBytes = new Uint8Array(32);
+    root.crypto.getRandomValues(bytes);
+    root.crypto.getRandomValues(nonceBytes);
+    return { state: base64UrlEncodeBytes(bytes), nonce: base64UrlEncodeBytes(nonceBytes) };
+  }
+
+  function storeOAuthState() {
+    const pair = generateOAuthState();
+    try {
+      sessionStorage.setItem(OAUTH_STATE_KEY, JSON.stringify({
+        state: pair.state, nonce: pair.nonce, createdAt: Date.now()
+      }));
+    } catch (_) { /* storage unavailable: caller still must not proceed without state */ }
+    return pair;
+  }
+
+  // Constant-time string comparison (lengths leak, contents do not).
+  function timingSafeEqual(a, b) {
+    const x = String(a || '');
+    const y = String(b || '');
+    if (x.length !== y.length) return false;
+    let diff = 0;
+    for (let i = 0; i < x.length; i++) diff |= x.charCodeAt(i) ^ y.charCodeAt(i);
+    return diff === 0;
+  }
+
+  // Single-use: reads the stored state, deletes it immediately, then
+  // validates presence, freshness and equality. Returns
+  // { ok: true, nonce } or { ok: false, error }.
+  function consumeOAuthState(returnedState) {
+    let stored = null;
+    try {
+      const raw = sessionStorage.getItem(OAUTH_STATE_KEY);
+      stored = raw ? JSON.parse(raw) : null;
+    } catch (_) { stored = null; }
+    try { sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (_) { /* ignore */ }
+    if (!stored || typeof stored.state !== 'string') return { ok: false, error: 'missing_state' };
+    if (Date.now() - Number(stored.createdAt || 0) > OAUTH_STATE_TTL_MS) return { ok: false, error: 'expired_state' };
+    if (!returnedState || !timingSafeEqual(returnedState, stored.state)) return { ok: false, error: 'state_mismatch' };
+    return { ok: true, nonce: stored.nonce || '' };
+  }
+
   async function startNativeOAuth(sb, provider) {
     if (!sb || !sb.auth) return { error: new Error('Klien autentikasi belum siap.') };
+    // State (+nonce) is generated and stored BEFORE the auth URL opens,
+    // and is carried through the provider via queryParams so Google
+    // echoes it back to the redirect URL. If GoTrue ever stops echoing
+    // a custom state, callbacks will be rejected (fail-closed) until the
+    // flow is reworked — the raw-token fallback is gone either way.
+    const pair = storeOAuthState();
     const { data, error } = await sb.auth.signInWithOAuth({
       provider: provider || 'google',
-      options: { redirectTo: NATIVE_AUTH_REDIRECT_URL, skipBrowserRedirect: true }
+      options: {
+        redirectTo: NATIVE_AUTH_REDIRECT_URL,
+        skipBrowserRedirect: true,
+        queryParams: { state: pair.state, nonce: pair.nonce }
+      }
     });
-    if (error) return { error };
-    if (!data || !data.url) return { error: new Error('Tautan autentikasi Google tidak tersedia.') };
+    if (error) {
+      try { sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (_) { /* ignore */ }
+      return { error };
+    }
+    if (!data || !data.url) {
+      try { sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (_) { /* ignore */ }
+      return { error: new Error('Tautan autentikasi Google tidak tersedia.') };
+    }
     await openExternalUrl(data.url);
     return { data };
   }
@@ -252,14 +326,35 @@
       if (typeof notice === 'function') notice('Login Google Gagal', parsed.error, { closable: true });
       return;
     }
+    // S2: state is mandatory, single-use, constant-time compared.
+    // Any callback without a matching state is rejected here — before
+    // any exchange — so a crafted auth-callback URL cannot log anyone in.
+    const stateCheck = consumeOAuthState(parsed.state);
+    if (!stateCheck.ok) {
+      const notice = root.__mkSb && root.__mkSb.showCoreNotice;
+      if (typeof notice === 'function') {
+        notice('Login Google Gagal',
+          'Respons login tidak valid (state tidak cocok atau sudah kedaluwarsa). Silakan coba masuk lagi.',
+          { closable: true });
+      }
+      return;
+    }
     const sb = root.__mkSb && root.__mkSb.sb;
     if (!sb || !sb.auth) return;
     try {
-      let res = null;
-      if (parsed.code) res = await sb.auth.exchangeCodeForSession(parsed.code);
-      else if (parsed.accessToken && parsed.refreshToken) {
-        res = await sb.auth.setSession({ access_token: parsed.accessToken, refresh_token: parsed.refreshToken });
+      // Code + PKCE exchange ONLY. A URL carrying only raw
+      // access_token/refresh_token is rejected: tokens in a URL can be
+      // planted by any app that fires the custom scheme.
+      if (!parsed.code) {
+        const notice = root.__mkSb && root.__mkSb.showCoreNotice;
+        if (typeof notice === 'function') {
+          notice('Login Google Gagal',
+            'Respons login tidak berisi kode otorisasi. Silakan coba masuk lagi.',
+            { closable: true });
+        }
+        return;
       }
+      const res = await sb.auth.exchangeCodeForSession(parsed.code);
       if (res && res.error) throw res.error;
       const session = res && res.data && res.data.session;
       if (session && typeof root.__mkHandleNativeAuthSession === 'function') {
@@ -398,7 +493,17 @@
     syncNativeBillReminders,
     parseOAuthCallbackParams,
     startNativeOAuth,
+    handleNativeAppUrlOpen,
     checkNativeLaunchUrl,
     handleAndroidBackButton
   });
+  // Wave 3.1 / S2 — test/diagnostic surface for the OAuth state flow.
+  root.__mkNativeOAuth = {
+    OAUTH_STATE_KEY,
+    OAUTH_STATE_TTL_MS,
+    generateOAuthState,
+    storeOAuthState,
+    consumeOAuthState,
+    timingSafeEqual
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

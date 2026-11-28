@@ -568,9 +568,11 @@ test('2.4 guard: setiap data-action di src/*.html menunjuk fungsi global atau ak
      arsitektur ini dipakai.
    - src/i18n.html (kamus I18N) dan blok registrasi service worker
      di src/Index.html masih berupa <script> inline.
-   - web/vendor/ tidak ada di checkout ini (diunduh saat build),
-     jadi penulisan ulang tag CDN ke vendor lokal tidak bisa
-     dibuktikan dari source saja. */
+   - Wave 3.4: host CDN SUDAH dihapus dari CSP script-src/style-src/
+     font-src dan build SUDAH mewajibkan vendor lokal terverifikasi
+     (lihat tests/wave3-frontend-cdn-build.test.js) — jadi alasan
+     "web/vendor tidak ada di checkout" di bawah ini sudah kedaluwarsa
+     dan tidak lagi dipakai sebagai blocker. */
 
 test('2.4 CSP: blocker terdokumentasi — build meng-inline semua modul JS sehingga unsafe-inline masih wajib', () => {
   const build = fs.readFileSync('build.mjs', 'utf8');
@@ -581,7 +583,14 @@ test('2.4 CSP: blocker terdokumentasi — build meng-inline semua modul JS sehin
   assert.match(build, /readInlineScripts\(UI_PRO_MODULES\)/);
   assert.match(fs.readFileSync('src/i18n.html', 'utf8'), /^<script>/);
   assert.match(fs.readFileSync('src/Index.html', 'utf8'), /navigator\.serviceWorker\.register\('\.\/sw\.js'\)/);
-  assert.equal(fs.existsSync('web/vendor'), false, 'web/vendor tidak ada di checkout — rewrite CDN tidak terbukti');
   const csp = fs.readFileSync('src/Index.html', 'utf8').match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.match(csp, /'unsafe-inline'/, 'CSP masih memuat unsafe-inline (sengaja, lihat blocker di atas)');
+  // Wave 3.4: host CDN tidak lagi diizinkan untuk script/style/font.
+  for (const directive of ['script-src', 'style-src', 'font-src']) {
+    const part = csp.split(';').find((s) => s.trim().startsWith(directive));
+    assert.ok(part, `CSP harus memuat ${directive}`);
+    for (const host of ['cdn.tailwindcss.com', 'cdn.jsdelivr.net', 'unpkg.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com']) {
+      assert.doesNotMatch(part, new RegExp(host.replace(/\./g, '\\.')), `CSP ${directive} tidak boleh lagi memuat ${host} (Wave 3.4: vendor self-hosted)`);
+    }
+  }
 });

@@ -132,7 +132,7 @@ test('wave v3.20 wires native plugins, expanded offline mutations, onboarding, a
   const adminJs = fs.readFileSync('web/ui-admin.js', 'utf8');
   const buildMjs = fs.readFileSync('build.mjs', 'utf8');
 
-  assert.equal(pkg.version, '3.20.6');
+  assert.equal(pkg.version, '3.20.7');
   assert.ok(pkg.dependencies['@capacitor/camera'] && pkg.dependencies['@capacitor/haptics'] && pkg.dependencies['@capacitor/local-notifications']);
   assert.ok(pkg.scripts['cap:keystore'] && fs.existsSync('scripts/setup-android-keystore.mjs'));
 
@@ -250,7 +250,12 @@ test('hotfix v3.20.1 handles native Capacitor biometric verification and WebAuth
       }
     },
     localStorage: {
-      getItem: (k) => (k === 'mk_biometric_pin_enabled' ? '1' : (k === 'mk_biometric_cred_id' ? 'AQID' : null)),
+      // Wave 3.1 / S1: the stored public key must exist for the web
+      // WebAuthn path to even attempt verification; an assertion the
+      // authenticator cannot prove (here: a bare `{ id: 'ok' }` with no
+      // response at all) must NOT unlock — the old `Boolean(assertion)`
+      // behaviour was the vulnerability S1 fixes.
+      getItem: (k) => (k === 'mk_biometric_pin_enabled' ? '1' : (k === 'mk_biometric_cred_id' ? 'AQID' : (k === 'mk_webauthn_pubkey_v1' ? JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'A'.repeat(43) }) : null))),
       setItem: () => {},
       removeItem: () => {}
     },
@@ -262,7 +267,10 @@ test('hotfix v3.20.1 handles native Capacitor biometric verification and WebAuth
   vm.runInNewContext(nativeUxJs, webSandbox);
 
   assert.equal(webSandbox.resolveWebAuthnRpId(), undefined);
-  assert.equal(await webSandbox.tryBiometricUnlock(), true);
+  // Wave 3.1 / S1: an unverifiable assertion (no clientData, no
+  // signature) must NOT unlock, even though navigator.credentials.get()
+  // returned a truthy object.
+  assert.equal(await webSandbox.tryBiometricUnlock(), false);
   assert.equal(capturedGetOpts.publicKey.rpId, undefined);
   assert.deepEqual([...capturedGetOpts.publicKey.allowCredentials[0].transports], ['internal']);
 });

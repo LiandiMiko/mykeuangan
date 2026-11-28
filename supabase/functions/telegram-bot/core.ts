@@ -140,6 +140,32 @@ export function parseNominal(raw: string): number {
   return Math.round(n * mult) || 0;
 }
 
+// --- Validasi nominal (Gelombang 3.3, S14) ---------------------------------
+// SATU batas atas untuk semua nominal uang yang masuk lewat bot maupun
+// web: Rp 999.999.999.999,99. Angka ini mengikuti preseden batas target
+// planning di web (999999999999.99) dan jauh di atas transaksi harian
+// normal, tapi menutup kolom nominal ~10^18 yang diizinkan DB hari ini.
+// Semua titik masuk (tambah, batch, recurring, transfer/tarik, hasil
+// parse AI) HARUS memanggil validateNominal; saveTx juga menolaknya
+// sebagai pertahanan terakhir.
+export const MAX_NOMINAL = 999_999_999_999.99;
+
+export function validateNominal(n: unknown): { ok: true; value: number } | { ok: false; error: string } {
+  const v = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(v) || v <= 0) return { ok: false, error: 'Nominal harus lebih dari Rp 0.' };
+  if (v > MAX_NOMINAL) return { ok: false, error: `Nominal melebihi batas maksimum ${rp(MAX_NOMINAL)}.` };
+  return { ok: true, value: v };
+}
+
+/** Tanggal kalender valid? Tolak 2026-02-30 / 2026-13-01 yang lolos regex
+ *  YYYY-MM-DD. Round-trip lewat Date (UTC) — tanggal yang tidak ada di
+ *  kalender bergeser dan gagal dibandingkan dengan input. */
+export function isValidCalendarDate(ymd: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const d = new Date(ymd + 'T00:00:00Z');
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === ymd;
+}
+
 export async function safeEqual(a: string, b: string): Promise<boolean> {
   if (!a || !b) return false;
   const enc = new TextEncoder();
@@ -331,7 +357,7 @@ export function streak(trx: Any[]): number {
 
 export const streakEmoji = (s: number) => (s >= 30 ? '🏆' : s >= 14 ? '🔥🔥' : s >= 7 ? '🔥' : s >= 3 ? '⭐' : s >= 1 ? '✨' : '💤');
 
-export async function setTemp(chat: number, kind: 'pending' | 'undo' | 'lock', payload: unknown, seconds = 300) {
+export async function setTemp(chat: number, kind: 'pending' | 'undo' | 'lock' | 'batch' | 'confirm', payload: unknown, seconds = 300) {
   const { error } = await sb.from('telegram_pending').upsert(
     { chat_id: chat, kind, payload, expires_at: new Date(Date.now() + seconds * 1000).toISOString() },
     { onConflict: 'chat_id,kind' },
@@ -339,16 +365,21 @@ export async function setTemp(chat: number, kind: 'pending' | 'undo' | 'lock', p
   if (error) throw error;
 }
 
-export async function getTemp(chat: number, kind: 'pending' | 'undo' | 'lock'): Promise<Any | null> {
+export async function getTemp(chat: number, kind: 'pending' | 'undo' | 'lock' | 'batch' | 'confirm'): Promise<Any | null> {
   const { data } = await sb.from('telegram_pending').select('payload')
     .eq('chat_id', chat).eq('kind', kind).gt('expires_at', new Date().toISOString()).maybeSingle();
   return data?.payload ?? null;
 }
 
-export const delTemp = (chat: number, kind: 'pending' | 'undo' | 'lock') =>
+export const delTemp = (chat: number, kind: 'pending' | 'undo' | 'lock' | 'batch' | 'confirm') =>
   sb.from('telegram_pending').delete().eq('chat_id', chat).eq('kind', kind);
 
 export async function saveTx(c: Ctx, p: Tx) {
+  // Pertahanan terakhir (S14): tolak nominal di luar batas sebelum insert,
+  // supaya jalur yang lupa memvalidasi (mis. undo, confirm_save) tidak
+  // bisa menulis angka raksasa ke DB.
+  const check = validateNominal(p.nominal);
+  if (!check.ok) throw new Error(check.error);
   const { error } = await sb.from('transactions').insert({
     user_id: c.uid, tanggal: p.tanggal, tipe: p.tipe, kategori: p.kategori,
     nominal: p.nominal, keterangan: p.keterangan || 'Via Telegram', source: 'telegram',

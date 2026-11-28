@@ -1,6 +1,6 @@
 {
   "name": "mykeuangan",
-  "version": "3.20.6",
+  "version": "3.20.7",
   "private": true,
   "description": "MyKeuGuech — Personal Finance SaaS, PWA & Android App powered by Vanilla JS, Supabase, and Capacitor 8",
   "appUpdate": {
@@ -16,7 +16,7 @@
     "vendors:fetch": "node scripts/fetch-vendors.mjs",
     "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i web/tailwind-input.css -o web/vendor/tailwind.min.css --minify",
     "build": "node build.mjs",
-    "build:prod": "npm run check && npm run vendors:fetch && npm run build:css && npm run build",
+    "build:prod": "npm run vendors:fetch && npm run build:css && npm run check && npm run build",
     "assets:native": "node scripts/prepare-native-assets.mjs",
     "playstore:assets": "node scripts/generate-playstore-assets.mjs",
     "cap:init:android": "npx cap add android && node scripts/patch-android-project.mjs",
