@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.19** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.20** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.19-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.20-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.19-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.20-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.19-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.19-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.19-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.20-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.20-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.20-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -472,6 +472,15 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 28 November 2026: Update v3.20.20 (Gelombang 7c Item 4: Impor CSV Bisa Pilih Dompet Tujuan)
+- **Pemilih dompet tujuan sebelum impor (`web/ui-reports.js`, `web/transaction-import.js`)**: Saat mengimpor CSV bank, pengguna kini bisa memilih dulu transaksi mau masuk ke dompet mana — dialog pemilih dompet tampil sebelum pemilih file dibuka. Pilihan awal otomatis = dompet utama bank bila sudah ditetapkan dan masih valid; bila belum ada atau tidak valid, dompet pertama (perilaku lama). Batal di dialog = impor tidak jalan sama sekali; bila belum ada dompet, impor ditolak dengan pesan yang jelas (`lap.import_no_wallet`).
+- **Aturan penentuan dompet (satu sumber, diekspor dari `web/transaction-import.js`)**: `resolveDefaultImportWalletId` — dompet utama bank bila id-nya cocok dengan dompet di daftar dan berjenis `bank`, bila tidak → dompet pertama; `resolveImportTargetWallet` — pilihan eksplisit yang valid menang atas default, pilihan yang tidak valid (dompet terhapus / id asing) TIDAK menggagalkan impor diam-diam dan TIDAK masuk ke dompet yang salah: fallback ke default + penanda `walletFallback { requested, used }` sehingga pratinjau menampilkan peringatan kuning berisi nama dompet pengganti. Tanpa options sama sekali, hasil parser identik dengan perilaku lama (`wallets[0]`).
+- **Pengecualian yang didokumentasikan — kolom dompet di file tetap menang per baris**: Bila file CSV punya kolom `dompet`, dompet per baris dari file tetap dipakai (template CSV resmi memang memakai kolom dompet per baris; menimpanya dengan satu dompet pilihan akan memindahkan transaksi ke dompet yang salah). Pilihan di pemilih hanya mengatur baris TANPA kolom dompet — yaitu setiap baris mutasi bank, kasus yang diperbaiki item ini. Pratinjau menampilkan baris "Dompet tujuan: <nama>" dan catatan bila file punya kolom dompet.
+- **Yang tidak berubah**: pemetaan kolom, validasi per baris, dedup, dan batas 500 baris tidak berubah; jalur simpan tetap satu-satunya `api_importTransactions` (tidak ada jalur tulis baru, dikunci tes). Komentar §9c lama ("perlu pemilih dompet di UI impor") diperbarui: pemilih itu kini ada.
+- **Tes**: 8 tes baru di `tests/transaction-import.test.js` (7 parser — default dompet utama, pilihan eksplisit, perilaku lama tanpa pilihan, dompet utama tidak valid, fallback pilihan tidak valid, batas 500 baris dengan dompet pilihan, kolom dompet file menang per baris — + 1 wiring UI: pemilih tampil sebelum file, pilihan diteruskan ke parser, jalur simpan tidak berubah). Total suite setelah integrasi: 616 tes (608 baseline v3.20.19 + 8 baru), lolos di WIB dan UTC.
+- **Kamus i18n**: 6 kunci baru `lap.import_wallet_*` (ID + EN) — 417 → 423.
+- **Catatan versi**: update ke v3.20.20 menimpa v3.20.19 tanpa uninstall (`versionCode 3020020` > `3020019` — monoton).
+- **Catatan jujur / belum diverifikasi**: pengujian manual di perangkat Liandi masih diperlukan — impor mutasi bank ke dompet utama vs dompet lain, file dengan kolom dompet, batal di dialog pemilih, dan fallback saat dompet pilihan sudah terhapus. Audit: `anti-slop/audit-049-csv-import-wallet-picker-2026-11-28.md` (dinomori 049: 046 dipakai draf audit performa 7d, 047 hotfix P0, 048 item 3 Google-only delete).
 ### 28 November 2026: Update v3.20.19 (Gelombang 7c Item 3: Akun Google-only Bisa Hapus Akun Sendiri)
 - **Akun Google-only bisa hapus akun (`supabase/functions/delete-account/index.ts`, `web/supabase-admin.js`, `web/ui-feat-account.js`)**: Pengguna yang mendaftar hanya lewat Google akhirnya bisa menghapus akunnya sendiri — dulu edge function `delete-account` mensyaratkan kata sandi (T4) dan akun Google-only tidak punya kata sandi (di produksi ada 4 akun Google-only vs 3 akun email). Jalur baru memakai **bukti OAuth segar**: klien mengirim access token sesi; server memeriksa `getUser(token)` sukses + id sama dengan pemohon, providers token memuat `'google'`, `claims.sub` sama, DAN klaim `amr` memuat `{ method: 'oauth', timestamp }` ≤ 10 menit **dan** `iat` ≤ 10 menit. Mengapa `amr`, bukan `iat` saja: refresh token mencetak access token baru dengan `iat` baru — `iat` segar tidak membuktikan login ulang; `amr[].timestamp` dicatat GoTrue per sesi (`auth.mfa_amr_claims`, terbukti ada baris `oauth` di produksi) dan tidak bergeser saat refresh. Gagal di langkah mana pun → 401 generik `Verifikasi ulang gagal.` (tidak membocorkan cek mana yang gagal). Jalur password tidak berubah; cek admin-terakhir, cabut webhook bot personal, dan `admin.deleteUser` tidak berubah.
 - **Alur klien (dua jalur)**: Sesi Google masih segar (< 10 menit) → dialog akhir tanpa kolom password, catatan "login ulang Google", ketik HAPUS → kirim `oauth_token` = access token sesi, tanpa redirect. Sesi basi → dialog penjelasan + ketik HAPUS + tombol "Lanjutkan dengan Google" → penanda `sessionStorage` (TTL 10 menit) → `signInWithOAuth({ provider: 'google', prompt: 'select_account' })` → resume otomatis setelah kembali (cek saat modul dimuat + `onAuthStateChange` `SIGNED_IN`; tunggu PIN terbuka dulu bila PIN diset) → dialog akhir → kirim token segar → sukses → logout paksa seperti alur lama. Penanda dibersihkan saat resume; bila kedaluwarsa/basi → dialog info, tidak menghapus. Akun ber-password: dialog lama tidak berubah.

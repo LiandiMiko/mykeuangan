@@ -141,11 +141,11 @@ test('6C/U8 tidak ada confirmButtonText Simpan / cancelButtonText Batal hardcode
   assert.match(read('web/ui-debts.js'), /t\('utang\.kosong'\)/);
 });
 
-test('6C/U8+U23+U24+U39 paritas kamus 417=417 dan nilai kunci baru/ubah', () => {
+test('6C/U8+U23+U24+U39 paritas kamus 423=423 dan nilai kunci baru/ubah', () => {
   const i18n = loadI18nDictionary();
   const idKeys = Object.keys(i18n.id).sort();
   const enKeys = Object.keys(i18n.en).sort();
-  assert.equal(idKeys.length, 417, 'kamus ID harus 417 kunci (372 Gelombang 6C + 45 kunci sync.* optimistic locking Gelombang 7c)');
+  assert.equal(idKeys.length, 423, 'kamus ID harus 423 kunci (417 Gelombang 7c optimistic locking + 6 kunci lap.import_wallet_* pemilih dompet impor Gelombang 7c)');
   assert.deepEqual(idKeys, enKeys, 'I18N.id dan I18N.en harus identik');
   // Kunci baru Gelombang 6C ada di kedua bahasa.
   for (const key of [
@@ -155,6 +155,9 @@ test('6C/U8+U23+U24+U39 paritas kamus 417=417 dan nilai kunci baru/ubah', () => 
     'app.reload_data', 'form.title', 'form.wallet', 'form.wallet_in',
     'form.wallet_out', 'form.reset_nominal', 'form.split_bill',
     'lap.import_format', 'tg.webhook_hint', 'tg.webhook_updated',
+    // Kunci baru Gelombang 7c Item 4 (pemilih dompet impor CSV).
+    'lap.import_wallet', 'lap.import_wallet_title', 'lap.import_wallet_hint',
+    'lap.import_wallet_fallback', 'lap.import_wallet_per_row', 'lap.import_no_wallet',
     'tg.botfather_username_note', 'utang.add',
     // Kunci baru Gelombang 6B (navigasi Utang + tombol transfer terpisah).
     'nav.utang', 'nav.utang_short', 'dash.transfer', 'dash.transfer_full', 'dash.withdraw'
