@@ -436,3 +436,194 @@ test('4.5 telegram-bot: endpoint tidak membalas ok untuk GET', () => {
   const setup = fs.readFileSync('supabase/functions/telegram-setup/index.ts', 'utf8');
   assert.match(setup, /if \(req\.method !== 'POST'\) return jsonResponse\(req, 405/, 'telegram-setup sudah 405 — tidak berubah');
 });
+
+// ============================================================
+// 4.6 — Frontend: batas cache SW + kunci HTML berisi query,
+// validasi skema URL eksternal, formula injection, peringatan
+// backup JSON, selektor mati.
+// ============================================================
+function loadServiceWorker({ quotaUsage = 0, quotaTotal = 0 } = {}) {
+  const listeners = {};
+  const store = new Map();
+  const cache = {
+    async match(req) { const k = typeof req === 'string' ? req : req.url; return store.get(k); },
+    async put(req, res) { const k = typeof req === 'string' ? req : req.url; store.set(k, res); },
+    async delete(req) { const k = typeof req === 'string' ? req : req.url; return store.delete(k); },
+    async keys() { return [...store.keys()].map((k) => ({ url: k })); },
+    async addAll(urls) { for (const u of urls) store.set(u, new Response('precached')); }
+  };
+  const selfStub = {
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    skipWaiting: () => {},
+    registration: undefined,
+    clients: { claim: async () => {} }
+  };
+  const quota = { usage: quotaUsage, quota: quotaTotal };
+  const sandbox = {
+    self: selfStub,
+    caches: {
+      open: async () => cache,
+      keys: async () => ['mykeuangan-__BUILD_ID__'],
+      match: async (req) => cache.match(req)
+    },
+    fetch: async () => new Response('network-body', { status: 200 }),
+    Response, Request, URL,
+    navigator: { storage: { estimate: async () => ({ usage: quota.usage, quota: quota.quota }) } },
+    console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array, Promise
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync('web/sw.js', 'utf8').replace(/__BUILD_ID__/g, 'test'), sandbox);
+  return { listeners, store, cache, quota, sandbox };
+}
+
+function swFetchEvent(url, { mode = '', accept = '' } = {}) {
+  const ev = {
+    request: { method: 'GET', url, mode, headers: { get: (name) => (name.toLowerCase() === 'accept' ? accept : null) } },
+    _waits: [],
+    respondWith(p) { this._promise = p; },
+    waitUntil(p) { this._waits.push(p); }
+  };
+  return ev;
+}
+
+async function runSwFetch(sw, ev) {
+  sw.listeners.fetch(ev);
+  await ev._promise;
+  await Promise.all(ev._waits);
+}
+
+test('4.6 SW: kunci cache HTML membedakan query string; fallback offline tetap memakai precache', async () => {
+  const sw = loadServiceWorker();
+  // Install: precache './' dan './index.html'.
+  const installEv = { waitUntil(p) { this._p = p; } };
+  sw.listeners.install(installEv);
+  await installEv._p;
+  assert.ok(sw.store.has('./'), 'precache ./');
+  assert.ok(sw.store.has('./index.html'), 'precache ./index.html');
+
+  await runSwFetch(sw, swFetchEvent('https://app.example/index.html?v=2', { mode: 'navigate', accept: 'text/html' }));
+  await runSwFetch(sw, swFetchEvent('https://app.example/index.html?v=3', { mode: 'navigate', accept: 'text/html' }));
+  assert.ok(sw.store.has('./index.html?v=2'), 'v=2 punya kunci sendiri');
+  assert.ok(sw.store.has('./index.html?v=3'), 'v=3 punya kunci sendiri');
+
+  // Jaringan mati untuk v=9: fallback ke precache './'.
+  const swOffline = loadServiceWorker();
+  swOffline.sandbox.fetch = async () => { throw new Error('offline'); };
+  const installEv2 = { waitUntil(p) { this._p = p; } };
+  swOffline.listeners.install(installEv2);
+  await installEv2._p;
+  const ev = swFetchEvent('https://app.example/index.html?v=9', { mode: 'navigate', accept: 'text/html' });
+  await runSwFetch(swOffline, ev);
+  const body = await ev._promise.then((r) => r.text());
+  assert.equal(body, 'precached', 'fallback offline memakai precache ./');
+});
+
+test('4.6 SW: cache runtime dibatasi 200 entri (tertua dihapus) dan tidak diisi saat kuota > 80%', async () => {
+  const sw = loadServiceWorker();
+  for (let i = 0; i < 205; i++) {
+    await runSwFetch(sw, swFetchEvent(`https://app.example/assets/a${i}.js`, { accept: 'application/javascript' }));
+  }
+  assert.equal(sw.store.size, 200, 'cache dipangkas ke 200 entri');
+  assert.ok(!sw.store.has('https://app.example/assets/a0.js'), 'entri tertua dihapus');
+  assert.ok(sw.store.has('https://app.example/assets/a204.js'), 'entri terbaru dipertahankan');
+
+  const swFull = loadServiceWorker({ quotaUsage: 95, quotaTotal: 100 });
+  await runSwFetch(swFull, swFetchEvent('https://app.example/assets/b0.js', { accept: 'application/javascript' }));
+  assert.equal(swFull.store.size, 0, 'kuota > 80% -> tidak ada entri baru');
+});
+
+function loadNativeBridge() {
+  const opened = [];
+  const sandbox = {
+    document: {
+      addEventListener: () => {},
+      documentElement: { classList: { contains: () => false } },
+      getElementById: () => null
+    },
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    open: (url, target, features) => { opened.push([url, target, features]); },
+    console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array, Promise, URL
+  };
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync('web/native-bridge.js', 'utf8'), sandbox);
+  return { sandbox, opened };
+}
+
+test('4.6 isSafeExternalUrl: hanya http/https (dan relatif) yang lolos; openExternalUrl menolak sisanya', async () => {
+  const { sandbox, opened } = loadNativeBridge();
+  const isSafe = sandbox.isSafeExternalUrl;
+  assert.equal(typeof isSafe, 'function', 'isSafeExternalUrl harus diekspor');
+  assert.equal(isSafe('https://example.com/x'), true);
+  assert.equal(isSafe('http://example.com'), true);
+  assert.equal(isSafe('  https://example.com  '), true);
+  assert.equal(isSafe('/relatif/jalan'), true);
+  assert.equal(isSafe('//cdn.example.com/a.js'), true);
+  assert.equal(isSafe('javascript:alert(1)'), false);
+  assert.equal(isSafe('JaVaScRiPt:alert(1)'), false);
+  assert.equal(isSafe('java\tscript:alert(1)'), false);
+  assert.equal(isSafe('data:text/html,<script>alert(1)</script>'), false);
+  assert.equal(isSafe('file:///etc/passwd'), false);
+  assert.equal(isSafe(''), false);
+  assert.equal(isSafe(null), false);
+
+  await sandbox.openExternalUrl('javascript:alert(1)');
+  await sandbox.openExternalUrl('data:text/html,x');
+  assert.equal(opened.length, 0, 'URL tidak aman tidak dibuka');
+  await sandbox.openExternalUrl('https://ok.example/a');
+  assert.equal(opened.length, 1);
+  assert.deepEqual(opened[0], ['https://ok.example/a', '_blank', 'noopener,noreferrer']);
+});
+
+function loadExporters() {
+  const sandbox = {
+    sessionUser: 'tester',
+    Swal: { fire: async () => ({}) },
+    getSwalClass: () => '',
+    walletName: (id) => 'Dompet ' + id,
+    getFilteredReportTransactions: () => ({ txs: [], period: '2026-11' }),
+    escapeHtmlJS: (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+    localStorage: { getItem: () => null },
+    console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array, Promise
+  };
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync('web/ui-export.js', 'utf8'), sandbox);
+  vm.runInContext(fs.readFileSync('web/ui-feat-backup.js', 'utf8'), sandbox);
+  return sandbox;
+}
+
+test('4.6 formula injection: spasi di depan pemicu dan | % disanitasi di CSV dan Excel', () => {
+  const sb = loadExporters();
+  const csv = sb.csvEscapeCell;
+  const xls = sb.safeExcelCell;
+  assert.equal(typeof csv, 'function');
+  assert.equal(typeof xls, 'function', 'safeExcelCell kini diekspor (dulu bersarang di exportExcel)');
+  for (const [input, expected] of [
+    [' =2+2', "' =2+2"],
+    ['\t@cmd', "'\t@cmd"],
+    ['  -5+5', "'  -5+5"],
+    ['|calc', "'|calc"],
+    ['%x', "'%x"],
+    ['=2+2', "'=2+2"],
+    ['+5000', "'+5000"],
+    ['kopi 25rb', 'kopi 25rb'],
+    ['a =2+2', 'a =2+2'],
+    ['total 100', 'total 100']
+  ]) {
+    assert.equal(csv(input), expected, `CSV: ${JSON.stringify(input)}`);
+    assert.equal(xls(input), expected, `Excel: ${JSON.stringify(input)}`);
+  }
+});
+
+test('4.6 backup JSON: peringatan tidak terenkripsi tampil di dialog dan tombolnya bernama jelas; selektor mati diganti data-action', () => {
+  const backup = fs.readFileSync('web/ui-feat-backup.js', 'utf8');
+  assert.match(backup, /JSON biasa TIDAK terenkripsi/);
+  assert.match(backup, /siapa pun yang mendapatkan berkas ini dapat membaca seluruh data keuangan Anda/);
+  assert.match(backup, /confirmButtonText: 'JSON Biasa \(Tidak Terenkripsi\)'/);
+  const ux = fs.readFileSync('web/ui-feat-native-ux.js', 'utf8');
+  assert.doesNotMatch(ux, /\[onclick\*=/, 'tidak ada lagi selektor [onclick*=...]');
+  assert.match(ux, /\[data-action="addQuickNominalAmount"\]/, 'haptic memakai selektor data-action yang hidup');
+  const html = fs.readFileSync('src/form.html', 'utf8');
+  assert.match(html, /data-action="addQuickNominalAmount"/, 'tombol memang memakai data-action');
+});

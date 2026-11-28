@@ -19,16 +19,20 @@
     URL.revokeObjectURL(url);
   }
 
+  // Gelombang 4 (R18): dipindah ke lingkup IIFE (dulu bersarang di
+  // exportExcel sehingga tidak bisa diuji) + aturan yang sama dengan
+  // csvEscapeCell: spasi di depan pemicu dan | % juga disanitasi.
+  function safeExcelCell(val) {
+    const s = String(val == null ? '' : val);
+    return escapeHtmlJS(/^\s*[=+\-@|%]/.test(s) ? ("'" + s) : s);
+  }
+
   function exportExcel() {
     const { txs, period } = getFilteredReportTransactions();
     if (!txs.length) {
       Swal.fire({ icon: 'warning', title: 'Kosong', text: 'Tidak ada data untuk diekspor', customClass: { popup: getSwalClass() } });
       return;
     }
-    const safeExcelCell = (val) => {
-      const s = String(val == null ? '' : val);
-      return escapeHtmlJS(/^[=+\-@\t\r]/.test(s) ? ("'" + s) : s);
-    };
     const rowsHtml = txs.map((r) => `
       <tr>
         <td>${safeExcelCell(r.tanggal)}</td>
@@ -142,10 +146,12 @@
     };
     const choice = await Swal.fire({
       title: 'Ekspor Backup JSON',
-      text: 'Pilih apakah berkas backup disimpan dalam format JSON biasa atau dienkripsi dengan kata sandi (AES-GCM).',
+      // Gelombang 4 (R19): peringatan jelas bahwa JSON biasa TIDAK
+      // terenkripsi — dulu kedua pilihan tampil setara tanpa peringatan.
+      html: 'Pilih apakah berkas backup disimpan dalam format JSON biasa atau dienkripsi dengan kata sandi (AES-GCM).<br><br><b>\u26a0\ufe0f JSON biasa TIDAK terenkripsi:</b> siapa pun yang mendapatkan berkas ini dapat membaca seluruh data keuangan Anda. Simpan di tempat yang aman, atau pilih enkripsi kata sandi.',
       showDenyButton: true,
       showCancelButton: true,
-      confirmButtonText: 'JSON Biasa',
+      confirmButtonText: 'JSON Biasa (Tidak Terenkripsi)',
       denyButtonText: 'Enkripsi Kata Sandi',
       cancelButtonText: t('btn.batal'),
       customClass: { popup: getSwalClass() }
@@ -544,5 +550,5 @@
     });
   }
 
-  Object.assign(root, { exportExcel, exportBackupJson, triggerRestoreJson, handleRestoreJsonFile, openFinancialStatementModal, encryptBackupPayload, decryptBackupPayload, resolveRestoredWalletId, buildRestoreRpcPayload, BACKUP_PBKDF2_ITERATIONS, BACKUP_MIN_PASSWORD_LENGTH });
+  Object.assign(root, { exportExcel, safeExcelCell, exportBackupJson, triggerRestoreJson, handleRestoreJsonFile, openFinancialStatementModal, encryptBackupPayload, decryptBackupPayload, resolveRestoredWalletId, buildRestoreRpcPayload, BACKUP_PBKDF2_ITERATIONS, BACKUP_MIN_PASSWORD_LENGTH });
 })(typeof window !== 'undefined' ? window : globalThis);

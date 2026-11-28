@@ -873,7 +873,10 @@
 
   document.addEventListener('DOMContentLoaded', initPullToRefresh);
   document.addEventListener('click', (e) => {
-    const btn = e.target && e.target.closest ? e.target.closest('#mobileBottomNav button, [onclick*="addQuickNominalAmount"]') : null;
+    // Gelombang 4 (R17): selektor onclick lama sudah mati sejak Wave 2.4
+    // (tombol kini memakai data-action) — diganti selektor data-action
+    // yang hidup supaya haptic tetap berbunyi.
+    const btn = e.target && e.target.closest ? e.target.closest('#mobileBottomNav button, [data-action="addQuickNominalAmount"]') : null;
     if (btn && typeof root.triggerHaptic === 'function') root.triggerHaptic('light');
   });
 

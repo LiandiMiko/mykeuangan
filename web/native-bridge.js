@@ -80,9 +80,27 @@
     triggerBrowserDownload(blob, safeName);
   }
 
+  // Gelombang 4 (R16): validasi skema URL eksternal — dulu
+  // openExternalUrl meneruskan string apa pun ke Browser.open /
+  // window.open, sehingga javascript:/data:/file: bisa lolos dari data
+  // yang tidak tepercaya (mis. tautan di data impor). Hanya http/https
+  // yang diizinkan; URL relatif dianggap aman (diselesaikan ke origin
+  // https aplikasi).
+  function isSafeExternalUrl(url) {
+    const target = String(url || '').trim();
+    if (!target) return false;
+    let parsed;
+    try {
+      parsed = new URL(target, 'https://app.invalid/');
+    } catch (_) {
+      return false;
+    }
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  }
+
   async function openExternalUrl(url) {
     const target = String(url || '').trim();
-    if (!target) return;
+    if (!target || !isSafeExternalUrl(target)) return;
     const Browser = getCapPlugin('Browser');
     if (isNativeApp() && Browser && typeof Browser.open === 'function') {
       await Browser.open({ url: target });
@@ -485,6 +503,7 @@
     getNativePlatform,
     saveOrShareFile,
     openExternalUrl,
+    isSafeExternalUrl,
     syncNativeSystemBars,
     hideNativeSplash,
     triggerHaptic,
