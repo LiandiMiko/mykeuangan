@@ -155,9 +155,14 @@ test('5. guard: tidak ada hmac/digest tanpa kualifikasi extensions, tidak ada to
   }
 });
 
-test('5. guard: migrasi WebAuthn 070000 tetap DRAF dan tidak diubah', () => {
-  assert.match(webauthnDraft, /DRAFT — BELUM DIVERIFIKASI, JANGAN DEPLOY DULU/);
-  assert.match(webauthnDraft, /BELUM pernah dijalankan/);
+test('5. guard: migrasi WebAuthn 070000 TERVERIFIKASI Gelombang 7c (bukan lagi DRAF)', () => {
+  // Gelombang 7c memverifikasi + menerapkan migrasi ini (deno check,
+  // unit test handler, review baris demi baris) — guard DRAF dicabut
+  // dan diganti kunci status terverifikasi + isi tabel tetap ada.
+  assert.doesNotMatch(webauthnDraft, /DRAFT — BELUM DIVERIFIKASI, JANGAN DEPLOY DULU/);
+  assert.match(webauthnDraft, /DIVERIFIKASI Gelombang 7c/);
+  assert.match(webauthnDraft, /create table if not exists public\.webauthn_credentials/);
+  assert.match(webauthnDraft, /create table if not exists public\.webauthn_challenges/);
 });
 
 /* ============================================================

@@ -1,16 +1,24 @@
 // supabase/functions/webauthn/index.ts — WebAuthn server verification
-// (Wave 3.1 / S1).
+// (Wave 3.1 / S1, diaktifkan Gelombang 7c).
 //
-// *** DRAFT — BELUM DIVERIFIKASI, JANGAN DEPLOY DULU. ***
-// Ditulis sebagai bagian dari upaya alur WebAuthn server penuh, tetapi
-// BELUM pernah dijalankan di bawah Deno, BELUM di-deploy ke proyek
-// Supabase mana pun, dan BELUM diuji end-to-end (tidak ada runtime Deno
-// di sesi penulisan ini). Klien memanggil function ini hanya bila
-// WEBAUTHN_SERVER_ENABLED = true di web/ui-feat-native-ux.js — saat ini
-// false, jadi klien memakai verifikasi interim sisi-klien. Sebelum
-// mengaktifkan: jalankan `deno check` + uji end-to-end (enroll lalu
-// unlock) terhadap proyek staging, lalu terapkan migrasi
-// 20261128070000_wave3_webauthn.sql.
+// Status: TERVERIFIKASI Gelombang 7c (2026-11-28) — `deno check` lolos
+// di Deno 2.9.8, unit test handler + verifikasi ada di
+// tests/webauthn.test.js, migrasi 20261128070000_wave3_webauthn.sql
+// diterapkan ke proyek Supabase `mykeu`. Klien memanggil function ini
+// karena WEBAUTHN_SERVER_ENABLED = true di web/ui-feat-native-ux.js.
+//
+// Batasan yang disengaja (bukan bug):
+//   * Pernyataan attestation (attStmt) TIDAK diverifikasi rantai
+//     kepercayaannya — fmt apa pun diterima selama authData +
+//     clientData + rpIdHash + flag + kunci COSE-nya valid. Ini lazim
+//     untuk login passkey: attestation membuktikan asal-usul
+//     authenticator, bukan identitas pengguna; verifikasi kunci +
+//     tanda tangan + challenge + counter-lah yang mengautentikasi.
+//   * Import supabase-js sengaja dinamis (di dalam handler), bukan
+//     statis di atas file seperti fungsi lain — supaya helper murni
+//     di file ini tetap bisa diimpor langsung oleh node --test tanpa
+//     resolver `npm:` (lihat tests/wave3-auth-profile.test.js §S1).
+//     Deno tetap me-resolve-nya saat `deno check` / deploy.
 //
 // Alur:
 //   * POST { action: 'begin', purpose: 'enrollment' | 'assertion' }
@@ -71,7 +79,7 @@ export function base64UrlEncode(bytes: Uint8Array): string {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function base64UrlDecode(b64: string): Uint8Array {
+export function base64UrlDecode(b64: string): Uint8Array<ArrayBuffer> {
   const normalized = String(b64 || '').replace(/-/g, '+').replace(/_/g, '/');
   const pad = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
   const bin = atob(normalized + pad);
@@ -80,7 +88,7 @@ export function base64UrlDecode(b64: string): Uint8Array {
   return out;
 }
 
-export async function sha256Bytes(data: Uint8Array): Promise<Uint8Array> {
+export async function sha256Bytes(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', data));
 }
 
@@ -218,9 +226,9 @@ export async function verifyRpIdHash(authData: Uint8Array, rpId: string): Promis
 // Verifikasi tanda tangan assertion terhadap JWK publik tersimpan.
 export async function verifyAssertionSignature(
   publicKeyJwk: Record<string, unknown>,
-  authenticatorData: Uint8Array,
-  clientDataJSON: Uint8Array,
-  signature: Uint8Array,
+  authenticatorData: Uint8Array<ArrayBuffer>,
+  clientDataJSON: Uint8Array<ArrayBuffer>,
+  signature: Uint8Array<ArrayBuffer>,
 ): Promise<boolean> {
   const key = await crypto.subtle.importKey(
     'jwk',
@@ -397,9 +405,9 @@ async function handleRequest(req: Request): Promise<Response> {
     }
     if (!cred) return jsonResponse(req, { error: 'Kredensial tidak dikenal.' }, 404);
     let clientData: Record<string, unknown>;
-    let authDataBytes: Uint8Array;
-    let clientBytes: Uint8Array;
-    let sigBytes: Uint8Array;
+    let authDataBytes: Uint8Array<ArrayBuffer>;
+    let clientBytes: Uint8Array<ArrayBuffer>;
+    let sigBytes: Uint8Array<ArrayBuffer>;
     try {
       clientBytes = base64UrlDecode(clientDataJSON);
       authDataBytes = base64UrlDecode(authenticatorData);

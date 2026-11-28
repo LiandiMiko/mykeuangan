@@ -675,7 +675,7 @@ async function makeAssertion({ keyPair, challenge, counter, origin, type }) {
   };
 }
 
-function loadNativeUx({ credentialsGet, credentialsCreate } = {}) {
+function loadNativeUx({ credentialsGet, credentialsCreate, sbInvoke } = {}) {
   const storage = createStorage();
   const session = createStorage();
   const listeners = {};
@@ -698,10 +698,115 @@ function loadNativeUx({ credentialsGet, credentialsCreate } = {}) {
     },
     Swal: { fire: async () => ({}), isVisible: () => false, close: () => {}, getPopup: () => null },
     getSwalClass: () => '',
-    sessionUser: 'Liandi'
+    sessionUser: 'Liandi',
+    // Gelombang 7c: klien memanggil Edge Function lewat __mkSb.sb —
+    // tes jalur server menyuplai invoke palsu; tanpa ini klien
+    // melempar 'Klien Supabase belum siap untuk WebAuthn server.'
+    __mkSb: sbInvoke ? { sb: { functions: { invoke: sbInvoke } } } : undefined
   });
   vm.runInNewContext(nativeUxJs, sandbox);
   return { sandbox, storage, session, listeners };
+}
+
+// Gelombang 7c — server WebAuthn palsu untuk tes jalur server klien.
+// Meniru kontrak Edge Function `webauthn` (begin / finish-enrollment /
+// finish-assertion) memakai helper murni edge yang asli + store memori.
+// Melempar FunctionsHttpError seperti supabase-js v2 asli: error.context
+// = Response-like dengan .json() -> { error } (pesan ramah server).
+function httpError(message) {
+  const err = new Error('Edge Function returned a non-2xx status code');
+  err.name = 'FunctionsHttpError';
+  err.context = { json: async () => ({ error: message }) };
+  return err;
+}
+
+let edgeModPromise = null;
+function getEdgeMod() {
+  if (!edgeModPromise) edgeModPromise = import(pathToFileURL('supabase/functions/webauthn/index.ts').href);
+  return edgeModPromise;
+}
+
+function b64urlDecode(s) {
+  return new Uint8Array(Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
+}
+
+function createFakeWebAuthnServer(edge) {
+  const challenges = new Map(); // challenge -> { purpose, expiresAt, used }
+  const credentials = new Map(); // credentialIdB64 -> { jwk, counter }
+  function newChallenge() {
+    const bytes = new Uint8Array(32);
+    webcrypto.getRandomValues(bytes);
+    return b64url(bytes);
+  }
+  function consumeChallenge(challenge, purpose) {
+    const row = challenges.get(challenge);
+    if (!row || row.purpose !== purpose || row.used || row.expiresAt <= Date.now()) return false;
+    row.used = true;
+    return true;
+  }
+  async function invoke(_functionName, { body }) {
+    const action = body && body.action;
+    if (action === 'begin') {
+      const purpose = body.purpose === 'enrollment' ? 'enrollment' : 'assertion';
+      const challenge = newChallenge();
+      challenges.set(challenge, { purpose, expiresAt: Date.now() + 5 * 60 * 1000, used: false });
+      return { data: { challenge, rpId: RP_ID }, error: null };
+    }
+    if (action === 'finish-enrollment') {
+      let parsed;
+      let clientData;
+      try {
+        parsed = edge.parseAttestationObject(b64urlDecode(body.attestationObject));
+        clientData = edge.parseClientData(b64urlDecode(body.clientDataJSON));
+      } catch (e) {
+        throw httpError('Attestation tidak dapat dibaca: ' + e.message);
+      }
+      if (parsed.credIdB64 !== body.credentialId) throw httpError('credentialId tidak cocok dengan attestation.');
+      const challenge = String(clientData.challenge || '');
+      if (!challenge || !consumeChallenge(challenge, 'enrollment')) throw httpError('Challenge tidak valid atau sudah dipakai.');
+      if (!edge.verifyClientDataFields(clientData, 'webauthn.create', challenge, ORIGIN)) throw httpError('clientData tidak valid.');
+      if (!(await edge.verifyRpIdHash(parsed.authData, RP_ID))) throw httpError('RP ID tidak cocok.');
+      const flags = parsed.authData[32];
+      if (!(flags & 0x01) || !(flags & 0x04)) throw httpError('Verifikasi pengguna (UV) wajib untuk pendaftaran.');
+      credentials.set(parsed.credIdB64, { jwk: parsed.jwk, counter: parsed.counter });
+      return { data: { verified: true, credentialId: parsed.credIdB64 }, error: null };
+    }
+    if (action === 'finish-assertion') {
+      const cred = credentials.get(body.credentialId);
+      if (!cred) throw httpError('Kredensial tidak dikenal.');
+      let clientData;
+      let authDataBytes;
+      let clientBytes;
+      let sigBytes;
+      try {
+        clientBytes = b64urlDecode(body.clientDataJSON);
+        authDataBytes = b64urlDecode(body.authenticatorData);
+        sigBytes = b64urlDecode(body.signature);
+        clientData = edge.parseClientData(clientBytes);
+      } catch (e) {
+        throw httpError('Assertion tidak dapat dibaca: ' + e.message);
+      }
+      const challenge = String(clientData.challenge || '');
+      if (!challenge || !consumeChallenge(challenge, 'assertion')) throw httpError('Challenge tidak valid atau sudah dipakai.');
+      if (!edge.verifyClientDataFields(clientData, 'webauthn.get', challenge, ORIGIN)) throw httpError('clientData tidak valid.');
+      if (!(await edge.verifyRpIdHash(authDataBytes, RP_ID))) throw httpError('RP ID tidak cocok.');
+      const flags = authDataBytes[32];
+      if (!(flags & 0x01) || !(flags & 0x04)) throw httpError('Verifikasi pengguna (UV) wajib.');
+      const counter = ((authDataBytes[33] << 24) | (authDataBytes[34] << 16) | (authDataBytes[35] << 8) | authDataBytes[36]) >>> 0;
+      if (counter > 0 && cred.counter > 0 && counter <= cred.counter) throw httpError('Counter tidak naik — kemungkinan kredensial terkloning.');
+      const ok = await edge.verifyAssertionSignature(cred.jwk, authDataBytes, clientBytes, sigBytes);
+      if (!ok) throw httpError('Tanda tangan tidak valid.');
+      cred.counter = counter;
+      return { data: { verified: true }, error: null };
+    }
+    throw httpError('Aksi tidak dikenal.');
+  }
+  return {
+    invoke,
+    challenges,
+    credentials,
+    seedCredential(credentialIdB64, jwk, counter = 0) { credentials.set(credentialIdB64, { jwk, counter }); },
+  };
 }
 
 test('S1: assertion asli lolos; challenge salah, replay, dan {} palsu ditolak', async () => {
@@ -741,12 +846,18 @@ test('S1: assertion asli lolos; challenge salah, replay, dan {} palsu ditolak', 
   }), false, 'origin salah harus ditolak');
 });
 
-test('S1: tryBiometricUnlock — palsu ditolak, asli diterima (challenge disimpan sebelum get())', async () => {
+test('S1: tryBiometricUnlock server — palsu ditolak, asli diterima (challenge dari server)', async () => {
+  const edge = await getEdgeMod();
+  const server = createFakeWebAuthnServer(edge);
   const { pair, jwk } = await makeKeyPair();
+  const credIdB64 = b64url(new TextEncoder().encode('cred-1'));
+  server.seedCredential(credIdB64, jwk, 0);
   let mode = 'fake';
   const mod = loadNativeUx({
+    sbInvoke: server.invoke,
     credentialsGet: async ({ publicKey }) => {
-      const challengeB64 = JSON.parse(mod.session.getItem('mk_webauthn_challenge_v1')).challenge;
+      // Challenge datang dari server lewat publicKey (bukan sessionStorage).
+      const challengeB64 = b64url(new Uint8Array(publicKey.challenge));
       if (mode === 'fake') return {};
       if (mode === 'wrong-challenge') {
         return makeAssertion({ keyPair: pair, challenge: 'bukan-challenge-ini', counter: 1, origin: ORIGIN, type: 'webauthn.get' });
@@ -755,9 +866,9 @@ test('S1: tryBiometricUnlock — palsu ditolak, asli diterima (challenge disimpa
     }
   });
   mod.storage.setItem('mk_biometric_pin_enabled', '1');
-  mod.storage.setItem('mk_biometric_cred_id', b64url(new TextEncoder().encode('cred-1')));
-  mod.storage.setItem('mk_webauthn_pubkey_v1', JSON.stringify(jwk));
-  mod.storage.setItem('mk_webauthn_counter_v1', '0');
+  mod.storage.setItem('mk_biometric_cred_id', credIdB64);
+  // Jalur server TIDAK boleh bergantung pada kunci lokal interim:
+  // sengaja tidak mengisi mk_webauthn_pubkey_v1 / counter.
 
   mode = 'fake';
   assert.equal(await mod.sandbox.__mkFeat.tryBiometricUnlock(), false, '{} palsu tidak boleh membuka kunci');
@@ -765,9 +876,12 @@ test('S1: tryBiometricUnlock — palsu ditolak, asli diterima (challenge disimpa
   assert.equal(await mod.sandbox.__mkFeat.tryBiometricUnlock(), false, 'challenge tidak cocok tidak boleh membuka kunci');
   mode = 'genuine';
   assert.equal(await mod.sandbox.__mkFeat.tryBiometricUnlock(), true, 'assertion asli harus membuka kunci');
+  assert.equal(server.credentials.get(credIdB64).counter, 1, 'counter server harus naik setelah unlock');
 });
 
-test('S1: enrollment menyimpan public key (parse attestationObject CBOR) dan menolak challenge salah', async () => {
+test('S1: enrollment server menyimpan public key di server dan menolak challenge salah', async () => {
+  const edge = await getEdgeMod();
+  const server = createFakeWebAuthnServer(edge);
   const { jwk } = await makeKeyPair();
   const xBytes = new Uint8Array(Buffer.from(jwk.x.replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
   const yBytes = new Uint8Array(Buffer.from(jwk.y.replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
@@ -782,10 +896,11 @@ test('S1: enrollment menyimpan public key (parse attestationObject CBOR) dan men
   authData.set(credId, 55);
   authData.set(cose, 55 + credId.length);
   const attestationObject = cborEncode({ fmt: 'none', attStmt: {}, authData });
-  let clientChallenge = 'salah';
   const mod = loadNativeUx({
-    credentialsCreate: async () => {
-      clientChallenge = JSON.parse(mod.session.getItem('mk_webauthn_challenge_v1')).challenge;
+    sbInvoke: server.invoke,
+    credentialsCreate: async ({ publicKey }) => {
+      // Challenge datang dari server lewat publicKey (bukan sessionStorage).
+      const clientChallenge = b64url(new Uint8Array(publicKey.challenge));
       const clientData = new TextEncoder().encode(JSON.stringify({ type: 'webauthn.create', challenge: clientChallenge, origin: ORIGIN }));
       return {
         rawId: credId.buffer,
@@ -795,11 +910,32 @@ test('S1: enrollment menyimpan public key (parse attestationObject CBOR) dan men
   });
   const credIdB64 = await mod.sandbox.__mkFeat.webauthn.enrollWebAuthnCredential();
   assert.equal(credIdB64, b64url(credId), 'enrollment mengembalikan credentialId');
-  assert.deepEqual(JSON.parse(mod.storage.getItem('mk_webauthn_pubkey_v1')), jwk, 'public key harus tersimpan');
-  assert.equal(mod.session.getItem('mk_webauthn_challenge_v1'), null, 'challenge sekali pakai harus terhapus');
+  assert.deepEqual(server.credentials.get(credIdB64).jwk, jwk, 'public key harus tersimpan di server');
+  assert.equal(mod.storage.getItem('mk_webauthn_pubkey_v1'), null, 'server flow tidak menyimpan kunci di localStorage');
+  assert.equal(mod.session.getItem('mk_webauthn_challenge_v1'), null, 'challenge server tidak memakai sessionStorage');
+
+  // Challenge salah (authenticator menjawab challenge yang bukan dari
+  // server) -> enrollment melempar pesan ramah server.
+  const server2 = createFakeWebAuthnServer(edge);
+  const mod2 = loadNativeUx({
+    sbInvoke: server2.invoke,
+    credentialsCreate: async () => {
+      const clientData = new TextEncoder().encode(JSON.stringify({ type: 'webauthn.create', challenge: 'salah', origin: ORIGIN }));
+      return {
+        rawId: credId.buffer,
+        response: { attestationObject: attestationObject.buffer, clientDataJSON: clientData.buffer }
+      };
+    }
+  });
+  await assert.rejects(
+    () => mod2.sandbox.__mkFeat.webauthn.enrollWebAuthnCredential(),
+    /Challenge tidak valid atau sudah dipakai/,
+    'challenge salah harus ditolak server dengan pesan yang jelas',
+  );
+  assert.equal(server2.credentials.size, 0, 'enrollment gagal tidak boleh menyimpan kredensial');
 });
 
-test('S1: helper verifikasi edge function (draft) memverifikasi tanda tangan asli', async () => {
+test('S1: helper verifikasi edge function memverifikasi tanda tangan asli', async () => {
   const edge = await import(pathToFileURL('supabase/functions/webauthn/index.ts').href);
   const { pair, jwk } = await makeKeyPair();
   const challenge = 'edge-challenge-1';
@@ -826,13 +962,81 @@ test('S1: helper verifikasi edge function (draft) memverifikasi tanda tangan asl
   ), false);
 });
 
-test('S1: alur server ditandai TIDAK SELESAI — flag mati, file draft diberi label', () => {
-  assert.equal(loadNativeUx().sandbox.__mkFeat.webauthn.WEBAUTHN_SERVER_ENABLED, false,
-    'server flow harus tetap mati sampai diverifikasi di Deno');
+test('S1: alur server AKTIF — flag menyala, label DRAFT dicabut (Gelombang 7c)', () => {
+  assert.equal(loadNativeUx().sandbox.__mkFeat.webauthn.WEBAUTHN_SERVER_ENABLED, true,
+    'server flow aktif setelah diverifikasi di Deno + unit test (Gelombang 7c)');
   const edgeSrc = fs.readFileSync('supabase/functions/webauthn/index.ts', 'utf8');
-  assert.match(edgeSrc, /DRAFT — BELUM DIVERIFIKASI/);
+  assert.doesNotMatch(edgeSrc, /DRAFT — BELUM DIVERIFIKASI/);
+  assert.match(edgeSrc, /TERVERIFIKASI Gelombang 7c/);
   const migSrc = fs.readFileSync('supabase/migrations/20261128070000_wave3_webauthn.sql', 'utf8');
-  assert.match(migSrc, /DRAFT — BELUM DIVERIFIKASI/);
+  assert.doesNotMatch(migSrc, /DRAFT — BELUM DIVERIFIKASI/);
+  assert.match(migSrc, /DIVERIFIKASI Gelombang 7c/);
   assert.match(migSrc, /create table if not exists public\.webauthn_credentials/);
   assert.match(migSrc, /create table if not exists public\.webauthn_challenges/);
+});
+
+test('S1: server tidak terjangkau saat unlock -> PIN tetap bisa (tidak dihitung gagal); penolakan server -> dihitung gagal', async () => {
+  const edge = await getEdgeMod();
+  const { pair, jwk } = await makeKeyPair();
+  const credIdB64 = b64url(new TextEncoder().encode('cred-1'));
+
+  // (a) begin melempar FunctionsFetchError (jaringan putus) -> unlock
+  // mengembalikan false TANPA menambah counter kegagalan.
+  const fetchFail = new Error('Failed to send a request to the Edge Function');
+  fetchFail.name = 'FunctionsFetchError';
+  const modA = loadNativeUx({
+    sbInvoke: async () => { throw fetchFail; },
+    credentialsGet: async () => { throw new Error('tidak boleh dipanggil saat server mati'); },
+  });
+  modA.storage.setItem('mk_biometric_pin_enabled', '1');
+  modA.storage.setItem('mk_biometric_cred_id', credIdB64);
+  assert.equal(await modA.sandbox.__mkFeat.tryBiometricUnlock(), false);
+  assert.equal(
+    modA.sandbox.__mkFeat.biometricLock.readBiometricLockState().failures, 0,
+    'server tidak terjangkau tidak boleh dihitung sebagai kegagalan biometrik',
+  );
+
+  // (b) server menolak assertion (tanda tangan tidak valid) -> unlock
+  // false DAN dihitung sebagai kegagalan (pembatas percobaan jalan).
+  const serverB = createFakeWebAuthnServer(edge);
+  serverB.seedCredential(credIdB64, jwk, 0);
+  const rejectingInvoke = async (fn, args) => {
+    if (args.body.action === 'finish-assertion') throw httpError('Tanda tangan tidak valid.');
+    return serverB.invoke(fn, args);
+  };
+  const modB = loadNativeUx({
+    sbInvoke: rejectingInvoke,
+    credentialsGet: async ({ publicKey }) => {
+      const challengeB64 = b64url(new Uint8Array(publicKey.challenge));
+      return makeAssertion({ keyPair: pair, challenge: challengeB64, counter: 1, origin: ORIGIN, type: 'webauthn.get' });
+    },
+  });
+  modB.storage.setItem('mk_biometric_pin_enabled', '1');
+  modB.storage.setItem('mk_biometric_cred_id', credIdB64);
+  assert.equal(await modB.sandbox.__mkFeat.tryBiometricUnlock(), false);
+  assert.equal(
+    modB.sandbox.__mkFeat.biometricLock.readBiometricLockState().failures, 1,
+    'penolakan server harus dihitung sebagai kegagalan biometrik',
+  );
+});
+
+test('S1: pesan error server dibaca dari FunctionsHttpError; fallback tetap ramah untuk awam', async () => {
+  const mod = loadNativeUx();
+  const wa = mod.sandbox.__mkFeat.webauthn;
+  const httpErr = new Error('Edge Function returned a non-2xx status code');
+  httpErr.name = 'FunctionsHttpError';
+  httpErr.context = { json: async () => ({ error: 'Tanda tangan tidak valid.' }) };
+  assert.equal(await wa.extractWebAuthnServerError(httpErr), 'Tanda tangan tidak valid.');
+  // Body tidak terbaca / tanpa context -> string kosong (pemanggil pakai fallback).
+  assert.equal(await wa.extractWebAuthnServerError({ name: 'FunctionsFetchError', message: 'Failed to send a request' }), '');
+  assert.equal(await wa.extractWebAuthnServerError({ context: { json: async () => { throw new Error('rusak'); } } }), '');
+  assert.match(wa.webAuthnServerFailureMessage({ name: 'FunctionsFetchError' }), /Periksa koneksi internet/);
+  assert.match(wa.webAuthnServerFailureMessage({ name: 'FunctionsRelayError' }), /Server sedang bermasalah/);
+  assert.match(wa.webAuthnServerFailureMessage({ name: 'FunctionsHttpError' }), /Verifikasi server gagal/);
+  assert.equal(wa.isWebAuthnServerRejection(new Error('Tanda tangan tidak valid.')), true);
+  assert.equal(wa.isWebAuthnServerRejection(new Error('Counter tidak naik — kemungkinan kredensial terkloning.')), true);
+  assert.equal(wa.isWebAuthnServerRejection(new Error('Tidak dapat terhubung ke server.')), false);
+  // formatBiometricFailureReason tidak boleh membocorkan teks teknis Inggris.
+  assert.match(mod.sandbox.formatBiometricFailureReason({ name: 'FunctionsHttpError', message: 'Edge Function returned a non-2xx status code' }), /Verifikasi server gagal/);
+  assert.match(mod.sandbox.formatBiometricFailureReason({ name: 'FunctionsFetchError', message: 'Failed to send a request to the Edge Function' }), /Periksa koneksi internet/);
 });
