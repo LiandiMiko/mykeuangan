@@ -1,16 +1,9 @@
 -- ============================================================
 -- Gelombang 3.1 (S1) — WebAuthn server-side: tabel kredensial &
--- challenge. DRAFT — BELUM DIVERIFIKASI, JANGAN DEPLOY DULU.
---
--- Status jujur (2026-11-28): migrasi ini ditulis sebagai bagian dari
--- upaya alur WebAuthn server penuh, tetapi BELUM pernah dijalankan
--- terhadap proyek Supabase mana pun dan BELUM diverifikasi end-to-end
--- (tidak ada runtime Deno di sesi ini, dan deploy produksi di luar
--- lingkup agen ini). Edge function pendampingnya
--- (supabase/functions/webauthn/index.ts) juga masih draft. Sampai
--- keduanya diverifikasi di bawah Deno dan diuji end-to-end, klien
--- memakai verifikasi interim sisi-klien di web/ui-feat-native-ux.js
--- (WEBAUTHN_SERVER_ENABLED = false) dan tabel ini tidak dipakai.
+-- challenge. DIVERIFIKASI Gelombang 7c (2026-11-28): dibaca baris
+-- demi baris, `deno check` function pendamping lolos (Deno 2.9.8),
+-- unit test handler + verifikasi di tests/webauthn.test.js lolos
+-- WIB + UTC, lalu diterapkan ke proyek Supabase `mykeu`.
 --
 -- Rancangan:
 --   * webauthn_credentials: satu baris per kredensial platform yang
@@ -103,5 +96,18 @@ begin
   return v_deleted;
 end;
 $$;
+
+-- Gelombang 7c: fungsi SECURITY DEFINER di atas hanya menghapus
+-- challenge yang sudah kedaluwarsa >1 jam (tidak ada data pengguna),
+-- tetapi EXECUTE default-nya jatuh ke PUBLIC — cabut dari semua peran
+-- klien dan beri hanya ke service_role (yang dipakai Edge Function /
+-- cron). Pelajaran Wave 4: revoke dari PUBLIC saja TIDAK mencabut
+-- grant eksplisit `anon`, jadi revoke dari public, anon, authenticated.
+-- Catatan: belum ada cron yang memanggil fungsi ini (lihat audit-044);
+-- sampai ada pemanggil, fungsi ini tidak berjalan otomatis.
+revoke execute on function public.purge_expired_webauthn_challenges()
+  from public, anon, authenticated;
+grant execute on function public.purge_expired_webauthn_challenges()
+  to service_role;
 
 commit;

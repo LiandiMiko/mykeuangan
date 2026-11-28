@@ -249,12 +249,27 @@ test('hotfix v3.20.1 handles native Capacitor biometric verification and WebAuth
         }
       }
     },
+    // Gelombang 7c: jalur server aktif — begin harus datang dari Edge
+    // Function (di sini dipalsukan). rpId server undefined untuk host
+    // IP, sama seperti resolveWebAuthnRpId() di bawah.
+    __mkSb: {
+      sb: {
+        functions: {
+          invoke: async (_fn, { body }) => {
+            if (body.action === 'begin') return { data: { challenge: 'A'.repeat(43), rpId: undefined }, error: null };
+            throw new Error('unexpected webauthn call: ' + body.action);
+          }
+        }
+      }
+    },
     localStorage: {
-      // Wave 3.1 / S1: the stored public key must exist for the web
-      // WebAuthn path to even attempt verification; an assertion the
-      // authenticator cannot prove (here: a bare `{ id: 'ok' }` with no
-      // response at all) must NOT unlock — the old `Boolean(assertion)`
-      // behaviour was the vulnerability S1 fixes.
+      // Wave 3.1 / S1: an assertion the authenticator cannot prove
+      // (here: a bare `{ id: 'ok' }` with no response at all) must NOT
+      // unlock — the old `Boolean(assertion)` behaviour was the
+      // vulnerability S1 fixes. Gelombang 7c: jalur server tidak lagi
+      // membaca kunci lokal interim (mk_webauthn_pubkey_v1) — kunci
+      // hidup di server; nilai di bawah ini sengaja dibiarkan sebagai
+      // sisa interim dan harus diabaikan.
       getItem: (k) => (k === 'mk_biometric_pin_enabled' ? '1' : (k === 'mk_biometric_cred_id' ? 'AQID' : (k === 'mk_webauthn_pubkey_v1' ? JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'A'.repeat(43) }) : null))),
       setItem: () => {},
       removeItem: () => {}
