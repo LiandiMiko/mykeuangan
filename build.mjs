@@ -240,7 +240,12 @@ function rewriteLocalVendorTags(html) {
   if (missingPh.length) {
     throw new Error(`Vendor Phosphor tidak lengkap: ${missingPh.map((w) => `web/vendor/phosphor/${w}/style.css`).join(', ')} — jalankan node scripts/fetch-vendors.mjs.`);
   }
-  const links = phWeights.map((w) => `<link rel="stylesheet" href="./vendor/phosphor/${w}/style.css">`).join('\n');
+  const links = phWeights.map((w) => `<link rel="stylesheet" href="./vendor/phosphor-subset/${w}/style.css">`).join('\n');
+  // Gelombang 7d (P5/P6): link di atas mengarah ke SUBSET Phosphor
+  // (web/phosphor-subset/, dibuat scripts/subset-phosphor.mjs) — file
+  // lengkap di web/vendor/phosphor/ tetap diverifikasi sebagai SUMBER
+  // subset (lihat verifyRequiredVendorFiles), tapi TIDAK lagi dikirim
+  // ke browser (tidak disalin ke dist/ — lihat copyVendorDir).
   out = out.replace(/<script[^>]*src="https:\/\/unpkg\.com\/@phosphor-icons\/web@2\.1\.1"[^>]*><\/script>/i, links);
   for (const [cdnUrl, relFile] of CDN_TO_LOCAL_VENDOR) {
     const full = path.join(VENDOR_ROOT, relFile);
@@ -275,6 +280,15 @@ function verifyRequiredVendorFiles() {
   const tailwindCss = path.join(VENDOR_ROOT, 'tailwind.min.css');
   if (!fs.existsSync(tailwindCss)) problems.push(`Vendor tidak ada: ${tailwindCss} (dibuat oleh npm run build:css)`);
   else if (fs.statSync(tailwindCss).size === 0) problems.push(`Vendor kosong: ${tailwindCss} (dibuat oleh npm run build:css)`);
+  // Gelombang 7d (P5/P6): subset Phosphor ter-commit di
+  // web/phosphor-subset/ (bukan di web/vendor/ yang gitignored) —
+  // build gagal bila hilang/kosong; regenerasi: node scripts/subset-phosphor.mjs.
+  for (const [w, fontFile] of [['regular', 'Phosphor.woff2'], ['bold', 'Phosphor-Bold.woff2'], ['fill', 'Phosphor-Fill.woff2']]) {
+    for (const f of [path.join('web', 'phosphor-subset', w, 'style.css'), path.join('web', 'phosphor-subset', w, fontFile)]) {
+      if (!fs.existsSync(f)) problems.push(`Subset Phosphor tidak ada: ${f} (jalankan node scripts/subset-phosphor.mjs)`);
+      else if (fs.statSync(f).size === 0) problems.push(`Subset Phosphor kosong: ${f}`);
+    }
+  }
   if (problems.length) {
     throw new Error(`Build dibatalkan — vendor tidak lengkap / tidak terverifikasi:\n- ${problems.join('\n- ')}\nJalankan: node scripts/fetch-vendors.mjs && npm run build:css`);
   }
@@ -291,6 +305,11 @@ function copyVendorDir(srcDir, dstDir, relBase) {
     const srcPath = path.join(srcDir, entry.name);
     const dstPath = path.join(dstDir, entry.name);
     const relPath = `${relBase}/${entry.name}`;
+    // Gelombang 7d (P5/P6): file Phosphor LENGKAP tidak disalin ke
+    // dist/ — browser hanya menerima subset (web/phosphor-subset/,
+    // disalin terpisah di bawah). File lengkap tetap diperlukan saat
+    // build sebagai sumber subset (verifyRequiredVendorFiles).
+    if (entry.isDirectory() && relBase === './vendor' && entry.name === 'phosphor') continue;
     if (entry.isDirectory()) {
       collected.push(...copyVendorDir(srcPath, dstPath, relPath));
     } else if (entry.isFile()) {
@@ -469,6 +488,14 @@ for (const [rel, code] of appFiles) {
 const appAssets = [...appFiles.keys()].map((rel) => `./${rel}`);
 
 const vendorAssets = copyVendorDir(VENDOR_ROOT, path.join(OUT, 'vendor'), './vendor');
+
+// Gelombang 7d (P5/P6): subset Phosphor (web/phosphor-subset/) disalin
+// ke dist/vendor/phosphor-subset/ dan ikut ter-precache SW — file
+// lengkap web/vendor/phosphor/ TIDAK disalin (lihat copyVendorDir).
+const subsetRoot = path.join('web', 'phosphor-subset');
+if (fs.existsSync(subsetRoot)) {
+  vendorAssets.push(...copyVendorDir(subsetRoot, path.join(OUT, 'vendor', 'phosphor-subset'), './vendor/phosphor-subset'));
+}
 
 if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
   fs.copyFileSync(path.join(WEB, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));

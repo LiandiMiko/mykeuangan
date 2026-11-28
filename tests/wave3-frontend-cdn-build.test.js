@@ -159,7 +159,13 @@ test('3.4e dist/index.html tanpa URL CDN di tag resource dan tanpa document.writ
   assert.doesNotMatch(scriptSrc, /'unsafe-eval'/, 'CSP script-src tidak boleh lagi memuat unsafe-eval (Gelombang 7b)');
   assert.match(html, /src="\.\/vendor\/supabase\.js"/, 'Supabase harus dimuat dari vendor lokal');
   assert.match(html, /href="\.\/vendor\/inter\/inter\.css"/, 'Inter harus dimuat dari vendor lokal');
-  assert.match(html, /href="\.\/vendor\/phosphor\/regular\/style\.css"/, 'Phosphor harus dimuat dari vendor lokal');
+  // Gelombang 7d (P5/P6): Phosphor dimuat sebagai SUBSET
+  // (web/phosphor-subset/, dibuat scripts/subset-phosphor.mjs) — file
+  // lengkap TIDAK boleh ada di dist/.
+  assert.match(html, /href="\.\/vendor\/phosphor-subset\/regular\/style\.css"/, 'Phosphor harus dimuat dari subset vendor lokal');
+  assert.ok(!fs.existsSync(path.join(dir, 'dist', 'vendor', 'phosphor')), 'file Phosphor lengkap tidak boleh ada di dist/vendor/phosphor');
+  const phosphorCss = fs.readFileSync(path.join(dir, 'dist', 'vendor', 'phosphor-subset', 'regular', 'style.css'), 'utf8');
+  assert.match(phosphorCss, /font-display:\s*swap/, 'subset Phosphor harus memakai font-display: swap');
   assert.match(html, /href="\.\/vendor\/tailwind\.min\.css"/, 'Tailwind harus dimuat dari vendor lokal sebagai <link> (Gelombang 7b — bukan lagi <style> inline)');
   assert.doesNotMatch(html, /tailwind\.config\s*=/, 'dist tidak boleh lagi memuat blok inline tailwind.config (konfig sudah dibekukan di tailwind.min.css)');
   const sw = fs.readFileSync(path.join(dir, 'dist', 'sw.js'), 'utf8');

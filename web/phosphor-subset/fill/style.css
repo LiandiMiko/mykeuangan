@@ -1,0 +1,62 @@
+/* Subset Phosphor (fill) — dibuat oleh scripts/subset-phosphor.mjs
+   dari @phosphor-icons/web 2.1.1. HANYA 8 ikon yang dipakai
+   aplikasi (lihat DYNAMIC_ICONS + pemindaian src/ + web/ di skrip itu).
+   JANGAN edit manual — jalankan ulang: node scripts/subset-phosphor.mjs.
+   font-display: swap (dulu block — ikon sempat hilang sampai font tiba). */
+@font-face {
+  font-family: "Phosphor-Fill";
+  src: url("./Phosphor-Fill.woff2") format("woff2");
+font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.ph-fill {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: "Phosphor-Fill" !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Enable Ligatures ================ */
+  letter-spacing: 0;
+  -webkit-font-feature-settings: "liga";
+  -moz-font-feature-settings: "liga=1";
+  -moz-font-feature-settings: "liga";
+  -ms-font-feature-settings: "liga" 1;
+  font-feature-settings: "liga";
+  -webkit-font-variant-ligatures: discretionary-ligatures;
+  font-variant-ligatures: discretionary-ligatures;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph-fill.ph-bell-ringing:before {
+  content: "\e5e8";
+}
+.ph-fill.ph-eye-slash:before {
+  content: "\e224";
+}
+.ph-fill.ph-fingerprint:before {
+  content: "\e23e";
+}
+.ph-fill.ph-push-pin:before {
+  content: "\e3e2";
+}
+.ph-fill.ph-scales:before {
+  content: "\e750";
+}
+.ph-fill.ph-translate:before {
+  content: "\e4a2";
+}
+.ph-fill.ph-warning-circle:before {
+  content: "\e4e2";
+}
+.ph-fill.ph-wifi-slash:before {
+  content: "\e4f2";
+}
