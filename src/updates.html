@@ -1,6 +1,6 @@
 <!-- ================= RIWAYAT PEMBARUAN ================= -->
-<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-28-v3.20.20"
-  data-latest-version="v3.20.20">
+<div id="view-updates" class="view-section space-y-6 hide fade-in" data-latest-release="2026-11-28-v3.20.21"
+  data-latest-version="v3.20.21">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div class="flex items-start gap-3">
       <div
@@ -19,7 +19,7 @@
       <span
         class="inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-2xl bg-brand/10 text-brand dark:text-brand-ink text-xs font-bold border border-brand/20">
         <i class="ph ph-tag text-sm" aria-hidden="true"></i>
-        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.20</strong></span>
+        <span><span data-i18n="updates.current_version">Versi saat ini</span>: <strong>Update v3.20.21</strong></span>
       </span>
       <button type="button" id="btnCheckAppUpdate" data-action="checkRemoteAppUpdate" data-args='[{"manual": true}]'
         class="min-h-11 px-3.5 py-2 rounded-2xl bg-brand text-white hover:opacity-95 text-xs font-bold transition-opacity flex items-center gap-1.5 shadow-xs">
@@ -67,7 +67,7 @@
           class="w-full min-h-11 pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand">
       </div>
       <p id="updatesCountLabel" class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums"
-        aria-live="polite">Menampilkan 41 rilis</p>
+        aria-live="polite">Menampilkan 42 rilis</p>
     </div>
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filter topik pembaruan">
       <button type="button" data-updates-topic="all" data-action="setUpdatesTopic" data-args='["all"]'
@@ -91,7 +91,8 @@
   <!-- RELEASE LIST -->
   <section id="updatesList" class="space-y-4" aria-labelledby="updates-page-title">
     <!-- LATEST RELEASE (OPEN CARD) -->
-    <article data-release-card data-release-id="2026-11-28-v3.20.20" data-topics="ui-ux"
+        <!-- LATEST RELEASE (OPEN CARD) -->
+    <article data-release-card data-release-id="2026-11-28-v3.20.21" data-topics="performance"
       class="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-brand/30 dark:border-brand/40 mk-card-surface p-4 sm:p-6">
       <div class="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-6">
         <div class="border-b border-slate-100 dark:border-slate-800 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
@@ -100,7 +101,7 @@
               class="px-2 py-0.5 rounded-full bg-brand text-white text-xs font-extrabold uppercase tracking-wider"
               data-i18n="updates.badge_latest">Terbaru</span>
             <span
-              class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-extrabold">v3.20.20</span>
+              class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-extrabold">v3.20.21</span>
           </div>
           <time datetime="2026-11-28" class="block text-brand dark:text-brand-ink">
             <span class="block text-3xl font-black leading-none text-brand dark:text-brand-ink tabular-nums">28</span>
@@ -108,8 +109,61 @@
           </time>
         </div>
         <div class="min-w-0">
-          <h3 class="text-base font-bold text-slate-800 dark:text-white">Update v3.20.20: Impor CSV Kini Bisa Pilih Dompet Tujuan</h3>
+          <h3 class="text-base font-bold text-slate-800 dark:text-white">Update v3.20.21: Aplikasi Lebih Cepat Dibuka — Terutama di Sinyal Pelan</h3>
           <dl class="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Buka Aplikasi Jauh Lebih Cepat di Sinyal Pelan</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Dulu, membuka aplikasi langsung mengunduh
+                2,4 MB sekaligus, sehingga di 4G pelan butuh sekitar 22 detik. Kini hanya sekitar 1,1 MB yang
+                dimuat di awal — pustaka untuk ekspor PDF, grafik, dan pemilih tanggal baru diunduh saat
+                fiturnya benar-benar Anda buka. Di 4G pelan, aplikasi kini siap dipakai dalam sekitar 7,6 detik.</dd>
+            </div>
+            <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Buka Ulang Terasa Lebih Ringan</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Membuka ulang aplikasi kini sekitar 0,4–0,6
+                detik (dulu sekitar 1 detik) — halaman tidak lagi tertahan menunggu puluhan skrip selesai
+                dimuat, dan ikon memakai font yang sudah dipangkas khusus hanya untuk ikon yang dipakai aplikasi
+                ini, jadi jauh lebih ringan.</dd>
+            </div>
+            <div class="grid gap-1 py-3 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Ikon Tampil Lebih Cepat</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Dulu ikon sempat tidak muncul sampai font ikon
+                selesai diunduh (terutama di sinyal pelan). Kini ikon memakai font yang jauh lebih kecil dan
+                tampil segera — tidak ada lagi layar tanpa ikon saat membuka aplikasi.</dd>
+            </div>
+            <div class="grid gap-1 py-3 last:pb-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
+              <dt class="font-semibold text-slate-700 dark:text-slate-200">Yang Tidak Berubah</dt>
+              <dd class="text-slate-600 dark:text-slate-300">Semua fitur tetap sama — yang berubah hanya
+                <em>kapan</em> aset dimuat. Ekspor PDF, grafik, dan pemilih tanggal tetap bekerja seperti dulu,
+                hanya dimuat saat Anda membukanya. Mode offline tetap bekerja seperti biasa.</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <details data-release-card data-release-details data-topics="ui-ux"
+      class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <summary
+        class="release-summary list-none cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors select-none">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+          <div class="flex items-center gap-2 shrink-0">
+            <time datetime="2026-11-28" class="text-xs font-bold text-slate-500 dark:text-slate-400">28 Nov 2026</time>
+            <span
+              class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-extrabold">v3.20.20</span>
+          </div>
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white leading-snug">Update v3.20.20: Impor CSV Kini Bisa Pilih Dompet Tujuan</h3>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span
+            class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold">3
+            item</span>
+          <i class="ph ph-caret-down text-slate-400 text-lg transition-transform duration-200 group-open:rotate-180"
+            aria-hidden="true"></i>
+        </div>
+      </summary>
+      <div class="px-4 sm:px-5 pb-5 border-t border-slate-100 dark:border-slate-800 pt-4">
+          <dl class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div class="grid gap-1 py-3 first:pt-0 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-4">
               <dt class="font-semibold text-slate-700 dark:text-slate-200">Pilih Dompet Tujuan Sebelum Impor</dt>
               <dd class="text-slate-600 dark:text-slate-300">Sebelum memilih file, aplikasi kini bertanya dulu:
@@ -131,9 +185,8 @@
                 pengganti yang aman dan menampilkan peringatan kuning berisi nama dompet penggantinya.</dd>
             </div>
           </dl>
-        </div>
       </div>
-    </article>
+    </details>
 
     <details data-release-card data-release-details data-topics="security"
       class="group bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
