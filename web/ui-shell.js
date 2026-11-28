@@ -163,7 +163,10 @@
       btn.removeAttribute('aria-current');
     });
 
-    const nav = document.getElementById('nav-' + (id.includes('utang') ? 'dashboard' : id));
+    // Gelombang 6 (U1): setiap layar punya entri nav sendiri — termasuk
+    // Utang & Piutang (nav-utang) — jadi id view dipakai apa adanya.
+    // Dulu 'utang' dipetakan ke 'dashboard' karena belum ada nav utang.
+    const nav = document.getElementById('nav-' + id);
     if (nav) {
       nav.classList.remove('text-slate-500', 'dark:text-slate-400');
       nav.classList.add('active-nav');

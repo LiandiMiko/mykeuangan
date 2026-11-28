@@ -307,6 +307,13 @@
 
   const isCapNative = () => typeof root.isNativeApp === 'function' && root.isNativeApp();
 
+  // Gelombang 6 (U30): Firefox Android tidak pernah memicu
+  // beforeinstallprompt, jadi tanpa ini tidak ada jalan install sama
+  // sekali di browser itu. Deteksi UA-nya untuk menampilkan tombol
+  // install dengan petunjuk manual (seperti pola iOS) — bukan untuk
+  // browser yang sudah mendukung beforeinstallprompt.
+  const isFirefoxAndroid = () => /android/i.test(navigator.userAgent || '') && /firefox/i.test(navigator.userAgent || '');
+
   root.addEventListener('beforeinstallprompt', (e) => {
     if (isCapNative()) return;
     e.preventDefault();
@@ -324,7 +331,7 @@
     if (typeof root.refreshUpdatesBadge === 'function') root.refreshUpdatesBadge();
     setTimeout(() => { if (typeof root.filterUpdatesList === 'function') root.filterUpdatesList(); }, 120);
     const isStandalone = (root.matchMedia && root.matchMedia('(display-mode: standalone)').matches) || root.navigator.standalone === true;
-    if (!isStandalone && !isCapNative() && (root._deferredPwaPrompt || /iphone|ipad|ipod/i.test(navigator.userAgent || ''))) {
+    if (!isStandalone && !isCapNative() && (root._deferredPwaPrompt || /iphone|ipad|ipod/i.test(navigator.userAgent || '') || isFirefoxAndroid())) {
       document.getElementById('pwaInstallWrap')?.classList.remove('hidden');
     }
     if (navigator.onLine && typeof root.flushOfflineQueue === 'function') {

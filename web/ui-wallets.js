@@ -57,9 +57,19 @@
     return w ? w.name : '-';
   };
   const walletKindLabel = (kind) => kind === 'cash' ? 'Tunai' : kind === 'ewallet' ? 'E-wallet' : 'Bank';
-  const walletOptions = (selectedId) => (DB.wallets || [])
-    .map((w) => `<option value="${escapeHtmlJS(w.id)}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)} (${walletKindLabel(w.kind)})</option>`)
-    .join('');
+  // Gelombang 6 (U11): opsi transfer boleh menampilkan saldo berjalan
+  // (dari walletBalances() — data yang sudah dimuat, tanpa fetch baru).
+  // Default mati: pemakaian lain (bayar utang, top-up aset, dsb.) tetap
+  // memakai label nama + jenis seperti sebelumnya.
+  const walletOptions = (selectedId, showBalance) => {
+    const balances = showBalance ? walletBalances() : null;
+    return (DB.wallets || [])
+      .map((w) => {
+        const balText = balances ? ` — ${formatRupiah(balances[w.id] || 0)}` : '';
+        return `<option value="${escapeHtmlJS(w.id)}" ${w.id === selectedId ? 'selected' : ''}>${escapeHtmlJS(w.name)} (${walletKindLabel(w.kind)})${balText}</option>`;
+      })
+      .join('');
+  };
 
   function fillWalletSelect(id, selectedId) {
     const el = document.getElementById(id);
@@ -325,17 +335,17 @@
       : ws.find((w) => w.id !== fromWallet.id);
 
     const res = await Swal.fire({
-      title: kind === 'tarik_tunai' ? 'Tarik Tunai / Transfer Antar Dompet' : 'Transfer Antar Dompet',
+      title: kind === 'tarik_tunai' ? 'Tarik Tunai' : 'Transfer Antar Dompet',
       html: `
         <div class="text-left space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label for="tf-from" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Dari dompet</label>
-              <select id="tf-from" class="swal2-input" style="margin-top:0.35rem">${walletOptions(fromWallet.id)}</select>
+              <select id="tf-from" class="swal2-input" style="margin-top:0.35rem">${walletOptions(fromWallet.id, true)}</select>
             </div>
             <div>
               <label for="tf-to" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Ke dompet</label>
-              <select id="tf-to" class="swal2-input" style="margin-top:0.35rem">${walletOptions(toWallet.id)}</select>
+              <select id="tf-to" class="swal2-input" style="margin-top:0.35rem">${walletOptions(toWallet.id, true)}</select>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -348,6 +358,7 @@
               <input id="tf-fee" type="text" inputmode="numeric" class="swal2-input tabular-nums" style="margin-top:0.35rem" placeholder="0">
             </div>
           </div>
+          <p id="tf-bal-warn" role="alert" class="hide text-xs font-semibold text-rose-600 dark:text-rose-400"></p>
           <div>
             <label for="tf-date" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal Transfer</label>
             <input id="tf-date" type="date" class="swal2-input" style="margin-top:0.35rem" value="${localToday()}">
@@ -361,7 +372,33 @@
       confirmButtonText: 'Simpan',
       cancelButtonText: 'Batal',
       customClass: { popup: getSwalClass() },
-      didOpen: () => bindNominalInputs(['tf-nom', 'tf-fee']),
+      didOpen: () => {
+        bindNominalInputs(['tf-nom', 'tf-fee']);
+        // Gelombang 6 (U11): peringatan inline bila nominal + biaya
+        // melebihi saldo dompet asal — diperbarui tiap ketikan/perubahan
+        // dompet, sebelum tombol Simpan ditekan.
+        const updateBalWarn = () => {
+          const warnEl = document.getElementById('tf-bal-warn');
+          const fromEl = document.getElementById('tf-from');
+          const nomEl = document.getElementById('tf-nom');
+          const feeEl = document.getElementById('tf-fee');
+          if (!warnEl || !fromEl || !nomEl || !feeEl) return;
+          const nominal = parseFormattedNominal(nomEl.value);
+          const fee = parseFormattedNominal(feeEl.value);
+          const bal = (walletBalances()[fromEl.value] || 0);
+          const total = (Number.isFinite(nominal) ? nominal : 0) + (Number.isFinite(fee) && fee > 0 ? fee : 0);
+          if (total > 0 && total > bal) {
+            warnEl.textContent = `Melebihi saldo ${walletName(fromEl.value)} (${formatRupiah(bal)})`;
+            warnEl.classList.remove('hide');
+          } else {
+            warnEl.textContent = '';
+            warnEl.classList.add('hide');
+          }
+        };
+        ['tf-nom', 'tf-fee'].forEach((id) => document.getElementById(id)?.addEventListener('input', updateBalWarn));
+        document.getElementById('tf-from')?.addEventListener('change', updateBalWarn);
+        updateBalWarn();
+      },
       preConfirm: () => {
         const from = document.getElementById('tf-from').value;
         const to = document.getElementById('tf-to').value;
@@ -370,6 +407,11 @@
         const rawFee = parseFormattedNominal(document.getElementById('tf-fee').value);
         if (from === to) { Swal.showValidationMessage('Dompet asal dan tujuan harus berbeda'); return false; }
         if (!Number.isFinite(nominal) || nominal <= 0) { Swal.showValidationMessage('Isi nominal transfer di atas 0'); return false; }
+        // Gelombang 6 (U11): tolak sebelum submit bila nominal + biaya
+        // melebihi saldo dompet asal (server tetap memeriksa ulang).
+        const feeAmt = Number.isFinite(rawFee) && rawFee > 0 ? rawFee : 0;
+        const fromBal = (walletBalances()[from] || 0);
+        if (nominal + feeAmt > fromBal) { Swal.showValidationMessage(`Nominal melebihi saldo ${walletName(from)} (${formatRupiah(fromBal)})`); return false; }
         return {
           fromWallet: from, toWallet: to, nominal, tanggal,
           fee: Number.isFinite(rawFee) && rawFee > 0 ? rawFee : 0,

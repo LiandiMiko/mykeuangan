@@ -73,6 +73,9 @@
   <button type="button" data-action="switchView" data-args='["histori"]' id="nav-histori" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-list-bullets text-xl" aria-hidden="true"></i> <span data-i18n="nav.histori">Histori Transaksi</span>
   </button>
+  <button type="button" data-action="switchView" data-args='["utang"]' id="nav-utang" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+    <i class="ph ph-hand-coins text-xl" aria-hidden="true"></i> <span data-i18n="nav.utang">Utang &amp; Piutang</span>
+  </button>
   <div class="my-2 border-t border-slate-100 dark:border-slate-800"></div>
   <button type="button" data-action="switchView" data-args='["budgeting"]' id="nav-budgeting" class="w-full min-h-12 flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors nav-btn text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
     <i class="ph ph-chart-pie-slice text-xl" aria-hidden="true"></i> <span data-i18n="nav.budgeting">Budgeting</span>
@@ -173,7 +176,7 @@
   <!-- ================= MAIN ================= -->
   <main id="mainContent" class="flex-1 flex flex-col min-w-0 transition-opacity duration-200">
     <h1 class="sr-only">MyKeuGuech — Personal Finance</h1>
-    <header id="appHeader" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md min-h-[56px] px-3 py-2 sm:px-6 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 flex flex-row items-center justify-between gap-1.5 sm:gap-2 sticky top-0 z-30 shadow-xs transition-colors">
+    <header id="appHeader" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md min-h-[56px] px-2 min-[400px]:px-3 py-2 sm:px-6 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 flex flex-row items-center justify-between gap-1.5 sm:gap-2 sticky top-0 z-30 shadow-xs transition-colors">
       <div class="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
         <button id="sidebarToggleBtn" type="button" data-action="toggleSidebar" aria-label="Buka menu" data-i18n-aria-label="header.open_menu" class="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full text-xl sm:text-2xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand dark:hover:text-brand-ink transition-colors shrink-0">
           <i class="ph ph-list" aria-hidden="true"></i>
@@ -184,7 +187,7 @@
         </div>
       </div>
       <div class="flex items-center justify-end gap-1 sm:gap-2 ml-auto shrink-0">
-        <div class="relative w-[132px] min-[400px]:w-[148px] sm:w-44">
+        <div class="relative w-[120px] min-[400px]:w-[148px] sm:w-44">
           <label class="sr-only" for="dashMonthPicker" data-i18n="header.period">Pilih periode keuangan</label>
           <input type="text" id="dashMonthPicker" enterkeyhint="done" aria-label="Pilih periode keuangan" title="Pilih periode keuangan" data-i18n-aria-label="header.period" data-i18n-title="header.period" data-i18n-placeholder="dash.month"
                  class="w-full h-10 lg:h-11 pl-8 sm:pl-9 pr-2.5 bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 truncate"
@@ -199,6 +202,10 @@
                 class="hidden lg:inline-flex items-center gap-1.5 h-11 px-3.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-xs font-bold shrink-0">
           <i class="ph ph-magnifying-glass text-base" aria-hidden="true"></i>
           <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold">Ctrl K</kbd>
+        </button>
+        <button type="button" data-action="openCommandPalette" aria-label="Pencarian cepat (Ctrl+K)" title="Perintah Cepat (Ctrl+K)"
+                class="inline-flex lg:hidden w-10 h-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-ink hover:border-brand transition-colors text-lg shrink-0">
+          <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
         </button>
         <button id="networkStatusPill" type="button" data-action="flushOfflineQueue" data-args='[false]' aria-label="Status jaringan dan antrean offline"
                 class="hide inline-flex items-center gap-1 h-10 lg:h-11 px-2.5 rounded-full border text-[11px] font-bold transition-colors shrink-0">
@@ -256,11 +263,11 @@
       </button>
       <span class="text-xs font-bold text-brand dark:text-brand-ink leading-none mt-1" data-i18n="nav.add_short">Catat</span>
     </div>
-    <button type="button" data-action="switchView" data-args='["budgeting"]' data-mobile-nav="budgeting" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-400 transition-colors">
+    <button type="button" data-action="switchView" data-args='["utang"]' data-mobile-nav="utang" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-400 transition-colors">
       <span class="mobile-nav-icon w-14 h-8 rounded-full flex items-center justify-center">
-        <i class="ph ph-chart-pie-slice text-[21px]" aria-hidden="true"></i>
+        <i class="ph ph-hand-coins text-[21px]" aria-hidden="true"></i>
       </span>
-      <span class="leading-none truncate max-w-full" data-i18n="nav.budgeting">Budget</span>
+      <span class="leading-none truncate max-w-full" data-i18n="nav.utang_short">Utang</span>
     </button>
     <button type="button" data-action="switchView" data-args='["aset"]' data-mobile-nav="aset" class="mobile-nav-tab min-h-[56px] flex flex-col items-center justify-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-400 transition-colors">
       <span class="mobile-nav-icon w-14 h-8 rounded-full flex items-center justify-center">

@@ -195,13 +195,21 @@
             </span>
             <h3 class="text-sm sm:text-base font-bold text-slate-800 dark:text-white truncate" data-i18n="dash.wallets">Dompet</h3>
           </div>
-          <div class="flex items-center gap-1.5 shrink-0">
+          <div class="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
             <button type="button" data-action="addWallet" class="min-h-10 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors">
               <i class="ph-bold ph-plus" aria-hidden="true"></i> <span data-i18n="dash.add_wallet">Tambah Dompet</span>
             </button>
-            <button type="button" data-action="openTransferModal" data-args='["transfer"]' title="Tarik Tunai / Transfer" aria-label="Tarik Tunai / Transfer"
+            <!-- Gelombang 6 (U32): dulu satu tombol berlabel ganda
+              "Tarik Tunai / Transfer" — kini dua tombol eksplisit, masing-masing
+              memanggil modal dengan jenis yang benar (transfer / tarik_tunai).
+              Label singkat di mobile, label lengkap di layar ≥sm. -->
+            <button type="button" data-action="openTransferModal" data-args='["transfer"]' title="Transfer Antar Dompet" aria-label="Transfer Antar Dompet"
                     class="min-h-10 px-3 py-1.5 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-xl text-xs font-bold flex items-center gap-1 transition-colors">
-              <i class="ph ph-arrows-left-right text-sm" aria-hidden="true"></i> <span class="hidden sm:inline" data-i18n="dash.transfer_wallet">Tarik Tunai / Transfer</span>
+              <i class="ph ph-arrows-left-right text-sm" aria-hidden="true"></i> <span class="sm:hidden" data-i18n="dash.transfer">Transfer</span><span class="hidden sm:inline" data-i18n="dash.transfer_full">Transfer Antar Dompet</span>
+            </button>
+            <button type="button" data-action="openTransferModal" data-args='["tarik_tunai"]' title="Tarik Tunai" aria-label="Tarik Tunai"
+                    class="min-h-10 px-3 py-1.5 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-xl text-xs font-bold flex items-center gap-1 transition-colors">
+              <i class="ph ph-money text-sm" aria-hidden="true"></i> <span data-i18n="dash.withdraw">Tarik Tunai</span>
             </button>
           </div>
         </div>

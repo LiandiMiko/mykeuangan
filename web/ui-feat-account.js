@@ -669,6 +669,37 @@
     });
   }
 
+  // Gelombang 6 (U27): layar kunci penuh saat re-lock — overlay opaque
+  // yang MENUTUPI seluruh konten (logo + "Aplikasi Terkunci"), sebagai
+  // ganti mengandalkan blur saja: angka keuangan tidak boleh terlihat
+  // samar di balik blur saat HP ditinggal terbuka. Overlay dibuat sekali
+  // dan dipakai ulang; DOM konten TIDAK dihapus, jadi setelah PIN benar
+  // data kembali tampil seperti semula. z-90 menutupi sidebar/header/
+  // bottom-nav (z-30/40) tetapi berada di bawah modal PIN SweetAlert2
+  // (z-1060), jadi prompt PIN tetap tampil di atasnya.
+  let pinLockOverlayEl = null;
+  function showPinLockOverlay() {
+    if (typeof document === 'undefined' || !document.body) return;
+    if (!pinLockOverlayEl) {
+      const ov = document.createElement('div');
+      ov.id = 'mkPinLockOverlay';
+      ov.className = 'fixed inset-0 z-[90] bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-4 p-6';
+      ov.setAttribute('role', 'status');
+      ov.setAttribute('aria-label', txMsg('Aplikasi terkunci', 'App locked'));
+      ov.innerHTML =
+        '<div class="w-16 h-16 brand-gradient brand-border-glow rounded-3xl flex items-center justify-center shrink-0">' +
+        '<i class="ph-fill ph-wallet text-3xl text-white" aria-hidden="true"></i></div>' +
+        '<p class="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">' + txMsg('Aplikasi Terkunci', 'App Locked') + '</p>' +
+        '<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 text-center leading-relaxed">' + txMsg('Masukkan PIN untuk melanjutkan.', 'Enter your PIN to continue.') + '</p>';
+      pinLockOverlayEl = ov;
+    }
+    if (!document.body.contains(pinLockOverlayEl)) document.body.appendChild(pinLockOverlayEl);
+    pinLockOverlayEl.classList.remove('hide');
+  }
+  function hidePinLockOverlay() {
+    if (pinLockOverlayEl) pinLockOverlayEl.classList.add('hide');
+  }
+
   // Mengembalikan `true` bila sesi unlocked / PIN tidak diset, `false` bila
   // pengguna memilih keluar (logout) atau verifikasi dibatalkan saat terkunci.
   // Pemanggil (mis. loadInitialAppData) JANGAN merender data bila hasilnya false.
@@ -699,6 +730,10 @@
     pinPromptShown = true;
     const mainEl = document.getElementById('mainContent');
     if (mainEl) mainEl.classList.add('blur-md', 'pointer-events-none');
+    // Gelombang 6 (U27): blur saja tidak cukup — tutup konten dengan
+    // layar kunci penuh yang opaque (blur dipertahankan sebagai lapisan
+    // kedua bila overlay gagal tampil).
+    showPinLockOverlay();
     try {
       // Biometrik TIDAK bisa menurunkan DEK dari PIN: bila DEK belum ada di
       // memori (buka aplikasi baru / setelah re-lock), unlock biometrik saja
@@ -766,6 +801,7 @@
       return true;
     } finally {
       pinPromptShown = false;
+      hidePinLockOverlay();
       if (mainEl) mainEl.classList.remove('blur-md', 'pointer-events-none');
     }
   }
@@ -812,6 +848,19 @@
       } catch (_) { /* ignore */ }
       return;
     }
+    // Gelombang 6 (U30): Firefox Android tidak punya beforeinstallprompt —
+    // beri petunjuk manual yang sesuai browser itu (Menu ⋮ → Tambahkan
+    // ke Layar Utama), mengikuti pola iOS di bawah.
+    if (/android/i.test(navigator.userAgent || '') && /firefox/i.test(navigator.userAgent || '')) {
+      Swal.fire({
+        icon: 'info',
+        title: txMsg('Pasang di Layar Utama', 'Install to Home Screen'),
+        html: `<p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">${txMsg('Di <strong>Firefox Android</strong>, ketuk menu <strong>⋮</strong> di kanan atas lalu pilih <strong>Tambahkan ke Layar Utama</strong> (atau <strong>Install</strong>).', 'On <strong>Firefox for Android</strong>, tap the <strong>⋮</strong> menu at the top right, then choose <strong>Add to Home screen</strong> (or <strong>Install</strong>).')}</p>`,
+        confirmButtonText: txMsg('Mengerti', 'Got it'),
+        customClass: { popup: getSwalClass() }
+      });
+      return;
+    }
     Swal.fire({
       icon: 'info',
       title: txMsg('Pasang di Layar Utama', 'Install to Home Screen'),
@@ -842,9 +891,10 @@
   // S4: the exact re-lock sequence, shared by the hidden-tab rule and
   // the visible-tab idle timer. Re-locking drops the DEK from memory,
   // so the next unlock needs the PIN once to unwrap it (biometrics
-  // alone are not enough). Limitation (pre-existing): data already
-  // rendered in this session stays in the DOM; verifyAppPinIfEnabled
-  // only blurs it as a mitigation.
+  // alone are not enough). Gelombang 6 (U27): data yang sudah dirender
+  // tetap ada di DOM, tetapi verifyAppPinIfEnabled kini menutupinya
+  // dengan layar kunci penuh yang opaque (mkPinLockOverlay) + blur
+  // sebagai lapisan kedua — angka tidak lagi terlihat samar.
   function lockForIdle() {
     try { sessionStorage.removeItem('mk_pin_unlocked'); } catch (_) { /* ignore */ }
     clearPinDataKey();

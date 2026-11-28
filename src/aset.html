@@ -88,9 +88,16 @@
         </p>
         <p class="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 mt-0.5" data-i18n="wallet.recent_transfers_sub">Catatan mutasi antar dompet, tarik tunai, dan top-up investasi.</p>
       </div>
-      <button type="button" data-action="openTransferModal" data-args='["transfer"]' class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shrink-0">
-        <i class="ph ph-arrows-left-right" aria-hidden="true"></i> <span data-i18n="dash.transfer_wallet">Tarik Tunai / Transfer</span>
-      </button>
+      <!-- Gelombang 6 (U32): dua tombol eksplisit — Transfer Antar Dompet
+        dan Tarik Tunai — menggantikan satu tombol berlabel ganda. -->
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+        <button type="button" data-action="openTransferModal" data-args='["transfer"]' class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
+          <i class="ph ph-arrows-left-right" aria-hidden="true"></i> <span class="sm:hidden" data-i18n="dash.transfer">Transfer</span><span class="hidden sm:inline" data-i18n="dash.transfer_full">Transfer Antar Dompet</span>
+        </button>
+        <button type="button" data-action="openTransferModal" data-args='["tarik_tunai"]' class="min-h-11 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand dark:text-brand-ink rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
+          <i class="ph ph-money" aria-hidden="true"></i> <span data-i18n="dash.withdraw">Tarik Tunai</span>
+        </button>
+      </div>
     </div>
     <div id="wallet-transfers" class="divide-y divide-slate-100 dark:divide-slate-800"></div>
   </div>
