@@ -104,10 +104,18 @@ jobs:
           for (const v of ['supabase.js']) {
             if (!fs.existsSync(`dist/vendor/${v}`) || fs.statSync(`dist/vendor/${v}`).size === 0) fail(`dist/vendor/${v} hilang/kosong`);
           }
-          // tailwind.min.css SENGAJA tidak ada di dist/vendor/ — build
-          // meng-inline-nya sebagai <style> ke index.html (lihat
-          // build.mjs). Yang dicek: CSS hasil kompilasi memang ter-inline.
-          if (!html.includes('/*! tailwindcss v')) fail('CSS Tailwind hasil kompilasi tidak ter-inline di dist/index.html');
+          // Gelombang 7b (T12): tailwind.min.css TIDAK lagi di-inline —
+          // build menautkannya sebagai <link> ke dist/vendor/ (lihat
+          // build.mjs). Yang dicek: file CSS hasil kompilasi tersalin,
+          // berisi header Tailwind, dan ditaut dari index.html.
+          if (!fs.existsSync('dist/vendor/tailwind.min.css') || fs.statSync('dist/vendor/tailwind.min.css').size === 0) fail('dist/vendor/tailwind.min.css hilang/kosong');
+          if (!fs.readFileSync('dist/vendor/tailwind.min.css', 'utf8').includes('/*! tailwindcss v')) fail('dist/vendor/tailwind.min.css bukan hasil kompilasi Tailwind');
+          if (!html.includes('./vendor/tailwind.min.css')) fail('dist/index.html tidak menautkan ./vendor/tailwind.min.css');
+          // Gelombang 7b (T12): modul app dieksternalisasi ke dist/app/.
+          if (!fs.existsSync('dist/app/config.js')) fail('dist/app/config.js tidak ada (eksternalisasi 7b rusak?)');
+          if (!fs.existsSync('dist/app/i18n-dict.js')) fail('dist/app/i18n-dict.js tidak ada (eksternalisasi 7b rusak?)');
+          if (!fs.existsSync('dist/app/sw-register.js')) fail('dist/app/sw-register.js tidak ada (eksternalisasi 7b rusak?)');
+          if (html.includes('<script>')) fail('blok <script> inline tersisa di dist/index.html (eksternalisasi 7b rusak?)');
           console.log(`✅ Smoke dist OK: index.html ${(html.length / 1024).toFixed(0)} KB, v${ver.version} (${ver.versionCode}), tanpa CDN, vendor lokal lengkap.`);
           NODE
       - id: artifact_meta
