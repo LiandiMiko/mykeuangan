@@ -186,7 +186,9 @@ test('K3: after a failed sync, discard-failed removes only failed items and logo
   await t.sandbox.logout();
   assert.equal(t.swalCalls.length, 2);
   assert.match(t.swalCalls[1].title, /2 transaksi masih belum tersinkronisasi/);
-  assert.match(t.swalCalls[1].text, /Ditolak server/);
+  // Gelombang 4: alasan gagal mentah (lastError) TIDAK BOLEH lagi tampil
+  // di dialog — detailnya tetap di console. Dialog hanya menyebut jumlah.
+  assert.doesNotMatch(t.swalCalls[1].text, /Ditolak server/);
   assert.match(t.swalCalls[1].text, /1 menunggu, 1 gagal/);
   assert.equal(t.discardCalled, 1);
   assert.equal(t.signOutCalled, true);

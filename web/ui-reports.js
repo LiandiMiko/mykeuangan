@@ -174,7 +174,7 @@
     } catch (error) {
       if (requestId !== laporanState.requestId) return;
       laporanState.dirty = true;
-      if (status) status.textContent = String(error.message || error);
+      if (status) status.textContent = toUserErrorMessage(error);
       const errBtn = `<button type="button" data-action="retryReportLoad" class="min-h-[44px] px-4 rounded-xl bg-brand text-white font-semibold">${escapeHtmlJS(t('lap.retry'))}</button>`;
       renderHtml(tbody, `<tr><td colspan="8" class="px-8 py-12 text-center"><p class="text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>${errBtn}</td></tr>`);
       if (mobileList) renderHtml(mobileList, `<div class="p-8 text-center"><p class="text-xs text-rose-600 dark:text-rose-400 mb-3">${escapeHtmlJS(t('lap.load_error'))}</p>${errBtn}</div>`);

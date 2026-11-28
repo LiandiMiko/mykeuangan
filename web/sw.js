@@ -1,4 +1,29 @@
 const CACHE_NAME = 'mykeuangan-__BUILD_ID__';
+// Gelombang 4 (R14): batas cache runtime — dulu setiap GET 200 disimpan
+// tanpa batas dan kuota tidak pernah dicek. Sekarang entri dibatasi
+// (tertua dihapus dulu) dan cache tidak diisi bila pemakaian sudah
+// melewati 80% kuota storage.
+const MAX_CACHE_ENTRIES = 200;
+
+async function trimCache(cache, maxEntries) {
+  try {
+    const keys = await cache.keys();
+    if (keys.length <= maxEntries) return;
+    const excess = keys.length - maxEntries;
+    for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+  } catch (_) { /* abaikan */ }
+}
+
+async function cacheWithinQuota(cache, request, response) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function') {
+      const est = await navigator.storage.estimate();
+      if (typeof est.quota === 'number' && typeof est.usage === 'number' && est.quota > 0 && est.usage / est.quota > 0.8) return;
+    }
+    await cache.put(request, response);
+    await trimCache(cache, MAX_CACHE_ENTRIES);
+  } catch (_) { /* abaikan */ }
+}
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -58,16 +83,21 @@ self.addEventListener('fetch', (event) => {
     || url.pathname.endsWith('/index.html');
 
   if (isHtmlRequest) {
+    // Gelombang 4 (R15): query string masuk ke kunci cache — dulu
+    // /index.html?v=2 dan /index.html?v=3 berbagi satu kunci sehingga
+    // versi baru tidak tersimpan/terbaca dengan benar. Fallback offline
+    // tetap memakai kunci tanpa query ('./' / './index.html' yang
+    // di-precache saat install).
     const htmlCacheKey = './index.html';
     const isMainAppHtml = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
-    const targetCacheKey = isMainAppHtml ? htmlCacheKey : url.pathname;
+    const targetCacheKey = isMainAppHtml ? htmlCacheKey + url.search : url.pathname + url.search;
     event.respondWith(
       fetch(event.request)
         .then((networkRes) => {
           if (networkRes && networkRes.status === 200) {
             const clone = networkRes.clone();
             event.waitUntil(
-              caches.open(CACHE_NAME).then((cache) => cache.put(targetCacheKey, clone))
+              caches.open(CACHE_NAME).then((cache) => cacheWithinQuota(cache, targetCacheKey, clone))
             );
           }
           return networkRes;
@@ -84,7 +114,7 @@ self.addEventListener('fetch', (event) => {
           if (networkRes && networkRes.status === 200 && event.request.method === 'GET') {
             const clone = networkRes.clone();
             event.waitUntil(
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
+              caches.open(CACHE_NAME).then((cache) => cacheWithinQuota(cache, event.request, clone))
             );
           }
           return networkRes;

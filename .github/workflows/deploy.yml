@@ -35,8 +35,14 @@ jobs:
       - run: npm run check
       - name: Siapkan config fallback (jika belum ada)
         env:
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          # Gelombang 4: nilai ini pindah dari GitHub Variables ke
+          # Secrets (Variables bisa dibaca siapa pun yang punya akses
+          # baca repo settings; Secrets tidak). Buat dulu
+          # SUPABASE_URL + SUPABASE_ANON_KEY di Settings -> Secrets
+          # and variables -> Actions -> Secrets (nilai yang sama
+          # dengan yang sudah ada di web/config.js).
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           node -e "const fs=require('fs'); if(!fs.existsSync('web/config.js') && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY){ fs.writeFileSync('web/config.js', 'window.APP_CONFIG = ' + JSON.stringify({ SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY }) + ';\n'); }"
       - name: Build dist (PR check)

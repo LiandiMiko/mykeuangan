@@ -55,7 +55,7 @@ Sebelum uji login Google di HP Android:
 
 ### 3A. Opsi Cepat: Cloud Build APK & AAB via GitHub Actions (Tanpa Install Android Studio)
 
-Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (lockfile-free tanpa `cache: npm` + caching Gradle lewat `gradle/actions/setup-gradle@v4`) yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` dengan nama berversi (`MyKeuGuech-v3.20.7-*.apk`):
+Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (lockfile-free tanpa `cache: npm` + caching Gradle lewat `gradle/actions/setup-gradle@v4`) yang otomatis menyiapkan JDK 21 + Android SDK 36, menghasilkan aset Play Store (`512x512` & `1024x500`), lalu membundel `.apk` / `.aab` dengan nama berversi (`MyKeuGuech-v3.20.8-*.apk`):
 
 1. **Buat test APK untuk HP Android Anda (`debug-apk`):**
    - Buka repo GitHub → tab **Actions** → pilih **Build Android APK & AAB (Capacitor 8)** → klik **Run workflow** → pilih **`debug-apk`** *(atau cukup push ke `main` untuk trigger `all`)* → tunggu ±3–5 menit → unduh artifact **`mykeuguech-android-debug-apk`** atau langsung dari **GitHub Releases** (`releases/latest`).
@@ -73,7 +73,7 @@ Repository sudah dilengkapi workflow **`.github/workflows/android-build.yml`** (
      - `ANDROID_KEY_PASSWORD`
    - Jalankan workflow dengan `build_type: release-apk`, `release-aab`, atau `all` (atau push tag `v3.18.0`) lalu unduh artifact **`mykeuguech-android-release-apk`** (`MyKeuGuech-v3.18.0-release.apk`) / **`mykeuguech-android-release-aab`** (`MyKeuGuech-v3.18.0-release.aab`).
 
-> Pastikan GitHub Repository Variables (`SUPABASE_URL` & `SUPABASE_ANON_KEY` di *Settings → Secrets and variables → Actions → Variables*) sudah terisi jika `web/config.js` belum tersedia; workflow akan langsung memberi pesan jelas bila kedua variable tersebut kosong.
+> Pastikan GitHub Repository Secrets (`SUPABASE_URL` & `SUPABASE_ANON_KEY` di *Settings → Secrets and variables → Actions → Secrets*) sudah terisi jika `web/config.js` belum tersedia; workflow akan langsung memberi pesan jelas bila kedua secret tersebut kosong.
 
 ### 3B. Opsi Lokal Windows: Build 1-Perintah `.apk` / `.aab`
 

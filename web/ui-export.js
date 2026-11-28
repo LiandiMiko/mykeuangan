@@ -5,9 +5,12 @@
 (function (root) {
   'use strict';
 
+  // Gelombang 4 (R18): awalan spasi sebelum pemicu (= + - @ | %) juga
+  // disanitasi — Sheets/Excel dapat memangkas spasi lalu mengevaluasi
+  // sisanya sebagai formula. | dan % masuk daftar OWASP.
   function csvEscapeCell(val) {
     const s = String(val == null ? '' : val);
-    const safe = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+    const safe = /^\s*[=+\-@|%]/.test(s) ? "'" + s : s;
     return /[",\r\n]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
   }
 

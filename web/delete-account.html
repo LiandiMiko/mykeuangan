@@ -43,18 +43,20 @@
         <div id="sessionBanner" class="hide">
           <p>Sesi aktif terdeteksi untuk <strong id="activeEmail"></strong>.</p>
         </div>
-        <div id="credFields">
+        <div id="emailFields">
           <label for="delEmail">Email Terdaftar</label>
           <input id="delEmail" type="email" autocomplete="username" placeholder="nama@email.com">
-          <label for="delPass">Kata Sandi</label>
-          <input id="delPass" type="password" autocomplete="current-password" placeholder="Kata sandi akun">
+        </div>
+        <div id="passFields">
+          <label for="delPass">Kata Sandi Akun <span style="font-weight:400">(wajib — verifikasi ulang sebelum akun dihapus)</span></label>
+          <input id="delPass" type="password" autocomplete="current-password" placeholder="Kata sandi akun" required>
         </div>
         <label for="delConfirm">Ketik <strong>HAPUS</strong> untuk konfirmasi permanen</label>
         <input id="delConfirm" type="text" autocomplete="off" placeholder="HAPUS" required>
         <button id="delSubmitBtn" type="submit">Hapus Akun Saya Secara Permanen</button>
         <p id="delStatus" class="status" role="status" aria-live="polite"></p>
       </form>
-      <p style="font-size:12px;margin-top:14px">Jika akun Anda hanya memakai Google Sign-In tanpa kata sandi, silakan masuk lewat <a href="./index.html">halaman utama</a> terlebih dahulu lalu kembali ke halaman ini.</p>
+      <p style="font-size:12px;margin-top:14px">Jika akun Anda hanya memakai Google Sign-In tanpa kata sandi, Anda belum bisa menghapus akun dari halaman ini — penghapusan memerlukan verifikasi kata sandi akun.</p>
     </section>
   </main>
 
@@ -70,7 +72,7 @@
       var btn = document.getElementById('delSubmitBtn');
       var sessionBanner = document.getElementById('sessionBanner');
       var activeEmail = document.getElementById('activeEmail');
-      var credFields = document.getElementById('credFields');
+      var emailFields = document.getElementById('emailFields');
       if (!window.supabase || !sbUrl || !sbAnonKey) {
         statusEl.textContent = 'Konfigurasi Supabase belum dimuat.';
         statusEl.className = 'status err';
@@ -157,7 +159,7 @@
         if (sess && sess.user) {
           hasActiveSession = true;
           sessionBanner.classList.remove('hide');
-          credFields.classList.add('hide');
+          emailFields.classList.add('hide');
           activeEmail.textContent = sess.user.email || 'Pengguna Aktif';
         }
       });
@@ -174,14 +176,20 @@
         btn.disabled = true;
         btn.textContent = 'Memproses penghapusan...';
         try {
+          // Gelombang 4: server (T4) mewajibkan kata sandi untuk
+          // verifikasi ulang — sebelumnya halaman ini tidak pernah
+          // mengirimkannya, sehingga dengan sesi aktif penghapusan
+          // berjalan tanpa verifikasi ulang sama sekali (dan tanpa sesi,
+          // server menolak dengan 401).
+          var password = document.getElementById('delPass').value || '';
+          if (!password) throw new Error('Isi kata sandi akun untuk verifikasi ulang penghapusan.');
           if (!hasActiveSession) {
             var email = (document.getElementById('delEmail').value || '').trim();
-            var password = document.getElementById('delPass').value || '';
-            if (!email || !password) throw new Error('Isi email dan kata sandi atau masuk terlebih dahulu di halaman utama.');
+            if (!email) throw new Error('Isi email dan kata sandi atau masuk terlebih dahulu di halaman utama.');
             var signRes = await sb.auth.signInWithPassword({ email: email, password: password });
             if (signRes.error) throw signRes.error;
           }
-          var res = await sb.functions.invoke('delete-account', { body: { confirmation: 'HAPUS' } });
+          var res = await sb.functions.invoke('delete-account', { body: { confirmation: 'HAPUS', password: password } });
           if (res.error) {
             var msg = res.error.message || 'Penghapusan akun gagal.';
             if (res.error.context && typeof res.error.context.json === 'function') {

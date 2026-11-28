@@ -86,12 +86,15 @@ jobs:
 
       - name: Siapkan web/config.js (fallback env vars)
         env:
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          # Gelombang 4: pindah dari GitHub Variables ke Secrets (lihat
+          # deploy.yml — Secrets wajib sudah dibuat sebelum merge ini,
+          # kalau tidak build Android di main gagal di langkah ini).
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           node -e "const fs=require('fs'); if(!fs.existsSync('web/config.js') && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY){ fs.writeFileSync('web/config.js', 'window.APP_CONFIG = ' + JSON.stringify({ SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY }) + ';\n'); }"
           if [ ! -f web/config.js ]; then
-            echo "::error::web/config.js tidak ditemukan. Tambahkan GitHub Repository Variables SUPABASE_URL dan SUPABASE_ANON_KEY di Settings -> Secrets and variables -> Actions -> Variables."
+            echo "::error::web/config.js tidak ditemukan. Tambahkan GitHub Repository Secrets SUPABASE_URL dan SUPABASE_ANON_KEY di Settings -> Secrets and variables -> Actions -> Secrets."
             exit 1
           fi
 

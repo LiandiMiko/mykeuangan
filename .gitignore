@@ -8,6 +8,16 @@ android/keystore.properties
 android/debug-keystore.properties
 *.jks
 *.keystore
+# Gelombang 4: kunci privat & konfigurasi layanan — jangan pernah
+# ter-commit (kunci penandatangan, kredensial Firebase, paket build).
+*.pem
+*.key
+*.p12
+*.cer
+google-services.json
+GoogleService-Info.plist
+*.apk
+*.aab
 android/.gradle/
 android/build/
 android/app/build/
