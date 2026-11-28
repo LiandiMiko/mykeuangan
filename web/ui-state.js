@@ -456,10 +456,19 @@
 
   function showActionError(error) {
     console.error(error);
+    // Gelombang 4: jangan tampilkan pesan mentah Supabase / internal
+    // ke pengguna — toUserErrorMessage memetakan ke pesan ramah atau
+    // pesan umum. Fallback generik bila helper belum termuat (mis. tes
+    // yang hanya memuat file ini): jangan pernah crash di jalur error.
+    const safeText = (typeof toUserErrorMessage === 'function')
+      ? toUserErrorMessage(error)
+      : ((typeof localStorage !== 'undefined' && localStorage.getItem('lang') === 'en')
+        ? 'Something went wrong. Please try again.'
+        : 'Terjadi kesalahan. Coba lagi.');
     Swal.fire({
       icon: 'error',
       title: t('alert.failed'),
-      text: String((error && error.message) || error),
+      text: safeText,
       customClass: { popup: getSwalClass() }
     });
   }

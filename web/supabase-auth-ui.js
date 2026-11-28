@@ -230,7 +230,7 @@
       if (error) {
         btn.disabled = false;
         btn.textContent = en ? 'Save New Password' : 'Simpan Kata Sandi Baru';
-        errEl.textContent = error.message || 'Gagal memperbarui kata sandi.';
+        errEl.textContent = toUserErrorMessage(error, en ? 'en' : 'id');
         return;
       }
       wrap.remove();

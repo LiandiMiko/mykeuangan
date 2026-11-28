@@ -213,7 +213,7 @@
       const pass = el.querySelector('#mkPass').value;
       const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
       if (error) {
-        errEl.textContent = (en ? 'Sign in failed: ' : 'Gagal masuk: ') + error.message;
+        errEl.textContent = toUserErrorMessage(error, en ? 'en' : 'id');
         authUi.focusAuthErrorField(el, 'mkPass', true);
         return;
       }
@@ -236,7 +236,7 @@
       }
       const { data, error } = await sb.auth.signUp({ email, password: pass });
       if (error) {
-        errEl.textContent = (en ? 'Sign up failed: ' : 'Pendaftaran gagal: ') + error.message;
+        errEl.textContent = toUserErrorMessage(error, en ? 'en' : 'id');
         authUi.focusAuthErrorField(el, 'mkEmail', false);
         return;
       }
@@ -251,7 +251,7 @@
     } else if (submitMode === 'forgot') {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl() });
       if (error) {
-        errEl.textContent = (en ? 'Failed to send reset link: ' : 'Gagal kirim reset: ') + error.message;
+        errEl.textContent = toUserErrorMessage(error, en ? 'en' : 'id');
         authUi.focusAuthErrorField(el, 'mkEmail', false);
         return;
       }
@@ -303,9 +303,9 @@
             const { error } = useNativeOAuth
               ? await window.startNativeOAuth(sb, 'google')
               : await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: authRedirectUrl() } });
-            if (error && errEl) errEl.textContent = (isAuthEn() ? 'Google Sign-In failed: ' : 'Login Google gagal: ') + error.message;
+            if (error && errEl) errEl.textContent = toUserErrorMessage(error, isAuthEn() ? 'en' : 'id');
           } catch (oauthErr) {
-            if (errEl) errEl.textContent = (isAuthEn() ? 'Google Sign-In failed: ' : 'Login Google gagal: ') + (oauthErr.message || String(oauthErr));
+            if (errEl) errEl.textContent = toUserErrorMessage(oauthErr, isAuthEn() ? 'en' : 'id');
           } finally {
             isSubmitting = false;
             gBtn.disabled = false;
@@ -329,7 +329,7 @@
         try {
           await executeAuthSubmit(mode, el, errEl);
         } catch (error) {
-          errEl.textContent = (isAuthEn() ? 'Failed: ' : 'Gagal: ') + (error.message || String(error));
+          errEl.textContent = toUserErrorMessage(error, isAuthEn() ? 'en' : 'id');
         } finally {
           isSubmitting = false;
           const cur = el.querySelector('#mkSubmitBtn');
@@ -540,19 +540,19 @@
   // Shown when items remain after "Sync Now". Returns true when logout may proceed.
   async function handleRemainingQueueAfterSync(status) {
     const en = isAuthEn();
-    const firstError = (status.items.find((x) => x && x.lastError) || {}).lastError || '';
+    // Gelombang 4: alasan gagal mentah (lastError) TIDAK ditampilkan ke
+    // pengguna — detailnya tetap di console lewat pemanggil. Dialog hanya
+    // menyebut jumlah antrean yang belum tersinkronisasi.
     if (typeof Swal === 'undefined') {
       return confirmNative(en
-        ? `Sync did not finish: ${status.total} transaction(s) still unsynced${firstError ? ' (first error: ' + firstError + ')' : ''}. Logging out will permanently delete them. Continue?`
-        : `Sinkronisasi belum selesai: ${status.total} transaksi masih belum tersinkronisasi${firstError ? ' (alasan gagal pertama: ' + firstError + ')' : ''}. Logout akan menghapusnya secara permanen. Lanjutkan?`);
+        ? `Sync did not finish: ${status.total} transaction(s) still unsynced. Logging out will permanently delete them. Continue?`
+        : `Sinkronisasi belum selesai: ${status.total} transaksi masih belum tersinkronisasi. Logout akan menghapusnya secara permanen. Lanjutkan?`);
     }
     const res = await Swal.fire({
       icon: 'warning',
       title: en ? `${status.total} transaction(s) still unsynced` : `${status.total} transaksi masih belum tersinkronisasi`,
       text: (en ? `Sync did not finish (${status.pending} pending, ${status.failed} failed). ` : `Sinkronisasi belum selesai (${status.pending} menunggu, ${status.failed} gagal). `)
-        + (firstError
-          ? (en ? `First error: ${firstError} ` : `Alasan gagal pertama: ${firstError} `)
-          : '')
+
         + (en ? 'Logging out now will also delete the remaining items.' : 'Logout sekarang juga akan menghapus item yang tersisa.'),
       showCancelButton: true,
       showDenyButton: true,

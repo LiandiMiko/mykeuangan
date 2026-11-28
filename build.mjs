@@ -20,6 +20,10 @@ const VENDOR_ROOT = path.join(WEB, 'vendor');
 // kalau ada vendor yang hilang/rusak — tidak ada lagi CDN diam-diam.
 
 const WEB_MODULES = [
+  // Gelombang 4: error-messages.js HARUS dimuat pertama — semua modul
+  // (ui-state.js showActionError, supabase-auth.js, dsb.) memakainya
+  // untuk menyaring pesan error sebelum ditampilkan ke pengguna.
+  'error-messages.js',
   'native-bridge.js',
   'finance-analysis-core.js',
   'finance-analysis-portfolio.js',

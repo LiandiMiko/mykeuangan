@@ -201,11 +201,11 @@
     try {
       const { error } = await sb.auth.signInWithPassword({ email, password: String(res.value) });
       if (error) {
-        await Swal.fire({ icon: 'error', title: txMsg('Password Salah', 'Incorrect Password'), text: String(error.message || error), customClass: { popup: getSwalClass() } });
+        await Swal.fire({ icon: 'error', title: txMsg('Password Salah', 'Incorrect Password'), text: toUserErrorMessage(error, isEn() ? 'en' : 'id'), customClass: { popup: getSwalClass() } });
         return false;
       }
     } catch (err) {
-      await Swal.fire({ icon: 'error', title: txMsg('Verifikasi Gagal', 'Verification Failed'), text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      await Swal.fire({ icon: 'error', title: txMsg('Verifikasi Gagal', 'Verification Failed'), text: toUserErrorMessage(err, isEn() ? 'en' : 'id'), customClass: { popup: getSwalClass() } });
       return false;
     }
     await writePinLockState({ attempts: 0, lockedUntil: 0, lockoutCount: 0, failuresTotal: 0, passwordResetRequired: false });
@@ -621,7 +621,7 @@
       if (typeof root.logout === 'function') await root.logout({ force: true });
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
-      else Swal.fire({ icon: 'error', title: txMsg('Gagal Menghapus Akun', 'Failed to Delete Account'), text: String((err && err.message) || err), customClass: { popup: getSwalClass() } });
+      else Swal.fire({ icon: 'error', title: txMsg('Gagal Menghapus Akun', 'Failed to Delete Account'), text: toUserErrorMessage(err, isEn() ? 'en' : 'id'), customClass: { popup: getSwalClass() } });
     }
   }
 

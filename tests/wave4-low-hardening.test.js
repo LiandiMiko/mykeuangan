@@ -124,3 +124,105 @@ test('4.1 CRON_SECRET: tidak ada nilai secret di teks definisi job (sudah Vault 
   assert.doesNotMatch(scheduleSql, /x-cron-secret',\s*'[a-zA-Z0-9]/, 'ada nilai literal di header x-cron-secret');
   assert.match(scheduleSql, /nilai CRON_SECRET TIDAK LAGI tertulis/);
 });
+
+/* ============================================================
+   4.2 Pesan error aman — web/error-messages.js + showActionError
+   ============================================================ */
+const vm = require('node:vm');
+
+function createStorage(initial) {
+  const map = new Map(Object.entries(initial || {}));
+  return {
+    _map: map,
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => map.set(k, String(v)),
+    removeItem: (k) => map.delete(k)
+  };
+}
+
+function loadUiModules(lang) {
+  const localStorage = createStorage(lang ? { lang } : {});
+  const swalCalls = [];
+  const consoleErrors = [];
+  const sandbox = {
+    window: null,
+    console: { ...console, error: (...a) => consoleErrors.push(a) },
+    localStorage,
+    document: { documentElement: { classList: { contains: () => false } } },
+    Swal: { fire: (opts) => { swalCalls.push(opts); return Promise.resolve({}); } },
+    t: (k) => k
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync('web/error-messages.js', 'utf8'), sandbox, { filename: 'error-messages.js' });
+  vm.runInContext(fs.readFileSync('web/ui-state.js', 'utf8'), sandbox, { filename: 'ui-state.js' });
+  return { sandbox, swalCalls, consoleErrors, localStorage };
+}
+
+test('4.2 toUserErrorMessage: pola Supabase/auth/jaringan dipetakan, bukan mentah', () => {
+  const { sandbox } = loadUiModules('id');
+  const f = sandbox.toUserErrorMessage;
+  assert.equal(f(new Error('Invalid login credentials'), 'id'), 'Email atau kata sandi salah. Periksa kembali lalu coba lagi.');
+  assert.equal(f(new Error('Invalid login credentials'), 'en'), 'Incorrect email or password. Check and try again.');
+  assert.match(f(new Error('User already registered'), 'id'), /sudah terdaftar/);
+  assert.match(f(new Error('Too many requests'), 'id'), /Terlalu banyak percobaan/);
+  assert.match(f(new Error('Failed to fetch'), 'id'), /Tidak ada koneksi internet/);
+  assert.match(f(new Error('JWT expired'), 'id'), /Sesi Anda berakhir/);
+  assert.match(f(new Error('Password should be different from old password'), 'id'), /tidak memenuhi syarat/);
+  assert.match(f({ code: '23505', message: 'duplicate key value violates unique constraint "x"' }, 'id'), /sudah ada/);
+  // Pesan mentah yang tidak dikenal -> umum (detail tetap di console).
+  assert.equal(f(new Error('Database error saving new user'), 'id'), 'Terjadi kesalahan. Coba lagi.');
+  assert.equal(f(new Error('relation "public.foo" does not exist'), 'id'), 'Terjadi kesalahan. Coba lagi.');
+  assert.equal(f(new Error(''), 'id'), 'Terjadi kesalahan. Coba lagi.');
+  assert.equal(f(null, 'id'), 'Terjadi kesalahan. Coba lagi.');
+  // Pesan polos tanpa penanda teknis diteruskan (aturan 4: itu suara
+  // aplikasi sendiri — tidak membocorkan detail implementasi).
+  // Yang berpenanda teknis tetap digeneralisasi (lihat dua baris atas).
+  assert.equal(f(new Error('something broke'), 'en'), 'something broke');
+});
+
+test('4.2 toUserErrorMessage: pesan untuk pengguna (userMessage / validasi klien) lolos apa adanya', () => {
+  const { sandbox } = loadUiModules('id');
+  const f = sandbox.toUserErrorMessage;
+  const marked = sandbox.userError('Batas impor 500 baris.');
+  assert.equal(f(marked, 'id'), 'Batas impor 500 baris.');
+  // Pesan validasi klien berbahasa Indonesia (tanpa penanda teknis) lolos.
+  assert.equal(f(new Error('Saldo dompet asal tidak mencukupi untuk transfer ini.'), 'id'), 'Saldo dompet asal tidak mencukupi untuk transfer ini.');
+  assert.equal(f(new Error('Kata sandi minimal 12 karakter.'), 'id'), 'Kata sandi minimal 12 karakter.');
+  // Deteksi bahasa dari localStorage bila argumen lang tidak diisi.
+  const { sandbox: sbEn } = loadUiModules('en');
+  assert.equal(sbEn.toUserErrorMessage(new Error('Invalid login credentials')), 'Incorrect email or password. Check and try again.');
+});
+
+test('4.2 showActionError: menampilkan pesan ramah, mentah hanya di console', () => {
+  const { sandbox, swalCalls, consoleErrors } = loadUiModules('id');
+  sandbox.showActionError(new Error('Invalid login credentials'));
+  assert.equal(swalCalls.length, 1);
+  assert.equal(swalCalls[0].text, 'Email atau kata sandi salah. Periksa kembali lalu coba lagi.');
+  assert.doesNotMatch(swalCalls[0].text, /Invalid login credentials/);
+  assert.equal(consoleErrors.length, 1, 'pesan mentah harus tetap tercatat di console.error');
+  assert.match(String(consoleErrors[0][0] && consoleErrors[0][0].message), /Invalid login credentials/);
+  sandbox.showActionError(new Error('relation "public.foo" does not exist'));
+  assert.equal(swalCalls[1].text, 'Terjadi kesalahan. Coba lagi.');
+});
+
+test('4.2 situs auth & laporan tidak lagi menempelkan error.message mentah', () => {
+  const authJs = fs.readFileSync('web/supabase-auth.js', 'utf8');
+  assert.doesNotMatch(authJs, /Gagal masuk: ' \+ error\.message/);
+  assert.doesNotMatch(authJs, /Pendaftaran gagal: ' \+ error\.message/);
+  assert.doesNotMatch(authJs, /Gagal kirim reset: ' \+ error\.message/);
+  assert.doesNotMatch(authJs, /Login Google gagal: ' \+ error\.message/);
+  assert.doesNotMatch(authJs, /alasan gagal pertama: /);
+  assert.doesNotMatch(authJs, /first error: /);
+  assert.match(authJs, /toUserErrorMessage\(error, en \? 'en' : 'id'\)/);
+  const authUiJs = fs.readFileSync('web/supabase-auth-ui.js', 'utf8');
+  assert.match(authUiJs, /toUserErrorMessage\(error, en \? 'en' : 'id'\)/);
+  const accountJs = fs.readFileSync('web/ui-feat-account.js', 'utf8');
+  assert.match(accountJs, /toUserErrorMessage\(err, isEn\(\) \? 'en' : 'id'\)/);
+  const reportsJs = fs.readFileSync('web/ui-reports.js', 'utf8');
+  assert.match(reportsJs, /toUserErrorMessage\(error\)/);
+  // Modul dimuat pertama di build agar tersedia untuk semua konsumen.
+  const buildMjs = fs.readFileSync('build.mjs', 'utf8');
+  assert.match(buildMjs, /const WEB_MODULES = \[\s*\/\/ Gelombang 4[\s\S]{0,200}?'error-messages\.js',\s*'native-bridge\.js',/);
+});
