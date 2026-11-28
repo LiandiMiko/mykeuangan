@@ -360,11 +360,23 @@ test('T3: modal recovery password tidak berubah (link email recovery adalah aute
   assert.doesNotMatch(recoveryJs, /signInWithPassword/);
 });
 
-test('Item terbuka: reset password admin belum mencabut sesi target (auth-js 2.65.0)', () => {
-  // admin.signOut(jwt, scope) di auth-js 2.65.0 menerima JWT pengguna yang
-  // sesinya mau dicabut — BUKAN userId. Edge function admin-password hanya
-  // memegang JWT admin pemanggil, bukan JWT target, jadi memanggilnya akan
-  // mencabut sesi admin sendiri. Tidak ada API berbasis userId di versi ini.
+test('Item terbuka (DITUTUP Gelombang 7a): reset password admin kini mencabut sesi target via RPC', () => {
+  // Dulu (auth-js 2.65.0): admin.signOut(jwt, scope) menerima JWT
+  // pengguna yang sesinya mau dicabut — BUKAN userId. Edge function
+  // admin-password hanya memegang JWT admin pemanggil, bukan JWT
+  // target, jadi memanggilnya akan mencabut sesi admin sendiri.
+  // Gelombang 7a membuktikan keterbatasan itu MASIH berlaku di
+  // supabase-js 2.119.2 (tidak ada API admin berbasis user-id
+  // untuk sesi) dan menutupnya lewat RPC SECURITY DEFINER
+  // admin_revoke_user_sessions() (migrasi 20261128120000):
+  // DELETE FROM auth.sessions WHERE user_id = target — persis yang
+  // dilakukan GoTrue saat /logout. Keterbatasan jujur: access
+  // token yang sudah diterbitkan tetap valid sampai `exp` (±1 jam).
   assert.match(adminPasswordFn, /updateUserById\(userId, \{ password \}\)/);
   assert.doesNotMatch(adminPasswordFn, /admin\.signOut\(/);
+  assert.match(adminPasswordFn, /revokeUserSessions\(adminClient, userId\)/);
+  assert.match(adminPasswordFn, /admin_revoke_user_sessions/);
+  const mig = fs.readFileSync('supabase/migrations/20261128120000_admin_revoke_user_sessions.sql', 'utf8');
+  assert.match(mig, /delete from auth\.sessions where user_id = p_target_user_id;/);
+  assert.match(mig, /grant execute on function public\.admin_revoke_user_sessions\(uuid\) to service_role;/);
 });
