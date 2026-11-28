@@ -51,14 +51,51 @@
     } catch (_) { /* ignore optional audit table failure */ }
   }
 
+  // Admin — daftar pengguna beserta aktivitas terakhirnya (Gelombang
+  // admin: kolom Perubahan Terakhir). Sumber TUNGGAL: RPC
+  // get_admin_user_activity (migrasi 20261128100000) — JANGAN lagi
+  // fetchAll('profiles'): tabel profiles tidak menyimpan aktivitas,
+  // dan daftar tanpa data aktivitas akan menyesatkan (mis. semua
+  // pengguna tampak aktif). Bila RPC gagal, lempar error yang jelas
+  // supaya panel menampilkan pesan gagal, bukan daftar kosong data.
+  async function api_getAdminActivity() {
+    if (window.sessionRole !== 'admin') throw new Error('Hanya untuk administrator.');
+    const { data, error } = await sb.rpc('get_admin_user_activity');
+    if (error) {
+      throw new Error('Gagal memuat data aktivitas pengguna (get_admin_user_activity): ' + (error.message || String(error)));
+    }
+    const rows = Array.isArray(data) ? data : (data ? [data] : []);
+    // RPC mengembalikan user_id (bukan id) — normalisasi ke bentuk
+    // yang dipakai panel admin (u.id) tanpa mengubah nama field RPC.
+    return rows.map((r) => ({
+      id: r.user_id,
+      user_id: r.user_id,
+      email: r.email,
+      display_name: r.display_name,
+      role: r.role,
+      status: r.status,
+      created_at: r.created_at,
+      last_sign_in_at: r.last_sign_in_at,
+      last_activity_at: r.last_activity_at,
+      last_change_at: r.last_change_at,
+      days_inactive: (r.days_inactive === null || r.days_inactive === undefined) ? null : Number(r.days_inactive),
+      deletion_due_in_days: (r.deletion_due_in_days === null || r.deletion_due_in_days === undefined) ? null : Number(r.deletion_due_in_days),
+      warning_sent_at: r.warning_sent_at
+    }));
+  }
+
   Object.assign(core.handlers, {
+    async api_getAdminActivity() {
+      return api_getAdminActivity();
+    },
+
     async api_getAdminData() {
       if (window.sessionRole !== 'admin') throw new Error('Akses ditolak: Hanya untuk administrator.');
       const { data: authData, error: authError } = await sb.auth.getUser();
       fail(authError);
       if (!authData.user) throw new Error('Sesi login tidak valid. Silakan masuk kembali.');
       const [profiles, statsRes, auditRes] = await Promise.all([
-        fetchAll('profiles', 'id,email,display_name,role,status,created_at', ['created_at']),
+        api_getAdminActivity(),
         sb.rpc('get_admin_platform_stats'),
         sb.from('admin_audit_logs').select('id,actor_email,action,target_email,details,created_at').order('created_at', { ascending: false }).limit(25)
       ]);
