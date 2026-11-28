@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.11** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.12** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.11-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.12-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.11-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.12-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.11-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.11-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.11-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.12-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.12-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.12-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -471,6 +471,11 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 ---
 
 ## 📝 Changelog — What's New in v2.0
+
+### 28 November 2026: Update v3.20.12 (Notifikasi Admin di Dalam Aplikasi)
+- **Notifikasi Admin di Dalam Aplikasi (`supabase/migrations/20261128110000_admin_notifications.sql`, `supabase/functions/account-cleanup/logic.ts`, `supabase/functions/account-cleanup/index.ts`, `src/admin.html`, `web/ui-admin.js`, `web/supabase-admin.js`, `src/i18n.html`)**: [DIISI KOORDINATOR: hash commit Worker A + Worker B + jumlah tes] Migrasi baru menambah tabel `admin_notifications` (hanya admin yang bisa membaca, lewat RLS + 2 RPC admin-only) untuk menggantikan email Resend. Panel admin kini punya bagian Notifikasi dengan lencana "belum dibaca" dan tombol tandai sudah dibaca (kunci i18n `adm.notif_*`). Akun yang sudah 6 hari tidak ada perubahan memunculkan notifikasi peringatan "akun ini akan dihapus besok"; hari ke-7 akun dihapus otomatis beserta seluruh datanya dan admin mendapat notifikasi konfirmasi. Penghapusan tetap otomatis dan tetap fail-closed: akun hari ke-7 HANYA dihapus bila notifikasi peringatan hari ke-6 sudah dibuat (`deletion_warning_sent_at` kini berarti "notifikasi peringatan admin dibuat"); akun ≥ 7 hari yang belum diperingatkan mendapat peringatan dulu dan baru dihapus pada run berikutnya; bila insert notifikasi gagal, akun TIDAK dihapus.
+- **Email Resend Dihentikan**: Rencana email peringatan/konfirmasi via Resend dicoret atas keputusan Liandi 2026-11-28 ~15:04 WIB ("gausah by email, terlalu ribet") — domain `lisandimiko.web.id` terdelegasi ke 4 nameserver JogjaCamp yang semuanya menolak query zona (lame delegation), sehingga Resend tidak bisa memverifikasi domain tanpa perbaikan di registrar. Jalur Resend dihapus dari `account-cleanup`; secret `RESEND_API_KEY` tetap terpasang di Supabase tetapi TIDAK terpakai lagi, dan tidak ada lagi langkah produksi yang membutuhkan `RESEND_FROM_EMAIL`. Tidak ada perubahan jadwal: job `mk-account-cleanup` yang sudah ada tetap berjalan harian pukul 02:00 WIB (`0 19 * * *`).
+- **Catatan versi**: update ke v3.20.12 menimpa v3.20.11 tanpa uninstall (`versionCode 3020012` > `3020011` — monoton).
 
 ### 28 November 2026: Update v3.20.11 (Tampilan & Pengalaman Pakai: Navigasi Lebih Lengkap, Tulisan Lebih Jelas)
 - **Navigasi & Alur (`src/Index.html`, `src/dashboard.html`, `src/aset.html`, `src/laporan.html`, `src/form.html`, `web/ui-shell.js`, `web/ui-wallets.js`, `tests/wave6b-nav-forms-flows.test.js`)**: Layar Utang & Piutang kini ada di sidebar dan menggantikan tab Budget di navigasi bawah HP (Budget tetap satu ketukan dari sidebar dan Command Palette); penanda halaman aktif kini menunjuk Utang saat layar utang dibuka, bukan lagi Dashboard. Command Palette kini bisa dibuka dari HP lewat tombol kaca pembesar di header. Modal transfer menampilkan saldo dompet asal di tiap pilihan dan memperingatkan sebelum submit bila nominal melebihi saldo. Kolom nominal utama memakai keypad angka (`inputmode="decimal"`) di HP. Tombol "Transfer Antar Dompet" dan "Tarik Tunai" kini terpisah (sebelumnya satu label ganda). Entri "Restore Backup JSON" kini ada di menu "Ekspor & Backup" juga, berdampingan dengan "Unduh Backup JSON".
