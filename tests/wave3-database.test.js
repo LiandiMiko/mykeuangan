@@ -74,8 +74,22 @@ test('3.2 §2a: replace_telegram_pairing memakai HMAC, bukan digest SHA-256 polo
   assert.doesNotMatch(migrationSql, /digest\(p_otp, 'sha256'\)/,
     'migrasi Wave 3.2 tidak boleh lagi memakai SHA-256 polos untuk OTP');
   const hashBody = fnBody(migrationSql, 'telegram_otp_hash');
-  assert.match(hashBody, /hmac\(p_otp, public\.telegram_otp_pepper\(\), 'sha256'\)/);
+  assert.match(hashBody, /extensions\.hmac\(p_otp, public\.telegram_otp_pepper\(\), 'sha256'\)/);
   assert.match(hashBody, /encode\(.*'hex'\)/);
+});
+
+test('3.2 §2a: panggilan pgcrypto di migrasi harus berkualifikasi skema extensions', () => {
+  // Supabase memasang pgcrypto di skema `extensions`, bukan `public`,
+  // sementara semua fungsi Wave 3 memakai `set search_path = public`.
+  // Panggilan tak berkualifikasi gagal: saat CREATE untuk fungsi
+  // `language sql` (telegram_otp_hash) dan saat runtime untuk plpgsql
+  // (rantai hash audit). Regresi ini menggagalkan penerapan migrasi
+  // 20261128040000 di produksi (ERROR 42883, rollback total).
+  const unqualified = [...migrationSql.matchAll(/(?<![\w.])((hmac|digest|gen_salt|crypt)\s*\()/g)];
+  assert.deepEqual(unqualified.map((m) => m[0]), [],
+    'panggilan pgcrypto tanpa skema di migrasi: ' + unqualified.map((m) => m[0]).join(', '));
+  assert.match(migrationSql, /extensions\.hmac\(p_otp, public\.telegram_otp_pepper\(\), 'sha256'\)/);
+  assert.match(migrationSql, /extensions\.digest\(/);
 });
 
 test('3.2 §2a: pepper dibaca dari Vault (nama secret saja, tanpa nilai)', () => {

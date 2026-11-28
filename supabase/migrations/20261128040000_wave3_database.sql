@@ -124,7 +124,7 @@ security definer
 stable
 set search_path = public
 as $$
-  select encode(hmac(p_otp, public.telegram_otp_pepper(), 'sha256'), 'hex');
+  select encode(extensions.hmac(p_otp, public.telegram_otp_pepper(), 'sha256'), 'hex');
 $$;
 
 revoke all on function public.telegram_otp_hash(text) from public, anon, authenticated;
@@ -367,7 +367,7 @@ begin
   new.prev_hash := v_prev;
   -- created_at dipaksa ke UTC agar hash deterministik apa pun TimeZone sesi.
   new.entry_hash := encode(
-    digest(
+    extensions.digest(
       coalesce(v_prev, '') || '|' ||
       coalesce(new.actor_user_id::text, '') || '|' ||
       coalesce(new.actor_email, '') || '|' ||
@@ -415,7 +415,7 @@ begin
       return r.id;
     end if;
     v_expected_hash := encode(
-      digest(
+      extensions.digest(
         coalesce(v_expected_prev, '') || '|' ||
         coalesce(r.actor_user_id::text, '') || '|' ||
         coalesce(r.actor_email, '') || '|' ||
