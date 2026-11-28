@@ -530,11 +530,15 @@ test('S6: hash legacy setelah cut-off (v3.20.7) — ditolak mentah, hash tidak b
   assert.equal(mod.storage.getItem('mk_app_pin_hash'), legacy, 'hash tidak boleh berubah saat ditolak');
 });
 
-test('S6: derivePinHash selalu memakai prefix pbkdf2$', async () => {
+test('S6: derivePinHash selalu memakai prefix pbkdf2$ + iterasi 600rb (Gelombang 7b)', async () => {
   const mod = loadAccountModule();
   const feat = mod.sandbox.__mkFeat.wave3Auth;
   const hash = await feat.derivePinHash('4829', '00112233445566778899aabbccddeeff');
-  assert.match(hash, /^pbkdf2\$[0-9a-f]{64}$/);
+  assert.match(hash, /^pbkdf2\$600000\$[0-9a-f]{64}$/);
+  assert.equal(feat.PIN_PBKDF2_ITERATIONS, 600000);
+  assert.equal(feat.parsePinHashIterations(hash), 600000);
+  // Format lama (tanpa segmen iterasi) dibaca sebagai 100rb.
+  assert.equal(feat.parsePinHashIterations('pbkdf2$' + 'aa'.repeat(32)), 100000);
 });
 
 test('S6: verifyAppPinIfEnabled setelah cut-off — alur reset via password akun ditawarkan', async () => {

@@ -312,16 +312,37 @@
     return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
-  async function derivePinHash(pin, saltHex) {
+  // Gelombang 7b — hash verifikasi PIN memakai PBKDF2 600.000 iterasi
+  // (OWASP, PBKDF2-HMAC-SHA256). Format baru membawa jumlah iterasi:
+  // `pbkdf2$600000$<hex>`; format lama `pbkdf2$<hex>` berarti 100.000
+  // iterasi dan dimigrasi transparan saat PIN benar (lihat
+  // verifyPinMatches — pola yang sama dengan migrasi legacy S6).
+  const PIN_PBKDF2_ITERATIONS = 600000;
+  const PIN_PBKDF2_LEGACY_ITERATIONS = 100000;
+
+  function parsePinHashIterations(savedHash) {
+    const m = /^pbkdf2\$(\d+)\$[0-9a-f]+$/i.exec(String(savedHash || ''));
+    if (m) return Number(m[1]);
+    if (/^pbkdf2\$[0-9a-f]+$/i.test(String(savedHash || ''))) return PIN_PBKDF2_LEGACY_ITERATIONS;
+    return null;
+  }
+
+  function extractPinHashHex(savedHash) {
+    const m = /^pbkdf2\$(?:\d+\$)?([0-9a-f]+)$/i.exec(String(savedHash || ''));
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  async function derivePinHashHex(pin, saltHex, iterations) {
     const enc = new TextEncoder();
+    const iters = Number(iterations) > 0 ? Math.floor(Number(iterations)) : PIN_PBKDF2_ITERATIONS;
     if (root.crypto && root.crypto.subtle && typeof root.crypto.subtle.deriveBits === 'function') {
       const keyMat = await crypto.subtle.importKey('raw', enc.encode(String(pin)), 'PBKDF2', false, ['deriveBits']);
       const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt: enc.encode(String(saltHex || '')), iterations: 100000, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: enc.encode(String(saltHex || '')), iterations: iters, hash: 'SHA-256' },
         keyMat,
         256
       );
-      return 'pbkdf2$' + Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
+      return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
     }
     // S6 (latent bug): the old fallback returned a bare hex SHA-256
     // hash with NO pbkdf2$ prefix, so a freshly created hash was
@@ -329,6 +350,11 @@
     // when it is unavailable we throw instead of minting a hash that
     // looks legacy.
     throw new Error('PBKDF2 tidak tersedia pada perangkat ini, PIN tidak dapat dibuat dengan aman.');
+  }
+
+  async function derivePinHash(pin, saltHex, iterations) {
+    const iters = Number(iterations) > 0 ? Math.floor(Number(iterations)) : PIN_PBKDF2_ITERATIONS;
+    return 'pbkdf2$' + iters + '$' + (await derivePinHashHex(pin, saltHex, iters));
   }
 
   async function hashPin(pin) {
@@ -340,7 +366,21 @@
   async function verifyPinMatches(pin, savedHash) {
     if (String(savedHash).startsWith('pbkdf2$')) {
       const salt = localStorage.getItem('mk_app_pin_salt') || '';
-      return (await derivePinHash(pin, salt)) === savedHash;
+      const storedIters = parsePinHashIterations(savedHash);
+      if (storedIters === null) return false;
+      const hex = await derivePinHashHex(pin, salt, storedIters);
+      if (hex !== extractPinHashHex(savedHash)) return false;
+      // Gelombang 7b: PIN benar + hash masih format/iterasi lama ->
+      // migrasi transparan ke 600.000 (salt baru via hashPin, seperti
+      // migrasi legacy S6 di bawah). PIN salah tidak pernah sampai ke
+      // sini, jadi tidak ada yang dimigrasi. Migrasi dibungkus
+      // try/catch: bila penyimpanan gagal, hash lama tetap valid dan
+      // migrasi dicoba lagi saat unlock berikutnya — PIN yang benar
+      // tidak boleh gagal verifikasi gara-gara migrasi.
+      if (storedIters < PIN_PBKDF2_ITERATIONS) {
+        try { localStorage.setItem('mk_app_pin_hash', await hashPin(pin)); } catch (_) { /* migrasi tertunda, hash lama tetap berlaku */ }
+      }
+      return true;
     }
     // S6: legacy unsalted SHA-256('mkpin:'+pin). Before the v3.20.7
     // cut-off, a correct PIN still migrates the hash to PBKDF2 (as
@@ -362,8 +402,13 @@
      KUNCI ENKRIPSI DATA LOKAL / DEK (K2)
      - DEK: kunci AES-GCM 256-bit acak, dibuat saat PIN pertama diset.
      - KEK: PBKDF2(PIN ber-domain `mk-data-key:`, salt acak 16 byte,
-       100.000 iterasi, SHA-256) — lihat `pinCrypto` di ui-feat-offline.js
+       600.000 iterasi, SHA-256) — lihat `pinCrypto` di ui-feat-offline.js
        (implementasi kanonis; domain berbeda dari hash verifikasi PIN).
+       Gelombang 7b: wrap lama 100.000 iterasi tetap bisa dibuka
+       (`unwrapPinDataKey` menghormati `wrap.iterations`) dan dibungkus
+       ulang ke 600.000 dengan DEK YANG SAMA saat unlock berikutnya
+       (`migratePinDataKeyWrapIterations`, fail-soft — wrap lama tidak
+       pernah dihapus sebelum penggantinya aman tersimpan).
      - DEK dibungkus KEK (AES-GCM, IV acak 12 byte); hasil wrap + salt +
        IV disimpan di localStorage `mk_pin_data_key_wrap`. DEK hasil
        unwrap HANYA di memori (`pinDataKey`), tidak pernah di
@@ -441,6 +486,32 @@
     return migrated;
   }
 
+  // Gelombang 7b: bungkus ulang DEK yang sama ke 600.000 iterasi bila
+  // wrap yang tersimpan masih di bawah target. Fail-soft: wrap baru
+  // dihitung PENUH dulu (salt + IV baru), baru disimpan — wrap lama
+  // tidak pernah dihapus/di-overwrite sebelum penggantinya aman
+  // tersimpan. Bila re-wrap gagal (mis. Web Crypto error), fungsi
+  // mengembalikan false dan aplikasi tetap jalan dengan wrap lama;
+  // migrasi dicoba lagi saat unlock berikutnya. Tidak pernah mengunci
+  // pengguna keluar dan tidak pernah membuat DEK baru.
+  async function migratePinDataKeyWrapIterations(pin) {
+    const pc = getPinCrypto();
+    if (!pc || !pinDataKey) return false;
+    const target = Number(pc.KEK_ITERATIONS) > 0 ? Number(pc.KEK_ITERATIONS) : PIN_PBKDF2_ITERATIONS;
+    let wrap = null;
+    try { wrap = JSON.parse(localStorage.getItem(PIN_DATA_KEY_WRAP_KEY) || 'null'); } catch (_) { wrap = null; }
+    if (!wrap || typeof wrap !== 'object') return false;
+    const stored = Number(wrap.iterations) > 0 ? Number(wrap.iterations) : PIN_PBKDF2_LEGACY_ITERATIONS;
+    if (stored >= target) return false;
+    try {
+      const newWrap = await pc.wrapPinDataKey(pinDataKey, pin);
+      localStorage.setItem(PIN_DATA_KEY_WRAP_KEY, JSON.stringify(newWrap));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // Dipanggil setelah PIN terverifikasi benar. Bila wrap sudah ada, unwrap
   // DEK; bila belum ada (PIN dibuat sebelum enkripsi ini), buat DEK baru
   // lalu enkripsi ulang data lokal lama (migrasi). Bila wrap rusak (unwrap
@@ -451,7 +522,13 @@
     let wrapExists = false;
     try { wrapExists = Boolean(localStorage.getItem(PIN_DATA_KEY_WRAP_KEY)); } catch (_) { wrapExists = false; }
     if (wrapExists) {
-      if (await unwrapPinDataKey(pin)) return true;
+      if (await unwrapPinDataKey(pin)) {
+        // Gelombang 7b: unwrap berhasil — migrasikan wrap lama (100rb)
+        // ke 600rb dengan DEK yang sama. Fail-soft: gagal re-wrap tidak
+        // mengganggu unlock (lihat migratePinDataKeyWrapIterations).
+        await migratePinDataKeyWrapIterations(pin);
+        return true;
+      }
       try { console.warn('[PIN] Wrap kunci data rusak — membuat kunci baru; data lokal lama tidak dapat didekripsi.'); } catch (_) { /* ignore */ }
       await createPinDataKey(pin);
       return true;
@@ -565,7 +642,9 @@
         const oldPin = lastVerifiedPin;
         if (hasPin) {
           // PIN diubah: DEK sama, bungkus ulang dengan PIN baru — data lokal
-          // tidak perlu dienkripsi ulang.
+          // tidak perlu dienkripsi ulang. Gelombang 7b: rewrap memakai
+          // wrapPinDataKey (600.000 iterasi) dan hashPin di bawah juga
+          // 600.000, jadi hasil ganti PIN selalu format baru.
           let rewrapped = false;
           if (oldPin) rewrapped = await rewrapPinDataKey(oldPin, val.pin);
           if (!rewrapped) {
@@ -958,6 +1037,15 @@
   root.__mkFeat.getPinDataKey = getPinDataKey;
   root.__mkFeat.hasPinDataKey = hasPinDataKey;
   root.__mkFeat.clearPinDataKey = clearPinDataKey;
+  // Gelombang 7b — test/diagnostic surface: siklus hidup DEK + migrasi
+  // iterasi PBKDF2 (dipakai tests/pin-encryption-gating.test.js).
+  root.__mkFeat.pinDataKey = {
+    createPinDataKey,
+    unwrapPinDataKey,
+    rewrapPinDataKey,
+    ensurePinDataKeyAfterUnlock,
+    migratePinDataKeyWrapIterations
+  };
   // T2: state cooldown (IndexedDB) untuk tes / diagnostik.
   root.__mkFeat.pinLock = {
     readPinLockState,
@@ -973,7 +1061,11 @@
   root.__mkFeat.wave3Auth = {
     verifyPinMatches,
     derivePinHash,
+    derivePinHashHex,
     hashPin,
+    parsePinHashIterations,
+    PIN_PBKDF2_ITERATIONS,
+    PIN_PBKDF2_LEGACY_ITERATIONS,
     isLegacyPinHash,
     isLegacyPinCutoffPassed,
     LEGACY_PIN_CUTOFF_VERSION,

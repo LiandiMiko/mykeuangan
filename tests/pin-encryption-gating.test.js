@@ -138,7 +138,7 @@ const tick = (ms = 50) => new Promise((r) => setTimeout(r, ms));
 // deepStrictEqual lintas-realm gagal — bandingkan lewat JSON.
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
-test('K2: DEK wrap/unwrap PBKDF2 100k + AES-GCM round-trip, PIN salah ditolak', async () => {
+test('K2: DEK wrap/unwrap PBKDF2 600k + AES-GCM round-trip, PIN salah ditolak', async () => {
   const sandbox = makeSandbox();
   vm.runInNewContext(offlineJs, sandbox);
   const pc = sandbox.__mkFeat.pinCrypto;
@@ -148,7 +148,7 @@ test('K2: DEK wrap/unwrap PBKDF2 100k + AES-GCM round-trip, PIN salah ditolak', 
   const wrap = await pc.wrapPinDataKey(dek, '1234');
   assert.equal(wrap.format, 'mk-pin-dek-wrap-v1');
   assert.equal(wrap.kdf, 'PBKDF2-SHA256');
-  assert.equal(wrap.iterations, 100000);
+  assert.equal(wrap.iterations, 600000);
   assert.ok(wrap.salt && wrap.iv && wrap.wrappedKey);
 
   const unwrapped = await pc.unwrapPinDataKey(wrap, '1234');
@@ -399,4 +399,234 @@ test('teks UI PIN jujur: enkripsi data lokal + backoff bertingkat + verifikasi p
   assert.match(accountJs, /verifikasi password akun/);
   assert.match(accountJs, /promptAccountPasswordReverify/);
   assert.match(accountJs, /signInWithPassword/);
+});
+
+// ---------- Gelombang 7b: PBKDF2 100rb -> 600rb, migrasi transparan ----------
+// Fixture "pengguna lama" dibuat dengan tangan (bukan lewat wrapPinDataKey /
+// hashPin baru) supaya benar-benar mewakili format lama yang ada di
+// perangkat pengguna: hash `pbkdf2$<hex>` (tanpa segmen iterasi = 100rb)
+// dan wrap `{iterations: 100000}`.
+const b64 = (bytes) => Buffer.from(bytes).toString('base64');
+
+async function makeLegacyWrap100k(sandbox, dek, pin) {
+  const pc = sandbox.__mkFeat.pinCrypto;
+  const salt = new Uint8Array(16);
+  sandbox.crypto.getRandomValues(salt);
+  const iv = new Uint8Array(12);
+  sandbox.crypto.getRandomValues(iv);
+  const kek = await pc.derivePinKek(pin, salt, 100000);
+  const rawDek = await sandbox.crypto.subtle.exportKey('raw', dek);
+  const wrapped = await sandbox.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, rawDek);
+  return {
+    format: 'mk-pin-dek-wrap-v1',
+    kdf: 'PBKDF2-SHA256',
+    iterations: 100000,
+    salt: b64(salt),
+    iv: b64(iv),
+    wrappedKey: b64(new Uint8Array(wrapped))
+  };
+}
+
+async function makeLegacyHash100k(feat, storage, pin, saltHex) {
+  // Format lama ASLI: `pbkdf2$<hex>` tanpa segmen iterasi.
+  const full = await feat.derivePinHash(pin, saltHex, 100000);
+  assert.match(full, /^pbkdf2\$100000\$[0-9a-f]{64}$/);
+  const legacy = full.replace(/^pbkdf2\$100000\$/, 'pbkdf2$');
+  storage.setItem('mk_app_pin_salt', saltHex);
+  storage.setItem('mk_app_pin_hash', legacy);
+  return legacy;
+}
+
+async function exportDekHex(sandbox, dek) {
+  return Buffer.from(await sandbox.crypto.subtle.exportKey('raw', dek)).toString('hex');
+}
+
+function loadAccountSandbox({ storage, fakeIdb } = {}) {
+  const sandbox = makeSandbox({ fakeIdb, storage });
+  // checkPinPolicy memanggil getPasswordPolicy() bila ada; tanpa policy
+  // file, kembalikan null supaya fallback regex 4-6 digit dipakai.
+  sandbox.getPasswordPolicy = () => null;
+  vm.runInNewContext(offlineJs, sandbox);
+  vm.runInNewContext(accountJs, sandbox);
+  return sandbox;
+}
+
+test('7b (a): pengguna baru — hash PIN + wrap DEK langsung 600rb (format baru)', async () => {
+  const sandbox = loadAccountSandbox();
+  const feat = sandbox.__mkFeat.wave3Auth;
+  const pc = sandbox.__mkFeat.pinCrypto;
+  assert.equal(feat.PIN_PBKDF2_ITERATIONS, 600000);
+  assert.equal(pc.KEK_ITERATIONS, 600000);
+
+  const hash = await feat.hashPin('4829');
+  assert.match(hash, /^pbkdf2\$600000\$[0-9a-f]{64}$/);
+  assert.equal(await feat.verifyPinMatches('4829', hash), true);
+
+  const dek = await makeDek(sandbox);
+  const wrap = await pc.wrapPinDataKey(dek, '4829');
+  assert.equal(wrap.iterations, 600000);
+
+  // Jalur pembuatan PIN pertama end-to-end (onboarding): hash + wrap
+  // yang tersimpan harus 600rb.
+  const sandbox2 = loadAccountSandbox();
+  assert.equal(await sandbox2.__mkFeat.saveInitialAppPin('4829'), true);
+  assert.match(sandbox2.localStorage.getItem('mk_app_pin_hash'), /^pbkdf2\$600000\$[0-9a-f]{64}$/);
+  assert.equal(JSON.parse(sandbox2.localStorage.getItem('mk_pin_data_key_wrap')).iterations, 600000);
+});
+
+test('7b (b+c): pengguna lama — unlock PIN benar migrasi hash + wrap ke 600rb, DEK tetap sama', async () => {
+  const sandbox = loadAccountSandbox();
+  const feat = sandbox.__mkFeat.wave3Auth;
+  const pc = sandbox.__mkFeat.pinCrypto;
+  const pinOps = sandbox.__mkFeat.pinDataKey;
+  const storage = sandbox.localStorage;
+
+  const dek = await makeDek(sandbox);
+  const rawBefore = await exportDekHex(sandbox, dek);
+  // Data "lama": dienkripsi dengan DEK lama sebelum migrasi.
+  const secret = await pc.encryptWithDek(dek, 'saldo rahasia 125000');
+
+  const legacyHash = await makeLegacyHash100k(feat, storage, '1234', '00112233445566778899aabbccddeeff');
+  assert.match(legacyHash, /^pbkdf2\$[0-9a-f]{64}$/);
+  assert.equal(feat.parsePinHashIterations(legacyHash), 100000);
+  storage.setItem('mk_pin_data_key_wrap', JSON.stringify(await makeLegacyWrap100k(sandbox, dek, '1234')));
+
+  // Unlock seperti alur produksi: verifikasi dulu (migrasi hash), lalu
+  // ensurePinDataKeyAfterUnlock (unwrap + migrasi wrap).
+  assert.equal(await feat.verifyPinMatches('1234', legacyHash), true);
+  assert.match(storage.getItem('mk_app_pin_hash'), /^pbkdf2\$600000\$[0-9a-f]{64}$/,
+    'hash harus sudah 600rb setelah verifikasi PIN benar');
+  assert.equal(await pinOps.ensurePinDataKeyAfterUnlock('1234'), true);
+  assert.equal(JSON.parse(storage.getItem('mk_pin_data_key_wrap')).iterations, 600000,
+    'wrap harus sudah 600rb setelah unlock');
+
+  // (c) DEK tidak berubah: byte-identik, dan data lama tetap terbaca.
+  const dekAfter = sandbox.__mkFeat.getPinDataKey();
+  assert.ok(dekAfter, 'DEK harus ada di memori setelah unlock');
+  assert.equal(await exportDekHex(sandbox, dekAfter), rawBefore,
+    'DEK hasil migrasi harus byte-identik dengan DEK lama (hanya bungkusnya yang berubah)');
+  assert.equal(await pc.decryptWithDek(dekAfter, plain(secret)), 'saldo rahasia 125000');
+
+  // Hash baru tetap bisa diverifikasi; unlock kedua tidak mengubah apa pun.
+  const hashAfter = storage.getItem('mk_app_pin_hash');
+  assert.equal(await feat.verifyPinMatches('1234', hashAfter), true);
+  assert.equal(storage.getItem('mk_app_pin_hash'), hashAfter, 'hash 600rb tidak boleh dimigrasi ulang');
+  assert.equal(JSON.parse(storage.getItem('mk_pin_data_key_wrap')).iterations, 600000);
+});
+
+test('7b (d): PIN salah TIDAK memigrasi apa pun (hash + wrap tetap 100rb)', async () => {
+  const sandbox = loadAccountSandbox();
+  const feat = sandbox.__mkFeat.wave3Auth;
+  const storage = sandbox.localStorage;
+
+  const dek = await makeDek(sandbox);
+  const legacyHash = await makeLegacyHash100k(feat, storage, '1234', '00112233445566778899aabbccddeeff');
+  const legacyWrap = JSON.stringify(await makeLegacyWrap100k(sandbox, dek, '1234'));
+  storage.setItem('mk_pin_data_key_wrap', legacyWrap);
+
+  assert.equal(await feat.verifyPinMatches('9999', legacyHash), false, 'PIN salah ditolak');
+  assert.equal(storage.getItem('mk_app_pin_hash'), legacyHash, 'hash lama tidak boleh berubah saat PIN salah');
+  assert.equal(storage.getItem('mk_pin_data_key_wrap'), legacyWrap, 'wrap lama tidak boleh berubah saat PIN salah');
+  assert.equal(await feat.verifyPinMatches('9999', legacyHash), false, 'PIN salah kedua kali juga ditolak');
+  assert.equal(storage.getItem('mk_app_pin_hash'), legacyHash);
+  assert.equal(storage.getItem('mk_pin_data_key_wrap'), legacyWrap);
+
+  // PIN benar sesudahnya tetap memigrasi (tidak ada kerusakan akibat
+  // percobaan salah sebelumnya).
+  assert.equal(await feat.verifyPinMatches('1234', legacyHash), true);
+  assert.match(storage.getItem('mk_app_pin_hash'), /^pbkdf2\$600000\$/);
+});
+
+test('7b (e): migrasi hash tidak menyentuh state lockout PIN (backoff tetap berjalan)', async () => {
+  const fakeIdb = createFakeIndexedDB();
+  const storage = createStorage();
+  const sandbox = loadAccountSandbox({ fakeIdb, storage });
+  const feat = sandbox.__mkFeat.wave3Auth;
+  const pinLock = sandbox.__mkFeat.pinLock;
+
+  // Satu lockout sudah tercatat sebelum migrasi (5x salah = kunci 60 detik).
+  for (let i = 0; i < 5; i++) await pinLock.recordFailedPinAttempt();
+  let st = await pinLock.readPinLockState();
+  assert.equal(st.lockoutCount, 1);
+  assert.equal(st.failuresTotal, 5);
+
+  const legacyHash = await makeLegacyHash100k(feat, storage, '1234', '00112233445566778899aabbccddeeff');
+  assert.equal(await feat.verifyPinMatches('1234', legacyHash), true);
+  assert.match(storage.getItem('mk_app_pin_hash'), /^pbkdf2\$600000\$/);
+
+  st = await pinLock.readPinLockState();
+  assert.equal(st.lockoutCount, 1, 'migrasi tidak boleh mengubah lockoutCount');
+  assert.equal(st.failuresTotal, 5, 'migrasi tidak boleh mengubah failuresTotal');
+  assert.ok(st.lockedUntil > Date.now(), 'cooldown 60 detik tetap berjalan setelah migrasi');
+  assert.ok(pinLock.getPinCooldownSeconds() > 0);
+});
+
+test('7b (f): wrap rusak tetap ditangani seperti semula — DEK baru, tanpa crash, wrap baru 600rb', async () => {
+  const sandbox = loadAccountSandbox();
+  const feat = sandbox.__mkFeat.wave3Auth;
+  const pc = sandbox.__mkFeat.pinCrypto;
+  const pinOps = sandbox.__mkFeat.pinDataKey;
+  const storage = sandbox.localStorage;
+
+  storage.setItem('mk_app_pin_hash', await feat.hashPin('1234'));
+  const dek = await makeDek(sandbox);
+  const goodWrap = plain(await pc.wrapPinDataKey(dek, '1234'));
+  const corrupt = { ...goodWrap, wrappedKey: b64(Buffer.from('rusakrusakrusakrusakrusakrusakru')) };
+  storage.setItem('mk_pin_data_key_wrap', JSON.stringify(corrupt));
+
+  assert.equal(await pinOps.ensurePinDataKeyAfterUnlock('1234'), true,
+    'unlock dengan wrap rusak tidak boleh crash');
+  assert.ok(sandbox.__mkFeat.getPinDataKey(), 'DEK baru harus tersedia setelah wrap rusak');
+  assert.equal(JSON.parse(storage.getItem('mk_pin_data_key_wrap')).iterations, 600000,
+    'wrap pengganti harus 600rb');
+
+  // JSON wrap rusak total (bukan JSON) juga ditangani sama.
+  storage.setItem('mk_pin_data_key_wrap', '{bukan-json');
+  sandbox.__mkFeat.clearPinDataKey();
+  assert.equal(await pinOps.ensurePinDataKeyAfterUnlock('1234'), true);
+  assert.ok(sandbox.__mkFeat.getPinDataKey());
+  assert.equal(JSON.parse(storage.getItem('mk_pin_data_key_wrap')).iterations, 600000);
+});
+
+test('7b: wrap tanpa field iterations dibuka dengan 100rb (fallback legacy)', async () => {
+  const sandbox = makeSandbox();
+  vm.runInNewContext(offlineJs, sandbox);
+  const pc = sandbox.__mkFeat.pinCrypto;
+  const dek = await makeDek(sandbox);
+  const wrap = await makeLegacyWrap100k(sandbox, dek, '1234');
+  delete wrap.iterations;
+  const unwrapped = await pc.unwrapPinDataKey(wrap, '1234');
+  assert.equal(await exportDekHex(sandbox, unwrapped), await exportDekHex(sandbox, dek));
+  await assert.rejects(() => pc.unwrapPinDataKey(wrap, '9999'), 'PIN salah tetap ditolak pada wrap tanpa iterations');
+});
+
+test('7b: ganti PIN — hash + wrap hasil ganti PIN keduanya 600rb, DEK tetap sama, PIN lama ditolak', async () => {
+  const sandbox = loadAccountSandbox();
+  const feat = sandbox.__mkFeat.wave3Auth;
+  const pinOps = sandbox.__mkFeat.pinDataKey;
+  const storage = sandbox.localStorage;
+
+  // Pengguna lama 100rb, unlock dulu (migrasi hash + wrap).
+  const dek = await makeDek(sandbox);
+  const rawBefore = await exportDekHex(sandbox, dek);
+  const legacyHash = await makeLegacyHash100k(feat, storage, '1234', '00112233445566778899aabbccddeeff');
+  storage.setItem('mk_pin_data_key_wrap', JSON.stringify(await makeLegacyWrap100k(sandbox, dek, '1234')));
+  assert.equal(await feat.verifyPinMatches('1234', legacyHash), true);
+  assert.equal(await pinOps.ensurePinDataKeyAfterUnlock('1234'), true);
+
+  // Ganti PIN 1234 -> 5678 — jalur yang sama dengan
+  // applyAccountSettingsUpdate: rewrap DEK yang sama + hashPin baru.
+  assert.equal(await pinOps.rewrapPinDataKey('1234', '5678'), true);
+  storage.setItem('mk_app_pin_hash', await feat.hashPin('5678'));
+  assert.match(storage.getItem('mk_app_pin_hash'), /^pbkdf2\$600000\$[0-9a-f]{64}$/);
+  assert.equal(JSON.parse(storage.getItem('mk_pin_data_key_wrap')).iterations, 600000);
+
+  // PIN baru membuka DEK yang sama; PIN lama ditolak.
+  sandbox.__mkFeat.clearPinDataKey();
+  assert.equal(await pinOps.unwrapPinDataKey('5678'), true);
+  assert.equal(await exportDekHex(sandbox, sandbox.__mkFeat.getPinDataKey()), rawBefore);
+  sandbox.__mkFeat.clearPinDataKey();
+  assert.equal(await pinOps.unwrapPinDataKey('1234'), false, 'PIN lama tidak boleh lagi membuka wrap');
+  assert.equal(await feat.verifyPinMatches('5678', storage.getItem('mk_app_pin_hash')), true);
+  assert.equal(await feat.verifyPinMatches('1234', storage.getItem('mk_app_pin_hash')), false);
 });
