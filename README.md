@@ -1,13 +1,13 @@
 # 💰 MyKeuGuech — Personal Finance App (Web PWA & Android)
 
-> **v3.20.13** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
+> **v3.20.14** — Multi-User SaaS · Offline-First PWA · Android App (Capacitor 8 / API 36 · Material 3 · Biometric/Haptics/Camera/Notif) · Telegram Bot & Gemini 4 AI · Security Hardened
 
 Aplikasi manajemen keuangan pribadi multi-user berbasis **Web PWA (GitHub Pages)** dan **Aplikasi Android (`.apk` / `.aab` via Capacitor 8)** dari satu codebase yang sama — dibangun dengan **Vanilla JS modular + Static Tailwind CSS + Supabase (PostgreSQL RLS & Deno Edge Functions) + Gemini 4 Hydrogen**.
 
 🌐 **Live Web App (PWA):** [liandimiko.github.io/mykeuangan](https://liandimiko.github.io/mykeuangan/)
 
 [![Live PWA](https://img.shields.io/badge/Live%20PWA-GitHub%20Pages-4f46e5?logo=githubpages&logoColor=white)](https://liandimiko.github.io/mykeuangan/)
-[![Version](https://img.shields.io/badge/Version-v3.20.13-10b981)](./src/updates.html)
+[![Version](https://img.shields.io/badge/Version-v3.20.14-10b981)](./src/updates.html)
 [![Android](https://img.shields.io/badge/Android-Capacitor%208%20%7C%20API%2036-3DDC84?logo=android&logoColor=white)](#-aplikasi-android-apk--aab--capacitor-8)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase%20RLS-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First-blueviolet?logo=googlechrome)](#-pwa--install-sebagai-aplikasi)
@@ -426,14 +426,14 @@ Fitur PWA:
 
 MyKeuGuech tersedia sebagai aplikasi Android native berbasis **Capacitor 8** (`com.mykeuguech.app`) menargetkan **Android 16 (API 36)** / `minSdk 24`:
 
-- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.13-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
+- **Cloud Build via GitHub Actions (otomatis di setiap push ke `main`):** Setiap push ke branch `main` atau tag `v*` otomatis menjalankan **`.github/workflows/android-build.yml`** untuk build `MyKeuGuech-v3.20.14-*.apk` (plus `.aab` jika secrets keystore aktif) dan langsung menerbitkannya ke **GitHub Releases** (`releases/latest`) — atau jalankan manual lewat **Actions → Run workflow** untuk memilih jenis paket spesifik (`debug-apk`, `release-apk`, `release-aab`, `all`).
 - **Build Lokal 1-Perintah (Windows):** Setelah JDK 21 & Android SDK 36 siap, jalankan:
   ```powershell
   npm install
   npm run cap:keystore      # opsional: buat release keystore & panduan GitHub Secrets
-  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.13-debug.apk
-  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.13-release.apk (butuh keystore)
-  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.13-release.aab
+  npm run cap:apk           # hasil: release\MyKeuGuech-v3.20.14-debug.apk
+  npm run cap:apk:release   # hasil: release\MyKeuGuech-v3.20.14-release.apk (butuh keystore)
+  npm run cap:aab           # hasil: release\MyKeuGuech-v3.20.14-release.aab
   ```
 - **Kapabilitas Native (`web/native-bridge.js`) & Popup Update Otomatis:** Tombol *Back* Android bertahap, ekspor CSV/Excel/PDF/Backup JSON via **Android Share Sheet**, Google Sign-In Chrome Custom Tab + pemulihan *cold-start* `App.getLaunchUrl()` (`com.mykeuguech.app://auth-callback`), *SystemBars* safe-area, *SplashScreen* adaptif, serta pengecekan versi jarak jauh (`dist/version.json` & tombol **Cek Pembaruan**) yang memunculkan Bottom Sheet update otomatis (mode opsional & wajib update via `package.json` → `appUpdate.minSupportedVersion`) mengarah ke **GitHub Releases** atau tautan Play Store.
 - **Panduan Lengkap & Rilis Play Store:** Lihat [docs/ANDROID_PLAYSTORE_GUIDE.md](./docs/ANDROID_PLAYSTORE_GUIDE.md) dan kit deklarasi [docs/PLAYSTORE_LISTING_KIT.md](./docs/PLAYSTORE_LISTING_KIT.md).
@@ -472,6 +472,12 @@ Data teks di-escape untuk konteks HTML. Event handler tidak boleh dibentuk denga
 
 ## 📝 Changelog — What's New in v2.0
 
+### 28 November 2026: Update v3.20.14 (CSP Diperketat — Eksternalisasi JS Inline)
+- **Eksternalisasi Modul JS (`build.mjs`, `src/Index.html`, `src/i18n.html`, `web/sw-register.js` baru, `web/sw.js`, `tests/wave7b-csp-tightening.test.js` baru)**: Semua modul `web/*.js` (54 file) kini ditulis build ke `dist/app/*.js` (diminifikasi esbuild, kecuali `web/config.js` yang tetap verbatim) dan dimuat lewat `<script src="./app/...">` sinkron — tanpa `defer`/`async` — dengan urutan yang SAMA PERSIS seperti saat masih di-inline (paritas perilaku: `error-messages.js` pertama, `config.js` di antara UI_CORE dan SUPABASE, `password-policy.js` sebelum consumer-nya, `sw-register.js` paling akhir). Kamus I18N (`src/i18n.html`, sumber tetap di sana agar tes i18n tidak berubah) diekstrak build ke `dist/app/i18n-dict.js` dan dimuat di `<head>` sebelum semua modul. Blok registrasi Service Worker yang dulu inline di akhir `src/Index.html` pindah ke `web/sw-register.js` baru. `dist/index.html` kini NOL blok `<script>` inline (dulu >40 blok, 990 KB → 300 KB; total dist tetap sebanding karena kode pindah ke `dist/app/`).
+- **CSP Diperketat (`src/Index.html`)**: `script-src` kini hanya `'self'` — `'unsafe-inline'` dan `'unsafe-eval'` DIHAPUS (verifikasi: tidak ada `eval()`/`new Function()` di kode aplikasi; satu-satunya `new Function` ada di vendor SweetAlert2 untuk template deklaratif `<swal-function-param>` yang tidak pernah dipakai aplikasi — dicek `grep` di `src/` + `web/`). `img-src` kehilangan `https:` mentah (tidak ada gambar remote; semua gambar lokal/data:/blob:). Tambahan: `form-action 'self'` + `upgrade-insecure-requests`. `style-src` SENGAJA tetap `'unsafe-inline'` (atribut `style="..."` di 6 tempat `src/*.html` + banyak template `web/*.js`; menyapunya churn besar dengan nilai keamanan rendah — injeksi CSS tanpa eksekusi script). `frame-ancestors` TIDAK ditambahkan (diabaikan di meta CSP; butuh header HTTP yang tidak bisa diset di GitHub Pages).
+- **Tailwind & Offline (`build.mjs`, `src/styles.html`, `web/sw.js`)**: Blok Play CDN (`tailwind.config` inline) diganti `<link rel="stylesheet" href="./vendor/tailwind.min.css">` — `copyVendorDir` tidak lagi melewati `tailwind.min.css`, jadi file itu kini tersalin ke `dist/vendor/` dan ikut ter-precache. Service worker mem-precache SEMUA file `dist/app/*.js` (placeholder baru `__APP_ASSETS__`, seperti `__VENDOR_ASSETS__`) supaya PWA tetap jalan offline — modul app yang dulu ikut ter-cache lewat `index.html` kini harus eksplisit masuk precache.
+- **Tes Baru & Tulis Ulang (`tests/wave7b-csp-tightening.test.js` baru, 6 tes; `tests/wave2-xss-csp.test.js` 2.4, `tests/wave3-frontend-cdn-build.test.js` 3.4e/3.4g, `tests/wave5-build-reproducibility.test.js` 5.2d, `tests/i18n-build.test.js`)**: Guard lama yang mengunci blocker inline (2.4) dibalik menjadi guard pengetatan; 5.2d kini membandingkan total ukuran `dist/app/*.js` minified vs tanpa esbuild dan mengassert nol `<script>` inline; 3.4g membaca urutan load dari tag `<script src>` di `dist/index.html`. Total suite: 504 tes (498 baseline + 6 baru).
+- **Catatan versi**: update ke v3.20.14 menimpa v3.20.13 tanpa uninstall (`versionCode 3020014` > `3020013` — monoton).
 ### 28 November 2026: Update v3.20.13 (Gelombang 7a: Tulisan Lebih Mudah Dibaca & Reset Kata Sandi Mencabut Sesi)
 - **Teks Kecil Dinaikkan ke 12px — U34 (`src/Index.html`, `src/admin.html`, `src/ai.html`, `src/aset.html`, `src/budgeting.html`, `src/dashboard.html`, `src/form.html`, `src/histori.html`, `src/updates.html`, 25 file `web/ui-*.js`, `tests/wave6a-contrast-a11y.test.js`)**: Semua kelas `text-[10px]` (65 kemunculan) dan `text-[11px]` (215 kemunculan) di `src/` + `web/` (di luar `web/vendor/`) dinaikkan ke `text-xs` (12px), termasuk kombinasi responsif (`text-[10px] sm:text-[11px]` → `text-xs`). Satu pengecualian beralasan: lencana angka notifikasi `src/Index.html:216` tetap 11px — ukuran 12px tidak muat di lencana 16px (didokumentasikan Gelombang 6, dikunci tes Wave 6). U35 ikut tertutup di label statistik dashboard (kini 12px + `slate-600`). Inline `font-size:10/11px` di cabang print `web/ui-feat-backup.js` bukan kelas Tailwind sehingga tidak disentuh.
 - **Tombol Hapus Kini Mengikuti Bahasa (`web/ui-assets.js`, `tests/wave-v320-upgrades.test.js`)**: Hardcode `confirmButtonText: 'Ya, Hapus'` saat menghapus aset diganti kunci i18n `btn.ya_hapus` (sudah ada di kamus); mode Inggris menampilkan "Yes, Delete" (dibuktikan lewat `node:vm`). `web/ui-wallets.js` sudah memakai kunci yang sama di kedua tempat, jadi tidak diubah. Tes lama yang mengunci hardcode diperbarui menjadi mengunci pemakaian i18n + ketiadaan literal.

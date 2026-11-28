@@ -11,11 +11,13 @@
 //       monoton dari 32008 (3.20.8 skema lama) dan tidak bertabrakan
 //       bila minor/patch mencapai 100.
 //   (c) dist/ dibersihkan penuh sebelum build (file basi hilang).
-//   (d) minifikasi: modul web/*.js yang di-inline diminifikasi esbuild —
-//       dist lebih kecil dari build tanpa esbuild, semua blok <script>
-//       inline tetap valid sintaks (node:vm), penanda global penting
-//       tetap ada, sedangkan web/config.js dan file vendor TIDAK
-//       diminifikasi (bytes sama persis).
+//   (d) minifikasi: modul web/*.js yang dimuat sebagai dist/app/*.js
+//       diminifikasi esbuild — total ukuran dist/app/*.js (kecuali
+//       config.js) lebih kecil dari build tanpa esbuild, semua file
+//       dist/app/*.js tetap valid sintaks (node:vm), penanda global
+//       penting tetap ada, sedangkan web/config.js dan file vendor
+//       TIDAK diminifikasi (bytes sama persis). Gelombang 7b:
+//       dist/index.html tidak lagi memuat satu pun blok <script> inline.
 //   (e) vendor baru benar-benar berfungsi: supabase-js 2.119.2
 //       (createClient), jspdf 4.2.1 + jspdf-autotable 5.0.9
 //       (new jsPDF + doc.autoTable persis seperti pemakaian aplikasi di
@@ -189,12 +191,18 @@ test('5.2c build membersihkan dist/ penuh — file basi hilang', (t) => {
   assert.ok(fs.existsSync(path.join(dir, 'dist', 'vendor', 'supabase.js')), 'vendor supabase.js hasil build harus ada');
 });
 
-test('5.2d minifikasi: dist lebih kecil, sintaks valid, global utuh, config & vendor tidak diminifikasi', (t) => {
+test('5.2d minifikasi: dist/app/*.js lebih kecil, sintaks valid, global utuh, config & vendor tidak diminifikasi', (t) => {
   const dir = makeTempRepo(t, { withEsbuild: false });
   // Build TANPA esbuild (fallback tanpa minifikasi) sebagai pembanding.
   const plain = runBuild(dir, { SOURCE_DATE_EPOCH });
   assert.equal(plain.status, 0, `build tanpa esbuild gagal:\n${combinedOutput(plain)}`);
   assert.match(combinedOutput(plain), /TANPA minifikasi/, 'build tanpa esbuild harus memperingatkan fallback tanpa minifikasi');
+  // Gelombang 7b: modul tidak lagi di-inline — yang dibandingkan adalah
+  // total ukuran file dist/app/*.js (kecuali config.js yang verbatim).
+  const appSize = (base) => fs.readdirSync(path.join(base, 'dist', 'app'))
+    .filter((f) => f.endsWith('.js') && f !== 'config.js')
+    .reduce((sum, f) => sum + fs.statSync(path.join(base, 'dist', 'app', f)).size, 0);
+  const plainSize = appSize(dir);
   const plainHtml = fs.readFileSync(path.join(dir, 'dist', 'index.html'), 'utf8');
 
   // Build DENGAN esbuild (minifikasi).
@@ -205,28 +213,42 @@ test('5.2d minifikasi: dist lebih kecil, sintaks valid, global utuh, config & ve
   assert.equal(mini.status, 0, `build dengan esbuild gagal:\n${combinedOutput(mini)}`);
   assert.doesNotMatch(combinedOutput(mini), /TANPA minifikasi/, 'build dengan esbuild tidak boleh fallback tanpa minifikasi');
   const miniHtml = fs.readFileSync(path.join(dir, 'dist', 'index.html'), 'utf8');
+  const miniSize = appSize(dir);
   assert.ok(
-    miniHtml.length < plainHtml.length * 0.85,
-    `dist/index.html minified (${miniHtml.length} B) harus < 85% dari tanpa minifikasi (${plainHtml.length} B)`
+    miniSize < plainSize * 0.85,
+    `dist/app/*.js minified (${miniSize} B) harus < 85% dari tanpa minifikasi (${plainSize} B)`
   );
 
-  // Semua blok <script> inline hasil minifikasi harus valid sintaks.
-  const blocks = [...miniHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  assert.ok(blocks.length > 40, `harus ada >40 blok <script> inline, ketemu ${blocks.length}`);
-  for (const [i, code] of blocks.entries()) {
-    assert.doesNotThrow(() => new vm.Script(code), `blok <script> inline #${i} harus valid sintaks setelah minifikasi`);
+  // Gelombang 7b: dist/index.html TIDAK boleh lagi memuat blok <script>
+  // inline — semua modul dimuat lewat <script src="./app/...">.
+  const inlineBlocks = [...miniHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.equal(inlineBlocks.length, 0, `dist/index.html tidak boleh memuat blok <script> inline, ketemu ${inlineBlocks.length}`);
+  const appTags = [...miniHtml.matchAll(/<script src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+  assert.ok(appTags.length > 40, `harus ada >40 tag <script src="./app/...">, ketemu ${appTags.length}`);
+  for (const f of appTags) {
+    assert.ok(fs.existsSync(path.join(dir, 'dist', 'app', f)), `dist/app/${f} yang dirujuk dist/index.html harus ada`);
+  }
+
+  // Semua file dist/app/*.js hasil minifikasi harus valid sintaks.
+  for (const f of appTags) {
+    const code = fs.readFileSync(path.join(dir, 'dist', 'app', f), 'utf8');
+    assert.doesNotThrow(() => new vm.Script(code), `dist/app/${f} harus valid sintaks setelah minifikasi`);
   }
 
   // Penanda global penting harus tetap ada (modul berkomunikasi lewat
   // global; esbuild tidak boleh mengganti namanya).
+  const concatenated = appTags.map((f) => fs.readFileSync(path.join(dir, 'dist', 'app', f), 'utf8')).join('\n');
   for (const marker of ['__mkPasswordPolicy', 'showActionError', 'exportPDF', 'createClient', 'autoTable']) {
-    assert.ok(miniHtml.includes(marker), `dist minified harus tetap memuat penanda global ${marker}`);
+    assert.ok(concatenated.includes(marker), `dist/app minified harus tetap memuat penanda global ${marker}`);
   }
 
-  // web/config.js TIDAK diminifikasi: komentar pembuka + assignment
-  // harus muncul verbatim di dist.
-  const configSrc = fs.readFileSync(path.join(REPO_ROOT, 'web', 'config.js'), 'utf8');
-  assert.ok(miniHtml.includes(configSrc.slice(0, 200)), 'web/config.js harus di-inline verbatim (tidak diminifikasi)');
+  // web/config.js TIDAK diminifikasi: dist/app/config.js harus sama
+  // persis (bytes) dengan web/config.js.
+  assert.deepEqual(
+    fs.readFileSync(path.join(dir, 'dist', 'app', 'config.js')),
+    fs.readFileSync(path.join(REPO_ROOT, 'web', 'config.js')),
+    'dist/app/config.js harus sama persis dengan web/config.js (verbatim, tidak diminifikasi)'
+  );
 
   // File vendor TIDAK diminifikasi: bytes dist/vendor sama persis.
   for (const f of ['supabase.js', 'jspdf.umd.min.js', 'jspdf.plugin.autotable.min.js']) {
@@ -236,6 +258,11 @@ test('5.2d minifikasi: dist lebih kecil, sintaks valid, global utuh, config & ve
       `dist/vendor/${f} harus sama persis dengan web/vendor/${f} (tidak diminifikasi)`
     );
   }
+  // Build tanpa esbuild juga harus sudah eksternal (bukan inline).
+  assert.equal(
+    [...plainHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].length, 0,
+    'build tanpa esbuild pun tidak boleh meng-inline modul'
+  );
 });
 
 test('5.2e vendor baru berfungsi: supabase-js 2.119.2 + jspdf 4.2.1 + autotable 5.0.9', async (t) => {

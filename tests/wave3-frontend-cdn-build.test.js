@@ -22,15 +22,15 @@
 //       policy-nya muncul di dist sebelum consumer checkPasswordPolicy.
 //   (h) fetch-vendors cache-hit memverifikasi hash dan exit 0.
 //
-// Catatan cakupan (sengaja): dist/index.html masih mengandung DUA string
+// Catatan cakupan (sengaja): dist/index.html masih mengandung SATU string
 // jsdelivr yang BUKAN tag resource dan di luar cakupan Wave 3.4 —
-//  (1) `https://cdn.jsdelivr.net` di connect-src CSP (fetch runtime mata
-//      uang di web/supabase-portfolio.js, file Wave 3.5, memakainya
-//      sebagai sumber utama; lihat komentar di src/Index.html), dan
-//  (2) URL currency-api yang sama sebagai string di dalam JS inline
-//      hasil inlining web/supabase-portfolio.js.
+// `https://cdn.jsdelivr.net` di connect-src CSP (fetch runtime mata
+// uang di web/supabase-portfolio.js, file Wave 3.5, memakainya sebagai
+// sumber utama; lihat komentar di src/Index.html). URL currency-api yang
+// sama sebagai string kini tinggal di dist/app/supabase-portfolio.js
+// (Gelombang 7b: modul tidak lagi di-inline ke index.html).
 // Test (e) memeriksa TAG resource (src/href), bukan string mentah,
-// karena string (1)–(2) bukan pemuatan CDN.
+// karena string di atas bukan pemuatan CDN.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -153,12 +153,19 @@ test('3.4e dist/index.html tanpa URL CDN di tag resource dan tanpa document.writ
       assert.doesNotMatch(part, new RegExp(host.replace(/\./g, '\\.')), `CSP ${directive} masih memuat ${host}`);
     }
   }
-  assert.match(csp[1], /'unsafe-inline'/, 'CSP tetap memuat unsafe-inline (arsitektur inline — follow-up Wave 2, di luar cakupan ini)');
+  const scriptSrc = csp[1].split(';').find((s) => s.trim().startsWith('script-src'));
+  assert.ok(scriptSrc, 'CSP harus memuat script-src');
+  assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, 'CSP script-src tidak boleh lagi memuat unsafe-inline (Gelombang 7b: modul eksternal)');
+  assert.doesNotMatch(scriptSrc, /'unsafe-eval'/, 'CSP script-src tidak boleh lagi memuat unsafe-eval (Gelombang 7b)');
   assert.match(html, /src="\.\/vendor\/supabase\.js"/, 'Supabase harus dimuat dari vendor lokal');
   assert.match(html, /href="\.\/vendor\/inter\/inter\.css"/, 'Inter harus dimuat dari vendor lokal');
   assert.match(html, /href="\.\/vendor\/phosphor\/regular\/style\.css"/, 'Phosphor harus dimuat dari vendor lokal');
+  assert.match(html, /href="\.\/vendor\/tailwind\.min\.css"/, 'Tailwind harus dimuat dari vendor lokal sebagai <link> (Gelombang 7b — bukan lagi <style> inline)');
+  assert.doesNotMatch(html, /tailwind\.config\s*=/, 'dist tidak boleh lagi memuat blok inline tailwind.config (konfig sudah dibekukan di tailwind.min.css)');
   const sw = fs.readFileSync(path.join(dir, 'dist', 'sw.js'), 'utf8');
   assert.match(sw, /"\.\/vendor\/supabase\.js"/, 'sw.js harus mem-precache vendor lokal');
+  assert.match(sw, /"\.\/vendor\/tailwind\.min\.css"/, 'sw.js harus mem-precache tailwind.min.css (Gelombang 7b: tidak lagi inline di index.html)');
+  assert.match(sw, /"\.\/app\/error-messages\.js"/, 'sw.js harus mem-precache modul app (Gelombang 7b)');
 });
 
 test('3.4f setiap tag resource eksternal yang tersisa membawa integrity + crossorigin', (t) => {
@@ -188,12 +195,19 @@ test('3.4g password-policy.js dimuat pertama dan sebelum consumer-nya', (t) => {
   const first = modules[1].match(/'([^']+)'/);
   assert.ok(first, 'SUPABASE_MODULES harus berisi entri');
   assert.equal(first[1], 'password-policy.js', 'password-policy.js harus entri PERTAMA SUPABASE_MODULES (sebelum supabase-auth-ui.js)');
-  const { html } = buildTempRepo(t);
-  const defIdx = html.indexOf('__mkPasswordPolicy = policy');
-  const useIdx = html.indexOf('function checkPasswordPolicy');
-  assert.ok(defIdx !== -1, 'dist harus memuat definisi __mkPasswordPolicy');
-  assert.ok(useIdx !== -1, 'dist harus memuat consumer checkPasswordPolicy');
-  assert.ok(defIdx < useIdx, 'definisi password-policy harus muncul SEBELUM consumer-nya di dist/index.html');
+  const { dir, html } = buildTempRepo(t);
+  // Gelombang 7b: modul tidak lagi di-inline — urutan load dibaca dari
+  // tag <script src="./app/..."> di dist/index.html, lalu isi tiap file
+  // dist/app/*.js digabung mengikuti urutan itu.
+  const appOrder = [...html.matchAll(/<script src="\.\/app\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+  assert.ok(appOrder.indexOf('password-policy.js') !== -1, 'dist harus memuat tag password-policy.js');
+  assert.ok(appOrder.indexOf('password-policy.js') < appOrder.indexOf('supabase-auth.js'), 'password-policy.js harus dimuat SEBELUM consumer-nya (supabase-auth.js)');
+  const concatenated = appOrder.map((f) => fs.readFileSync(path.join(dir, 'dist', 'app', f), 'utf8')).join('\n');
+  const defIdx = concatenated.indexOf('__mkPasswordPolicy = policy');
+  const useIdx = concatenated.indexOf('function checkPasswordPolicy');
+  assert.ok(defIdx !== -1, 'dist/app harus memuat definisi __mkPasswordPolicy');
+  assert.ok(useIdx !== -1, 'dist/app harus memuat consumer checkPasswordPolicy');
+  assert.ok(defIdx < useIdx, 'definisi password-policy harus muncul SEBELUM consumer-nya di urutan load dist/app/*.js');
 });
 
 test('3.4h fetch-vendors cache-hit memverifikasi hash dan exit 0', (t) => {

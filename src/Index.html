@@ -4,16 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="app-version" content="3.20.13">
-  <!-- Wave 3.4 / S24: CSP tanpa host CDN untuk script/style/font — semua
-    vendor self-hosted (./vendor/). 'unsafe-inline'/'unsafe-eval' TETAP:
-    arsitektur build masih meng-inline modul web/*.js (lihat blocker Wave 2,
-    pengetatan itu follow-up terpisah). Satu pengecualian: cdn.jsdelivr.net
-    TETAP di connect-src karena fetch runtime mata uang di
-    web/supabase-portfolio.js (file Wave 3.5, di luar cakupan ini) memakai
-    URL jsdelivr sebagai sumber utama (fallback: currency-api.pages.dev);
-    menghapusnya akan memblokir sumber itu via CSP. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://liandimiko.github.io https://cdn.jsdelivr.net https://api.coingecko.com https://latest.currency-api.pages.dev; worker-src 'self'; object-src 'none'; base-uri 'self';">
+  <meta name="app-version" content="3.20.14">
+  <!-- Gelombang 7b / T12 — CSP diperketat: SEMUA modul web/*.js kini
+    dimuat sebagai <script src="./app/..."> (build.mjs), kamus I18N
+    sebagai ./app/i18n-dict.js, dan registrasi SW sebagai
+    ./app/sw-register.js — jadi script-src TIDAK lagi butuh
+    'unsafe-inline'/'unsafe-eval' (keduanya DIHAPUS di sini).
+    style-src TETAP memuat 'unsafe-inline' dengan sengaja: atribut
+    style="..." dipakai di 6 tempat src/*.html dan di banyak template
+    web/*.js (string innerHTML) — menyapunya adalah churn besar dengan
+    nilai keamanan rendah (injeksi CSS tanpa eksekusi script di browser
+    modern). <style> di src/styles.html juga tetap inline.
+    img-src: 'https:' DIHAPUS — tidak ada gambar remote (semua <img>
+    lokal/data:, Image() hanya dari FileReader data: URL); 'blob:'
+    dipertahankan untuk object URL runtime.
+    TIDAK ada frame-ancestors di meta: directive itu diabaikan di meta
+    CSP dan butuh header HTTP yang tidak bisa diset di GitHub Pages.
+    connect-src TETAP: cdn.jsdelivr.net masih sumber utama fetch kurs
+    di web/supabase-portfolio.js (fallback currency-api.pages.dev). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com https://liandimiko.github.io https://cdn.jsdelivr.net https://api.coingecko.com https://latest.currency-api.pages.dev; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;">
   <title>MyKeuGuech — Dashboard</title>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="color-scheme" content="light dark">
@@ -93,7 +102,7 @@
       <span class="truncate" data-i18n="nav.updates">Pembaruan</span>
     </span>
     <span class="flex items-center gap-1.5 shrink-0">
-      <span id="navUpdatesVersion" class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-extrabold leading-none">v3.20.13</span>
+      <span id="navUpdatesVersion" class="px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-ink text-xs font-extrabold leading-none">v3.20.14</span>
       <span id="navUpdatesDot" class="hide w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" aria-label="Pembaruan baru"></span>
     </span>
   </button>
@@ -283,35 +292,6 @@
   <?!= include('scripts'); ?>
   <?!= include('features-v21'); ?>
   <?!= include('features-v35'); ?>
-  <script>
-    const isCapNative = Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-    if ('serviceWorker' in navigator && !isCapNative) {
-      let swReloading = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!swReloading && document.getElementById('pwaUpdateToast')) {
-          swReloading = true;
-          window.location.reload();
-        }
-      });
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then((reg) => {
-          if (reg.waiting && navigator.serviceWorker.controller && typeof window.showPwaUpdateToast === 'function') {
-            window.showPwaUpdateToast(reg);
-          }
-          reg.addEventListener('updatefound', () => {
-            const worker = reg.installing;
-            if (!worker) return;
-            worker.addEventListener('statechange', () => {
-              if (worker.state === 'installed' && navigator.serviceWorker.controller && typeof window.showPwaUpdateToast === 'function') {
-                window.showPwaUpdateToast(reg);
-              }
-            });
-          });
-        }).catch((err) => {
-          console.warn('PWA ServiceWorker error:', err);
-        });
-      });
-    }
-  </script>
+  <?!= include('sw-register'); ?>
 </body>
 </html>

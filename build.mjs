@@ -1,5 +1,10 @@
 // Menggabungkan src/*.html (pengganti <?!= include('x') ?> Apps Script)
-// + web/config.js + modul web/*.js  →  dist/index.html
+// + web/config.js + modul web/*.js  →  dist/index.html + dist/app/*.js
+// Gelombang 7b / T12: modul app TIDAK lagi di-inline ke index.html.
+// Tiap modul ditulis (diminifikasi, kecuali config.js verbatim) ke
+// dist/app/<nama>.js dan dimuat lewat <script src> sinkron dengan urutan
+// yang SAMA PERSIS seperti dulu — CSP script-src bisa menghapus
+// 'unsafe-inline'/'unsafe-eval' tanpa mengubah perilaku runtime.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,7 +16,8 @@ import {
   verifyVendorFile
 } from './scripts/fetch-vendors.mjs';
 
-// Gelombang 5.2 / Q4 — minifikasi modul web/*.js yang di-inline.
+// Gelombang 5.2 / Q4 — minifikasi modul web/*.js yang dimuat sebagai
+// file eksternal dist/app/*.js.
 // esbuild ter-pin sebagai devDependency (package.json + package-lock.json;
 // JANGAN npx tanpa pin). Diimpor lewat require agar build tetap jalan
 // bila node_modules belum ter-install (mis. repo temp pada tes Wave 3.4
@@ -27,12 +33,14 @@ try {
   process.stderr.write('⚠️  Peringatan: esbuild tidak ditemukan — build lanjut TANPA minifikasi. Jalankan npm install untuk build produksi.\n');
 }
 
-// Minifikasi SATU modul web/*.js yang akan di-inline. HANYA modul itu
-// yang diminifikasi: file vendor TIDAK disentuh (sudah minified + hash
-// ter-pin di VENDOR_MANIFEST) dan web/config.js TIDAK disentuh (di-inline
-// apa adanya). esbuild minify mempertahankan nama top-level (modul-modul
-// ini berkomunikasi lewat global), jadi pemendekan hanya menyentuh
-// variabel lokal, spasi, dan komentar. Gagal minifikasi = build gagal.
+// Minifikasi SATU modul web/*.js yang akan dimuat sebagai file
+// eksternal dist/app/*.js. HANYA modul itu yang diminifikasi: file
+// vendor TIDAK disentuh (sudah minified + hash ter-pin di
+// VENDOR_MANIFEST) dan web/config.js TIDAK disentuh (ditulis verbatim
+// ke dist/app/config.js). esbuild minify mempertahankan nama top-level
+// (modul-modul ini berkomunikasi lewat global), jadi pemendekan hanya
+// menyentuh variabel lokal, spasi, dan komentar. Gagal minifikasi =
+// build gagal.
 function minifyModule(source, file) {
   if (!esbuildTransformSync) return source;
   try {
@@ -112,6 +120,12 @@ const UI_PRO_MODULES = [
   'ui-pro-hooks.js'
 ];
 
+// Gelombang 7b / T12 — registrasi Service Worker (web/sw-register.js).
+// Dulu blok <script> inline di akhir src/Index.html; kini modul
+// eksternal yang dimuat PALING AKHIR (setelah semua UI_PRO) karena
+// memakai window.showPwaUpdateToast dari ui-feat-updates.js.
+const APP_TAIL_MODULES = ['sw-register.js'];
+
 const SUPABASE_MODULES = [
   // Wave 3.1 / S5: password-policy.js HARUS dimuat pertama — semua
   // consumer password/PIN (supabase-auth-ui.js, supabase-auth.js,
@@ -148,10 +162,34 @@ function read(name) {
   return fs.readFileSync(file, 'utf8');
 }
 
-function readInlineScripts(files) {
+// Gelombang 7b / T12 — eksternalisasi modul app. Isi file dikumpulkan
+// di appFiles (path relatif di dist/ -> konten) dan ditulis ke dist/
+// SETELAH dist/ dibersihkan (lihat alur utama di bawah); tag yang
+// dikembalikan adalah <script src="./app/..."> SINKRON — tanpa defer/
+// async — supaya urutan eksekusi sama persis seperti saat modul masih
+// di-inline (paritas perilaku). Urutan pemanggilan = urutan load.
+const appFiles = new Map();
+function emitAppScript(file, code) {
+  appFiles.set(`app/${file}`, code);
+  return `<script src="./app/${file}"></script>`;
+}
+function emitAppScripts(files) {
   return files
-    .map((f) => `<script>\n${minifyModule(fs.readFileSync(path.join(WEB, f), 'utf8'), f)}\n</script>`)
+    .map((f) => emitAppScript(f, minifyModule(fs.readFileSync(path.join(WEB, f), 'utf8'), f)))
     .join('\n');
+}
+
+// Gelombang 7b / T12 — kamus I18N. Sumber tetap src/i18n.html (tes
+// i18n membaca blok <script>-nya dari sana); build mengekstrak isinya,
+// diminifikasi seperti modul lain, dan menulisnya ke
+// dist/app/i18n-dict.js. Tag <script src> yang dikembalikan dipasang di
+// <head> SEBELUM semua modul — `const I18N` di script klasik tetap
+// terlihat oleh script klasik berikutnya asal urutan dijaga.
+function emitI18nDict() {
+  const html = read('i18n');
+  const m = html.match(/<script>([\s\S]*?)<\/script>/);
+  if (!m) throw new Error('src/i18n.html tidak memuat blok <script> kamus I18N.');
+  return emitAppScript('i18n-dict.js', minifyModule(m[1], 'i18n-dict.js'));
 }
 
 // Wave 3.4 / S24–S25: vendor WAJIB ada + terverifikasi. Tidak ada fallback
@@ -231,7 +269,10 @@ function copyVendorDir(srcDir, dstDir, relBase) {
   if (!fs.existsSync(srcDir)) return [];
   const collected = [];
   for (const entry of fs.readdirSync(srcDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (entry.name === 'tailwind.min.css') continue;
+    // Gelombang 7b / T12: tailwind.min.css TIDAK lagi dilewati — sejak
+    // blok Play CDN diganti <link> ke ./vendor/tailwind.min.css, file
+    // ini harus ikut tersalin ke dist/vendor/ (dan ter-precache SW)
+    // supaya halaman tetap ber-style saat offline.
     const srcPath = path.join(srcDir, entry.name);
     const dstPath = path.join(dstDir, entry.name);
     const relPath = `${relBase}/${entry.name}`;
@@ -340,31 +381,35 @@ function buildHtmlBundle(config, appVersion) {
     html = html.replace(/(<meta\s+name="app-version"\s+content=")[^"]*(")/i, `$1${appVersion}$2`);
   }
   html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, name) => {
-    if (name === 'scripts') {
-      return `${resolveSupabaseTag()}\n${readInlineScripts(WEB_MODULES)}\n${readInlineScripts(UI_CORE_MODULES)}\n` +
-        `<script>\n${config}\n</script>\n${readInlineScripts(SUPABASE_MODULES)}`;
+    if (name === 'i18n') {
+      return emitI18nDict();
     }
-    if (name === 'features-v21') return readInlineScripts(UI_FEATURES_MODULES);
-    if (name === 'features-v35') return readInlineScripts(UI_PRO_MODULES);
+    if (name === 'scripts') {
+      return `${resolveSupabaseTag()}\n${emitAppScripts(WEB_MODULES)}\n${emitAppScripts(UI_CORE_MODULES)}\n` +
+        `${emitAppScript('config.js', config)}\n${emitAppScripts(SUPABASE_MODULES)}`;
+    }
+    if (name === 'features-v21') return emitAppScripts(UI_FEATURES_MODULES);
+    if (name === 'features-v35') return emitAppScripts(UI_PRO_MODULES);
+    if (name === 'sw-register') return emitAppScripts(APP_TAIL_MODULES);
     return read(name);
   });
 
-  // Wave 3.4 / S24: tailwind.min.css WAJIB ada. Dulu, kalau file ini
-  // hilang, Play CDN tetap dipakai diam-diam. Sekarang build gagal.
+  // Wave 3.4 / S24 + Gelombang 7b / T12: tailwind.min.css WAJIB ada.
+  // Dulu, kalau file ini hilang, Play CDN tetap dipakai diam-diam.
+  // Sekarang build gagal. Blok Play CDN (tag script + blok inline
+  // `tailwind.config = {...}`) diganti <link> ke CSS statis yang sudah
+  // dikompilasi — TIDAK lagi <style> inline berisi seluruh Tailwind,
+  // dan blok config inline-nya ikut hilang (konfig sudah dibekukan
+  // di tailwind.min.css saat `npm run build:css`).
   const tailwindVendorPath = path.join(VENDOR_ROOT, 'tailwind.min.css');
   if (!fs.existsSync(tailwindVendorPath) || fs.statSync(tailwindVendorPath).size === 0) {
     throw new Error('Vendor tidak ada/kosong: web/vendor/tailwind.min.css — jalankan npm run build:css.');
   }
-  const compiledTailwind = fs.readFileSync(tailwindVendorPath, 'utf8');
   const playCdnRegex = /<script[^>]*src="https:\/\/cdn\.tailwindcss\.com"[^>]*><\/script>\s*<script>\s*tailwind\.config\s*=\s*[\s\S]*?<\/script>/i;
   if (!playCdnRegex.test(html)) {
     throw new Error('Play CDN Tailwind block tidak ditemukan di src/styles.html untuk diganti CSS statis.');
   }
-  html = html.replace(playCdnRegex, `<style>\n${compiledTailwind}\n</style>`);
-  // Catatan: CSP di src/Index.html tetap memuat 'unsafe-eval' karena
-  // arsitektur inline first-party masih membutuhkannya (follow-up Wave 2).
-  // Dulu build menghapus host Play CDN dari CSP di sini; tidak perlu lagi
-  // karena host itu sudah dihapus dari CSP di source (Wave 3.4).
+  html = html.replace(playCdnRegex, '<link rel="stylesheet" href="./vendor/tailwind.min.css">');
   html = rewriteLocalVendorTags(html);
   if (/<\?/.test(html)) throw new Error('Masih ada scriptlet Apps Script (<? ... ?>) yang belum diganti.');
   return html;
@@ -399,6 +444,15 @@ fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, 'version.json'), `${JSON.stringify(versionManifest, null, 2)}\n`);
 const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
 
+// Gelombang 7b / T12: tulis modul app yang dikumpulkan buildHtmlBundle
+// ke dist/app/*.js (config.js verbatim, sisanya hasil minifikasi).
+const appDir = path.join(OUT, 'app');
+fs.mkdirSync(appDir, { recursive: true });
+for (const [rel, code] of appFiles) {
+  fs.writeFileSync(path.join(OUT, rel), code);
+}
+const appAssets = [...appFiles.keys()].map((rel) => `./${rel}`);
+
 const vendorAssets = copyVendorDir(VENDOR_ROOT, path.join(OUT, 'vendor'), './vendor');
 
 if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
@@ -406,11 +460,13 @@ if (fs.existsSync(path.join(WEB, 'manifest.webmanifest'))) {
 }
 if (fs.existsSync(path.join(WEB, 'sw.js'))) {
   const vendorReplacement = vendorAssets.length ? ',\n  ' + vendorAssets.map((p) => JSON.stringify(p)).join(',\n  ') : '';
+  const appReplacement = appAssets.length ? ',\n  ' + appAssets.map((p) => JSON.stringify(p)).join(',\n  ') : '';
   const swSource = fs.readFileSync(path.join(WEB, 'sw.js'), 'utf8')
     .replaceAll('__BUILD_ID__', buildId)
-    .replace('/* __VENDOR_ASSETS__ */', vendorReplacement);
+    .replace('/* __VENDOR_ASSETS__ */', vendorReplacement)
+    .replace('/* __APP_ASSETS__ */', appReplacement);
   fs.writeFileSync(path.join(OUT, 'sw.js'), swSource);
-  process.stdout.write(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId}, ${vendorAssets.length} vendor assets)\n`);
+  process.stdout.write(`✅ ${OUT}/sw.js (cache: mykeuangan-${buildId}, ${vendorAssets.length} vendor assets, ${appAssets.length} app assets)\n`);
 }
 const iconsSrc = path.join(WEB, 'icons');
 const iconsDst = path.join(OUT, 'icons');
@@ -433,6 +489,6 @@ if (fs.existsSync(deletePageSrc)) {
   fs.writeFileSync(path.join(OUT, 'delete-account.html'), deleteHtml);
 }
 
-process.stdout.write(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB)\n`);
+process.stdout.write(`✅ ${OUT}/index.html (${Math.round(html.length / 1024)} KB) + ${appFiles.size} file di ${OUT}/app/\n`);
 process.stdout.write(`✅ ${OUT}/version.json (v${versionManifest.version}, min v${versionManifest.minSupportedVersion})\n`);
 process.stdout.write(`✅ PWA assets synced to ${OUT}/\n`);
