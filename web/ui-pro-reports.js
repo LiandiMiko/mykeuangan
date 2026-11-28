@@ -46,6 +46,36 @@
     bar.classList.toggle('mk-bulk-enter', count > 0);
   }
 
+  // Optimistic locking (Gelombang 7c): konflik per baris pada bulk
+  // edit/hapus TIDAK memunculkan dialog di tengah loop (akan menumpuk)
+  // — baris dihitung gagal, konfliknya diparkir, dan setelah bulk
+  // selesai dialog ringkasan konflik ditampilkan sekali. Resolver
+  // memakai _rawCallServer (callServer yang sudah dibungkus antrean
+  // offline) supaya pilihan 'Pakai versi saya' tidak masuk antrean
+  // lagi sebagai item baru.
+  function getBulkSyncConflictApi() {
+    const feat = (typeof window !== 'undefined' && window.__mkFeat) || root.__mkFeat || {};
+    return feat.syncConflict || null;
+  }
+
+  async function promptParkedBulkConflicts() {
+    const sc = getBulkSyncConflictApi();
+    if (!sc || !sc.getParkedSyncConflicts().length) return;
+    const rawCall = (typeof root._rawCallServer === 'function') ? root._rawCallServer : root.callServer;
+    sc.registerSyncConflictResolver(async (conflict, choice) => {
+      const built = sc.buildForceArgs(conflict, choice);
+      if (!built) return null;
+      return rawCall(built.callOp, ...built.callArgs);
+    });
+    try {
+      await sc.promptParkedSyncConflicts(async (conflict, choice) => {
+        const built = sc.buildForceArgs(conflict, choice);
+        if (!built) return null;
+        return rawCall(built.callOp, ...built.callArgs);
+      });
+    } catch (_) { /* jangan gagalkan bulk karena dialog */ }
+  }
+
   async function finalizeBulkMutation(payload, okCount, failedCount, verb) {
     const pro = root.__mkPro || {};
     try {
@@ -58,6 +88,7 @@
         timer: failedCount > 0 ? 2200 : 1300,
         showConfirmButton: failedCount > 0
       }));
+      await promptParkedBulkConflicts();
     } catch (err) {
       if (typeof showActionError === 'function') showActionError(err);
     }
@@ -85,13 +116,16 @@
         walletId: orig.walletId || ''
       }, buildPatch(orig));
       try {
-        const res = await callServer('api_updateTransaction', id, nextPayload);
+        const res = await callServer('api_updateTransaction', id,
+          Object.assign({}, nextPayload, { __base: orig }), orig.version);
         if (res && res.transaction) addedTransactions.push(res.transaction);
         if (res && res.currentPeriod && (!latestPeriod || res.currentPeriod > latestPeriod)) {
           latestPeriod = res.currentPeriod;
         }
-      } catch (_) {
+      } catch (err) {
         failedCount += 1;
+        const sc = getBulkSyncConflictApi();
+        if (sc && sc.isSyncConflictError(err) && err.conflict) sc.parkSyncConflict(err.conflict);
       }
     }
 
@@ -162,10 +196,13 @@
 
     for (const id of ids) {
       try {
-        const res = await callServer('api_deleteTransaction', id);
+        const orig = (DB.transactions || []).find((x) => String(x.id) === String(id));
+        const res = await callServer('api_deleteTransaction', id, orig ? orig.version : undefined);
         deletedTransactionIds.push((res && res.deletedTransactionId) || id);
-      } catch (_) {
+      } catch (err) {
         failedCount += 1;
+        const sc = getBulkSyncConflictApi();
+        if (sc && sc.isSyncConflictError(err) && err.conflict) sc.parkSyncConflict(err.conflict);
       }
     }
 

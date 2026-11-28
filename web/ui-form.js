@@ -218,6 +218,23 @@
     };
   }
 
+  // Optimistic locking (Gelombang 7c): simpan edit transaksi dengan
+  // dialog konflik. Mengembalikan data seperti callServer biasa, atau
+  // null bila pengguna memilih versi terbaru / membatalkan (state
+  // sudah di-refresh ke server; form dibiarkan terbuka). Error lain
+  // dilempar lagi ke pemanggil (error Swal biasa).
+  async function saveTransactionWithConflict(id, payload, expectedVersion) {
+    try {
+      return await callServer('api_updateTransaction', id, payload, expectedVersion);
+    } catch (err) {
+      const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+      if (!sc) throw err;
+      const r = await sc.handleOnlineConflict(err, callServer, refreshFromServer);
+      if (!r.handled) throw err;
+      return r.result;
+    }
+  }
+
   async function submitTransaction(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('btnSubmitTrans');
@@ -249,9 +266,24 @@
     const needPeriodSwitch = txMonth !== DB.currentPeriod;
 
     try {
-      const data = rowId
-        ? await callServer('api_updateTransaction', rowId, p)
-        : await callServer('api_addTransaction', p);
+      let data = null;
+      if (rowId) {
+        // Versi + snapshot saat form dibuka (dari DB): inilah yang
+        // dicek server — bila perangkat lain sudah mengubahnya,
+        // dialog konflik yang memutuskan (bukan timpa diam-diam).
+        const orig = (DB.transactions || []).find((x) => String(x.id) === String(rowId));
+        const base = orig ? Object.assign({}, orig) : null;
+        data = await saveTransactionWithConflict(
+          rowId,
+          base ? Object.assign({}, p, { __base: base }) : p,
+          base ? base.version : undefined
+        );
+      } else {
+        data = await callServer('api_addTransaction', p);
+      }
+      // Konflik diputuskan pakai versi terbaru / dibatalkan: tidak ada
+      // yang disimpan — jangan tampilkan sukses / pindah halaman.
+      if (!data) return;
 
       if (needPeriodSwitch) {
         await callServer('api_savePeriod', txMonth);
@@ -409,9 +441,23 @@
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
-        await refreshFromServer(await callServer('api_deleteTransaction', id));
-        if (targetTx) showUndoDeleteToast(targetTx);
+        const res = await callServer('api_deleteTransaction', id, targetTx ? targetTx.version : undefined);
+        await refreshFromServer(res);
+        // Sudah dihapus perangkat lain sebelum hapusan ini sampai:
+        // sukses idempotent — tanpa toast Undo (undo atas hapusan
+        // perangkat lain tidak masuk akal).
+        if (targetTx && !res.alreadyDeleted) showUndoDeleteToast(targetTx);
       } catch (e) {
+        // Hapus-vs-edit (Gelombang 7c): record sudah diubah perangkat
+        // lain — tanyakan apakah tetap dihapus atau dibatalkan.
+        const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+        if (sc) {
+          const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+          if (r.handled) {
+            if (r.result) await refreshFromServer(r.result);
+            return;
+          }
+        }
         showActionError(e);
       }
     });

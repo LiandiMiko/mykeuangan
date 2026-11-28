@@ -97,6 +97,9 @@ const UI_CORE_MODULES = [
 ];
 
 const UI_FEATURES_MODULES = [
+  // Gelombang 7c: sync-conflict.js HARUS sebelum ui-feat-offline.js —
+  // flush antrean memakai dialog/parkir konflik darinya.
+  'sync-conflict.js',
   'ui-feat-offline.js',
   'ui-feat-cache.js',
   'ui-feat-ai.js',

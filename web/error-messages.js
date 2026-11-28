@@ -109,6 +109,17 @@
     if (/^23505$/.test(code)) {
       return pick({ id: 'Data sudah ada — tidak disimpan dua kali.', en: 'This already exists — it was not saved twice.' });
     }
+    // Optimistic locking (Gelombang 7c): konflik TIDAK PERNAH boleh
+    // sampai ke pengguna sebagai error mentah — jalur yang ditangani
+    // (form, laporan, flush) menampilkan dialog pilihan; ini hanya
+    // jaring pengaman bila konflik lolos ke showActionError dari
+    // pemanggil yang belum menanganinya (mis. restore cadangan).
+    // Pesan 'CONFLICT:...' juga akan ditangkap TECHNICAL_RE di bawah,
+    // tetapi pemetaan eksplisit ini memberi kalimat yang menjelaskan
+    // apa yang terjadi, bukan GENERIC.
+    if (code === 'MK_CONFLICT') {
+      return pick({ id: 'Data ini baru saja diubah di perangkat lain. Muat ulang dan coba lagi.', en: 'This record was just changed on another device. Reload and try again.' });
+    }
     for (const m of MAPPINGS) {
       if (m.re.test(raw)) return pick(m);
     }
