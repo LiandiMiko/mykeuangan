@@ -178,12 +178,25 @@ test('3.4f setiap tag resource eksternal yang tersisa membawa integrity + crosso
   // Jangkar source: semua tag CDN di src/styles.html (kecuali Google Fonts
   // yang tidak bisa di-SRI — diganti build menjadi Inter self-hosted)
   // harus membawa SRI + crossorigin.
+  // Gelombang 7d (P2): dulu 11 — 8 tag di antaranya (jsPDF + autotable,
+  // Chart.js, flatpickr + monthSelect + locale id) DIHAPUS dari
+  // styles.html karena ketiganya kini lazy-load (web/lazy-vendors.js).
+  // Sisa 3: sweetalert2, Phosphor, Tailwind Play CDN. SRI kedelapan
+  // file yang dihapus TIDAK hilang — pindah ke web/lazy-vendors.js
+  // (dicek di bawah: hash yang sama harus ada di sana).
   const styles = fs.readFileSync(path.join(REPO_ROOT, 'src', 'styles.html'), 'utf8');
   const srcTags = [...styles.matchAll(/<(?:script|link)\b[^>]*?(?:src|href)\s*=\s*"https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.tailwindcss\.com)[^"]*"[^>]*>/gi)];
-  assert.equal(srcTags.length, 11, `tag CDN SRI-eligible di src/styles.html harus 11, ketemu ${srcTags.length}`);
+  assert.equal(srcTags.length, 3, `tag CDN SRI-eligible di src/styles.html harus 3 (Gelombang 7d: 8 tag lazy-load dihapus), ketemu ${srcTags.length}`);
   for (const [tag] of srcTags) {
     assert.match(tag, /integrity="sha384-[^"]+"/, `tag CDN source tanpa SRI: ${tag}`);
     assert.match(tag, /crossorigin="anonymous"/, `tag CDN source tanpa crossorigin: ${tag}`);
+  }
+  // Gelombang 7d: SRI file lazy-load harus tetap ada di lazy-vendors.js.
+  const lazyVendors = fs.readFileSync(path.join(REPO_ROOT, 'web', 'lazy-vendors.js'), 'utf8');
+  for (const file of ['jspdf.umd.min.js', 'jspdf.plugin.autotable.min.js', 'chart.umd.min.js', 'flatpickr.min.js', 'monthSelect-index.js', 'flatpickr-id.js', 'flatpickr.min.css', 'monthSelect-style.css']) {
+    assert.ok(lazyVendors.includes(`'${file}'`), `lazy-vendors.js harus memuat ${file}`);
+    const hashMatch = lazyVendors.match(new RegExp(`'${file.replace(/\./g, '\\.')}'\\s*:\\s*'(sha384-[^']+)'`));
+    assert.ok(hashMatch, `lazy-vendors.js harus membawa SRI untuk ${file}`);
   }
   assert.doesNotMatch(styles, /rel="preconnect" href="https:\/\/(?:fonts\.googleapis|fonts\.gstatic|cdn\.jsdelivr)/, 'tidak boleh ada preconnect CDN di styles.html');
 });

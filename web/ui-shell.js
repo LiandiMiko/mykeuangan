@@ -33,8 +33,35 @@
       });
   }
 
+  // Gelombang 7d (P2): flatpickr dimuat malas — pemilih tanggal baru
+  // diinisialisasi saat pengguna pertama kali menyentuh kolom tanggal/
+  // bulan (focus/pointerdown). Sebelum itu kolom tetap input teks biasa
+  // yang bisa diketik; semua pembaca root.fpTanggal/fpMonth di kode lain
+  // sudah menjaga `if (root.fpTanggal)`. Pemasangan listener sekali
+  // saja (dataset mkFpBound) dan init sekali saja (dataset mkFpInit).
+  function attachLazyPicker(id, initFn) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.mkFpBound) return;
+    el.dataset.mkFpBound = '1';
+    const initOnce = function () {
+      if (el.dataset.mkFpInit || typeof root.ensureFlatpickr !== 'function') return;
+      el.dataset.mkFpInit = '1';
+      root.ensureFlatpickr().then(function () {
+        initFn();
+        // Buka kalendernya langsung — fokus pengguna sudah di kolom ini.
+        if (id === 'tr_tanggal' && root.fpTanggal) root.fpTanggal.open();
+        if (id === 'dashMonthPicker' && root.fpMonth) root.fpMonth.open();
+      }).catch(function (err) {
+        delete el.dataset.mkFpInit;
+        console.warn('[pickers] flatpickr gagal dimuat:', err);
+      });
+    };
+    el.addEventListener('focus', initOnce, { once: true });
+    el.addEventListener('pointerdown', initOnce, { once: true });
+  }
+
   function initPickersAndControls() {
-    if (document.getElementById('tr_tanggal')) {
+    attachLazyPicker('tr_tanggal', function () {
       root.fpTanggal = flatpickr('#tr_tanggal', {
         dateFormat: 'Y-m-d',
         altInput: true,
@@ -42,8 +69,8 @@
         locale: 'id',
         disableMobile: true
       });
-    }
-    if (document.getElementById('dashMonthPicker')) {
+    });
+    attachLazyPicker('dashMonthPicker', function () {
       root.fpMonth = flatpickr('#dashMonthPicker', {
         plugins: [new monthSelectPlugin({ shorthand: true, dateFormat: 'Y-m', altFormat: 'F Y' })],
         altInput: true,
@@ -54,7 +81,7 @@
           if (s) await saveCurrentPeriod(s);
         }
       });
-    }
+    });
     const prefersReducedMotion = typeof root.matchMedia === 'function' && root.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (typeof Chart !== 'undefined') {
       Chart.defaults.font.family = "'Inter', sans-serif";

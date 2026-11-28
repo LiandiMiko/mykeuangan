@@ -108,6 +108,9 @@
     };
   }
 
+  // Gelombang 7d (P2): Chart.js dimuat malas — grafik baru digambar
+  // setelah ensureChart() selesai (lihat web/lazy-vendors.js). Pemanggil
+  // (ui-shell.js) sudah membungkus pemanggilan ini dalam try/catch.
   function renderPortfolioChart() {
     const canvas = document.getElementById('portfolioChart');
     if (!canvas) return;
@@ -124,19 +127,34 @@
     canvas.style.display = 'block';
     if (placeholder) placeholder.style.display = 'none';
 
-    if (portfolioChartInstance) {
-      portfolioChartInstance.destroy();
-      portfolioChartInstance = null;
+    // Gelombang 7d: gambar hanya setelah Chart.js tersedia; bila
+    // pemuatan gagal (mis. offline sebelum modul sempat ter-cache),
+    // kembalikan placeholder supaya layar tidak kosong diam-diam.
+    const draw = function () {
+      if (typeof Chart === 'undefined') return;
+      if (portfolioChartInstance) {
+        portfolioChartInstance.destroy();
+        portfolioChartInstance = null;
+      }
+      portfolioChartInstance = new Chart(canvas.getContext('2d'), buildPortfolioChartConfig(snapshots));
+      // Gelombang 6 (U20): ringkasan tren untuk screen reader, diperbarui tiap render.
+      const firstTotal = Number(snapshots[0].total) || 0;
+      const lastTotal = Number(snapshots[snapshots.length - 1].total) || 0;
+      const totalPct = firstTotal > 0 ? Math.round(((lastTotal - firstTotal) / firstTotal) * 100) : 0;
+      const totalDir = lastTotal > firstTotal ? 'naik' : (lastTotal < firstTotal ? 'turun' : 'tetap');
+      canvas.setAttribute('aria-label', 'Grafik tren nilai portfolio 30 hari terakhir. Total ' +
+        formatRupiah(firstTotal).replace(',00', '') + ' menjadi ' + formatRupiah(lastTotal).replace(',00', '') +
+        ', ' + totalDir + ' ' + Math.abs(totalPct) + '%.');
+    };
+    if (typeof root.ensureChart === 'function') {
+      root.ensureChart().then(draw).catch(function (err) {
+        console.warn('[grafik] Chart.js gagal dimuat:', err);
+        canvas.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
+      });
+    } else if (typeof Chart !== 'undefined') {
+      draw();
     }
-    portfolioChartInstance = new Chart(canvas.getContext('2d'), buildPortfolioChartConfig(snapshots));
-    // Gelombang 6 (U20): ringkasan tren untuk screen reader, diperbarui tiap render.
-    const firstTotal = Number(snapshots[0].total) || 0;
-    const lastTotal = Number(snapshots[snapshots.length - 1].total) || 0;
-    const totalPct = firstTotal > 0 ? Math.round(((lastTotal - firstTotal) / firstTotal) * 100) : 0;
-    const totalDir = lastTotal > firstTotal ? 'naik' : (lastTotal < firstTotal ? 'turun' : 'tetap');
-    canvas.setAttribute('aria-label', 'Grafik tren nilai portfolio 30 hari terakhir. Total ' +
-      formatRupiah(firstTotal).replace(',00', '') + ' menjadi ' + formatRupiah(lastTotal).replace(',00', '') +
-      ', ' + totalDir + ' ' + Math.abs(totalPct) + '%.');
   }
 
   function resolveAssetPresentation(a, typeLower, qty) {

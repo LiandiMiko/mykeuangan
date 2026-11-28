@@ -67,6 +67,10 @@ const WEB_MODULES = [
   // (ui-state.js showActionError, supabase-auth.js, dsb.) memakainya
   // untuk menyaring pesan error sebelum ditampilkan ke pengguna.
   'error-messages.js',
+  // Gelombang 7d: lazy-vendors.js HARUS kedua — semua consumer lazy-load
+  // (ui-shell.js, ui-assets.js, ui-export.js, ui-feat-charts.js)
+  // memanggil ensureChart/ensureJsPdf/ensureFlatpickr darinya.
+  'lazy-vendors.js',
   'native-bridge.js',
   'finance-analysis-core.js',
   'finance-analysis-portfolio.js',

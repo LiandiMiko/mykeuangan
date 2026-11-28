@@ -126,8 +126,18 @@
     });
   }
 
+  // Gelombang 7d (P2): Chart.js dimuat malas — bila belum ada, picu
+  // pemuatan lalu gambar ulang setelah siap (bukan diam-diam kosong).
   function renderBudgetCharts() {
-    if (typeof Chart === 'undefined' || !root.isDataReady) return;
+    if (!root.isDataReady) return;
+    if (typeof Chart === 'undefined') {
+      if (typeof root.ensureChart === 'function') {
+        root.ensureChart().then(function () { renderBudgetCharts(); }).catch(function (err) {
+          console.warn('[grafik] Chart.js gagal dimuat:', err);
+        });
+      }
+      return;
+    }
     const isDark = document.documentElement.classList.contains('dark');
     const theme = {
       isDark,
@@ -141,7 +151,15 @@
 
   function renderNetWorthChart() {
     const canvas = document.getElementById('netWorthChart');
-    if (!canvas || !root.isDataReady || typeof Chart === 'undefined') return;
+    if (!canvas || !root.isDataReady) return;
+    if (typeof Chart === 'undefined') {
+      if (typeof root.ensureChart === 'function') {
+        root.ensureChart().then(function () { renderNetWorthChart(); }).catch(function (err) {
+          console.warn('[grafik] Chart.js gagal dimuat:', err);
+        });
+      }
+      return;
+    }
     if (typeof FinanceAnalysis === 'undefined' || typeof FinanceAnalysis.computeNetWorthSeries !== 'function') return;
 
     const series = FinanceAnalysis.computeNetWorthSeries(DB, DB.currentPeriod, DB.payrollDay, 6);
