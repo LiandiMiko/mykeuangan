@@ -33,7 +33,14 @@
     'mk_auto_post_last_date',
     'mk_native_notif_enabled',
     'mk_biometric_pin_enabled',
-    'mk_biometric_cred_id'
+    'mk_biometric_cred_id',
+    // Gelombang 4: kunci update yang ditunda (dibaca ui-feat-updates)
+    // dan throttle biometrik ikut terhapus saat logout — setelah logout
+    // data lokal dihapus dan masuk kembali wajib kata sandi akun,
+    // sehingga lockout/throttle lokal tidak lagi melindungi apa pun
+    // (pola yang sama dengan mk_pin_lock_state_v1 di atas).
+    'mk_dismissed_update_version',
+    'mk_biometric_lock_state_v1'
   ];
 
   const showAuthNotice = (title, msg) => showCoreNotice(title, msg, { closable: true });

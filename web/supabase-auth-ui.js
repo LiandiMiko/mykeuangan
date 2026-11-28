@@ -174,6 +174,25 @@
     return '';
   }
 
+  // Gelombang 4: menutup modal recovery harus mengakhiri sesi recovery —
+  // sebelumnya tombol "Nanti Saja" hanya menghapus modal dan pengguna
+  // diam-diam tetap login di bawah sesi recovery (token sementara yang
+  // masih bisa dipakai updateUser). Best-effort: signOut boleh gagal
+  // (mis. offline); modal tetap ditutup dan pengguna diberi tahu untuk
+  // meminta tautan baru bila masih ingin mengganti kata sandi.
+  async function endRecoverySession(sb, wrap, showAuthNotice, en) {
+    try {
+      if (sb && sb.auth && typeof sb.auth.signOut === 'function') await sb.auth.signOut();
+    } catch (_) { /* abaikan: sesi tetap diakhiri di sisi klien */ }
+    if (wrap && typeof wrap.remove === 'function') wrap.remove();
+    if (typeof showAuthNotice === 'function') {
+      await showAuthNotice(
+        en ? 'Recovery Session Ended' : 'Sesi Pemulihan Diakhiri',
+        en ? 'The recovery session has been ended. Request a new reset link if you still want to change your password.' : 'Sesi pemulihan telah diakhiri. Minta tautan reset baru jika Anda masih ingin mengganti kata sandi.'
+      );
+    }
+  }
+
   function showPasswordRecoveryModal(sb, isAuthEn, showAuthNotice) {
     if (document.getElementById('mkRecoveryOverlay')) return;
     const en = isAuthEn();
@@ -193,13 +212,13 @@
           <label for="mkRecPassConfirm" style="${theme.fieldLabel}">${en ? 'Confirm New Password' : 'Ulangi Kata Sandi Baru'}</label>
           ${theme.passInputGroup('mkRecPassConfirm', en ? 'Repeat new password' : 'Ulangi kata sandi baru', 'new-password', 8, 'done')}
           <button type="submit" id="mkRecSubmitBtn" style="${theme.primaryBtn}">${en ? 'Save New Password' : 'Simpan Kata Sandi Baru'}</button>
-          <button type="button" id="mkRecCancelBtn" style="border:0;background:transparent;color:${theme.textMuted};font-size:12px;font-weight:600;padding:8px;cursor:pointer">${en ? 'Cancel' : 'Nanti Saja'}</button>
+          <button type="button" id="mkRecCancelBtn" style="border:0;background:transparent;color:${theme.textMuted};font-size:12px;font-weight:600;padding:8px;cursor:pointer">${en ? 'End Session & Close' : 'Akhiri Sesi & Tutup'}</button>
           <p id="mkErr" role="status" aria-live="polite" style="margin:0;color:#ef4444;font-size:12px;min-height:1em;text-align:center"></p>
         </form>
       </div>`);
     document.body.appendChild(wrap);
     bindPassControls(wrap, isAuthEn, 'mkRecPass');
-    wrap.querySelector('#mkRecCancelBtn').onclick = () => wrap.remove();
+    wrap.querySelector('#mkRecCancelBtn').onclick = () => endRecoverySession(sb, wrap, showAuthNotice, en);
     wrap.querySelector('#mkRecForm').onsubmit = async (ev) => {
       ev.preventDefault();
       const errEl = wrap.querySelector('#mkErr');
@@ -247,6 +266,7 @@
     buildAuthModeFields,
     bindPassControls,
     focusAuthErrorField,
-    showPasswordRecoveryModal
+    showPasswordRecoveryModal,
+    endRecoverySession
   };
 })();

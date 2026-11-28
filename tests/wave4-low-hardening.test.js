@@ -348,3 +348,75 @@ test('4.3 mematikan biometrik wajib verifikasi PIN; sukses biometrik tidak meres
   assert.match(ux, /bindPinModalBiometricRetry[\s\S]{0,1200}getBiometricCooldownSeconds/, 'tombol coba-lagi mengecek cooldown');
   assert.match(ux, /setBiometricButtonLocked/, 'label tombol berubah saat terkunci');
 });
+
+// ============================================================
+// 4.4 — Modal recovery menutup sesi; logout menghapus kunci
+// update yang ditunda (+ throttle biometrik); hapus akun wajib
+// kata sandi.
+// ============================================================
+function loadAuthUi() {
+  const sandbox = {
+    document: {},
+    localStorage: { getItem: () => null },
+    console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array
+  };
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync('web/supabase-auth-ui.js', 'utf8'), sandbox);
+  return sandbox.__mkAuthUi;
+}
+
+test('4.4 endRecoverySession: menutup modal recovery mengakhiri sesi, menutup modal, dan memberi tahu', async () => {
+  const ui = loadAuthUi();
+  assert.equal(typeof ui.endRecoverySession, 'function', 'endRecoverySession harus diekspor di window.__mkAuthUi');
+  const calls = { signOut: 0, removed: false, notices: [] };
+  const sb = { auth: { signOut: async () => { calls.signOut++; } } };
+  const wrap = { remove: () => { calls.removed = true; } };
+  const notice = async (t, m) => { calls.notices.push([t, m]); };
+  await ui.endRecoverySession(sb, wrap, notice, false);
+  assert.equal(calls.signOut, 1, 'sesi recovery diakhiri lewat signOut');
+  assert.equal(calls.removed, true, 'modal ditutup');
+  assert.equal(calls.notices.length, 1);
+  assert.match(calls.notices[0][0], /Sesi Pemulihan Diakhiri/);
+  assert.match(calls.notices[0][1], /tautan reset baru/);
+  await ui.endRecoverySession(sb, { remove: () => {} }, notice, true);
+  assert.match(calls.notices[1][0], /Recovery Session Ended/);
+});
+
+test('4.4 endRecoverySession: signOut gagal (mis. offline) tetap menutup modal dan memberi tahu', async () => {
+  const ui = loadAuthUi();
+  const sb = { auth: { signOut: async () => { throw new Error('offline'); } } };
+  let removed = false;
+  let noticed = false;
+  await ui.endRecoverySession(sb, { remove: () => { removed = true; } }, async () => { noticed = true; }, false);
+  assert.equal(removed, true, 'modal tetap ditutup meski signOut gagal');
+  assert.equal(noticed, true, 'pengguna tetap diberi tahu');
+});
+
+test('4.4 tombol batal recovery berlabel "Akhiri Sesi & Tutup" dan memanggil endRecoverySession; logout menghapus kunci update yang ditunda', () => {
+  const authUi = fs.readFileSync('web/supabase-auth-ui.js', 'utf8');
+  assert.match(authUi, /Akhiri Sesi & Tutup/);
+  assert.match(authUi, /End Session & Close/);
+  assert.match(authUi, /mkRecCancelBtn'\)\.onclick = \(\) => endRecoverySession\(sb, wrap, showAuthNotice, en\)/);
+  assert.doesNotMatch(authUi, /mkRecCancelBtn'\)\.onclick = \(\) => wrap\.remove\(\)/, 'tombol batal tidak boleh lagi hanya menghapus modal');
+  const auth = fs.readFileSync('web/supabase-auth.js', 'utf8');
+  const keys = auth.slice(auth.indexOf('const LOGOUT_STORAGE_KEYS'), auth.indexOf('];', auth.indexOf('const LOGOUT_STORAGE_KEYS')));
+  assert.match(keys, /'mk_dismissed_update_version'/, 'logout menghapus penanda update yang ditunda');
+  assert.match(keys, /'mk_biometric_lock_state_v1'/, 'logout menghapus throttle biometrik (masuk kembali wajib kata sandi akun)');
+  const updates = fs.readFileSync('web/ui-feat-updates.js', 'utf8');
+  assert.match(updates, /mk_dismissed_update_version/, 'kunci itu memang dipakai fitur update');
+});
+
+test('4.4 delete-account.html: kata sandi selalu dikirim untuk verifikasi ulang; bidang email saja yang disembunyikan saat sesi aktif', () => {
+  const page = fs.readFileSync('web/delete-account.html', 'utf8');
+  assert.match(page, /invoke\('delete-account', \{ body: \{ confirmation: 'HAPUS', password: password \} \}\)/);
+  assert.match(page, /id="delPass"[^>]*required/, 'bidang kata sandi wajib diisi');
+  assert.match(page, /id="emailFields"/, 'bidang email punya wadah sendiri');
+  assert.match(page, /id="passFields"/, 'bidang kata sandi punya wadah sendiri');
+  assert.doesNotMatch(page, /credFields/, 'wadah gabungan credFields tidak ada lagi');
+  assert.match(page, /emailFields\.classList\.add\('hide'\)/, 'sesi aktif hanya menyembunyikan email');
+  const pwIdx = page.indexOf("var password = document.getElementById('delPass')");
+  const invIdx = page.indexOf("invoke('delete-account'");
+  assert.ok(pwIdx > 0 && pwIdx < invIdx, 'kata sandi dibaca sebelum pemanggilan fungsi');
+  assert.match(page, /belum bisa menghapus akun dari halaman ini/, 'catatan akun Google-only jujur soal batasan kata sandi');
+});
