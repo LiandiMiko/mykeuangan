@@ -609,7 +609,7 @@
               <button type="button" id="btnRotateTgWebhook" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-xs text-slate-600 dark:text-slate-300">Perbarui Webhook</button>
               <button type="button" id="btnDisconnectTgBot" class="flex-1 min-h-[40px] px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-800 font-bold text-xs text-rose-600 dark:text-rose-400">Putus Bot</button>
             </div>
-            <p class="text-[11px] text-slate-400 -mt-1">${escapeHtmlJS(t('tg.webhook_hint'))}</p>
+            <p class="text-[11px] text-slate-500 -mt-1">${escapeHtmlJS(t('tg.webhook_hint'))}</p>
           </div>`,
         confirmButtonText: 'Selesai',
         showCloseButton: true,

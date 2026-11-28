@@ -688,7 +688,7 @@
       ov.setAttribute('aria-label', txMsg('Aplikasi terkunci', 'App locked'));
       ov.innerHTML =
         '<div class="w-16 h-16 brand-gradient brand-border-glow rounded-3xl flex items-center justify-center shrink-0">' +
-        '<i class="ph-fill ph-wallet text-3xl text-white" aria-hidden="true"></i></div>' +
+        '<i class="ph ph-wallet text-3xl text-white" aria-hidden="true"></i></div>' +
         '<p class="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">' + txMsg('Aplikasi Terkunci', 'App Locked') + '</p>' +
         '<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 text-center leading-relaxed">' + txMsg('Masukkan PIN untuk melanjutkan.', 'Enter your PIN to continue.') + '</p>';
       pinLockOverlayEl = ov;

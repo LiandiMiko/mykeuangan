@@ -145,7 +145,7 @@ test('6C/U8+U23+U24+U39 paritas kamus 347=347 dan nilai kunci baru/ubah', () => 
   const i18n = loadI18nDictionary();
   const idKeys = Object.keys(i18n.id).sort();
   const enKeys = Object.keys(i18n.en).sort();
-  assert.equal(idKeys.length, 347, 'kamus ID harus 347 kunci (326 + 22 baru − 1 split)');
+  assert.equal(idKeys.length, 351, 'kamus ID harus 351 kunci (326 + 22 baru 6C + 5 baru 6B − 1 split 6C − 1 hapus 6B)');
   assert.deepEqual(idKeys, enKeys, 'I18N.id dan I18N.en harus identik');
   // Kunci baru Gelombang 6C ada di kedua bahasa.
   for (const key of [
@@ -155,7 +155,9 @@ test('6C/U8+U23+U24+U39 paritas kamus 347=347 dan nilai kunci baru/ubah', () => 
     'app.reload_data', 'form.title', 'form.wallet', 'form.wallet_in',
     'form.wallet_out', 'form.reset_nominal', 'form.split_bill',
     'lap.import_format', 'tg.webhook_hint', 'tg.webhook_updated',
-    'tg.botfather_username_note', 'utang.add'
+    'tg.botfather_username_note', 'utang.add',
+    // Kunci baru Gelombang 6B (navigasi Utang + tombol transfer terpisah).
+    'nav.utang', 'nav.utang_short', 'dash.transfer', 'dash.transfer_full', 'dash.withdraw'
   ]) {
     assert.ok(i18n.id[key], `kunci ID hilang: ${key}`);
     assert.ok(i18n.en[key], `kunci EN hilang: ${key}`);
