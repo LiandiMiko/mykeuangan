@@ -4,7 +4,22 @@
   'use strict';
   const core = window.__mkSb;
   if (!core) return;
-  const { sb, fail, num, syncPeriod, trxRow, trxFromRow, fetchCategoriesOnly, fetchEntitiesOnly, fetchBudgetsOnly, fetchRecurringOnly, setSetting } = core;
+  const { sb, fail, num, syncPeriod, trxRow, trxFromRow, fetchCategoriesOnly, fetchEntitiesOnly, fetchBudgetsOnly, fetchRecurringOnly, setSetting, createConflictError, loadVersionedRow, resolveExpectedVersion } = core;
+
+  // Bentuk klien satu transaksi (untuk payload konflik: `mine` di dialog
+  // + `args` pemutar-ulang force-save). `__base` (snapshot saat mulai
+  // mengedit, dipakai merge) dibaca SEBELUM trxRow() — trxRow hanya
+  // mengambil field yang dikenal, jadi metadata tidak ikut ke DB.
+  const trxClientView = (id, d) => ({
+    id: String(id || (d && d.id) || ''),
+    tanggal: String((d && d.tanggal) || '').slice(0, 10),
+    tipe: (d && d.tipe) || '',
+    kategori: String((d && d.kategori) || ''),
+    nominal: Number((d && d.nominal) || 0),
+    keterangan: String((d && d.keterangan) || ''),
+    walletId: String((d && d.walletId) || '')
+  });
+  const trxVersionColumns = 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id,version';
 
   const transactionFingerprint = (tx, defaultWalletId) => [
     tx.tanggal,
@@ -120,20 +135,62 @@
       return { transaction: trxFromRow(data), ...(currentPeriod ? { currentPeriod } : {}) };
     },
 
-    async api_updateTransaction(id, d) {
+    // Optimistic locking (Gelombang 7c): update BERSYARAT versi.
+    // `expectedVersion`: angka (versi saat pemanggil mulai mengedit),
+    // 'force' (timpa yang disetujui pengguna lewat dialog konflik),
+    // atau undefined (fetch-first: ambil versi kini dari server, lalu
+    // TETAP update bersyarat — jeda baca-tulis hanya membuat konflik
+    // lebih mungkin terdeteksi, tidak pernah timpa diam-diam).
+    // 0 baris terpengaruh = versi bergerak / baris dihapus — dibedakan
+    // dengan baca ulang, lalu dilempar sebagai MK_CONFLICT (bukan error
+    // mentah): dialog yang memutuskan, bukan handler ini.
+    async api_updateTransaction(id, d, expectedVersion) {
+      const base = (d && d.__base && typeof d.__base === 'object') ? d.__base : null;
+      const mine = trxClientView(id, d);
       const row = trxRow(d);
-      const { data, error } = await sb.from('transactions').update(row).eq('id', id)
-        .select('id,tanggal,tipe,kategori,nominal,keterangan,wallet_id').maybeSingle();
+      const resolved = await resolveExpectedVersion('transactions', id, trxVersionColumns, expectedVersion);
+      if (resolved.expected === null) {
+        throw createConflictError('transaction', {
+          operation: 'update', id, mine, current: null, base, deletedByOther: true,
+          op: 'api_updateTransaction', args: [id, Object.assign({}, d)]
+        });
+      }
+      const { data, error } = await sb.from('transactions').update(row).eq('id', id).eq('version', resolved.expected)
+        .select(trxVersionColumns).maybeSingle();
       fail(error);
-      if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
+      if (!data) {
+        const current = await loadVersionedRow('transactions', id, trxVersionColumns);
+        if (!current) {
+          throw createConflictError('transaction', {
+            operation: 'update', id, mine, current: null, base, deletedByOther: true,
+            op: 'api_updateTransaction', args: [id, Object.assign({}, d)]
+          });
+        }
+        throw createConflictError('transaction', {
+          operation: 'update', id, mine, current: trxFromRow(current), base, deletedByOther: false,
+          op: 'api_updateTransaction', args: [id, Object.assign({}, d)]
+        });
+      }
       const currentPeriod = await syncPeriod(row.tanggal);
       return { transaction: trxFromRow(data), ...(currentPeriod ? { currentPeriod } : {}) };
     },
 
-    async api_deleteTransaction(id) {
-      const { data, error } = await sb.from('transactions').delete().eq('id', id).select('id').maybeSingle();
+    // Hapus BERSYARAT versi. Baris sudah tidak ada = sukses idempotent
+    // (alreadyDeleted: true — pemanggil melewati toast Undo); baris
+    // masih ada tapi versinya bergerak = konflik hapus-vs-edit.
+    async api_deleteTransaction(id, expectedVersion) {
+      const resolved = await resolveExpectedVersion('transactions', id, trxVersionColumns, expectedVersion);
+      if (resolved.expected === null) return { deletedTransactionId: id, alreadyDeleted: true };
+      const { data, error } = await sb.from('transactions').delete().eq('id', id).eq('version', resolved.expected).select('id').maybeSingle();
       fail(error);
-      if (!data) throw new Error('Transaksi tidak ditemukan atau tidak dapat diakses.');
+      if (!data) {
+        const current = await loadVersionedRow('transactions', id, trxVersionColumns);
+        if (!current) return { deletedTransactionId: id, alreadyDeleted: true };
+        throw createConflictError('transaction', {
+          operation: 'delete', id, mine: null, current: trxFromRow(current), base: null, deletedByOther: false,
+          op: 'api_deleteTransaction', args: [id]
+        });
+      }
       return { deletedTransactionId: data.id };
     },
 

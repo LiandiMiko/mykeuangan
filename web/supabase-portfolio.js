@@ -3,7 +3,9 @@
   'use strict';
   const core = window.__mkSb;
   if (!core) return;
-  const { sb, fail, num, ymd, syncPeriod, trxFromRow, fetchAll, fetchCategoriesOnly, fetchWalletsOnly, fetchWalletsAndTransfers, fetchAssetsOnly } = core;
+  const { sb, fail, num, ymd, syncPeriod, trxFromRow, fetchAll, fetchCategoriesOnly, fetchWalletsOnly, fetchWalletsAndTransfers, fetchAssetsOnly, createConflictError, loadVersionedRow, resolveExpectedVersion } = core;
+
+  const walletVersionColumns = 'id,name,kind,opening_balance,sort,version';
 
   const CRYPTO_ID_MAP = {
     BTC: 'bitcoin', ETH: 'ethereum', ONDO: 'ondo-finance', TAO: 'bittensor', SOL: 'solana', ADA: 'cardano',
@@ -332,7 +334,7 @@
       return fetchWalletsOnly();
     },
 
-    async api_updateWallet(id, d) {
+    async api_updateWallet(id, d, expectedVersion) {
       if (!d || typeof d !== 'object') throw new Error('Data dompet tidak valid.');
       const patch = {};
       if (d.name !== undefined && d.name !== null) {
@@ -351,14 +353,86 @@
       // Dulu: field tidak valid diam-diam dibuang dan update KOSONG tetap
       // dikirim lalu dilaporkan sukses — no-op yang menyamar sebagai sukses.
       if (!Object.keys(patch).length) throw new Error('Tidak ada perubahan dompet yang valid untuk disimpan.');
-      const { error } = await sb.from('wallets').update(patch).eq('id', id);
+      // Optimistic locking (Gelombang 7c): update bersyarat versi
+      // (pola yang sama dengan api_updateTransaction). `mine` untuk
+      // dialog dibangun dari base + patch — field yang tidak di-patch
+      // memakai nilai base, supaya dialog tidak menuduh field itu
+      // berubah.
+      const base = (d && d.__base && typeof d.__base === 'object') ? d.__base : null;
+      const patchClient = {};
+      if (patch.name !== undefined) patchClient.name = patch.name;
+      if (patch.kind !== undefined) patchClient.kind = patch.kind;
+      if (patch.opening_balance !== undefined) patchClient.openingBalance = patch.opening_balance;
+      const mine = Object.assign({ id }, base || {}, patchClient);
+      const resolved = await resolveExpectedVersion('wallets', id, walletVersionColumns, expectedVersion);
+      if (resolved.expected === null) {
+        throw createConflictError('wallet', {
+          operation: 'update', id, mine, current: null, base, deletedByOther: true,
+          op: 'api_updateWallet', args: [id, Object.assign({}, d)]
+        });
+      }
+      const { data, error } = await sb.from('wallets').update(patch).eq('id', id).eq('version', resolved.expected).select('id').maybeSingle();
       fail(error);
+      if (!data) {
+        const current = await loadVersionedRow('wallets', id, walletVersionColumns);
+        if (!current) {
+          throw createConflictError('wallet', {
+            operation: 'update', id, mine, current: null, base, deletedByOther: true,
+            op: 'api_updateWallet', args: [id, Object.assign({}, d)]
+          });
+        }
+        throw createConflictError('wallet', {
+          operation: 'update', id, mine,
+          current: {
+            id: current.id, name: current.name, kind: current.kind,
+            openingBalance: num(current.opening_balance), sort: current.sort,
+            version: num(current.version) || 1
+          },
+          base, deletedByOther: false,
+          op: 'api_updateWallet', args: [id, Object.assign({}, d)]
+        });
+      }
       return fetchWalletsOnly();
     },
 
-    async api_deleteWallet(id) {
-      const { error } = await sb.rpc('delete_wallet', { p_wallet_id: id });
-      fail(error);
+    // Optimistic locking (Gelombang 7c): hapus lewat RPC
+    // delete_wallet_checked (cek versi di server, lalu mendelegasikan
+    // ke delete_wallet lama). Dompet yang sudah tidak ada = sukses
+    // idempotent (bukan error) — konsisten dengan delete lain.
+    async api_deleteWallet(id, expectedVersion) {
+      let expected = expectedVersion;
+      if (expected === 'force' || expected === undefined) {
+        const current = await loadVersionedRow('wallets', id, walletVersionColumns);
+        if (!current) {
+          const [wt0, trx0] = await Promise.all([
+            fetchWalletsAndTransfers(),
+            fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id'])
+          ]);
+          return { ...wt0, transactions: trx0.map(trxFromRow) };
+        }
+        expected = Number(current.version) || 1;
+      }
+      const { data, error } = await sb.rpc('delete_wallet_checked', { p_wallet_id: id, p_expected_version: expected });
+      if (error) {
+        const msg = String(error.message || '');
+        if (/could not find the function|PGRST202|404/i.test(msg)) {
+          throw new Error('Fitur hapus dompet belum tersedia: migrasi delete_wallet_checked belum diterapkan di server.');
+        }
+        fail(error);
+      }
+      const res = Array.isArray(data) ? data[0] : data;
+      if (res && res.conflict) {
+        throw createConflictError('wallet', {
+          operation: 'delete', id, mine: null,
+          current: {
+            id: res.id, name: res.name, kind: res.kind,
+            openingBalance: num(res.opening_balance), sort: 0,
+            version: num(res.version) || 1
+          },
+          base: null, deletedByOther: false,
+          op: 'api_deleteWallet', args: [id]
+        });
+      }
       const [wt, trx] = await Promise.all([
         fetchWalletsAndTransfers(),
         fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id'])

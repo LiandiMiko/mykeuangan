@@ -23,6 +23,30 @@
     return val.startsWith('Utang') || val.startsWith('Piutang');
   }
 
+  // Optimistic locking (Gelombang 7c) — accessor dialog konflik +
+  // pembungkus callServer: konflik ditangani lewat dialog, kembalikan
+  // data hasil atau null bila pengguna memilih versi terbaru / batal.
+  function syncConflictApi() {
+    return (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+  }
+
+  async function callWithConflict(op, ...args) {
+    try {
+      return await callServer(op, ...args);
+    } catch (e) {
+      const sc = syncConflictApi();
+      if (!sc) throw e;
+      const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+      if (!r.handled) throw e;
+      return r.result;
+    }
+  }
+
+  function findBudgetBase(kategori, bulan) {
+    const row = (DB.budgets || []).find((b) => String(b.kategori) === String(kategori) && String(b.bulan) === String(bulan));
+    return row ? Object.assign({}, row) : null;
+  }
+
   async function saveBudget() {
     const kategori = document.getElementById('budgetKategori').value;
     const jumlah = Math.round(parseFormattedNominal(document.getElementById('budgetJumlah').value));
@@ -36,7 +60,9 @@
       return;
     }
     try {
-      const data = await callServer('api_saveBudget', kategori, DB.currentPeriod, jumlah);
+      const base = findBudgetBase(kategori, DB.currentPeriod);
+      const data = await callWithConflict('api_saveBudget', kategori, DB.currentPeriod, jumlah, base ? base.version : undefined, base);
+      if (!data) return;
       await refreshFromServer(data);
       document.getElementById('budgetJumlah').value = '';
       Swal.fire({ icon: 'success', title: t('alert.saved'), timer: 1000, showConfirmButton: false, customClass: { popup: getSwalClass() } });
@@ -58,7 +84,8 @@
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
-        await refreshFromServer(await callServer('api_deleteBudget', id));
+        const base = (DB.budgets || []).find((b) => String(b.id) === String(id));
+        await refreshFromServer(await callWithConflict('api_deleteBudget', id, base ? base.version : undefined));
       } catch (e) {
         showActionError(e);
       }
@@ -104,7 +131,12 @@
       }
     });
     if (val === null || val === undefined) return;
-    try { await refreshFromServer(await callServer('api_saveBudget', kategori, DB.currentPeriod, val)); }
+    try {
+      const base = findBudgetBase(kategori, DB.currentPeriod);
+      const data = await callWithConflict('api_saveBudget', kategori, DB.currentPeriod, val, base ? base.version : undefined, base);
+      if (!data) return;
+      await refreshFromServer(data);
+    }
     catch (e) { showActionError(e); }
   }
 

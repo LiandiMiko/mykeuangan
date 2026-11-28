@@ -154,7 +154,12 @@
     kategori: row.kategori,
     nominal: num(row.nominal),
     keterangan: row.keterangan || '',
-    walletId: row.wallet_id || ''
+    walletId: row.wallet_id || '',
+    // Optimistic locking (Gelombang 7c): versi baris saat dibaca dari
+    // server. 1 bila sumbernya belum membawa versi (server lama / RPC
+    // lama seperti search/contribute) — handler mengambil versi segar
+    // dari server bila pemanggil tidak menyertakannya (fetch-first).
+    version: num(row.version) || 1
   });
 
   const fetchCategoriesOnly = async () => {
@@ -179,14 +184,14 @@
   };
 
   const fetchBudgetsOnly = async () => {
-    const budgets = await fetchAll('budgets', 'id,kategori,bulan,jumlah', ['bulan', 'kategori']);
-    return { budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah) })) };
+    const budgets = await fetchAll('budgets', 'id,kategori,bulan,jumlah,version', ['bulan', 'kategori']);
+    return { budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah), version: num(b.version) || 1 })) };
   };
 
   const fetchWalletsOnly = async () => {
-    const wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
+    const wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort,version', ['sort', 'name']);
     return {
-      wallets: wallets.map((w) => ({ id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort }))
+      wallets: wallets.map((w) => ({ id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort, version: num(w.version) || 1 }))
     };
   };
 
@@ -205,22 +210,24 @@
   };
 
   const fetchAssetsOnly = async () => {
-    const assets = await fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']);
+    const assets = await fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value,version', ['name', 'id']);
     return {
       assets: assets.map((a) => ({
         id: a.id, name: a.name, type: a.type, symbol: a.symbol,
-        quantity: num(a.quantity), buyPrice: num(a.buy_price), value: num(a.value)
+        quantity: num(a.quantity), buyPrice: num(a.buy_price), value: num(a.value),
+        version: num(a.version) || 1
       }))
     };
   };
 
   const fetchRecurringOnly = async () => {
-    const recurring = await fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active', ['id']);
+    const recurring = await fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active,version', ['id']);
     return {
       recurring: recurring.map((r) => ({
         id: r.id, tipe: r.tipe, kategori: r.kategori, nominal: num(r.nominal),
         keterangan: r.keterangan || '', dayOfMonth: r.day_of_month,
-        lastRun: r.last_run || '', active: String(r.active)
+        lastRun: r.last_run || '', active: String(r.active),
+        version: num(r.version) || 1
       }))
     };
   };
@@ -230,14 +237,15 @@
     name: goal.name,
     targetAmount: num(goal.target_amount),
     currentAmount: num(goal.current_amount),
-    targetDate: goal.target_date || ''
+    targetDate: goal.target_date || '',
+    version: num(goal.version) || 1
   });
 
   function formatInitialDataPayload(raw, includeTransactions, payrollDay) {
     const { trx, cats, ents, assets, budgets, recurring, settings, snapData, wallets, transfers, goalRows } = raw;
     return {
       ...(includeTransactions ? { transactions: trx.map(trxFromRow) } : {}),
-      wallets: wallets.map((w) => ({ id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort })),
+      wallets: wallets.map((w) => ({ id: w.id, name: w.name, kind: w.kind, openingBalance: num(w.opening_balance), sort: w.sort, version: num(w.version) || 1 })),
       transfers: transfers.map((x) => ({
         id: x.id, tanggal: x.tanggal, kind: x.kind, fromWallet: x.from_wallet || '',
         toWallet: x.to_wallet || '', nominal: num(x.nominal), fee: num(x.fee), keterangan: x.keterangan || ''
@@ -253,9 +261,10 @@
       },
       assets: assets.map((a) => ({
         id: a.id, name: a.name, type: a.type, symbol: a.symbol,
-        quantity: num(a.quantity), buyPrice: num(a.buy_price), value: num(a.value)
+        quantity: num(a.quantity), buyPrice: num(a.buy_price), value: num(a.value),
+        version: num(a.version) || 1
       })),
-      budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah) })),
+      budgets: budgets.map((b) => ({ id: b.id, kategori: b.kategori, bulan: b.bulan, jumlah: num(b.jumlah), version: num(b.version) || 1 })),
       goals: goalRows.map(goalFromRow),
       snapshots: snapData.map((s) => ({
         tanggal: s.tanggal, total: num(s.total_value), crypto: num(s.crypto_value),
@@ -264,7 +273,8 @@
       recurring: recurring.map((r) => ({
         id: r.id, tipe: r.tipe, kategori: r.kategori, nominal: num(r.nominal),
         keterangan: r.keterangan || '', dayOfMonth: r.day_of_month,
-        lastRun: r.last_run || '', active: String(r.active)
+        lastRun: r.last_run || '', active: String(r.active),
+        version: num(r.version) || 1
       })),
       debtDueDates: parseDebtDueDatesSetting(settings.debtDueDates),
       currentPeriod: settings.currentPeriod || cycleFor(ymd(new Date()), payrollDay),
@@ -278,17 +288,17 @@
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
     const [trx, cats, ents, assets, budgets, recurring, settings, snapRes, walletsRaw, transfers, goalRows] = await Promise.all([
-      includeTransactions ? fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id', ['tanggal', 'id']) : Promise.resolve([]),
+      includeTransactions ? fetchAll('transactions', 'id,tanggal,tipe,kategori,nominal,keterangan,wallet_id,version', ['tanggal', 'id']) : Promise.resolve([]),
       fetchAll('categories', 'tipe,name', ['tipe', 'name']),
       fetchAll('entities', 'grp,name', ['grp', 'name']),
-      fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value', ['name', 'id']),
-      fetchAll('budgets', 'id,kategori,bulan,jumlah', ['bulan', 'kategori']),
-      fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active', ['id']),
+      fetchAll('assets', 'id,name,type,symbol,quantity,buy_price,value,version', ['name', 'id']),
+      fetchAll('budgets', 'id,kategori,bulan,jumlah,version', ['bulan', 'kategori']),
+      fetchAll('recurring', 'id,tipe,kategori,nominal,keterangan,day_of_month,last_run,active,version', ['id']),
       getSettings(),
       sb.from('portfolio_snapshots').select('tanggal,total_value,crypto_value,cash_value,other_value').gte('tanggal', ymd(cutoff)).order('tanggal', { ascending: true }),
-      fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']),
+      fetchAll('wallets', 'id,name,kind,opening_balance,sort,version', ['sort', 'name']),
       fetchAll('transfers', 'id,tanggal,kind,from_wallet,to_wallet,nominal,fee,keterangan', ['tanggal', 'id']),
-      fetchAll('financial_goals', 'id,name,target_amount,current_amount,target_date,created_at', ['created_at', 'id'])
+      fetchAll('financial_goals', 'id,name,target_amount,current_amount,target_date,created_at,version', ['created_at', 'id'])
     ]);
     fail(snapRes.error);
 
@@ -299,7 +309,7 @@
         { name: 'Cash', kind: 'cash', sort: 2 }
       ]);
       fail(wErr);
-      wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort', ['sort', 'name']);
+      wallets = await fetchAll('wallets', 'id,name,kind,opening_balance,sort,version', ['sort', 'name']);
     }
 
     const payrollDay = Number(settings.payrollDay) || 1;
@@ -310,11 +320,70 @@
     );
   }
 
+  /* ============================================================
+     OPTIMISTIC LOCKING (Gelombang 7c Item 2)
+     - createConflictError(kind, details): error terstruktur untuk
+       konflik tulis. `.code === 'MK_CONFLICT'`, `.conflict` membawa
+       { kind, id, operation, mine, current, base, deletedByOther }.
+       Pesan `.message` TIDAK PERNAH ditampilkan mentah ke pengguna
+       — dialog di web/sync-conflict.js membaca `.conflict`, dan
+       toUserErrorMessage memetakan kode ini ke kalimat umum sebagai
+       jaring pengaman.
+     - isConflictError(err): pengenal konflik (dipakai flush antrean
+       offline + call-site, supaya konflik tidak diperlakukan sebagai
+       kegagalan transient / error biasa).
+     - loadVersionedRow(table, id, columns): baca SATU baris beserta
+       `version`-nya — dipakai pola fetch-first handler: bila
+       pemanggil tidak menyertakan expectedVersion, versi kini
+       diambil dari server lalu update tetap bersyarat
+       (WHERE version = ...), jadi pemanggil lama otomatis
+       terlindungi tanpa perubahan.
+     Helper ini tinggal di core (dimuat sebelum modul fitur) supaya
+     handler supabase-* bisa memakainya tanpa bergantung pada urutan
+     muat web/sync-conflict.js.
+     ============================================================ */
+  function createConflictError(kind, details) {
+    const err = new Error('CONFLICT:' + String(kind || 'record'));
+    err.code = 'MK_CONFLICT';
+    err.conflict = Object.assign({ kind: String(kind || 'record') }, details || {});
+    return err;
+  }
+
+  function isConflictError(err) {
+    if (!err || typeof err !== 'object') return false;
+    if (err.code === 'MK_CONFLICT') return true;
+    return Boolean(err.conflict && typeof err.conflict === 'object' && err.conflict.kind);
+  }
+
+  async function loadVersionedRow(table, id, columns) {
+    const { data, error } = await sb.from(table).select(columns).eq('id', id).maybeSingle();
+    fail(error);
+    return data || null;
+  }
+
+  // Menyelesaikan expectedVersion untuk satu operasi tulis:
+  // 'force' = timpa yang disetujui pengguna (ambil versi kini);
+  // angka = pakai apa adanya; undefined = fetch-first dari server.
+  // Mengembalikan { expected, current } — current null bila baris
+  // tidak ada (sudah dihapus di server).
+  async function resolveExpectedVersion(table, id, columns, expectedVersion) {
+    if (expectedVersion === 'force') {
+      const current = await loadVersionedRow(table, id, columns);
+      return { expected: current ? (Number(current.version) || 1) : null, current, force: true };
+    }
+    if (typeof expectedVersion === 'number' && Number.isFinite(expectedVersion)) {
+      return { expected: expectedVersion, current: null, force: false };
+    }
+    const current = await loadVersionedRow(table, id, columns);
+    return { expected: current ? (Number(current.version) || 1) : null, current, force: false };
+  }
+
   window.__mkSb = {
     sb, fail, num, pad, ymd, ready, resolveReady: () => readyResolve(), showCoreNotice,
     fetchAll, getSettings, setSetting, cycleFor, syncPeriod, trxRow, trxFromRow,
     fetchCategoriesOnly, fetchEntitiesOnly, fetchBudgetsOnly, fetchWalletsOnly,
     fetchWalletsAndTransfers, fetchAssetsOnly, fetchRecurringOnly, goalFromRow,
+    createConflictError, isConflictError, loadVersionedRow, resolveExpectedVersion,
     MAX_NOMINAL,
     handlers: { getInitialData }
   };

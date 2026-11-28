@@ -186,7 +186,24 @@
     });
     if (!res.isConfirmed || !res.value) return;
     try {
-      await refreshFromServer(await callServer('api_saveRecurring', res.value));
+      // Optimistic locking (Gelombang 7c): kirim versi + snapshot
+      // jadwal yang sedang diedit; konflik ditangani lewat dialog.
+      const recBase = (DB.recurring || []).find((x) => String(x.id) === String(res.value.id));
+      const base = recBase ? Object.assign({}, recBase) : null;
+      const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+      let data;
+      try {
+        data = await callServer('api_saveRecurring',
+          base ? Object.assign({}, res.value, { __base: base }) : res.value,
+          base ? base.version : undefined);
+      } catch (e) {
+        if (!sc) throw e;
+        const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+        if (!r.handled) throw e;
+        data = r.result;
+      }
+      if (!data) return;
+      await refreshFromServer(data);
       Swal.fire({ icon: 'success', title: t('alert.saved'), timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
       showActionError(e);
@@ -214,7 +231,18 @@
     });
     if (!conf.isConfirmed) return;
     try {
-      await refreshFromServer(await callServer('api_deleteRecurring', id));
+      const recBase = (DB.recurring || []).find((x) => String(x.id) === String(id));
+      const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+      let data;
+      try {
+        data = await callServer('api_deleteRecurring', id, recBase ? recBase.version : undefined);
+      } catch (e) {
+        if (!sc) throw e;
+        const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+        if (!r.handled) throw e;
+        data = r.result;
+      }
+      await refreshFromServer(data);
     } catch (e) {
       showActionError(e);
     }

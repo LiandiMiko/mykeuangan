@@ -1,4 +1,4 @@
-// @depends-on: error-messages.js
+// @depends-on: error-messages.js, sync-conflict.js
 /* global DB, Swal, refreshFromServer, getSwalClass, refreshNotificationBell, toUserErrorMessage */
 /* ============================================================
    FEATURES — OFFLINE QUEUE & CALLSERVER WRAPPER
@@ -67,6 +67,80 @@
     if (!item) return '';
     return String(item.targetId || item.localId || '');
   }
+  // --- Optimistic locking (Gelombang 7c) ------------------------------
+  // Tangkap versi + snapshot record saat edit DIBUAT (enqueue) — BUKAN
+  // saat flush. Versi saat flush adalah versi kini server dan selalu
+  // lolos (timpa diam-diam lagi). Bila record tidak ada di state lokal
+  // DB (mis. konteks tes / record belum dimuat), kembalikan undefined
+  // — handler memakai jalur fetch-first (perilaku lama untuk item
+  // antrean peninggalan klien lama; item baru selalu membawa base).
+  function findDbRecord(kind, key) {
+    try {
+      if (typeof DB === 'undefined' || !DB) return null;
+      if (kind === 'transaction') return (DB.transactions || []).find((x) => String(x.id) === String(key)) || null;
+      if (kind === 'goal') return (DB.goals || []).find((x) => String(x.id) === String(key)) || null;
+      if (kind === 'recurring') return (DB.recurring || []).find((x) => String(x.id) === String(key)) || null;
+      if (kind === 'wallet') return (DB.wallets || []).find((x) => String(x.id) === String(key)) || null;
+      if (kind === 'budget') {
+        return (DB.budgets || []).find((x) => String(x.kategori) === String(key && key.kategori) && String(x.bulan) === String(key && key.bulan)) || null;
+      }
+    } catch (_) { return null; }
+    return null;
+  }
+
+  function captureBase(kind, key) {
+    const rec = findDbRecord(kind, key);
+    if (!rec) return { baseVersion: undefined, base: undefined };
+    return {
+      baseVersion: (typeof rec.version === 'number' ? rec.version : undefined),
+      base: Object.assign({}, rec)
+    };
+  }
+
+  // Argumen _rawCallServer untuk satu item antrean, TANPA versi
+  // (dipakai saat konflik diparkir — resolver menambahkan 'force'
+  // sendiri) dan DENGAN versi (dipakai flush normal).
+  function queueCallArgs(op, item, payload) {
+    if (op === 'api_updateTransaction') {
+      return [item.targetId, Object.assign({}, payload, item.base ? { __base: item.base } : {})];
+    }
+    if (op === 'api_deleteTransaction') return [item.targetId];
+    if (payload && Array.isArray(payload.args)) {
+      const args = payload.args.slice();
+      if (op === 'api_saveGoal' || op === 'api_saveRecurring') {
+        const first = Object.assign({}, args[0] || {}, item.base ? { __base: item.base } : {});
+        return [first].concat(args.slice(1));
+      }
+      return args;
+    }
+    return [Object.assign({}, payload)];
+  }
+
+  function queueCallArgsWithVersion(op, item, payload) {
+    const args = queueCallArgs(op, item, payload);
+    if (op === 'api_updateTransaction' || op === 'api_deleteTransaction') return args.concat([item.baseVersion]);
+    if (op === 'api_saveBudget') return args.concat([item.baseVersion, item.base]);
+    if (op === 'api_saveGoal' || op === 'api_saveRecurring') return args.concat([item.baseVersion]);
+    return args;
+  }
+
+  function getSyncConflictApi() {
+    const feat = root.__mkFeat || {};
+    return feat.syncConflict || null;
+  }
+
+  // Menerapkan pilihan pengguna atas SATU konflik terparkir (dipakai
+  // promptParkedSyncConflicts setelah flush). Mengembalikan payload
+  // refresh dari handler (atau null bila pilihan = pakai versi terbaru).
+  async function resolveParkedSyncConflict(conflict, choice) {
+    const sc = getSyncConflictApi();
+    if (!sc) return null;
+    const built = sc.buildForceArgs(conflict, choice);
+    if (!built) return null;
+    const res = await root._rawCallServer(built.callOp, ...built.callArgs);
+    return res || null;
+  }
+
   let isFlushingOffline = false;
   let offlineDbPromise = null;
 
@@ -565,6 +639,7 @@
     isFlushingOffline = true;
     let synced = 0;
     let newlyFailed = 0;
+    let newlyConflicted = 0;
     let lastErrMsg = '';
     const addedTransactions = [];
     const deletedTransactionIds = [];
@@ -602,8 +677,13 @@
         }
         try {
           let res = null;
-          if (op === 'api_updateTransaction') res = await root._rawCallServer('api_updateTransaction', item.targetId, Object.assign({}, payload));
-          else if (op === 'api_deleteTransaction') res = await root._rawCallServer('api_deleteTransaction', item.targetId);
+          if (op === 'api_updateTransaction' || op === 'api_deleteTransaction' ||
+              op === 'api_saveBudget' || op === 'api_saveGoal' || op === 'api_saveRecurring') {
+            // Jalur berversi (Gelombang 7c): kirim baseVersion dari
+            // saat edit dibuat — handler menolaknya bila server sudah
+            // berubah (MK_CONFLICT), bukan menimpa diam-diam.
+            res = await root._rawCallServer(op, ...queueCallArgsWithVersion(op, item, payload));
+          }
           else if (op === 'api_addTransfer') res = await root._rawCallServer('api_addTransfer', Object.assign({}, payload));
           else if (op === 'api_addTransaction') res = await root._rawCallServer('api_addTransaction', Object.assign({}, payload));
           else if (payload && Array.isArray(payload.args)) res = await root._rawCallServer(op, ...payload.args);
@@ -626,6 +706,23 @@
           synced += 1;
         } catch (err) {
           if (isNetworkOfflineError(err)) break;
+          // Konflik optimistic locking (Gelombang 7c) BUKAN kegagalan
+          // transient: jangan habiskan retry (MAX_OFFLINE_RETRIES)
+          // dan jangan masuk daftar "Gagal". Hapus item dari antrean
+          // (nasibnya sudah diputuskan — jangan diulang), parkir
+          // konfliknya untuk diputuskan pengguna setelah flush, lalu
+          // LANJUT ke item lain (tiap item membawa baseVersion-nya
+          // sendiri, jadi tidak perlu memblokir target yang sama).
+          const sc = getSyncConflictApi();
+          if (sc && sc.isSyncConflictError(err) && err.conflict) {
+            const conflict = Object.assign({}, err.conflict);
+            if (!conflict.op) conflict.op = op;
+            if (!conflict.args) conflict.args = queueCallArgs(op, item, payload);
+            sc.parkSyncConflict(conflict);
+            newlyConflicted += 1;
+            await removeOfflineQueueItem(item.localId);
+            continue;
+          }
           const recorded = await recordOfflineFailure(item, err);
           // Sekali ditolak di flush ini, item lain untuk target yang
           // sama tidak boleh menyalip — walau retry item ini belum habis.
@@ -665,6 +762,35 @@
         });
       } else if (newlyFailed > 0 && !silent) {
         await promptFailedOfflineQueue(newlyFailed + prevFailed.length, lastErrMsg);
+      }
+      // Konflik baru di flush ini SELALU ditawarkan (walau silent —
+      // pengguna harus tahu ada yang bentrok). Konflik lama yang
+      // ditunda pengguna ("Nanti Saja") hanya ditawarkan lagi pada
+      // flush manual (silent=false, mis. ketuk pil antrean), supaya
+      // flush otomatis (online/load) tidak mengganggu tiap kali.
+      const scAfter = getSyncConflictApi();
+      if (scAfter) {
+        const parkedCount = scAfter.getParkedSyncConflicts().length;
+        if (newlyConflicted > 0 || (parkedCount > 0 && !silent)) {
+          try {
+            scAfter.registerSyncConflictResolver(resolveParkedSyncConflict);
+            await scAfter.promptParkedSyncConflicts(resolveParkedSyncConflict);
+          } catch (_) { /* jangan gagalkan flush karena dialog */ }
+        }
+      }
+      // Setelah konflik diputuskan (apa pun pilihannya — termasuk
+      // "Pakai versi terbaru" / "Nanti Saja"), state lokal bisa basi:
+      // refreshFromServer di atas hanya jalan bila synced > 0. Muat
+      // ulang state dari server supaya layar menampilkan kebenaran
+      // server; item antrean yang masih tertunda tetap di-hydrate
+      // lewat callServer yang sudah dibungkus (bukan _rawCallServer).
+      if (newlyConflicted > 0 && typeof refreshFromServer === 'function') {
+        try {
+          const fresh = typeof root.callServer === 'function'
+            ? await root.callServer('getInitialData')
+            : await root._rawCallServer('getInitialData');
+          await refreshFromServer(fresh);
+        } catch (_) { /* jangan gagalkan flush karena refresh */ }
       }
     } finally {
       isFlushingOffline = false;
@@ -777,7 +903,12 @@
       const itemId = queued ? id : ('offline-upd-' + id);
       const nextItem = queued
         ? attachIdempotencyKey(Object.assign({}, queued, { payload }))
-        : attachIdempotencyKey({ localId: itemId, op, targetId: id, payload, createdAt: new Date().toISOString() });
+        // Edit atas record server: tangkap versi + snapshot saat ini
+        // (Gelombang 7c) — inilah yang dicek handler saat flush.
+        : attachIdempotencyKey(Object.assign(
+          { localId: itemId, op, targetId: id, payload, createdAt: new Date().toISOString() },
+          captureBase('transaction', id)
+        ));
       await saveOfflineQueueItem(nextItem);
       bumpOfflineBadgeRefresh();
       return {
@@ -795,8 +926,18 @@
         bumpOfflineBadgeRefresh();
         return { _offlineQueued: true, deletedTransactionId: id };
       }
+      // Hapus menimpa update yang masih mengantre untuk record yang
+      // sama — versi dasar hapusan ini = versi dasar update itu (versi
+      // server belum bergerak, karena update-nya belum tersinkronisasi).
+      const prevUpd = readLocalQueue().find((x) => x.localId === 'offline-upd-' + id);
+      const delBase = (prevUpd && (prevUpd.baseVersion !== undefined || prevUpd.base))
+        ? { baseVersion: prevUpd.baseVersion, base: prevUpd.base }
+        : captureBase('transaction', id);
       await removeOfflineQueueItem('offline-upd-' + id);
-      await saveOfflineQueueItem({ localId: 'offline-del-' + id, op, targetId: id, createdAt: new Date().toISOString() });
+      await saveOfflineQueueItem(Object.assign(
+        { localId: 'offline-del-' + id, op, targetId: id, createdAt: new Date().toISOString() },
+        delBase
+      ));
       bumpOfflineBadgeRefresh();
       return { _offlineQueued: true, deletedTransactionId: id };
     }
@@ -818,12 +959,24 @@
     // _rawCallServer(op, ...args). Kunci idempotensi ditempel bila
     // op memakai insert (addWallet/addCategory/addAssetV2).
     const genericIdempotent = ['api_addWallet', 'api_addCategory', 'api_addAssetV2'].includes(op);
-    const genericItem = {
-      localId: stamp(), op,
-      targetId: deriveGenericTargetId(op, args) || undefined,
-      payload: { args: Array.isArray(args) ? args : [] },
-      createdAt: new Date().toISOString()
-    };
+    // Operasi berversi (Gelombang 7c): tangkap versi + snapshot saat
+    // edit dibuat — inilah yang dicek handler saat flush.
+    const genericBase = op === 'api_saveBudget'
+      ? captureBase('budget', { kategori: args[0], bulan: args[1] })
+      : op === 'api_saveGoal'
+        ? captureBase('goal', (args[0] && args[0].id) || '')
+        : op === 'api_saveRecurring'
+          ? captureBase('recurring', (args[0] && args[0].id) || '')
+          : { baseVersion: undefined, base: undefined };
+    const genericItem = Object.assign(
+      {
+        localId: stamp(), op,
+        targetId: deriveGenericTargetId(op, args) || undefined,
+        payload: { args: Array.isArray(args) ? args : [] },
+        createdAt: new Date().toISOString()
+      },
+      genericBase
+    );
     await saveOfflineQueueItem(genericIdempotent ? attachIdempotencyKey(genericItem) : genericItem);
     bumpOfflineBadgeRefresh();
     return { _offlineQueued: true, queuedOp: op };

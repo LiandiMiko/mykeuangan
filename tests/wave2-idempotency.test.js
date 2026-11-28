@@ -202,7 +202,7 @@ function loadRecordsClient({ hideExistingOnSelect = false } = {}) {
               if (row.idempotency_key && rows.some((r) => r.idempotency_key === row.idempotency_key)) {
                 return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "transactions_user_idempotency_key_uidx"' } };
               }
-              const saved = { ...row, id: 'srv-' + (rows.length + 1) };
+              const saved = { ...row, id: 'srv-' + (rows.length + 1), version: 1 };
               rows.push(saved);
               return { data: saved, error: null };
             }
@@ -217,30 +217,49 @@ function loadRecordsClient({ hideExistingOnSelect = false } = {}) {
             }
           })
         }),
-        update: (row) => ({
-          eq: (col, val) => ({
+        // Gelombang 7c: update BERSYARAT versi — .eq('id').eq('version')
+        // harus berantai; versi tak cocok -> 0 baris (bukan timpa).
+        update: (row) => {
+          const conds = {};
+          const chain = {
+            eq: (col, val) => { conds[col] = val; return chain; },
             select: () => ({
               maybeSingle: async () => {
-                calls.updates.push({ row: plain(row), col, val });
-                const found = rows.find((r) => String(r.id) === String(val));
-                return { data: found ? { ...found, ...row } : null, error: null };
+                calls.updates.push({ row: plain(row), col: 'id', val: conds.id });
+                const found = rows.find((r) => String(r.id) === String(conds.id));
+                if (!found) return { data: null, error: null };
+                if (conds.version !== undefined && String(found.version || 1) !== String(conds.version)) {
+                  return { data: null, error: null }; // versi bergerak -> 0 baris
+                }
+                Object.assign(found, row);
+                found.version = (found.version || 1) + 1; // tiruan trigger bump_version()
+                return { data: { ...found }, error: null };
               }
             })
-          })
-        }),
-        delete: () => ({
-          eq: (col, val) => ({
+          };
+          return chain;
+        },
+        // Gelombang 7c: delete BERSYARAT versi — .eq('id').eq('version')
+        // harus berantai; versi tak cocok -> 0 baris.
+        delete: () => {
+          const conds = {};
+          const chain = {
+            eq: (col, val) => { conds[col] = val; return chain; },
             select: () => ({
               maybeSingle: async () => {
-                calls.deletes.push({ col, val });
-                const idx = rows.findIndex((r) => String(r.id) === String(val));
+                calls.deletes.push({ col: 'id', val: conds.id });
+                const idx = rows.findIndex((r) => String(r.id) === String(conds.id));
                 if (idx === -1) return { data: null, error: null };
+                if (conds.version !== undefined && String(rows[idx].version || 1) !== String(conds.version)) {
+                  return { data: null, error: null }; // versi bergerak -> 0 baris
+                }
                 const [gone] = rows.splice(idx, 1);
                 return { data: { id: gone.id }, error: null };
               }
             })
-          })
-        })
+          };
+          return chain;
+        }
       };
     }
   };
@@ -252,6 +271,25 @@ function loadRecordsClient({ hideExistingOnSelect = false } = {}) {
     fail: (error) => { if (error) throw new Error(error.message || String(error)); },
     num: (v) => Number(v) || 0,
     syncPeriod: async () => '',
+    // Helper optimistic locking (Gelombang 7c) — tiruan setia
+    // supabase-core.js atas tabel palsu `rows`.
+    createConflictError: (kind, details) => {
+      const e = new Error('CONFLICT:' + kind);
+      e.code = 'MK_CONFLICT';
+      e.conflict = { kind, ...details };
+      return e;
+    },
+    loadVersionedRow: async (table, id) => {
+      const found = rows.find((r) => String(r.id) === String(id));
+      return found ? { ...found, version: found.version || 1 } : null;
+    },
+    resolveExpectedVersion: async (table, id, columns, expectedVersion) => {
+      const found = rows.find((r) => String(r.id) === String(id));
+      const current = found ? { ...found, version: found.version || 1 } : null;
+      if (expectedVersion === 'force') return { expected: current ? current.version : null, current, force: true };
+      if (typeof expectedVersion === 'number') return { expected: expectedVersion, current, force: false };
+      return { expected: current ? current.version : null, current, force: false };
+    },
     trxRow,
     trxFromRow,
     fetchCategoriesOnly: async () => ({}),
@@ -323,14 +361,15 @@ test('T13: update/delete berdasar id idempotent — pemanggilan berulang tidak m
   const del1 = await core.handlers.api_deleteTransaction(transaction.id);
   assert.equal(del1.deletedTransactionId, transaction.id);
   assert.equal(rows.length, 0);
-  // Delete kedua atas id yang sama: tidak ada baris untuk dihapus, dan
-  // tetap tidak ada baris baru — operasi ini "set to absent", bukan create.
-  await assert.rejects(
-    () => core.handlers.api_deleteTransaction(transaction.id),
-    /tidak ditemukan/
-  );
-  assert.equal(calls.deletes.length, 2);
-  assert.equal(calls.deletes[1].val, transaction.id);
+  // Delete kedua atas id yang sama (Gelombang 7c, optimistic locking):
+  // hapus-vs-hapus = sukses idempotent (alreadyDeleted), BUKAN error
+  // "tidak ditemukan" — operasi ini "set to absent", bukan create.
+  // Fetch-first di handler sudah tahu barisnya tiada, jadi tidak ada
+  // panggilan delete kedua ke server.
+  const del2 = await core.handlers.api_deleteTransaction(transaction.id);
+  assert.equal(del2.deletedTransactionId, transaction.id);
+  assert.equal(del2.alreadyDeleted, true);
+  assert.equal(calls.deletes.length, 1, 'hapus kedua tidak sampai ke server (baris sudah diketahui tiada)');
   assert.equal(calls.inserts.length, 1, 'delete tidak pernah insert');
   assert.equal(rows.length, 0);
 });

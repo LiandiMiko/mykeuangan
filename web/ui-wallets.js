@@ -265,7 +265,19 @@
     });
     if (!conf.isConfirmed) return;
     try {
-      await refreshFromServer(await callServer('api_deleteWallet', id));
+      const wBase = (DB.wallets || []).find((x) => String(x.id) === String(id));
+      const base = wBase ? Object.assign({}, wBase) : null;
+      const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+      let data;
+      try {
+        data = await callServer('api_deleteWallet', id, base ? base.version : undefined);
+      } catch (e) {
+        if (!sc) throw e;
+        const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+        if (!r.handled) throw e;
+        data = r.result;
+      }
+      await refreshFromServer(data);
       if ((DB.primaryBankWalletId || '') === id) await clearPrimaryBankWalletSetting();
       Swal.fire({ icon: 'success', title: 'Dompet dihapus', timer: 1200, showConfirmButton: false, customClass: { popup: getSwalClass() } });
     } catch (e) {
@@ -322,7 +334,23 @@
     if (!res.isConfirmed || !res.value) return;
     const newOpening = (Number(w.openingBalance) || 0) + (res.value.balance - bal);
     try {
-      await refreshFromServer(await callServer('api_updateWallet', id, { name: res.value.name, kind: res.value.kind, openingBalance: newOpening }));
+      // Optimistic locking (Gelombang 7c): kirim versi + snapshot
+      // dompet yang sedang diedit; konflik ditangani lewat dialog.
+      const wBase = Object.assign({}, w);
+      const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+      let data;
+      try {
+        data = await callServer('api_updateWallet', id,
+          { name: res.value.name, kind: res.value.kind, openingBalance: newOpening, __base: wBase },
+          w.version);
+      } catch (e) {
+        if (!sc) throw e;
+        const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+        if (!r.handled) throw e;
+        data = r.result;
+      }
+      if (!data) return;
+      await refreshFromServer(data);
       if ((DB.primaryBankWalletId || '') === id && res.value.kind !== 'bank') {
         await clearPrimaryBankWalletSetting();
         Swal.fire({

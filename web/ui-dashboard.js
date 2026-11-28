@@ -279,9 +279,27 @@
     });
     if (!result.isConfirmed) return;
     try {
-      const response = result.value.mode === 'contribute'
-        ? await callServer('api_contributeGoal', result.value)
-        : await callServer('api_saveGoal', result.value);
+      let response;
+      if (result.value.mode === 'contribute') {
+        response = await callServer('api_contributeGoal', result.value);
+      } else {
+        // Optimistic locking (Gelombang 7c): kirim versi + snapshot
+        // goal yang sedang diedit; konflik ditangani lewat dialog.
+        const goalBase = (DB.goals || []).find((g) => String(g.id) === String(result.value.id));
+        const base = goalBase ? Object.assign({}, goalBase) : null;
+        const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+        try {
+          response = await callServer('api_saveGoal',
+            base ? Object.assign({}, result.value, { __base: base }) : result.value,
+            base ? base.version : undefined);
+        } catch (e) {
+          if (!sc) throw e;
+          const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+          if (!r.handled) throw e;
+          response = r.result;
+        }
+        if (!response) return;
+      }
       await refreshFromServer(response);
       await Swal.fire({ icon: 'success', title: t('goal.saved'), customClass: { popup: getSwalClass() } });
     } catch (error) {
@@ -301,7 +319,18 @@
     });
     if (!result.isConfirmed) return;
     try {
-      await refreshFromServer(await callServer('api_deleteGoal', id));
+      const goalBase = (DB.goals || []).find((g) => String(g.id) === String(id));
+      const sc = (typeof window !== 'undefined' && window.__mkFeat && window.__mkFeat.syncConflict) || null;
+      let res;
+      try {
+        res = await callServer('api_deleteGoal', id, goalBase ? goalBase.version : undefined);
+      } catch (e) {
+        if (!sc) throw e;
+        const r = await sc.handleOnlineConflict(e, callServer, refreshFromServer);
+        if (!r.handled) throw e;
+        res = r.result;
+      }
+      await refreshFromServer(res);
     } catch (error) {
       showActionError(error);
     }

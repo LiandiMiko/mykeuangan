@@ -141,11 +141,11 @@ test('6C/U8 tidak ada confirmButtonText Simpan / cancelButtonText Batal hardcode
   assert.match(read('web/ui-debts.js'), /t\('utang\.kosong'\)/);
 });
 
-test('6C/U8+U23+U24+U39 paritas kamus 363=363 dan nilai kunci baru/ubah', () => {
+test('6C/U8+U23+U24+U39 paritas kamus 417=417 dan nilai kunci baru/ubah', () => {
   const i18n = loadI18nDictionary();
   const idKeys = Object.keys(i18n.id).sort();
   const enKeys = Object.keys(i18n.en).sort();
-  assert.equal(idKeys.length, 372, 'kamus ID harus 372 kunci (363 fitur admin PR #9 + 9 kunci adm.notif_* notifikasi admin)');
+  assert.equal(idKeys.length, 417, 'kamus ID harus 417 kunci (372 Gelombang 6C + 45 kunci sync.* optimistic locking Gelombang 7c)');
   assert.deepEqual(idKeys, enKeys, 'I18N.id dan I18N.en harus identik');
   // Kunci baru Gelombang 6C ada di kedua bahasa.
   for (const key of [
