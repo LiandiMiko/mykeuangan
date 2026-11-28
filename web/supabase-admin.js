@@ -356,14 +356,24 @@
       return { debtDueDates: clean };
     },
 
-    // T4: hapus akun wajib autentikasi ulang dengan password saat ini.
-    // Password diteruskan ke edge function `delete-account`, yang
-    // memverifikasinya di server sebelum menghapus apa pun — klien hanya
-    // memeriksa format, bukan kebenaran password.
-    async api_deleteOwnAccount(confirmation, password) {
+    // T4: hapus akun wajib autentikasi ulang yang SEGAR. Dua jalur
+    // (server `delete-account` yang memutuskan; klien hanya meneruskan
+    // bukti yang diminta):
+    //   (a) akun ber-password: password saat ini (perilaku lama).
+    //   (b) akun Google-only: access token sesi yang baru diterbitkan
+    //       lewat login ulang Google (oauthToken) — tanpa password.
+    // Password diteruskan ke edge function, yang memverifikasinya di
+    // server sebelum menghapus apa pun — klien hanya memeriksa format,
+    // bukan kebenaran password. Token OAuth juga hanya diteruskan;
+    // kesegarannya (amr/iat ≤ 10 menit) diperiksa server.
+    async api_deleteOwnAccount(confirmation, password, oauthToken) {
       const confirmToken = String(confirmation || '').trim().toUpperCase();
       if (confirmToken !== 'HAPUS' && confirmToken !== 'DELETE') {
         throw new Error('Ketik HAPUS untuk mengonfirmasi penghapusan akun.');
+      }
+      if (typeof oauthToken === 'string' && oauthToken) {
+        await invokeEdgeFunction('delete-account', { confirmation: confirmToken, oauth_token: oauthToken }, 'Penghapusan akun gagal.');
+        return true;
       }
       if (typeof password !== 'string' || !password) {
         throw new Error('Masukkan password akun Anda saat ini untuk mengonfirmasi penghapusan akun.');
