@@ -343,7 +343,7 @@ test('3.3 CoinGecko: 401/403 retry tanpa kunci (header ikut dicopot)', async () 
 test('3.3 currency-api: ter-pin ke 2026.11.27, tidak ada @latest di jobs.ts', async () => {
   assert.ok(!jobsTs.includes('currency-api@latest'), 'jobs.ts masih mengandung @latest');
   assert.match(jobsTs, /CURRENCY_API_VERSION = '2026\.11\.27';/);
-  const versionFile = fs.readFileSync(require('node:path').join(__dirname, '..', '..', 'wave3-currency-api-version.txt'), 'utf8');
+  const versionFile = fs.readFileSync(require('node:path').join(__dirname, '..', 'wave3-currency-api-version.txt'), 'utf8');
   assert.equal(versionFile.split('\n')[0].trim(), '2026.11.27');
   const db = createFakeDb();
   const fetchStub = createFetchStub(() => okJson({ idr: { usd: 1 / 16000 } }));

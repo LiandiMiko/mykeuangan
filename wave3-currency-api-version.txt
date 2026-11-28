@@ -1,0 +1,2 @@
+2026.11.27
+https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@2026.11.27/v1/currencies/idr.min.json

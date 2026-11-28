@@ -177,7 +177,7 @@ dihapus dari `admin-password`, `admin-user-ops`, `telegram-setup`, dan
   `x-cg-demo-api-key`, tidak pernah lagi di query string URL.
 - currency-api di-pin ke versi stabil **2026.11.27** (diverifikasi dari
   registry npm; konstanta `CURRENCY_API_VERSION` di jobs.ts, dan versi
-  yang sama ditulis di `~/workspace/wave3-currency-api-version.txt`
+  yang sama ditulis di `wave3-currency-api-version.txt` di root repo
   supaya web memakai versi identik). Jangan kembalikan `@latest`.
 
 ## Audit admin lewat RPC + notifikasi Telegram
